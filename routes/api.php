@@ -1,0 +1,55 @@
+<?php
+
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\API\UserController;
+use App\Http\Controllers\API\CourseController;
+
+Route::get('/user', function (Request $request) {
+    return $request->user();
+})->middleware('auth:sanctum');
+
+
+// Auth Routes
+
+Route::post('/auth/login',  [UserController::class, 'login']);
+Route::post('/auth/logout', [UserController::class, 'logout'])
+    ->middleware('checkRole');
+Route::get('/auth/check',   [UserController::class, 'authenticateToken']);
+
+// Users Routes 
+
+Route::middleware(['checkRole:instructor,author,admin,super_admin'])->group(function () {
+    Route::get('/users',      [UserController::class, 'index']);   
+    Route::get('/users/all',  [UserController::class, 'all']);     
+    Route::get('/users/{id}', [UserController::class, 'show']);    
+});
+
+Route::middleware(['checkRole:admin,super_admin'])->group(function () {
+    Route::post('/users',                        [UserController::class, 'store']);      
+    Route::match(['put','patch'], '/users/{id}', [UserController::class, 'update']);     
+    Route::delete('/users/{id}',                 [UserController::class, 'destroy']);      
+    Route::post('/users/{id}/restore',           [UserController::class, 'restore']);     
+    Route::delete('/users/{id}/force',           [UserController::class, 'forceDelete']);   
+    Route::patch('/users/{id}/password',         [UserController::class, 'updatePassword']);
+    Route::post('/users/{id}/image',             [UserController::class, 'updateImage']);   
+});
+
+
+// Course Routes 
+
+Route::middleware('checkRole:admin,super_admin')->group(function () {
+    // Courses
+    Route::get   ('/courses',              [CourseController::class, 'index']);
+    Route::get   ('/courses/{course}',     [CourseController::class, 'show']);    // {id|uuid}
+    Route::post  ('/courses',              [CourseController::class, 'store']);
+    Route::put   ('/courses/{course}',     [CourseController::class, 'update']);
+    Route::patch ('/courses/{course}',     [CourseController::class, 'update']);
+    Route::delete('/courses/{course}',     [CourseController::class, 'destroy']);
+
+    // Featured media
+    Route::get   ('/courses/{course}/media',           [CourseController::class, 'mediaIndex']);
+    Route::post  ('/courses/{course}/media',           [CourseController::class, 'mediaUpload']);   // multipart OR JSON {url}
+    Route::post  ('/courses/{course}/media/reorder',   [CourseController::class, 'mediaReorder']);  // {ids:[...]} or {orders:{id:pos}}
+    Route::delete('/courses/{course}/media/{media}',   [CourseController::class, 'mediaDestroy']);  // {id|uuid}
+});
