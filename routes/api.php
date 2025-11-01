@@ -4,6 +4,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\API\UserController;
 use App\Http\Controllers\API\CourseController;
+use App\Http\Controllers\API\MailerController;
 
 Route::get('/user', function (Request $request) {
     return $request->user();
@@ -52,4 +53,15 @@ Route::middleware('checkRole:admin,super_admin')->group(function () {
     Route::post  ('/courses/{course}/media',           [CourseController::class, 'mediaUpload']);   // multipart OR JSON {url}
     Route::post  ('/courses/{course}/media/reorder',   [CourseController::class, 'mediaReorder']);  // {ids:[...]} or {orders:{id:pos}}
     Route::delete('/courses/{course}/media/{media}',   [CourseController::class, 'mediaDestroy']);  // {id|uuid}
+});
+
+
+Route::middleware('checkRole:admin,super_admin')->group(function () {
+    Route::get(   '/mailer',             [MailerController::class, 'index']);
+    Route::post(  '/mailer',             [MailerController::class, 'store']);
+    Route::get(   '/mailer/{id}',        [MailerController::class, 'show']);
+    Route::put(   '/mailer/{id}',        [MailerController::class, 'update']);
+    Route::patch( '/mailer/{id}',        [MailerController::class, 'update']);
+    Route::put(   '/mailer/{id}/default',[MailerController::class, 'setDefault']);
+    Route::delete('/mailer/{id}',        [MailerController::class, 'destroy']);
 });

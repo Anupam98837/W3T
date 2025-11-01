@@ -8,19 +8,19 @@
 <style>
   /* ===== Shell ===== */
   .crs-wrap{max-width:1100px;margin:14px auto 40px}
-  .wizard.card{border:1px solid var(--line-strong);border-radius:14px;background:var(--surface);box-shadow:var(--shadow-1);overflow:hidden}
-  .wizard .card-header{background:var(--surface);border-bottom:1px solid var(--line-strong);padding:14px 16px}
-  .wizard-head{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+  .wizard.card{border:1px solid var(--line-strong);border-radius:16px;background:var(--surface);box-shadow:var(--shadow-2);overflow:hidden}
+  .wizard .card-header{background:var(--surface);border-bottom:1px solid var(--line-strong);padding:16px 18px}
+  .wizard-head{display:flex;align-items:center;gap:10px;margin-bottom:12px}
   .wizard-head i{color:var(--accent-color)}
   .wizard-head strong{color:var(--ink);font-family:var(--font-head);font-weight:700}
   .wizard-head .hint{color:var(--muted-color);font-size:var(--fs-13)}
 
   /* ===== Stepper (inside header) ===== */
-  .wizard-steps{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+  .wizard-steps{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
   .step-btn{
     display:flex;gap:10px;align-items:center;justify-content:flex-start;
-    padding:10px 12px;border:1px solid var(--line-strong);border-radius:10px;background:#fff;
-    cursor:pointer;transition:transform .06s ease, box-shadow .15s ease;
+    padding:12px;border:1px solid var(--line-strong);border-radius:12px;background:var(--surface-2, #fff);
+    cursor:pointer;transition:transform .06s ease, box-shadow .18s ease, border-color .18s ease;
   }
   .step-btn:hover{transform:translateY(-1px);box-shadow:var(--shadow-2)}
   .step-btn .num{
@@ -30,13 +30,13 @@
   .step-btn .txt{display:flex;flex-direction:column}
   .step-btn .lbl{font-weight:600;color:var(--ink);line-height:1}
   .step-btn .sub{font-size:12px;color:#6b7280;line-height:1.2}
-  .step-btn.active{border-color:var(--accent-color);box-shadow:var(--shadow-2)}
+  .step-btn.active{border-color:var(--accent-color);box-shadow:0 0 0 3px color-mix(in oklab, var(--accent-color) 18%, transparent)}
   .step-btn.active .num{background:var(--accent-color);color:#fff;border-color:var(--accent-color)}
   .step-btn.done{opacity:.95}
 
-  /* Progress track (subtle) */
-  .wizard-track{height:4px;background:var(--line-soft);border-radius:999px;margin-top:10px;overflow:hidden}
-  .wizard-track .bar{height:100%;width:0;background:var(--accent-color);transition:width .2s ease}
+  /* Progress track */
+  .wizard-track{height:4px;background:var(--line-soft);border-radius:999px;margin-top:12px;overflow:hidden}
+  .wizard-track .bar{height:100%;width:0;background:var(--accent-color);transition:width .25s ease}
 
   /* ===== Section titles ===== */
   .section-title{font-weight:600;color:var(--ink);font-family:var(--font-head);margin:10px 2px 14px}
@@ -44,12 +44,12 @@
 
   /* ===== Editor ===== */
   .toolbar{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px}
-  .tool{border:1px solid var(--line-strong);border-radius:8px;background:#fff;padding:6px 9px;cursor:pointer}
+  .tool{border:1px solid var(--line-strong);border-radius:10px;background:#fff;padding:6px 9px;cursor:pointer}
   .tool:hover{background:var(--page-hover)}
   .rte-wrap{position:relative}
   .rte{
     min-height:300px;max-height:600px;overflow:auto;
-    border:1px solid var(--line-strong);border-radius:10px;background:#fff;padding:12px;line-height:1.6;outline:none
+    border:1px solid var(--line-strong);border-radius:12px;background:#fff;padding:12px;line-height:1.6;outline:none
   }
   .rte:focus{box-shadow:var(--ring);border-color:var(--accent-color)}
   .rte-ph{position:absolute;top:12px;left:12px;color:#9aa3b2;pointer-events:none;font-size:var(--fs-14)}
@@ -71,6 +71,62 @@
 
   .tiny{font-size:12px;color:#6b7280}
 
+  /* Inputs polish */
+  .form-control:focus, .form-select:focus{box-shadow:0 0 0 3px color-mix(in oklab, var(--accent-color) 20%, transparent);border-color:var(--accent-color)}
+  .input-group-text{background:var(--surface);border-color:var(--line-strong)}
+
+  /* ================= Reference-style Stepper (match Jobs page) ================= */
+.wizard-steps{
+  display:flex !important;
+  gap:12px;
+  flex-wrap:wrap;
+  margin:0 0 12px;
+}
+.step-btn{
+  flex:1 1 220px;
+  min-width:220px;
+  display:flex;
+  align-items:center;
+  gap:12px;
+  padding:16px;
+  border:1px solid var(--line-strong);
+  border-radius:13px;
+  background:var(--surface);
+  cursor:pointer;
+  transition: box-shadow .18s ease, transform .08s ease, border-color .18s ease, background .18s ease;
+}
+.step-btn:hover{ box-shadow:var(--shadow-1); transform:translateY(-1px); }
+
+/* Number pill like reference */
+.step-btn .num{
+  width:32px; height:32px; flex:0 0 32px;
+  border-radius:50%;
+  display:flex; align-items:center; justify-content:center;
+  font:700 14px/1 var(--font-head);
+  border:1px solid var(--line-strong);
+  background:var(--surface);
+  color:var(--text-color);
+}
+
+/* Two-line label like reference */
+.step-btn .txt{ display:flex; flex-direction:column; line-height:1.15; }
+.step-btn .lbl{ font-weight:600; color:var(--text-color); font-size:var(--fs-14); }
+.step-btn .sub{ font-size:12px; color:var(--muted-color); margin-top:2px; }
+
+/* Active/done states mirror Jobs page */
+.step-btn.active{ border-color:var(--primary-color); }
+.step-btn.active .num{ background:var(--primary-color); color:#fff; border-color:var(--primary-color); }
+.step-btn.done{ opacity:.95; }
+
+/* Hide progress bar to match reference look */
+.wizard-track{ display:none; }
+
+/* Dark mode parity */
+html.theme-dark .step-btn{ background:#0f172a; border-color:var(--line-strong); }
+html.theme-dark .step-btn .num{ background:#0f172a; border-color:var(--line-strong); color:var(--text-color); }
+html.theme-dark .step-btn.active .num{ background:var(--primary-color); border-color:var(--primary-color); color:#fff; }
+
+
   /* Dark tweaks */
   html.theme-dark .step-btn{background:#0f172a;border-color:var(--line-strong);color:var(--text-color)}
   html.theme-dark .step-btn .num{background:#20324f;border-color:#32507f;color:#e5e7eb}
@@ -82,7 +138,7 @@
 
 
 @section('content')
-<div class="container-fluid crs-wrap">
+<div class=" crs-wrap">
   <div class="card wizard">
     <div class="card-header">
       <div class="wizard-head">
@@ -174,7 +230,7 @@
         <div id="priceBlock" class="mt-3">
           <div class="divider-soft"></div>
           <div class="row g-3 align-items-end">
-            <div class="col-md-3">
+            <div class="col-md-4">
               <label class="form-label">Price</label>
               <div class="input-group">
                 <span class="input-group-text">₹</span>
@@ -189,15 +245,8 @@
                 <span class="input-group-text">%</span>
               </div>
             </div>
+            <!-- Discount Amount (₹) removed by request -->
             <div class="col-md-3">
-              <label class="form-label">Discount Amount (₹)</label>
-              <div class="input-group">
-                <span class="input-group-text">₹</span>
-                <input id="discount_amount" class="form-control" type="number" min="0" step="0.01" placeholder="0">
-              </div>
-              <div class="tiny mt-1">We’ll apply the larger of % or flat amount (same as API).</div>
-            </div>
-            <div class="col-md-2">
               <label class="form-label">Currency</label>
               <select id="price_currency" class="form-select">
                 <option value="INR" selected>INR</option>
@@ -205,7 +254,7 @@
                 <option value="EUR">EUR</option>
               </select>
             </div>
-            <div class="col-md-1">
+            <div class="col-md-2">
               <label class="form-label">Final</label>
               <input id="final_price" class="form-control" type="text" value="0.00" readonly>
             </div>
@@ -251,7 +300,12 @@
         <div class="row g-3 mt-1">
           <div class="col-md-4">
             <label class="form-label">Language</label>
-            <input id="language" class="form-control" type="text" placeholder="EN / HI / BN …">
+            <select id="language" class="form-select">
+              <option value="" selected>Choose…</option>
+              <option value="EN">English (EN)</option>
+              <option value="HN">Hindi (HN)</option>
+              <option value="BN">Bengali (BN)</option>
+            </select>
           </div>
           <div class="col-md-4">
             <label class="form-label">Publish At</label>
@@ -394,22 +448,22 @@
 
   /* ===== fields / pricing ===== */
   const title=$('title'), shortDesc=$('short_description'), ctype=$('course_type'), status=$('status');
-  const price=$('price_amount'), dPct=$('discount_percent'), dAmt=$('discount_amount'), curr=$('price_currency'), final=$('final_price'), priceBlock=$('priceBlock');
+  const price=$('price_amount'), dPct=$('discount_percent'), curr=$('price_currency'), final=$('final_price'), priceBlock=$('priceBlock');
   const isFeat=$('is_featured'), fRank=$('featured_rank'), ord=$('order_no'), lvl=$('level'), lang=$('language'), pub=$('publish_at'), unpub=$('unpublish_at');
 
   function money(v){ const n=Number(v); return isFinite(n)&&n>0?n:0; }
   function pct(v){ const n=Number(v); return isFinite(n)&&n>0?n:0; }
   function recalc(){
     if(ctype.value!=='paid'){ final.value='0.00'; return; }
-    const p = money(price.value), a = money(dAmt.value), pr = p*(pct(dPct.value)/100);
-    final.value = Math.max(0, p - Math.max(a, pr)).toFixed(2);
+    const p = money(price.value), pr = p*(pct(dPct.value)/100);
+    final.value = Math.max(0, p - pr).toFixed(2);
   }
-  [price,dPct,dAmt].forEach(el=> el.addEventListener('input', recalc));
+  [price,dPct].forEach(el=> el.addEventListener('input', recalc));
 
   function togglePricing(){
     const on = (ctype.value==='paid');
     priceBlock.style.display = on ? 'block' : 'none';
-    [price,dPct,dAmt,curr].forEach(el=> el.disabled = !on);
+    [price,dPct,curr].forEach(el=> el.disabled = !on);
     recalc(); gateBtn();
   }
   ctype.addEventListener('change', togglePricing);
@@ -466,12 +520,12 @@
       price_amount:    paid ? money(price.value) : 0,
       price_currency:  paid ? (curr.value||'INR') : 'INR',
       discount_percent: paid && dPct.value ? pct(dPct.value) : null,
-      discount_amount:  paid && dAmt.value ? money(dAmt.value) : null,
+      discount_amount:  null, // flat amount removed from UI
       is_featured: isFeat.checked ? 1 : 0,
       featured_rank: Number(fRank.value||0),
       order_no: Number(ord.value||0),
       level: (lvl.value||null),
-      language: (lang.value||null),
+      language: (lang && lang.value) ? lang.value : null,
       publish_at: (pub.value||null),
       unpublish_at: (unpub.value||null),
       metadata: { tags: collect(tagRow), categories: collect(catRow), keywords: collect(keyRow), properties: collectProps() }
