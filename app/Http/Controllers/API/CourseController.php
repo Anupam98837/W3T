@@ -369,7 +369,7 @@ private function nextMediaOrderNo(int $courseId): int
 
     public function index(Request $r)
 {
-    if ($resp = $this->requireRole($r, ['admin','super_admin'])) return $resp;
+    if ($resp = $this->requireRole($r, ['admin','superadmin'])) return $resp;
 
     $page     = max(1, (int)$r->query('page', 1));
     $perPage  = max(1, min(100, (int)$r->query('per_page', 20)));
@@ -422,7 +422,7 @@ public function show(Request $r, string $course)
 
 public function update(Request $request, string $course)
 {
-    if ($resp = $this->requireRole($request, ['admin','super_admin'])) return $resp;
+    if ($resp = $this->requireRole($request, ['admin','superadmin'])) return $resp;
 
     $row = $this->findCourseOr404($course);
     if (!$row) return response()->json(['error'=>'Course not found'], 404);
@@ -482,7 +482,7 @@ public function update(Request $request, string $course)
 
 public function destroy(Request $request, string $course)
 {
-    if ($resp = $this->requireRole($request, ['admin','super_admin'])) return $resp;
+    if ($resp = $this->requireRole($request, ['admin','superadmin'])) return $resp;
 
     $row = $this->findCourseOr404($course);
     if (!$row) return response()->json(['error'=>'Course not found'], 404);
@@ -500,7 +500,7 @@ public function destroy(Request $request, string $course)
 
 public function mediaIndex(Request $r, string $course)
 {
-    if ($resp = $this->requireRole($r, ['admin','super_admin'])) return $resp;
+    if ($resp = $this->requireRole($r, ['admin','superadmin'])) return $resp;
 
     $row = $this->findCourseOr404($course);
     if (!$row) return response()->json(['error'=>'Course not found'], 404);
@@ -516,7 +516,7 @@ public function mediaIndex(Request $r, string $course)
 
 public function mediaUpload(Request $request, string $course)
 {
-    if ($resp = $this->requireRole($request, ['admin','super_admin'])) return $resp;
+    if ($resp = $this->requireRole($request, ['admin','superadmin'])) return $resp;
 
     $row = $this->findCourseOr404($course);
     if (!$row) return response()->json(['error'=>'Course not found'], 404);
@@ -603,7 +603,7 @@ public function mediaUpload(Request $request, string $course)
 
 public function mediaReorder(Request $request, string $course)
 {
-    if ($resp = $this->requireRole($request, ['admin','super_admin'])) return $resp;
+    if ($resp = $this->requireRole($request, ['admin','superadmin'])) return $resp;
 
     $row = $this->findCourseOr404($course);
     if (!$row) return response()->json(['error'=>'Course not found'], 404);
@@ -650,7 +650,7 @@ public function mediaReorder(Request $request, string $course)
 
 public function mediaDestroy(Request $request, string $course, string $media)
 {
-    if ($resp = $this->requireRole($request, ['admin','super_admin'])) return $resp;
+    if ($resp = $this->requireRole($request, ['admin','superadmin'])) return $resp;
 
     $row = $this->findCourseOr404($course);
     if (!$row) return response()->json(['error'=>'Course not found'], 404);

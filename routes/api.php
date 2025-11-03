@@ -5,6 +5,7 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\API\UserController;
 use App\Http\Controllers\API\CourseController;
 use App\Http\Controllers\API\MailerController;
+use App\Http\Controllers\API\CourseModuleController;
 
 Route::get('/user', function (Request $request) {
     return $request->user();
@@ -64,4 +65,15 @@ Route::middleware('checkRole:admin,super_admin')->group(function () {
     Route::patch( '/mailer/{id}',        [MailerController::class, 'update']);
     Route::put(   '/mailer/{id}/default',[MailerController::class, 'setDefault']);
     Route::delete('/mailer/{id}',        [MailerController::class, 'destroy']);
+});
+
+Route::middleware(['checkRole:admin,super_admin'])->group(function () {
+    Route::get   ('/course-modules',                 [CourseModuleController::class, 'index']);
+    Route::get   ('/course-modules/{idOrUuid}',      [CourseModuleController::class, 'show']);
+    Route::post  ('/course-modules',                 [CourseModuleController::class, 'store']);
+    Route::match(['put','patch'], '/course-modules/{idOrUuid}', [CourseModuleController::class, 'update']);
+    Route::delete('/course-modules/{idOrUuid}',      [CourseModuleController::class, 'destroy']);
+
+    // Optional but handy for drag-and-drop ordering in your UI:
+    Route::post  ('/course-modules/reorder',         [CourseModuleController::class, 'reorder']);
 });

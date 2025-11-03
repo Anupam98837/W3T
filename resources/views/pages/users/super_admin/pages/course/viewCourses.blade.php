@@ -1,8 +1,8 @@
 @extends('pages.users.super_admin.layout.structure')
 
-@section('title', 'Create Course')
+@section('title', 'View Courses')
 
-@include('modules.course.createCourse')
+@include('modules.course.viewCourses')
 
 
 @section('scripts')
