@@ -1,7 +1,7 @@
 {{-- resources/views/modules/courses/createCourse.blade.php --}}
 @section('title','Create Course')
 
-@push('styles')
+@stack('styles')
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"/>
 <link rel="stylesheet" href="{{ asset('assets/css/common/main.css') }}"/>
 
@@ -134,7 +134,7 @@ html.theme-dark .step-btn.active .num{ background:var(--primary-color); border-c
   html.theme-dark .tool{background:#0f172a;border-color:var(--line-strong);color:#e5e7eb}
   html.theme-dark .chip{background:#0f172a;border-color:var(--line-strong);color:#e5e7eb}
 </style>
-@endpush
+@endstack
 
 
 @section('content')
@@ -272,12 +272,12 @@ html.theme-dark .step-btn.active .num{ background:var(--primary-color); border-c
         <h3 class="section-title">Course Settings</h3>
         <div class="divider-soft"></div>
 
+        <label class="form-check-label" for="is_featured">Mark as Featured</label>
         <div class="form-check form-switch mb-3">
           <input class="form-check-input" type="checkbox" id="is_featured">
-          <label class="form-check-label" for="is_featured">Mark as Featured</label>
         </div>
 
-        <div class="row g-3">
+        <div class="row g-3 mt-1">
           <div class="col-md-4">
             <label class="form-label">Featured Rank</label>
             <input id="featured_rank" type="number" min="0" class="form-control" placeholder="1">

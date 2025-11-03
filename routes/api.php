@@ -6,6 +6,7 @@ use App\Http\Controllers\API\UserController;
 use App\Http\Controllers\API\CourseController;
 use App\Http\Controllers\API\MailerController;
 use App\Http\Controllers\API\CourseModuleController;
+use App\Http\Controllers\API\BatchController;
 
 Route::get('/user', function (Request $request) {
     return $request->user();
@@ -76,4 +77,22 @@ Route::middleware(['checkRole:admin,super_admin'])->group(function () {
 
     // Optional but handy for drag-and-drop ordering in your UI:
     Route::post  ('/course-modules/reorder',         [CourseModuleController::class, 'reorder']);
+});
+
+Route::middleware('checkRole:admin,super_admin')->group(function () {
+    // Batches
+    Route::get   ('/batches',                    [BatchController::class, 'index']);
+    Route::get   ('/batches/{idOrUuid}',         [BatchController::class, 'show']);
+    Route::post  ('/batches',                    [BatchController::class, 'store']);
+    Route::match(['put','patch'], '/batches/{idOrUuid}', [BatchController::class, 'update']);
+    Route::delete('/batches/{idOrUuid}',         [BatchController::class, 'destroy']);
+    Route::post  ('/batches/{idOrUuid}/restore', [BatchController::class, 'restore']);
+    Route::patch ('/batches/{idOrUuid}/archive', [BatchController::class, 'archive']);
+
+    // Existing students (for the toggle modal)
+    Route::get   ('/batches/{idOrUuid}/students',          [BatchController::class, 'studentsIndex']);
+    Route::post  ('/batches/{idOrUuid}/students/toggle',   [BatchController::class, 'studentsToggle']);
+
+    // CSV upload
+    Route::post  ('/batches/{idOrUuid}/students/upload-csv', [BatchController::class, 'studentsUploadCsv']);
 });

@@ -1,4 +1,4 @@
-{{-- resources/views/modules/courses/viewCourses.blade.php --}}
+{{-- resources/views/modules/courses/manageCourses.blade.php --}}
 @section('title','View Courses')
 
 @push('styles')

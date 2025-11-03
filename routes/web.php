@@ -33,8 +33,12 @@ Route::get('super_admin/users/manage', function () {
 Route::get('/super_admin/courses/create', function () {
     return view('pages.users.super_admin.pages.course.createCourse');
 });
-Route::get('/super_admin/courses/view', function () {
-    return view('pages.users.super_admin.pages.course.viewCourses');
+Route::get('/super_admin/courses/manage', function () {
+    return view('pages.users.super_admin.pages.course.manageCourses');
+});
+
+Route::get('/super_admin/batches/manage', function () {
+    return view('pages.users.super_admin.pages.batches.manageBatches');
 });
 
 

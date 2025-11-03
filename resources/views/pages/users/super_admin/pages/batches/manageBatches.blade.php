@@ -1,8 +1,8 @@
 @extends('pages.users.super_admin.layout.structure')
 
-@section('title', 'View Courses')
+@section('title', 'Manage Batches')
 
-@include('modules.course.viewCourses')
+@include('modules.batches.manageBatches')
 
 
 @section('scripts')
