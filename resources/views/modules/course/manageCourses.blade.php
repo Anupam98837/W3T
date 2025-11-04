@@ -1,4 +1,4 @@
-{{-- resources/views/modules/courses/manageCourses.blade.php --}}
+{{-- resources/views/modules/courses/viewCourses.blade.php --}}
 @section('title','View Courses')
 
 @push('styles')
@@ -27,20 +27,27 @@
 .table tbody tr:hover{background:var(--page-hover)}
 td .fw-semibold{color:var(--ink)}
 .small{font-size:12.5px}
-.badge{border-radius:999px;padding:.35rem .6rem;font-weight:600;letter-spacing:.3px}
-.badge-success{background:var(--success-color);color:#fff}
-.badge-warning{background:var(--warning-color);color:#0b1324}
-.badge-secondary{background:#64748b;color:#fff}
+
+/* Badges (stronger specificity so they don't go white) */
+.table .badge.badge-success{background:var(--success-color) !important;color:#fff !important}
+.table .badge.badge-warning{background:var(--warning-color) !important;color:#0b1324 !important}
+.table .badge.badge-secondary{background:#64748b !important;color:#fff !important}
+
+/* Pills / sorting */
 .level-pill{display:inline-block;padding:.22rem .5rem;border-radius:999px;border:1px solid var(--line-strong);font-size:.8rem;background:var(--surface-2, var(--surface))}
 .sortable{cursor:pointer;white-space:nowrap}
 .sortable .caret{display:inline-block;margin-left:.35rem;opacity:.65}
 .sortable.asc .caret::after{content:"▲";font-size:.7rem}
 .sortable.desc .caret::after{content:"▼";font-size:.7rem}
 
+/* Archived row visual cue */
+tr.is-archived{opacity:.92}
+tr.is-archived td{background:color-mix(in oklab, var(--muted-color) 6%, transparent)}
+
 /* Dropdowns inside table */
 .table-wrap .dropdown{position:relative}
 .dropdown [data-bs-toggle="dropdown"]{border-radius:10px}
-.dropdown-menu{border-radius:12px;border:1px solid var(--line-strong);box-shadow:var(--shadow-2);min-width: 220px; z-index:1085}
+.dropdown-menu{border-radius:12px;border:1px solid var(--line-strong);box-shadow:var(--shadow-2);min-width:220px;z-index:1085}
 .dropdown-item{display:flex;align-items:center;gap:.6rem}
 .dropdown-item i{width:16px;text-align:center}
 .dropdown-item.text-danger{color:var(--danger-color) !important}
@@ -49,18 +56,23 @@ td .fw-semibold{color:var(--ink)}
 #empty{color:var(--muted-color)}
 .placeholder{background:linear-gradient(90deg, #00000010, #00000005, #00000010);border-radius:8px}
 
-/* Modals */
+/* Modals — match look across both modals */
 .modal-content{border-radius:16px;border:1px solid var(--line-strong);background:var(--surface)}
 .modal-header{border-bottom:1px solid var(--line-strong)}
 .modal-footer{border-top:1px solid var(--line-strong)}
 .form-control, .form-select{border-radius:12px;border:1px solid var(--line-strong);background:#fff}
 html.theme-dark .form-control, html.theme-dark .form-select{background:#0f172a;color:#e5e7eb;border-color:var(--line-strong)}
+.modal-title i{opacity:.9}
 
-/* Media modal specifics */
-.media-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:12px}
-.media-head .meta .title{font-weight:700;color:var(--ink);font-family:var(--font-head)}
+/* ===== Featured Media modal — polished to mirror Create Module modal ===== */
+.media-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:8px}
+.media-head .meta .title{font-weight:700;color:var(--ink);font-family:var(--font-head);line-height:1.2}
 .media-head .meta .sub{color:var(--muted-color);font-size:13px}
 
+/* Section labels inside modal for consistency */
+.modal .section-label{font-weight:600;color:var(--ink);margin-top:6px}
+
+/* Dropzone */
 .dropzone{
   border:1.5px dashed var(--line-strong);
   border-radius:14px;
@@ -72,7 +84,8 @@ html.theme-dark .form-control, html.theme-dark .form-select{background:#0f172a;c
 .dropzone.drag{background:color-mix(in oklab, var(--accent-color) 10%, transparent); border-color:var(--accent-color); box-shadow:0 0 0 3px color-mix(in oklab, var(--accent-color) 18%, transparent)}
 .dropzone .hint{color:var(--muted-color);font-size:13px}
 
-.media-list{margin-top:14px}
+/* Media list */
+.media-list{margin-top:8px}
 .media-item{
   display:grid;grid-template-columns:28px 1fr auto;align-items:center;gap:10px;
   border:1px solid var(--line-strong);border-radius:12px;background:var(--surface-2, #fff);
@@ -80,7 +93,7 @@ html.theme-dark .form-control, html.theme-dark .form-select{background:#0f172a;c
 }
 .media-item .handle{cursor:grab;opacity:.7}
 .media-item.dragging{opacity:.5}
-.media-item .url{font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.media-item .url{font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:52vw}
 .media-item .kind{font-size:12px;color:var(--muted-color)}
 .media-item .btn-icon{border:none;background:transparent;padding:.25rem .4rem;color:#6b7280}
 .media-item .btn-icon:hover{color:var(--ink)}
@@ -98,11 +111,14 @@ html.theme-dark .table tbody tr{border-color:var(--line-soft)}
 html.theme-dark .dropdown-menu{background:#0f172a;border-color:var(--line-strong)}
 html.theme-dark .dropzone{background:#0b1020;border-color:var(--line-strong)}
 html.theme-dark .media-item{background:#0b1020;border-color:var(--line-strong)}
+
 /* Dropdown visibility safety nets */
 .table-wrap, .table-wrap .card-body, .table-responsive { overflow: visible !important; }
 .table-wrap .dropdown { position: relative; }
-.table-wrap .dropdown-menu { z-index: 2050; } /* higher than sticky headers etc. */
+.table-wrap .dropdown-menu { z-index: 2050; }
 
+/* File button look */
+.btn-light{background:var(--surface);border:1px solid var(--line-strong)}
 </style>
 @endpush
 
@@ -110,7 +126,7 @@ html.theme-dark .media-item{background:#0b1020;border-color:var(--line-strong)}
 @section('content')
 <div class="crs-wrap">
 
-  {{-- ================= Toolbar ================= --}}
+  {{-- ================= Toolbar (unchanged structure) ================= --}}
   <div class="row align-items-center g-2 mb-3 mfa-toolbar panel">
     <div class="col-12 col-lg d-flex align-items-center flex-wrap gap-2">
       <div class="position-relative" style="min-width:300px;">
@@ -169,7 +185,7 @@ html.theme-dark .media-item{background:#0b1020;border-color:var(--line-strong)}
               <th class="sortable" data-col="status" style="width:130px;">STATUS <span class="caret"></span></th>
               <th style="width:120px;">LEVEL</th>
               <th class="sortable" data-col="created_at" style="width:170px;">CREATED <span class="caret"></span></th>
-              <th class="text-end" style="width:84px;">ACTIONS</th>
+              <th class="text-end" style="width:108px;">ACTIONS</th>
             </tr>
           </thead>
           <tbody id="rows">
@@ -252,9 +268,10 @@ html.theme-dark .media-item{background:#0b1020;border-color:var(--line-strong)}
   </div>
 </div>
 
-{{-- ================= Featured Media (modal) ================= --}}
+{{-- ================= Featured Media (modal) — now styled like Create Module ================= --}}
 <div class="modal fade" id="mediaModal" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog modal-xl modal-dialog-scrollable">
+  <!-- changed modal-xl to modal-lg for consistent sizing with module modal -->
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
     <div class="modal-content">
       <div class="modal-header">
         <h5 class="modal-title"><i class="fa fa-images me-2"></i>Course Featured Media</h5>
@@ -262,6 +279,7 @@ html.theme-dark .media-item{background:#0b1020;border-color:var(--line-strong)}
       </div>
 
       <div class="modal-body">
+        <!-- Course meta (mirrors module modal "info" line) -->
         <div class="media-head">
           <div class="meta">
             <div class="title" id="m_title">—</div>
@@ -272,32 +290,43 @@ html.theme-dark .media-item{background:#0b1020;border-color:var(--line-strong)}
           </div>
         </div>
 
-        <div id="dropzone" class="dropzone">
-          <div class="mb-2">
-            <i class="fa-regular fa-circle-up" style="font-size:28px; opacity:.8"></i>
+        <div class="row g-3">
+          <div class="col-12">
+            <label class="form-label section-label">Upload files</label>
+            <div id="dropzone" class="dropzone">
+              <div class="mb-2">
+                <i class="fa-regular fa-circle-up" style="font-size:28px; opacity:.8"></i>
+              </div>
+              <div class="fw-semibold">Drag & drop your media here</div>
+              <div class="hint mt-1">Images, videos, audio or PDFs. Or</div>
+              <div class="mt-2">
+                <label for="mediaFiles" class="btn btn-light me-2">
+                  <i class="fa fa-file-arrow-up me-1"></i>Choose Files
+                </label>
+                <input id="mediaFiles" type="file" class="d-none" multiple accept="image/*,video/*,audio/*,application/pdf">
+                <button id="btnAddUrl" class="btn btn-light" type="button"><i class="fa fa-link me-1"></i>Add via URL</button>
+              </div>
+            </div>
           </div>
-          <div class="fw-semibold">Drag & drop your media here</div>
-          <div class="hint mt-1">Images, videos, audio or PDFs. Or</div>
-          <div class="mt-2">
-            <label class="btn btn-light me-2">
-              <i class="fa fa-file-arrow-up me-1"></i>Choose Files
-              <input id="mediaFiles" type="file" class="d-none" multiple accept="image/*,video/*,audio/*,application/pdf">
-            </label>
-            <button id="btnAddUrl" class="btn btn-light" type="button"><i class="fa fa-link me-1"></i>Add via URL</button>
+
+          <div class="col-12" id="urlRow" style="display:none;">
+            <label class="form-label section-label">Add via URL</label>
+            <div class="row g-2 align-items-center">
+              <div class="col">
+                <input id="urlInput" type="url" class="form-control" placeholder="https://example.com/image.jpg">
+              </div>
+              <div class="col-auto">
+                <button id="btnSaveUrl" class="btn btn-primary" type="button"><i class="fa fa-plus me-1"></i>Add</button>
+              </div>
+              <div class="col-12 small text-muted mt-1">Paste a direct link to an image/video/audio/PDF.</div>
+            </div>
+          </div>
+
+          <div class="col-12">
+            <label class="form-label section-label">Current featured media</label>
+            <div class="media-list" id="mediaList"></div>
           </div>
         </div>
-
-        <div id="urlRow" class="row g-2 align-items-center mt-2" style="display:none;">
-          <div class="col">
-            <input id="urlInput" type="url" class="form-control" placeholder="https://example.com/image.jpg">
-          </div>
-          <div class="col-auto">
-            <button id="btnSaveUrl" class="btn btn-primary" type="button"><i class="fa fa-plus me-1"></i>Add</button>
-          </div>
-          <div class="col-12 small text-muted">Paste a direct link to an image/video/audio/PDF.</div>
-        </div>
-
-        <div class="media-list" id="mediaList"></div>
       </div>
 
       <div class="modal-footer">
@@ -378,43 +407,47 @@ document.addEventListener('click', (e) => {
   let mediaModal, moduleModal;
 
   // Decode because we stored escaped text in data-* attributes
-function decodeHtml(s){
-  const t = document.createElement('textarea');
-  t.innerHTML = s == null ? '' : String(s);
-  return t.value;
-}
+  function decodeHtml(s){
+    const t = document.createElement('textarea');
+    t.innerHTML = s == null ? '' : String(s);
+    return t.value;
+  }
 
-// Handle clicks on dropdown items for current/future rows
-rowsEl.addEventListener('click', (e) => {
-  const item = e.target.closest('.dropdown-item[data-act]');
-  if (!item) return;
+  // Handle clicks on dropdown items for current/future rows
+  rowsEl.addEventListener('click', (e) => {
+    const item = e.target.closest('.dropdown-item[data-act]');
+    if (!item) return;
 
-  e.preventDefault();
+    e.preventDefault();
 
-  const act   = item.dataset.act;
-  const uuid  = item.dataset.uuid || null;
-  const id    = item.dataset.id ? Number(item.dataset.id) : null;
-  const title = decodeHtml(item.dataset.title || '');
-  const short = decodeHtml(item.dataset.short || '');
+    const act   = item.dataset.act;
+    const uuid  = item.dataset.uuid || null;
+    const id    = item.dataset.id ? Number(item.dataset.id) : null;
+    const title = decodeHtml(item.dataset.title || '');
+    const short = decodeHtml(item.dataset.short || '');
 
-  if (act === 'media')   openMedia(uuid, title, short);
-  else if (act === 'modules') openModules(id, uuid, title, short);
-  else if (act === 'archive') archiveCourse(uuid, title);
-  else if (act === 'delete')  deleteCourse(uuid, title);
+    if (act === 'media')        openMedia(uuid, title, short);
+    else if (act === 'modules') openModules(id, uuid, title, short);
+    else if (act === 'archive') archiveCourse(uuid, title);
+    else if (act === 'unarchive') unarchiveCourse(uuid, title);
+    else if (act === 'delete')  deleteCourse(uuid, title);
+    else if (act === 'edit')    goEdit(uuid);
 
-  // Hide the dropdown after selection
-  const toggle = item.closest('.dropdown')?.querySelector('.dd-toggle');
-  if (toggle) bootstrap.Dropdown.getOrCreateInstance(toggle).hide();
-});
+    // Hide the dropdown after selection
+    const toggle = item.closest('.dropdown')?.querySelector('.dd-toggle');
+    if (toggle) bootstrap.Dropdown.getOrCreateInstance(toggle).hide();
+  });
 
+  function goEdit(uuid){
+    location.href = `${basePanel}/courses/create?edit=${encodeURIComponent(uuid)}`;
+  }
 
   /* ========= Helpers ========= */
   function showLoader(v){ loader.style.display = v ? '' : 'none'; }
-function escapeHtml(s){
-  // escape for HTML *and* for JS template literals (escapes the backtick too)
-  const map = {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;','`':'&#96;'};
-  return (s==null ? '' : String(s)).replace(/[&<>"'`]/g, ch => map[ch]);
-}
+  function escapeHtml(s){
+    const map = {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#039;','`':'&#96;'};
+    return (s==null ? '' : String(s)).replace(/[&<>"'`]/g, ch => map[ch]);
+  }
 
   function fmtMoney(v, cur){
     const n = Number(v || 0);
@@ -427,7 +460,7 @@ function escapeHtml(s){
     return d.toLocaleString(undefined,{year:'numeric',month:'short',day:'2-digit',hour:'2-digit',minute:'2-digit'});
   }
   function badgeStatus(s){
-    const map={draft:'warning',published:'success',archived:'secondary'};
+    const map={draft:'warning',published:'success',archived:'info'};
     const cls=map[s]||'secondary';
     return `<span class="badge badge-${cls} text-uppercase">${escapeHtml(s)}</span>`;
   }
@@ -469,13 +502,24 @@ function escapeHtml(s){
   }
 
   function rowActions(r){
-    // Keep attributes minimal; values are already escaped
+    const isArchived = String(r.status||'').toLowerCase() === 'archived';
+    const archiveToggle = isArchived
+      ? `<button class="dropdown-item" data-act="unarchive" data-uuid="${r.uuid}" data-title="${escapeHtml(r.title||'')}" title="Move back to draft">
+           <i class="fa fa-box-open"></i> Unarchive
+         </button>`
+      : `<button class="dropdown-item" data-act="archive" data-uuid="${r.uuid}" data-title="${escapeHtml(r.title||'')}" title="Archive this course">
+           <i class="fa fa-box-archive"></i> Archive
+         </button>`;
+
     return `
       <div class="dropdown text-end" data-bs-display="static">
         <button type="button" class="btn btn-light btn-sm dd-toggle" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false" title="Actions">
           <i class="fa fa-ellipsis-vertical"></i>
         </button>
         <ul class="dropdown-menu dropdown-menu-end">
+          <li><button class="dropdown-item" data-act="edit" data-uuid="${r.uuid}" data-title="${escapeHtml(r.title||'')}">
+            <i class="fa fa-pen-to-square"></i> Edit
+          </button></li>
           <li><button class="dropdown-item" data-act="modules" data-id="${r.id}" data-uuid="${r.uuid}" data-title="${escapeHtml(r.title||'')}" data-short="${escapeHtml(r.short_description||'')}">
             <i class="fa fa-layer-group"></i> Create Course Module
           </button></li>
@@ -483,18 +527,12 @@ function escapeHtml(s){
             <i class="fa fa-images"></i> Course Featured Media
           </button></li>
           <li><hr class="dropdown-divider"></li>
-          <li><button class="dropdown-item" data-act="archive" data-uuid="${r.uuid}" data-title="${escapeHtml(r.title||'')}">
-            <i class="fa fa-box-archive"></i> Archive
-          </button></li>
+          <li>${archiveToggle}</li>
           <li><button class="dropdown-item text-danger" data-act="delete" data-uuid="${r.uuid}" data-title="${escapeHtml(r.title||'')}">
             <i class="fa fa-trash"></i> Delete
           </button></li>
         </ul>
       </div>`;
-  }
-
-  function hydrateDropdowns(){
- 
   }
 
   function renderRows(items){
@@ -503,6 +541,9 @@ function escapeHtml(s){
 
     items.forEach(r=>{
       const tr=document.createElement('tr');
+      const isArchived = String(r.status||'').toLowerCase() === 'archived';
+      if (isArchived) tr.classList.add('is-archived');
+
       const priceCell = (r.course_type==='paid')
           ? `${fmtMoney(r.price_amount,r.price_currency)} <span class="text-muted">→</span> <strong>${fmtMoney(r.final_price_ui ?? r.final_price ?? 0, r.price_currency)}</strong>`
           : '<span class="badge badge-success">FREE</span>';
@@ -510,7 +551,9 @@ function escapeHtml(s){
 
       tr.innerHTML = `
         <td>
-          <div class="fw-semibold"><a href="${basePanel}/courses/${encodeURIComponent(r.uuid)}" class="link-offset-2 link-underline-opacity-0">${escapeHtml(r.title||'')}</a></div>
+          <div class="fw-semibold">
+            <a href="${basePanel}/courses/${encodeURIComponent(r.uuid)}" class="link-offset-2 link-underline-opacity-0">${escapeHtml(r.title||'')}</a>
+          </div>
           <div class="text-muted small">${escapeHtml(r.slug||'')}</div>
         </td>
         <td class="text-capitalize">${escapeHtml(r.course_type||'')}</td>
@@ -589,7 +632,7 @@ function escapeHtml(s){
   async function archiveCourse(uuid, title){
     const {isConfirmed} = await Swal.fire({
       icon:'question', title:'Archive course?',
-      html:`You can unpublish later.<br><b>${escapeHtml(title||'This course')}</b>`,
+      html:`You can unarchive later to Draft.<br><b>${escapeHtml(title||'This course')}</b>`,
       showCancelButton:true, confirmButtonText:'Archive', confirmButtonColor:'#8b5cf6'
     });
     if(!isConfirmed) return;
@@ -600,7 +643,27 @@ function escapeHtml(s){
         body: JSON.stringify({ status:'archived' })
       });
       if(!res.ok){ const j=await res.json().catch(()=>({})); throw new Error(j?.message||'Archive failed'); }
-      ok('Course archived'); load();
+      ok('Course archived');
+      load();
+    }catch(e){ err(e.message); }
+  }
+
+  async function unarchiveCourse(uuid, title){
+    const {isConfirmed} = await Swal.fire({
+      icon:'question', title:'Unarchive to Draft?',
+      html:`This will move the course back to Draft.<br><b>${escapeHtml(title||'This course')}</b>`,
+      showCancelButton:true, confirmButtonText:'Unarchive', confirmButtonColor:'#10b981'
+    });
+    if(!isConfirmed) return;
+    try{
+      const res = await fetch(`/api/courses/${encodeURIComponent(uuid)}`, {
+        method:'PATCH',
+        headers:{'Authorization':'Bearer '+getToken(),'Content-Type':'application/json','Accept':'application/json'},
+        body: JSON.stringify({ status:'draft' })
+      });
+      if(!res.ok){ const j=await res.json().catch(()=>({})); throw new Error(j?.message||'Unarchive failed'); }
+      ok('Moved to Draft');
+      load();
     }catch(e){ err(e.message); }
   }
 
@@ -620,7 +683,7 @@ function escapeHtml(s){
     }catch(e){ err(e.message); }
   }
 
-  /* ========= Modules Modal (uses course_id as per API) ========= */
+  /* ========= Modules Modal ========= */
   function openModules(id, uuid, title, short){
     currentCourse = { id, uuid, title, short };
     document.getElementById('modCourseInfo').textContent = `${title || 'Course'} — ${short || ''}`.trim();
@@ -640,7 +703,7 @@ function escapeHtml(s){
     if(!currentCourse?.id){ return err('Missing course id'); }
 
     const payload={
-      course_id: currentCourse.id, // <— API expects numeric id
+      course_id: currentCourse.id,
       title: t,
       short_description: (document.getElementById('mod_short').value||'').trim() || null,
       long_description: (document.getElementById('mod_long').value||'').trim() || null,
@@ -690,7 +753,7 @@ function escapeHtml(s){
   }
 
   async function loadMedia(){
-    mediaList.innerHTML='';
+    mediaList.innerHTML='<div class="text-center text-muted small py-4"><i class="fa fa-spinner fa-spin me-2"></i>Loading media...</div>';
     mediaCount.textContent='Loading…';
     try{
       const res = await fetch(`/api/courses/${encodeURIComponent(currentCourse.uuid)}/media`, {
@@ -701,8 +764,17 @@ function escapeHtml(s){
 
       const items = json?.media || [];
       mediaCount.textContent = `${items.length} item(s)`;
-      const frag=document.createDocumentFragment();
 
+      if(items.length===0){
+        mediaList.innerHTML = `
+          <div class="text-center text-muted small py-3">
+            <i class="fa fa-image mb-2" style="font-size:22px;opacity:.6;"></i><br/>
+            No featured media yet. Upload files or add a URL.
+          </div>`;
+        return;
+      }
+
+      const frag=document.createDocumentFragment();
       items.forEach(it=>{
         const div=document.createElement('div');
         div.className='media-item';
@@ -725,6 +797,7 @@ function escapeHtml(s){
         `;
         frag.appendChild(div);
       });
+      mediaList.innerHTML='';
       mediaList.appendChild(frag);
 
       // Delete bindings
@@ -735,6 +808,7 @@ function escapeHtml(s){
       // Drag & drop reorder
       initDragReorder();
     }catch(e){
+      mediaList.innerHTML = '<div class="text-center text-danger small py-3">Failed to load media.</div>';
       mediaCount.textContent='Failed to load';
       err(e.message);
     }
@@ -830,10 +904,9 @@ function escapeHtml(s){
   document.querySelectorAll('th.sortable').forEach(th=>{
     th.addEventListener('click', ()=>{
       const col = th.dataset.col;
-      // toggle asc/desc on the same column
       if (sort === col){ sort = '-'+col; }
       else if (sort === '-'+col){ sort = col; }
-      else { sort = (col === 'created_at') ? '-created_at' : col; } // default created_at desc
+      else { sort = (col === 'created_at') ? '-created_at' : col; }
       page=1; syncSortHeaders(); load();
     });
   });
@@ -844,7 +917,6 @@ function escapeHtml(s){
   btnReset.addEventListener('click', ()=>{
     q.value=''; status.value=''; ctype.value=''; perPageSel.value='20'; page=1; sort='-created_at'; load();
   });
-  perPageSel.addEventListener('change', ()=>{ page=1; load(); });
 
   /* ========= Init ========= */
   applyFromURL();

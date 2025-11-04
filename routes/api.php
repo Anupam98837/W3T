@@ -7,6 +7,8 @@ use App\Http\Controllers\API\CourseController;
 use App\Http\Controllers\API\MailerController;
 use App\Http\Controllers\API\CourseModuleController;
 use App\Http\Controllers\API\BatchController;
+use App\Http\Controllers\API\BatchInstructorController;
+
 
 Route::get('/user', function (Request $request) {
     return $request->user();
@@ -49,6 +51,7 @@ Route::middleware('checkRole:admin,super_admin')->group(function () {
     Route::put   ('/courses/{course}',     [CourseController::class, 'update']);
     Route::patch ('/courses/{course}',     [CourseController::class, 'update']);
     Route::delete('/courses/{course}',     [CourseController::class, 'destroy']);
+    Route::get('/courses/{course}/view', [CourseController::class, 'viewCourse']);
 
     // Featured media
     Route::get   ('/courses/{course}/media',           [CourseController::class, 'mediaIndex']);
@@ -95,4 +98,20 @@ Route::middleware('checkRole:admin,super_admin')->group(function () {
 
     // CSV upload
     Route::post  ('/batches/{idOrUuid}/students/upload-csv', [BatchController::class, 'studentsUploadCsv']);
+});
+
+Route::prefix('batch-instructors')->group(function () {
+    // Read endpoints (allow admin + instructor views)
+    Route::middleware('check.role:admin,super_admin,instructor')->group(function () {
+        Route::get('/', [BatchInstructorController::class, 'index']);
+        Route::get('/instructors-of-batch', [BatchInstructorController::class, 'instructorsOfBatch']);
+        Route::get('/batches-for-user', [BatchInstructorController::class, 'batchesForUser']);
+    });
+
+    // Write endpoints (restrict to admins)
+    Route::middleware('check.role:admin,super_admin')->group(function () {
+        Route::post('/toggle', [BatchInstructorController::class, 'toggle']);
+        Route::post('/bulk-sync-for-user', [BatchInstructorController::class, 'bulkSyncForUser']);
+        Route::post('/restore', [BatchInstructorController::class, 'restore']);
+    });
 });

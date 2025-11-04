@@ -407,7 +407,7 @@ private function nextMediaOrderNo(int $courseId): int
 
 public function show(Request $r, string $course)
 {
-    if ($resp = $this->requireRole($r, ['admin','super_admin'])) return $resp;
+    if ($resp = $this->requireRole($r, ['admin','superadmin'])) return $resp;
 
     $row = $this->findCourseOr404($course);
     if (!$row) return response()->json(['error'=>'Course not found'], 404);
@@ -670,6 +670,137 @@ public function mediaDestroy(Request $request, string $course, string $media)
 
     return response()->json(['status'=>'success','message'=>'Media deleted']);
 }
+
+
+public function viewCourse(Request $r, string $key)
+{
+    // Identify viewer; staff can see everything
+    $role    = (string) $r->attributes->get('auth_role');
+    $isStaff = in_array($role, ['admin','superadmin','instructor'], true);
+
+    // ----- Fetch course by id/uuid/slug (staff: any status; public: only published) -----
+    $q = DB::table('courses')->whereNull('deleted_at');
+    if (ctype_digit($key)) {
+        $q->where('id', (int)$key);
+    } elseif (\Illuminate\Support\Str::isUuid($key)) {
+        $q->where('uuid', $key);
+    } else {
+        $q->where('slug', $key);
+    }
+    if (!$isStaff) {
+        $q->where('status', 'published'); // public-only restriction
+    }
+
+    $course = $q->first();
+    if (!$course) return response()->json(['error' => 'Course not found'], 404);
+
+    // ----- Pricing breakdown -----
+    $price   = (float) ($course->price_amount ?? 0);
+    $discAmt = $course->discount_amount !== null ? (float)$course->discount_amount : null;
+    $discPct = $course->discount_percent !== null ? (float)$course->discount_percent : null;
+    $final   = $this->computeFinalPrice($price, $discAmt, $discPct);
+    $effectivePct = $price > 0 ? round((($price - $final) / $price) * 100, 2) : 0.0;
+
+    // ----- Media (cover + gallery; active only) -----
+    $mediaAll = DB::table('course_featured_media')
+        ->where('course_id', $course->id)
+        ->whereNull('deleted_at')
+        ->where('status', 'active')
+        ->orderBy('order_no')->orderBy('id')
+        ->get();
+
+    $cover = $mediaAll->firstWhere('featured_type', 'image') ?? $mediaAll->first();
+
+    // ----- Modules (staff: all; public: only published) -----
+    $modQ = DB::table('course_modules')
+        ->select('id','uuid','title','short_description','long_description','order_no','status')
+        ->where('course_id', $course->id)
+        ->whereNull('deleted_at')
+        ->orderBy('order_no')->orderBy('id');
+
+    if (!$isStaff) {
+        $modQ->where('status', 'published'); // public-only restriction
+    }
+    $modules = $modQ->get();
+
+    // ----- Optional: pull duration from metadata if present -----
+    $durationHours = null;
+    if (!empty($course->metadata)) {
+        try {
+            $meta = is_string($course->metadata) ? json_decode($course->metadata, true) : $course->metadata;
+            if (is_array($meta)) {
+                if (isset($meta['duration_hours']))     $durationHours = (float)$meta['duration_hours'];
+                elseif (isset($meta['duration']))       $durationHours = (float)$meta['duration'];          // common alias
+                elseif (isset($meta['duration_minutes'])) $durationHours = round(((int)$meta['duration_minutes'])/60, 2);
+            }
+        } catch (\Throwable $e) { /* ignore */ }
+    }
+
+    // ----- Shape response for the UI -----
+    $payload = [
+        'course' => [
+            'id'                => (int)$course->id,
+            'uuid'              => $course->uuid,
+            'slug'              => $course->slug,
+            'title'             => $course->title,
+            'short_description' => $course->short_description,
+            'full_description'  => $course->full_description,
+            'status'            => $course->status,     // show badge as-is in UI
+            'difficulty'        => $course->level,
+            'language'          => $course->language,
+            'course_type'       => $course->course_type,
+            'publish_at'        => $course->publish_at,
+            'unpublish_at'      => $course->unpublish_at,
+            'created_at'        => $course->created_at,
+            'duration_hours'    => $durationHours,      // nullable; use when available
+        ],
+        'pricing' => [
+            'currency'           => $course->price_currency ?? 'INR',
+            'original'           => round($price, 2),
+            'final'              => $final,
+            'discount_amount'    => $discAmt,
+            'discount_percent'   => $discPct,
+            'effective_percent'  => $effectivePct,
+            'is_free'            => ($course->course_type === 'free') || ($price <= 0),
+            'has_discount'       => ($final < $price),
+            'discount_expires_at'=> $course->discount_expires_at,
+        ],
+        'media' => [
+            'cover'   => $cover ? [
+                'id'   => (int)$cover->id,
+                'uuid' => $cover->uuid,
+                'type' => $cover->featured_type,
+                'url'  => $cover->featured_url,
+            ] : null,
+            'gallery' => $mediaAll->map(fn($m) => [
+                'id'   => (int)$m->id,
+                'uuid' => $m->uuid,
+                'type' => $m->featured_type,
+                'url'  => $m->featured_url,
+            ])->values(),
+        ],
+        'modules' => $modules->map(fn($m) => [
+            'id'                => (int)$m->id,
+            'uuid'              => $m->uuid,
+            'title'             => $m->title,
+            'short_description' => $m->short_description,
+            'long_description'  => $m->long_description,
+            'order_no'          => (int)$m->order_no,
+            'status'            => $m->status,
+        ])->values(),
+    ];
+
+    $this->logWithActor('[Course View] payload prepared', $r, [
+        'course_id' => (int)$course->id,
+        'modules'   => count($payload['modules']),
+        'media'     => count($payload['media']['gallery']),
+        'public'    => !$isStaff,
+        'status'    => $course->status,
+    ]);
+
+    return response()->json(['data' => $payload]);
+}
+
 
 
 

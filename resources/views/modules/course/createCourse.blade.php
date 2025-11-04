@@ -1,7 +1,6 @@
 {{-- resources/views/modules/courses/createCourse.blade.php --}}
 @section('title','Create Course')
 
-@stack('styles')
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"/>
 <link rel="stylesheet" href="{{ asset('assets/css/common/main.css') }}"/>
 
@@ -76,66 +75,104 @@
   .input-group-text{background:var(--surface);border-color:var(--line-strong)}
 
   /* ================= Reference-style Stepper (match Jobs page) ================= */
-.wizard-steps{
-  display:flex !important;
-  gap:12px;
-  flex-wrap:wrap;
-  margin:0 0 12px;
-}
-.step-btn{
-  flex:1 1 220px;
-  min-width:220px;
-  display:flex;
-  align-items:center;
-  gap:12px;
-  padding:16px;
-  border:1px solid var(--line-strong);
-  border-radius:13px;
-  background:var(--surface);
-  cursor:pointer;
-  transition: box-shadow .18s ease, transform .08s ease, border-color .18s ease, background .18s ease;
-}
-.step-btn:hover{ box-shadow:var(--shadow-1); transform:translateY(-1px); }
+  .wizard-steps{display:flex !important;gap:12px;flex-wrap:wrap;margin:0 0 12px;}
+  .step-btn{flex:1 1 220px;min-width:220px;display:flex;align-items:center;gap:12px;padding:16px;border:1px solid var(--line-strong);border-radius:13px;background:var(--surface);cursor:pointer;transition: box-shadow .18s ease, transform .08s ease, border-color .18s ease, background .18s ease;}
+  .step-btn:hover{ box-shadow:var(--shadow-1); transform:translateY(-1px); }
+  .step-btn .num{width:32px; height:32px; flex:0 0 32px;border-radius:50%;display:flex; align-items:center; justify-content:center;font:700 14px/1 var(--font-head);border:1px solid var(--line-strong);background:var(--surface);color:var(--text-color);}
+  .step-btn .txt{ display:flex; flex-direction:column; line-height:1.15; }
+  .step-btn .lbl{ font-weight:600; color:var(--text-color); font-size:var(--fs-14); }
+  .step-btn .sub{ font-size:12px; color:var(--muted-color); margin-top:2px; }
+  .step-btn.active{ border-color:var(--primary-color); }
+  .step-btn.active .num{ background:var(--primary-color); color:#fff; border-color:var(--primary-color); }
+  .step-btn.done{ opacity:.95; }
+  .wizard-track{ display:none; }
 
-/* Number pill like reference */
-.step-btn .num{
-  width:32px; height:32px; flex:0 0 32px;
-  border-radius:50%;
-  display:flex; align-items:center; justify-content:center;
-  font:700 14px/1 var(--font-head);
-  border:1px solid var(--line-strong);
-  background:var(--surface);
-  color:var(--text-color);
-}
-
-/* Two-line label like reference */
-.step-btn .txt{ display:flex; flex-direction:column; line-height:1.15; }
-.step-btn .lbl{ font-weight:600; color:var(--text-color); font-size:var(--fs-14); }
-.step-btn .sub{ font-size:12px; color:var(--muted-color); margin-top:2px; }
-
-/* Active/done states mirror Jobs page */
-.step-btn.active{ border-color:var(--primary-color); }
-.step-btn.active .num{ background:var(--primary-color); color:#fff; border-color:var(--primary-color); }
-.step-btn.done{ opacity:.95; }
-
-/* Hide progress bar to match reference look */
-.wizard-track{ display:none; }
-
-/* Dark mode parity */
-html.theme-dark .step-btn{ background:#0f172a; border-color:var(--line-strong); }
-html.theme-dark .step-btn .num{ background:#0f172a; border-color:var(--line-strong); color:var(--text-color); }
-html.theme-dark .step-btn.active .num{ background:var(--primary-color); border-color:var(--primary-color); color:#fff; }
-
-
-  /* Dark tweaks */
-  html.theme-dark .step-btn{background:#0f172a;border-color:var(--line-strong);color:var(--text-color)}
-  html.theme-dark .step-btn .num{background:#20324f;border-color:#32507f;color:#e5e7eb}
+  /* Dark mode parity */
+  html.theme-dark .step-btn{ background:#0f172a; border-color:var(--line-strong); }
+  html.theme-dark .step-btn .num{ background:#0f172a; border-color:var(--line-strong); color:var(--text-color); }
+  html.theme-dark .step-btn.active .num{ background:var(--primary-color); border-color:var(--primary-color); color:#fff; }
   html.theme-dark .rte{background:#0f172a;border-color:var(--line-strong);color:#e5e7eb}
   html.theme-dark .tool{background:#0f172a;border-color:var(--line-strong);color:#e5e7eb}
   html.theme-dark .chip{background:#0f172a;border-color:var(--line-strong);color:#e5e7eb}
-</style>
-@endstack
 
+  /* =========================================================
+     Course Featured Media – Modal polish (UI only, no logic)
+     This is scoped to the specific modal at runtime (JS adds the
+     [data-media-modal] attribute so other modals remain unchanged)
+     ========================================================= */
+  .modal[data-media-modal] .modal-dialog{max-width:980px}
+  .modal[data-media-modal] .modal-content{
+    border:1px solid var(--line-strong);
+    border-radius:18px; background:var(--surface); box-shadow:var(--shadow-3);
+  }
+  .modal[data-media-modal] .modal-header{
+    border-bottom:1px solid var(--line-strong);
+    padding:14px 18px; gap:10px;
+  }
+  .modal[data-media-modal] .modal-title{
+    display:flex; align-items:center; gap:10px; font:700 18px/1.1 var(--font-head); color:var(--ink);
+  }
+  .modal[data-media-modal] .modal-title:before{
+    content:"\f03e"; /* image icon */
+    font-family:"Font Awesome 6 Free"; font-weight:900;
+    color:var(--primary-color);
+  }
+  .modal[data-media-modal] .media-sub{
+    font-size:12px;color:var(--muted-color)
+  }
+  .modal[data-media-modal] .modal-body{padding:16px 18px}
+  .modal[data-media-modal] .media-headline{
+    display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px
+  }
+  .modal[data-media-modal] .media-course{
+    font-weight:600;color:var(--text-color)
+  }
+
+  /* dropzone */
+  .modal[data-media-modal] .media-drop{
+    display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;
+    border:2px dashed var(--line-strong);border-radius:14px;background:var(--surface-2, #fff);
+    padding:26px; transition: border-color .18s ease, background .18s ease;
+  }
+  .modal[data-media-modal] .media-drop:hover{
+    border-color:var(--primary-color);
+    background:color-mix(in oklab, var(--primary-color) 7%, transparent);
+  }
+  .modal[data-media-modal] .media-drop .big{
+    width:52px;height:52px;border-radius:999px;border:1px dashed var(--line-strong);
+    display:flex;align-items:center;justify-content:center;margin-bottom:10px;opacity:.8
+  }
+  .modal[data-media-modal] .media-drop .lead{font-weight:600}
+  .modal[data-media-modal] .media-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+  .modal[data-media-modal] .media-actions .btn{border-radius:10px}
+
+  /* grid of existing media */
+  .modal[data-media-modal] .media-grid{
+    display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));
+    gap:12px;margin-top:16px
+  }
+  .modal[data-media-modal] .media-card{
+    position:relative;border:1px solid var(--line-strong);border-radius:12px;background:#fff;overflow:hidden
+  }
+  .modal[data-media-modal] .media-card .thumb{
+    aspect-ratio:16/10;background:#f6f7f9 center/cover no-repeat
+  }
+  .modal[data-media-modal] .media-card .meta{
+    display:flex;align-items:center;justify-content:space-between;padding:8px 10px;
+    font-size:12px;color:var(--muted-color)
+  }
+  .modal[data-media-modal] .media-card .drag{cursor:grab;opacity:.75}
+  .modal[data-media-modal] .media-card .del{color:#ef4444}
+  .modal[data-media-modal] .modal-footer{
+    border-top:1px solid var(--line-strong);padding:12px 18px
+  }
+
+  /* Dark */
+  html.theme-dark .modal[data-media-modal] .modal-content{background:#0f172a}
+  html.theme-dark .modal[data-media-modal] .media-drop{background:#0f172a;border-color:var(--line-strong)}
+  html.theme-dark .modal[data-media-modal] .media-card{background:#0b1220;border-color:var(--line-strong)}
+  html.theme-dark .modal[data-media-modal] .media-card .thumb{background:#0b1220}
+</style>
 
 @section('content')
 <div class=" crs-wrap">
@@ -143,7 +180,7 @@ html.theme-dark .step-btn.active .num{ background:var(--primary-color); border-c
     <div class="card-header">
       <div class="wizard-head">
         <i class="fa-solid fa-graduation-cap"></i>
-        <strong>Create Course</strong>
+        <strong id="pageTitle">Create Course</strong>
         <span class="hint" id="hint">— Fill the details & pricing.</span>
       </div>
 
@@ -262,7 +299,7 @@ html.theme-dark .step-btn.active .num{ background:var(--primary-color); border-c
         </div>
 
         <div class="d-flex justify-content-between align-items-center mt-3">
-          <a id="cancel1" class="btn btn-light" href="#">Cancel</a>
+          <a id="cancel1" class="btn btn-light" href="/super_admin/courses/manage">Cancel</a>
           <button id="to2" class="btn btn-primary" type="button" disabled>Proceed</button>
         </div>
       </div>
@@ -366,7 +403,7 @@ html.theme-dark .step-btn.active .num{ background:var(--primary-color); border-c
         </div>
 
         <div class="d-flex justify-content-between align-items-center mt-3">
-          <a id="cancel3" class="btn btn-light" href="#">Cancel</a>
+          <a id="cancel3" class="btn btn-light" href="/super_admin/courses/manage">Cancel</a>
           <div class="d-flex gap-2">
             <button id="btnDraft" type="button" class="btn btn-outline-primary">Save Draft</button>
             <button id="btnPublish" type="button" class="btn btn-primary">Publish Course</button>
@@ -388,7 +425,6 @@ html.theme-dark .step-btn.active .num{ background:var(--primary-color); border-c
 </div>
 @endsection
 
-
 @push('scripts')
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
@@ -396,7 +432,7 @@ html.theme-dark .step-btn.active .num{ background:var(--primary-color); border-c
 (function(){
   /* ===== helpers ===== */
   const $ = id => document.getElementById(id);
-  const role  = sessionStorage.getItem('role') || localStorage.getItem('role') || '';
+  const role  = (sessionStorage.getItem('role') || localStorage.getItem('role') || '').toLowerCase();
   const TOKEN = localStorage.getItem('token') || sessionStorage.getItem('token') || '';
 
   const okToast  = new bootstrap.Toast($('okToast'));
@@ -404,13 +440,30 @@ html.theme-dark .step-btn.active .num{ background:var(--primary-color); border-c
   const ok  = (m)=>{ $('okMsg').textContent  = m||'Done'; okToast.show(); };
   const err = (m)=>{ $('errMsg').textContent = m||'Something went wrong'; errToast.show(); };
 
-  const baseList = (role === 'superadmin' || role === 'super_admin') ? '/super_admin/courses' : '/admin/courses';
+  // redirect base (fix: always /courses/manage)
+  const baseList = (role.includes('super')) ? '/super_admin/courses/manage' : '/super_admin/courses/manage';
   ['cancel1','cancel3'].forEach(id => { const a=$(id); if(a && !a.getAttribute('href')) a.setAttribute('href', baseList); });
 
   if(!TOKEN){
     Swal.fire('Login needed','Your session expired. Please login again.','warning')
       .then(()=> location.href='/');
     return;
+  }
+
+  // detect Edit mode (?edit=<uuid or id>)
+  const url_ = new URL(location.href);
+  const editKey = url_.searchParams.get('edit');
+  const isEdit = !!editKey;
+  let currentUUID = editKey || null;
+
+  if(isEdit){
+    $('pageTitle').textContent = 'Edit Course';
+    // load course to form
+    loadCourse(editKey).catch((e)=> {
+      console.error(e);
+      Swal.fire('Not found','Could not load course for editing.','error')
+        .then(()=> location.replace(baseList));
+    });
   }
 
   /* ===== stepper ===== */
@@ -482,7 +535,7 @@ html.theme-dark .step-btn.active .num{ background:var(--primary-color); border-c
   $('back1').onclick=()=> setStep(0);
   $('to3').onclick=()=> setStep(2);
 
-  /* ===== chips ===== */
+  /* ===== chips & normalization ===== */
   const tagRow=$('tagRow'), catRow=$('catRow'), keyRow=$('keyRow');
   const tagIn=$('tagIn'),   catIn=$('catIn'),   keyIn=$('keyIn');
   const propRow=$('propRow'), pName=$('propName'), pVal=$('propVal');
@@ -497,20 +550,156 @@ html.theme-dark .step-btn.active .num{ background:var(--primary-color); border-c
   $('addCat').onclick=()=>add(catRow,catIn);
   $('addKey').onclick=()=>add(keyRow,keyIn);
   [tagIn,catIn,keyIn].forEach(inp=> inp.onkeydown=(e)=>{ if(e.key==='Enter'){ e.preventDefault(); (inp===tagIn?$('addTag'):inp===catIn?$('addCat'):$('addKey')).click(); }});
+
   $('addProp').onclick=()=>{
     const k=(pName.value||'').trim(), v=(pVal.value||'').trim(); if(!k||!v) return;
     propRow.appendChild(chip(`${k}: ${v}`)); pName.value=''; pVal.value=''; pName.focus();
   };
-  const collect=row=> Array.from(row.querySelectorAll('.chip')).map(c=> (c.childNodes[0].nodeValue||'').trim()).filter(Boolean);
+
+  const uniq = (arr)=> Array.from(new Set((arr||[]).map(x=> String(x).trim()).filter(Boolean)));
+
+  function toArrayish(v){
+    if(Array.isArray(v)){
+      if(v.length && typeof v[0]==='object'){
+        return v.map(o=> o?.name ?? o?.title ?? o?.label ?? o?.value).filter(Boolean);
+      }
+      return v;
+    }
+    if(v==null) return [];
+    if(typeof v === 'string'){
+      try { const j = JSON.parse(v); return toArrayish(j); } catch {}
+      return v.split(/[,;|]/).map(s=>s.trim()).filter(Boolean);
+    }
+    return [];
+  }
+  function toObjectish(v){
+    if(!v) return {};
+    if(typeof v === 'string'){
+      try { const j = JSON.parse(v); if(j && typeof j==='object' && !Array.isArray(j)) return j; } catch {}
+      const o={};
+      v.split(/[;|,]/).forEach(pair=>{
+        const i = pair.indexOf(':'); if(i>0){ o[pair.slice(0,i).trim()] = pair.slice(i+1).trim(); }
+      });
+      return o;
+    }
+    if(typeof v === 'object' && !Array.isArray(v)) return v;
+    return {};
+  }
+  function fillChips(row, arr){ row.innerHTML=''; uniq(arr).forEach(v=> row.appendChild(chip(String(v)))); }
+  function collect(row){ return Array.from(row.querySelectorAll('.chip')).map(c=> (c.childNodes[0].nodeValue||'').trim()).filter(Boolean); }
   function collectProps(){ const o={}; collect(propRow).forEach(t=>{ const i=t.indexOf(':'); if(i>0) o[t.slice(0,i).trim()] = t.slice(i+1).trim(); }); return o; }
 
   /* ===== errors ===== */
   function fErr(field,msg){ const el=document.querySelector(`.err[data-for="${field}"]`); if(el){ el.textContent=msg||''; el.style.display=msg?'block':'none'; } }
   function clrErr(){ document.querySelectorAll('.err').forEach(e=>{ e.textContent=''; e.style.display='none'; }); }
 
-  /* ===== payload & submit ===== */
+  // util: to input[type=datetime-local] value (YYYY-MM-DDTHH:MM)
+  function toLocalInput(iso){
+    if(!iso) return '';
+    const d = new Date(iso);
+    if (isNaN(d)) return '';
+    const pad = (n)=> String(n).padStart(2,'0');
+    return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())+'T'+pad(d.getHours())+':'+pad(d.getMinutes());
+  }
+
+  async function fetchJsonAuth(u){
+    const res = await fetch(u, { headers:{ 'Authorization':'Bearer '+TOKEN, 'Accept':'application/json' }});
+    if(!res.ok) throw Object.assign(new Error('HTTP '+res.status), {status:res.status, url:u, res});
+    const j = await res.json().catch(()=> ({}));
+    return j;
+  }
+
+  async function getCourseByAny(key){
+    const isUUID = typeof key==='string' && key.includes('-');
+    const candidates = [
+      `/api/courses/${encodeURIComponent(key)}?include=metadata,tags,categories`,
+      isUUID ? `/api/courses/uuid/${encodeURIComponent(key)}?include=metadata,tags,categories` : null,
+      `/api/course/${encodeURIComponent(key)}?include=metadata,tags,categories`,
+      isUUID ? `/api/course/uuid/${encodeURIComponent(key)}?include=metadata,tags,categories` : null,
+      `/api/courses/show/${encodeURIComponent(key)}?include=metadata,tags,categories`,
+      `/api/courses?uuid=${encodeURIComponent(key)}&include=metadata,tags,categories`
+    ].filter(Boolean);
+
+    let lastErr;
+    for(const u of candidates){
+      try{
+        const j = await fetchJsonAuth(u);
+        return j?.data ?? j;
+      }catch(e){
+        lastErr = e;
+        if(e.status===401 || e.status===403){
+          throw e; // auth/permission issues → surface immediately
+        }
+      }
+    }
+    throw lastErr || new Error('Not found by any candidate endpoint');
+  }
+
+  /* ===== load (Edit mode) ===== */
+  async function loadCourse(key){
+    $('busy').classList.add('show');
+    try{
+      const c = await getCourseByAny(key);
+      currentUUID = c.uuid || key;
+
+      // fill fields
+      title.value = c.title || '';
+      shortDesc.value = c.short_description || '';
+      editor.innerHTML = (c.full_description || '');
+      togglePh();
+
+      ctype.value = (c.course_type || 'paid');
+      status.value = (c.status || 'draft');
+
+      price.value = (c.price_amount ?? 0);
+      dPct.value   = (c.discount_percent ?? 0);
+      curr.value   = (c.price_currency || 'INR');
+      togglePricing(); recalc();
+
+      $('is_featured').checked = !!(c.is_featured);
+      $('featured_rank').value = c.featured_rank ?? 0;
+      $('order_no').value      = c.order_no ?? 0;
+      $('level').value         = c.level || '';
+      $('language').value      = c.language || '';
+
+      $('publish_at').value   = toLocalInput(c.publish_at);
+      $('unpublish_at').value = toLocalInput(c.unpublish_at);
+
+      // ---- Normalize metadata from multiple shapes ----
+      let md = c.metadata;
+      if(typeof md === 'string'){ try{ md = JSON.parse(md); }catch{ md = {}; } }
+      if(!md || typeof md !== 'object') md = {};
+
+      const tags       = uniq( toArrayish(md.tags ?? c.tags ?? c.meta_tags) );
+      const categories = uniq( toArrayish(md.categories ?? c.categories ?? c.meta_categories) );
+      const keywords   = uniq( toArrayish(md.keywords ?? c.keywords ?? c.meta_keywords) );
+      const propsObj   = toObjectish(md.properties ?? c.properties ?? c.meta_properties);
+
+      fillChips(tagRow, tags);
+      fillChips(catRow, categories);
+      fillChips(keyRow, keywords);
+
+      propRow.innerHTML = '';
+      Object.entries(propsObj).forEach(([k,v])=> propRow.appendChild(chip(`${k}: ${v}`)));
+
+      gateBtn();
+      setStep(0);
+    }finally{
+      $('busy').classList.remove('show');
+    }
+  }
+
+  /* ===== payload & submit (fixed syntax + robust metadata) ===== */
   function payload(statusOverride){
     const paid = (ctype.value==='paid');
+
+    const tags        = uniq(collect(tagRow));
+    const categories  = uniq(collect(catRow));
+    const keywords    = uniq(collect(keyRow));
+    const properties  = toObjectish(collectProps());
+
+    const metadataObj = { tags, categories, keywords, properties };
+
     return {
       title: (title.value||'').trim(),
       short_description: (shortDesc.value||'') || null,
@@ -520,15 +709,18 @@ html.theme-dark .step-btn.active .num{ background:var(--primary-color); border-c
       price_amount:    paid ? money(price.value) : 0,
       price_currency:  paid ? (curr.value||'INR') : 'INR',
       discount_percent: paid && dPct.value ? pct(dPct.value) : null,
-      discount_amount:  null, // flat amount removed from UI
-      is_featured: isFeat.checked ? 1 : 0,
-      featured_rank: Number(fRank.value||0),
-      order_no: Number(ord.value||0),
-      level: (lvl.value||null),
-      language: (lang && lang.value) ? lang.value : null,
-      publish_at: (pub.value||null),
-      unpublish_at: (unpub.value||null),
-      metadata: { tags: collect(tagRow), categories: collect(catRow), keywords: collect(keyRow), properties: collectProps() }
+      discount_amount:  null,
+      is_featured: $('is_featured').checked ? 1 : 0,
+      featured_rank: Number($('featured_rank').value||0),
+      order_no: Number($('order_no').value||0),
+      level: ($('level').value||null),
+      language: ($('language') && $('language').value) ? $('language').value : null,
+      publish_at: ($('publish_at').value||null),
+      unpublish_at: ($('unpublish_at').value||null),
+
+      // expose both styles for API flexibility
+      tags, categories, keywords, properties,
+      metadata: metadataObj
     };
   }
 
@@ -543,15 +735,23 @@ html.theme-dark .step-btn.active .num{ background:var(--primary-color); border-c
 
     $('busy').classList.add('show');
     try{
-      const res = await fetch('/api/courses', {
-        method:'POST',
+      const url  = isEdit ? `/api/courses/${encodeURIComponent(currentUUID)}` : '/api/courses'; // <-- fixed
+      const meth = isEdit ? 'PUT' : 'POST';
+
+      const res = await fetch(url, {
+        method:meth,
         headers:{ 'Authorization':'Bearer '+TOKEN, 'Accept':'application/json', 'Content-Type':'application/json' },
         body: JSON.stringify(payload(statusOverride))
       });
       const json = await res.json().catch(()=> ({}));
 
       if(res.ok){
-        Swal.fire({icon:'success',title:'Saved',text:'Course created successfully',timer:900,showConfirmButton:false});
+        Swal.fire({
+          icon:'success',
+          title: isEdit ? 'Updated' : 'Saved',
+          text: isEdit ? 'Course updated successfully' : 'Course created successfully',
+          timer: 900, showConfirmButton:false
+        });
         setTimeout(()=> location.replace(baseList), 900);
         return;
       }
@@ -561,10 +761,10 @@ html.theme-dark .step-btn.active .num{ background:var(--primary-color); border-c
         setStep(0); err(json.message || 'Please fix the highlighted fields.'); return;
       }
       if(res.status===403){
-        Swal.fire({icon:'error',title:'Unauthorized',html:'If you are <b>Super Admin</b>, ensure API accepts <code>super_admin</code> for <code>POST /api/courses</code>.'});
+        Swal.fire({icon:'error',title:'Unauthorized',html:'If you are <b>Super Admin</b>, ensure the API authorizes this token/role for the endpoint.'});
         return;
       }
-      Swal.fire('Save failed', json.message || ('HTTP '+res.status), 'error');
+      Swal.fire(isEdit?'Update failed':'Save failed', json.message || ('HTTP '+res.status), 'error');
     }catch(ex){
       console.error(ex); Swal.fire('Network error','Please check your connection and try again.','error');
     }finally{
@@ -578,6 +778,95 @@ html.theme-dark .step-btn.active .num{ background:var(--primary-color); border-c
   // init
   setStep(0);
   recalc();
+
+  /* =========================================================
+     MEDIA MODAL POLISH (non-invasive, UI only)
+     Adds a data attribute to the specific modal by title so the
+     CSS above scopes only to that modal. Does not change handlers.
+     ========================================================= */
+  function tryBeautifyMediaModal(modalEl){
+    if(!modalEl) return;
+    // safety: only if title matches
+    const titleEl = modalEl.querySelector('.modal-title');
+    if(!titleEl) return;
+    if(!/Course\s+Featured\s+Media/i.test(titleEl.textContent||'')) return;
+
+    modalEl.setAttribute('data-media-modal',''); // enable scoped CSS
+
+    // add helpful classes to existing blocks if present (no structure changes)
+    const body = modalEl.querySelector('.modal-body');
+    if(!body) return;
+
+    // Course name line -> wrap with headline row
+    if(!body.querySelector('.media-headline')){
+      const head = document.createElement('div');
+      head.className = 'media-headline';
+      // first text node often is the course title (e.g., "demo 099")
+      const first = body.firstElementChild || body.firstChild;
+      if(first){
+        const label = document.createElement('div');
+        label.className = 'media-course';
+        label.textContent = (first.textContent || '').trim();
+        head.appendChild(label);
+        // hint (if exists right after)
+        const hint = document.createElement('div');
+        hint.className = 'media-sub';
+        hint.textContent = 'Drag & drop to reorder • Click trash to delete';
+        head.appendChild(hint);
+        body.insertBefore(head, first);
+        // keep original nodes; do not delete to avoid logic breaks
+      }
+    }
+
+    // Dropzone heuristics: find the first big icon area or the line with "Drag & drop your media here"
+    const dropCand = Array.from(body.querySelectorAll('div,p,section'))
+      .find(el => /Drag\s*&\s*drop\s*your\s*media\s*here/i.test(el.textContent||''));
+    if(dropCand){
+      dropCand.classList.add('media-drop');
+      // add nice big icon if not present
+      if(!dropCand.querySelector('.big')){
+        const big = document.createElement('div');
+        big.className = 'big';
+        big.innerHTML = '<i class="fa-solid fa-arrow-up-from-bracket"></i>';
+        dropCand.prepend(big);
+        const lead = document.createElement('div');
+        lead.className = 'lead mt-1';
+        lead.textContent = 'Drag & drop your media here';
+        dropCand.insertBefore(lead, big.nextSibling);
+      }
+      // group the action buttons
+      const actionRow = document.createElement('div');
+      actionRow.className = 'media-actions';
+      // move any buttons into actionRow
+      Array.from(body.querySelectorAll('button, a.btn')).slice(0,2).forEach(btn=>{
+        actionRow.appendChild(btn);
+      });
+      if(actionRow.childElementCount) dropCand.appendChild(actionRow);
+    }
+
+    // If a container that lists items exists, give it the grid style
+    const listCand = Array.from(body.querySelectorAll('ul,ol,div,section'))
+      .find(el => /Loading/i.test(el.textContent||'') || el.querySelector('img,video,source'));
+    if(listCand) listCand.classList.add('media-grid');
+
+    // Footer polish – keep whatever actions you already have
+    const footer = modalEl.querySelector('.modal-footer');
+    if(footer){ footer.classList.add('justify-content-end'); }
+  }
+
+  // Hook into bootstrap modal lifecycle (if using BS)
+  document.addEventListener('shown.bs.modal', (e)=> tryBeautifyMediaModal(e.target));
+  // Also try for already-opened or custom modals via mutation observer
+  const mo = new MutationObserver((muts)=>{
+    muts.forEach(m=>{
+      m.addedNodes && m.addedNodes.forEach(n=>{
+        if(n.nodeType===1 && n.classList && n.classList.contains('modal')){
+          tryBeautifyMediaModal(n);
+        }
+      });
+    });
+  });
+  mo.observe(document.body, {childList:true, subtree:true});
 })();
 </script>
 @endpush

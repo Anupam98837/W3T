@@ -63,20 +63,33 @@ tr.bin:hover > *{background:rgba(220,38,38,.08)}
 html.theme-dark .form-control,html.theme-dark .form-select{background:#0f172a;color:#e5e7eb;border-color:var(--line-strong)}
 
 /* ===== Manage Students modal ===== */
-.mstab-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.mstab-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;gap:12px;flex-wrap:wrap}
 .st-table thead th{font-size:12px}
 .st-table td,.st-table th{vertical-align:middle}
 .form-switch .form-check-input{transform:scale(1.0)}
+.mstab-head .left-tools{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 
 /* CSV import */
 .dropzone{border:1.5px dashed var(--line-strong);border-radius:14px;padding:24px;text-align:center;background:var(--surface);transition:.15s}
 .dropzone.drag{background:color-mix(in oklab,var(--accent-color) 10%,transparent); border-color:var(--accent-color); box-shadow:0 0 0 3px color-mix(in oklab,var(--accent-color) 18%,transparent)}
 .dropzone .hint{color:var(--muted-color);font-size:13px}
 
-/* ===== Create/Edit Batch modal ===== */
-.gl-row{display:grid;grid-template-columns:160px 1fr auto;gap:8px;align-items:center}
-.gl-row .remove{border:none;background:transparent;color:#6b7280}
-.gl-row .remove:hover{color:var(--danger-color)}
+/* ===== Create/Edit Batch modal – Group Links UI polish ===== */
+.gl-wrap-tip{color:var(--muted-color);font-size:12px}
+.gl-row{display:grid;grid-template-columns:180px 1fr auto;gap:8px;align-items:center}
+.gl-row .gl-key{height:40px}
+.gl-row .gl-url{height:40px}
+.gl-row .remove{
+  width:40px;height:40px;border-radius:10px;border:1px solid var(--line-strong);
+  background:var(--surface);display:inline-flex;align-items:center;justify-content:center;
+  transition:.15s;color:#6b7280
+}
+.gl-row .remove:hover{background:rgba(239,68,68,.08);border-color:rgba(239,68,68,.35);color:var(--danger-color)}
+.gl-row + .gl-row{margin-top:8px}
+#gl_add{border-radius:10px;border:1px solid var(--line-strong);background:var(--surface)}
+#gl_add:hover{box-shadow:var(--shadow-1)}
+
+/* Help text */
 .help{color:var(--muted-color);font-size:12px}
 
 /* Dark tweaks */
@@ -90,6 +103,16 @@ html.theme-dark .dropzone{background:#0b1020;border-color:var(--line-strong)}
 .table-wrap,.table-wrap .card-body,.table-responsive{overflow:visible !important}
 .table-wrap .dropdown{position:relative}
 .table-wrap .dropdown-menu{z-index:2050}
+
+/* ===== Minimal rich-text toolbar (Bold/Italic only) ===== */
+.rt-toolbar{display:flex;gap:8px;margin-bottom:6px}
+.rt-btn{
+  width:40px;height:36px;border-radius:10px;border:1px solid var(--line-strong);
+  background:var(--surface);display:inline-flex;align-items:center;justify-content:center;
+  cursor:pointer;transition:.15s
+}
+.rt-btn:hover{box-shadow:var(--shadow-1)}
+html.theme-dark .rt-btn{background:#0f172a;border-color:var(--line-strong)}
 </style>
 @endpush
 
@@ -237,12 +260,21 @@ html.theme-dark .dropzone{background:#0b1020;border-color:var(--line-strong)}
           {{-- Existing --}}
           <div class="tab-pane fade show active" id="tabExisting" role="tabpanel">
             <div class="mstab-head">
-              <div class="d-flex align-items-center gap-2">
+              <div class="left-tools d-flex align-items-center gap-2">
                 <input id="st_q" class="form-control" style="width:240px" placeholder="Search by name/email/phone…">
                 <label class="text-muted small mb-0">Per page</label>
                 <select id="st_per" class="form-select" style="width:90px">
                   <option>10</option><option selected>20</option><option>30</option><option>50</option>
                 </select>
+
+                {{-- NEW: Assigned dropdown (matches Per page UI) --}}
+                <label class="text-muted small mb-0">Assigned</label>
+                <select id="st_assigned" class="form-select" style="width:150px">
+                  <option value="all" selected>All</option>
+                  <option value="assigned">Assigned</option>
+                  <option value="unassigned">Unassigned</option>
+                </select>
+
                 <button id="st_apply" class="btn btn-light"><i class="fa fa-check me-1"></i>Apply</button>
               </div>
               <div class="text-muted small" id="st_meta">—</div>
@@ -275,9 +307,9 @@ html.theme-dark .dropzone{background:#0b1020;border-color:var(--line-strong)}
             <div class="dropzone text-center" id="csvDrop">
               <div class="mb-2"><i class="fa-regular fa-circle-up" style="font-size:28px;opacity:.8"></i></div>
               <div class="fw-semibold">Import CSV File</div>
-     <div class="hint mt-1">
-  Columns required: <b>email</b>, <b>name</b>, <b>phone</b> (or <b>phone_number</b>).
-</div>
+              <div class="hint mt-1">
+                Columns required: <b>email</b>, <b>name</b>, <b>phone</b> (or <b>phone_number</b>).
+              </div>
               <div class="mt-2">
                 <label class="btn btn-light me-2">
                   <i class="fa fa-file-csv me-1"></i>Import CSV
@@ -346,6 +378,13 @@ html.theme-dark .dropzone{background:#0b1020;border-color:var(--line-strong)}
 
           <div class="col-12">
             <label class="form-label">Badge Description</label>
+
+            {{-- ⚠️ Bold/Italic toolbar (Markdown-style **bold** and *italic*) --}}
+            <div class="rt-toolbar" aria-label="Text formatting">
+              <button id="rt_bold" type="button" class="rt-btn" title="Bold (Ctrl/Cmd+B)"><i class="fa-solid fa-bold"></i></button>
+              <button id="rt_italic" type="button" class="rt-btn" title="Italic (Ctrl/Cmd+I)"><i class="fa-solid fa-italic"></i></button>
+            </div>
+
             <textarea id="bm_desc" class="form-control" rows="4" placeholder="Longer description (optional)"></textarea>
           </div>
 
@@ -381,10 +420,11 @@ html.theme-dark .dropzone{background:#0b1020;border-color:var(--line-strong)}
           </div>
 
           <div class="col-12">
-            <label class="form-label">Group Links (URLs)</label>
+            <label class="form-label">Group Links (Key → URL)</label>
+            <div class="gl-wrap-tip mb-1">Example: <b>WhatsApp</b> → <span class="text-muted">https://chat.whatsapp.com/…</span> • <b>Telegram</b> → <span class="text-muted">https://t.me/…</span></div>
             <div id="gl_wrap"></div>
             <button id="gl_add" class="btn btn-light btn-sm mt-2" type="button"><i class="fa fa-plus me-1"></i>Add Link</button>
-            <div class="help mt-2">Only URLs are sent to the API as <code>group_links[]</code>.</div>
+            <div class="help mt-2">Saved as key-value pairs on the server. Old plain URL arrays are still supported on load.</div>
           </div>
         </div>
       </div>
@@ -433,7 +473,7 @@ document.addEventListener('click', (e)=>{
 const esc = (s)=> (s==null?'':String(s)).replace(/[&<>"'`]/g, m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;','`':'&#96;' }[m]));
 function fmtDate(iso){ if(!iso) return '-'; const d=new Date(iso); return isNaN(d)?esc(iso):d.toLocaleDateString(undefined,{year:'numeric',month:'short',day:'2-digit'}); }
 function fmtDateTime(iso){ if(!iso) return '-'; const d=new Date(iso); return isNaN(d)?esc(iso):d.toLocaleString(undefined,{year:'numeric',month:'short',day:'2-digit',hour:'2-digit',minute:'2-digit'}); }
-function badgeStatus(s){ const map={active:'success',inactive:'warning',archived:'secondary'}; const cls=map[s]||'secondary'; return `<span class="badge badge-${cls} text-uppercase">${esc(s||'-')}</span>`; }
+function badgeStatus(s){ const map={active:'success',inactive:'warning',archived:'info'}; const cls=map[s]||'info'; return `<span class="badge badge-${cls} text-uppercase">${esc(s||'-')}</span>`; }
 function diffYMD(sISO,eISO){
   const s=new Date(sISO), e=new Date(eISO); if(isNaN(s)||isNaN(e)||e<s) return null;
   let y=e.getFullYear()-s.getFullYear(), m=e.getMonth()-s.getMonth(), d=e.getDate()-s.getDate();
@@ -443,6 +483,11 @@ function diffYMD(sISO,eISO){
 }
 function humanYMD(s,e){ const v=diffYMD(s,e); if(!v) return '-'; const parts=[]; if(v.y>0) parts.push(v.y+' '+(v.y===1?'year':'years')); if(v.m>0) parts.push(v.m+' '+(v.m===1?'month':'months')); if(v.d>0||!parts.length) parts.push(v.d+' '+(v.d===1?'day':'days')); return parts.join(' '); }
 function firstError(j){ if(j?.errors){ const k=Object.keys(j.errors)[0]; if(k){ const v=j.errors[k]; return Array.isArray(v)?v[0]:String(v); } } return j?.message||''; }
+
+/* Safe key for PHP form names: group_links[KEY] */
+function safeKey(k){
+  return (k||'').toString().trim().replace(/[^\w\-\.]/g,'_').substring(0,60) || 'Link';
+}
 
 /* ================== ELEMENTS & STATE ================== */
 const courseSel = document.getElementById('courseSel');
@@ -482,7 +527,11 @@ const bm_save         = document.getElementById('bm_save');
 const gl_wrap         = document.getElementById('gl_wrap');
 const gl_add          = document.getElementById('gl_add');
 
-let page = 1, sort = '-created_at', mode = 'active'; // 'active' | 'bin'
+/* === Bold/Italic buttons (works in both Create & Edit modes) === */
+const rt_bold   = document.getElementById('rt_bold');
+const rt_italic = document.getElementById('rt_italic');
+
+let page = 1, sort = '-created_at', mode = 'active';
 let currentCourseId = '';
 let studentsModal, batchModal;
 
@@ -540,7 +589,29 @@ function wireEvents(){
   });
   bm_save.addEventListener('click', saveBatch);
 
-  gl_add.addEventListener('click', ()=> addGlRow(''));
+  gl_add.addEventListener('click', ()=> addGlRow('',''));
+
+  /* ===== Bold / Italic only formatting for Description (Markdown-style) ===== */
+  function wrapSelection(el, left, right, placeholder){
+    el.focus();
+    const s = el.selectionStart ?? 0, e = el.selectionEnd ?? 0;
+    const val = el.value || '';
+    const sel = val.slice(s, e);
+    const text = sel || placeholder || 'text';
+    const out = left + text + right;
+    el.value = val.slice(0, s) + out + val.slice(e);
+    const caret = s + out.length;
+    try{ el.setSelectionRange(caret, caret); }catch(_){}
+    el.dispatchEvent(new Event('input',{bubbles:true}));
+  }
+  if(rt_bold)   rt_bold.addEventListener('click', ()=> wrapSelection(bm_desc, '**','**','bold text'));
+  if(rt_italic) rt_italic.addEventListener('click', ()=> wrapSelection(bm_desc, '*','*','italic text'));
+
+  // Keyboard shortcuts inside textarea: Ctrl/Cmd+B / Ctrl/Cmd+I
+  bm_desc.addEventListener('keydown', (e)=>{
+    if((e.ctrlKey||e.metaKey) && (e.key==='b' || e.key==='B')){ e.preventDefault(); wrapSelection(bm_desc,'**','**','bold text'); }
+    if((e.ctrlKey||e.metaKey) && (e.key==='i' || e.key==='I')){ e.preventDefault(); wrapSelection(bm_desc,'*','*','italic text'); }
+  });
 }
 
 /* ================== URL helpers ================== */
@@ -674,8 +745,8 @@ async function load(){
     if(mode==='bin') p.set('only_deleted','1');
 
     const res = await fetch('/api/batches?'+p.toString()+'&_='+Date.now(), {
-   headers:{'Authorization':'Bearer '+TOKEN,'Accept':'application/json','Cache-Control':'no-cache'}
-});
+      headers:{'Authorization':'Bearer '+TOKEN,'Accept':'application/json','Cache-Control':'no-cache'}
+    });
     const j = await res.json();
     if(!res.ok) throw new Error(j?.message||'Failed to load');
     const items=j?.data||[];
@@ -696,7 +767,17 @@ async function openView(uuid){
     const res=await fetch(`/api/batches/${encodeURIComponent(uuid)}`,{headers:{'Authorization':'Bearer '+TOKEN,'Accept':'application/json'}});
     const j=await res.json(); if(!res.ok) throw new Error(j?.message||'Load failed');
     const r=j.data||{};
-    const links = Array.isArray(r.group_links) ? r.group_links.map(u=>`<div class="small"><a href="${esc(u)}" target="_blank">${esc(u)}</a></div>`).join('') : '<div class="small text-muted">—</div>';
+    // Links: support associative object {key:url} or array of strings
+    let linksHtml = '<div class="small text-muted">—</div>';
+    if (r.group_links && typeof r.group_links === 'object' && !Array.isArray(r.group_links)) {
+      const entries = Object.entries(r.group_links);
+      if (entries.length){
+        linksHtml = entries.map(([k,u])=>`<div class="small"><b>${esc(k)}:</b> <a href="${esc(u)}" target="_blank">${esc(u)}</a></div>`).join('');
+      }
+    } else if (Array.isArray(r.group_links) && r.group_links.length){
+      linksHtml = r.group_links.map(u=>`<div class="small"><a href="${esc(u)}" target="_blank">${esc(u)}</a></div>`).join('');
+    }
+
     vBody.innerHTML = `
       <div class="d-flex gap-3 align-items-start">
         <img class="bthumb" style="width:120px;height:80px" src="${esc(r.featured_image||'')}" onerror="this.src='https://dummyimage.com/200x120/e9e3f5/5e1570.jpg&text=Batch';this.onerror=null;">
@@ -709,10 +790,10 @@ async function openView(uuid){
       <hr class="my-3">
       <div class="row g-3">
         <div><span class="text-muted small">Duration:</span>
-  <strong>${Number(r.duration_days||0)>0 ? (r.duration_days+' days') : '-'}</strong>
-</div>
+          <strong>${Number(r.duration_days||0)>0 ? (r.duration_days+' days') : '-'}</strong>
+        </div>
         <div class="col-md-6"><div><span class="text-muted small">Contact:</span> ${esc(r.contact_number||'-')}</div><div><span class="text-muted small">Note:</span> ${esc(r.badge_note||'-')}</div></div>
-        <div class="col-12"><div class="mb-1 fw-semibold">Group Links</div>${links}</div>
+        <div class="col-12"><div class="mb-1 fw-semibold">Group Links</div>${linksHtml}</div>
         <div class="col-12"><div class="mb-1 fw-semibold">Description</div><div class="small">${(r.badge_description||'').length?esc(r.badge_description):'<span class="text-muted">—</span>'}</div></div>
       </div>`;
   }catch(e){ vBody.innerHTML = `<div class="text-danger">${esc(e.message||'Failed to load')}</div>`; }
@@ -720,13 +801,28 @@ async function openView(uuid){
 
 /* ================== Students modal (Existing + CSV) ================== */
 const st_rows=document.getElementById('st_rows'), st_loader=document.getElementById('st_loader'), st_meta=document.getElementById('st_meta'), st_pager=document.getElementById('st_pager'), st_q=document.getElementById('st_q'), st_per=document.getElementById('st_per'), st_apply=document.getElementById('st_apply');
+const st_assigned=document.getElementById('st_assigned');
 const csvFile=document.getElementById('csvFile'), csvDrop=document.getElementById('csvDrop'), csvHint=document.getElementById('csvHint'), csvSummary=document.getElementById('csvSummary');
 let st_uuid=null, st_page=1;
 
-function studentsParams(){ const p=new URLSearchParams(); if(st_q.value.trim()) p.set('q',st_q.value.trim()); p.set('per_page',st_per.value||20); p.set('page',st_page); return p.toString(); }
-function openStudents(uuid){ studentsModal = studentsModal || new bootstrap.Modal(document.getElementById('studentsModal')); st_uuid=uuid; st_page=1; studentsModal.show(); loadStudents(); }
+function studentsParams(){
+  const p=new URLSearchParams();
+  if(st_q.value.trim()) p.set('q',st_q.value.trim());
+  p.set('per_page',st_per.value||20);
+  p.set('page',st_page);
+  if(st_assigned.value==='assigned')   p.set('assigned','1');
+  if(st_assigned.value==='unassigned') p.set('assigned','0');
+  return p.toString();
+}
+function openStudents(uuid){
+  studentsModal = studentsModal || new bootstrap.Modal(document.getElementById('studentsModal'));
+  st_uuid=uuid; st_page=1; st_assigned.value='all';
+  studentsModal.show(); loadStudents();
+}
 st_apply.addEventListener('click',()=>{ st_page=1; loadStudents(); });
 st_per.addEventListener('change',()=>{ st_page=1; loadStudents(); });
+st_assigned.addEventListener('change',()=>{ st_page=1; loadStudents(); });
+
 let stT; st_q.addEventListener('input',()=>{ clearTimeout(stT); stT=setTimeout(()=>{ st_page=1; loadStudents(); },350); });
 
 async function loadStudents(){
@@ -735,7 +831,13 @@ async function loadStudents(){
   try{
     const res=await fetch(`/api/batches/${encodeURIComponent(st_uuid)}/students?`+studentsParams(),{headers:{'Authorization':'Bearer '+TOKEN,'Accept':'application/json'}});
     const j=await res.json(); if(!res.ok) throw new Error(j?.message||'Failed to load students');
-    const items=j?.data||[]; const pag=j?.pagination||{current_page:1,per_page:Number(st_per.value||20),total:items.length};
+    let items=j?.data||[];
+    const pag=j?.pagination||{current_page:1,per_page:Number(st_per.value||20),total:items.length};
+
+    // Client-side fallback if API ignores ?assigned=
+    if(st_assigned.value==='assigned')   items = items.filter(u=> !!u.assigned);
+    if(st_assigned.value==='unassigned') items = items.filter(u=> !u.assigned);
+
     const frag=document.createDocumentFragment();
     items.forEach(u=>{
       const tr=document.createElement('tr');
@@ -751,22 +853,42 @@ async function loadStudents(){
       frag.appendChild(tr);
     });
     st_rows.appendChild(frag);
-    st_rows.querySelectorAll('.st-tg').forEach(ch=> ch.addEventListener('change',()=> toggleStudent(Number(ch.dataset.id), ch.checked)));
+    st_rows.querySelectorAll('.st-tg').forEach(ch=>{
+      ch.addEventListener('change',()=>{
+        toggleStudent(Number(ch.dataset.id), ch.checked, ch);
+      });
+    });
 
-    // pager
-    const total=Number(pag.total||0), per=Number(pag.per_page||20), cur=Number(pag.current_page||1); const pages=Math.max(1,Math.ceil(total/per));
+    // pager (server data)
+    const total=Number(pag.total||0), per=Number(pag.per_page||20), cur=Number(pag.current_page||1);
+    const pages=Math.max(1,Math.ceil(total/per));
     function li(dis,act,label,t){ const c=['page-item',dis?'disabled':'',act?'active':''].filter(Boolean).join(' '); return `<li class="${c}"><a class="page-link" href="javascript:void(0)" data-page="${t||''}">${label}</a></li>`; }
-    let html=''; html+=li(cur<=1,false,'Prev',cur-1); const w=2,s=Math.max(1,cur-w),e=Math.min(pages,cur+w); for(let i=s;i<=e;i++) html+=li(false,i===cur,i,i); html+=li(cur>=pages,false,'Next',cur+1);
+    let html=''; html+=li(cur<=1,false,'Prev',cur-1); const w=2,s=Math.max(1,cur-w),e=Math.min(pages,cur+w); for(let i=s;i<=e;i++) html+=li(false,i===cur,i); html+=li(cur>=pages,false,'Next',cur+1);
     st_pager.innerHTML=html; st_pager.querySelectorAll('a.page-link[data-page]').forEach(a=> a.addEventListener('click',()=>{ const t=Number(a.dataset.page); if(!t||t===st_page) return; st_page=t; loadStudents(); }));
-    st_meta.textContent=`Page ${cur}/${pages} — ${total} student(s)`;
+    const label = st_assigned.value==='all' ? 'All' : (st_assigned.value==='assigned' ? 'Assigned' : 'Unassigned');
+    st_meta.textContent=`${label} — Page ${cur}/${pages} — ${total} student(s)`;
   }catch(e){ err(e.message); }
   finally{ st_loader.style.display='none'; }
 }
-async function toggleStudent(userId, assigned){
+async function toggleStudent(userId, assigned, checkboxEl){
   try{
-    const res=await fetch(`/api/batches/${encodeURIComponent(st_uuid)}/students/toggle`,{method:'POST',headers:{'Authorization':'Bearer '+TOKEN,'Content-Type':'application/json','Accept':'application/json'},body:JSON.stringify({user_id:userId,assigned:!!assigned})});
-    const j=await res.json().catch(()=>({})); if(!res.ok) throw new Error(j?.message||firstError(j)||'Toggle failed');
-  }catch(e){ err(e.message); loadStudents(); }
+    const res=await fetch(`/api/batches/${encodeURIComponent(st_uuid)}/students/toggle`,{
+      method:'POST',
+      headers:{'Authorization':'Bearer '+TOKEN,'Content-Type':'application/json','Accept':'application/json'},
+      body:JSON.stringify({user_id:userId,assigned:!!assigned})
+    });
+    const j=await res.json().catch(()=>({}));
+    if(!res.ok) throw new Error(j?.message||firstError(j)||'Toggle failed');
+    ok(assigned ? 'Student assigned to batch' : 'Student removed from batch');
+
+    // If the current filter would hide this row, refresh
+    if((st_assigned.value==='assigned' && !assigned) || (st_assigned.value==='unassigned' && assigned)){
+      loadStudents();
+    }
+  }catch(e){
+    if(checkboxEl) checkboxEl.checked = !assigned;
+    err(e.message);
+  }
 }
 
 /* CSV upload */
@@ -813,27 +935,64 @@ async function openEditModal(uuid){
     bm_tagline.value=r.tagline||''; bm_desc.value=r.badge_description||''; bm_contact.value=r.contact_number||''; bm_note.value=r.badge_note||'';
     bm_start.value=r.starts_at?r.starts_at.slice(0,10):''; bm_end.value=r.ends_at?r.ends_at.slice(0,10):''; bm_dur_prev.value=(r.starts_at&&r.ends_at)?humanYMD(r.starts_at,r.ends_at):'';
     bm_img_prev.src=r.featured_image||'';
+
     gl_wrap.innerHTML='';
-    (Array.isArray(r.group_links)?r.group_links:[]).forEach(u=> addGlRow(u));
-    if(!gl_wrap.children.length) addGlRow('');
+
+    if (r.group_links && typeof r.group_links === 'object' && !Array.isArray(r.group_links)) {
+      for (const [k,v] of Object.entries(r.group_links)) addGlRow(k||'', v||'');
+    } else if (Array.isArray(r.group_links) && r.group_links.length && typeof r.group_links[0] === 'object') {
+      r.group_links.forEach(x=> addGlRow(x.key||'', x.url||''));
+    } else if (Array.isArray(r.group_links)) {
+      r.group_links.forEach(u=> addGlRow('', u||''));
+    }
+
+    if(!gl_wrap.children.length) addGlRow('','');
     batchModal.show();
   }catch(e){ err(e.message||'Failed to open editor'); }
 }
 function resetBatchForm(){
   bm_status.value='active'; bm_title_input.value=''; bm_mode_select.value='hybrid'; bm_tagline.value=''; bm_desc.value=''; bm_contact.value=''; bm_note.value='';
-  bm_start.value=''; bm_end.value=''; bm_dur_prev.value=''; bm_image.value=''; bm_img_prev.src=''; gl_wrap.innerHTML=''; addGlRow(''); addGlRow('');
+  bm_start.value=''; bm_end.value=''; bm_dur_prev.value=''; bm_image.value=''; bm_img_prev.src='';
+  gl_wrap.innerHTML=''; addGlRow('',''); addGlRow('','');
 }
-function addGlRow(url){
+
+/* ---- URL key→value row builder ---- */
+function addGlRow(keyVal, urlVal){
   const row=document.createElement('div');
-  row.className='gl-row mt-2';
-  row.innerHTML=`<div class="help">URL</div><input class="form-control gl-url" placeholder="https://…" value="${esc(url||'')}"><button type="button" class="remove" title="Remove"><i class="fa fa-xmark"></i></button>`;
+  row.className='gl-row';
+  row.innerHTML=`
+    <input class="form-control gl-key" placeholder="Key (e.g., WhatsApp, Telegram, Discord…)" value="${esc(keyVal||'')}">
+    <input class="form-control gl-url" placeholder="https://…" value="${esc(urlVal||'')}">
+    <button type="button" class="remove" title="Remove"><i class="fa fa-xmark"></i></button>`;
   row.querySelector('.remove').addEventListener('click',()=> row.remove());
   gl_wrap.appendChild(row);
 }
+
 function collectGroupLinks(){
-  const urls=[...gl_wrap.querySelectorAll('.gl-url')].map(i=>i.value.trim()).filter(Boolean);
-  return urls;
+  const rows = [...gl_wrap.querySelectorAll('.gl-row')];
+  const map = {};
+  const used = new Set();
+  let idx = 1;
+
+  rows.forEach(r=>{
+    let key = r.querySelector('.gl-key')?.value?.trim() || '';
+    const url = r.querySelector('.gl-url')?.value?.trim() || '';
+    if(!url) return;
+
+    if(!key){
+      try{ key = new URL(url).hostname.replace(/^www\./,''); }catch(_){ key = 'Link '+idx; }
+    }
+    key = safeKey(key);
+    let base = key, i = 2;
+    while (used.has(key)) { key = `${base}_${i++}`; }
+    used.add(key);
+    map[key] = url;
+    idx++;
+  });
+
+  return map;
 }
+
 async function saveBatch(){
   if(!bm_title_input.value.trim()) return Swal.fire('Title required','Please enter a badge title.','info');
   if(!bm_course_id.value) return Swal.fire('Course missing','Pick a course from the toolbar.','info');
@@ -849,31 +1008,30 @@ async function saveBatch(){
   if(bm_contact.value.trim()) fd.append('contact_number', bm_contact.value.trim());
   if(bm_note.value.trim())    fd.append('badge_note', bm_note.value.trim());
   fd.append('status', bm_status.value);
-  if(bm_start.value) fd.append('starts_on', bm_start.value); // <-- server normalizes to starts_at
-  if(bm_end.value)   fd.append('ends_on', bm_end.value);     // <-- server normalizes to ends_at
+  if(bm_start.value) fd.append('starts_on', bm_start.value);
+  if(bm_end.value)   fd.append('ends_on', bm_end.value);
 
-  // ALWAYS include group_links key. If empty, send one empty item to signal "clear".
-  const links = collectGroupLinks();
-  if (links.length) {
-    links.forEach(u => fd.append('group_links[]', u));
+  const kv = collectGroupLinks();
+  const keys = Object.keys(kv);
+  if (keys.length){
+    keys.forEach(k => fd.append(`group_links[${k}]`, kv[k]));
   } else {
-    fd.append('group_links[]', ''); // server filters blanks → sets null
+    fd.append('group_links[]','');
   }
 
   if(bm_image.files && bm_image.files[0]) fd.append('featured_image', bm_image.files[0]);
 
   try{
-     let url='/api/batches', method='POST';
-   if (bm_mode.value==='edit' && bm_uuid.value) {
-          url = `/api/batches/${encodeURIComponent(bm_uuid.value)}`;
-     // Laravel + PHP need POST + _method when uploading files
-     fd.append('_method','PATCH');
-     method = 'POST';
-   }
+    let url='/api/batches', method='POST';
+    if (bm_mode.value==='edit' && bm_uuid.value) {
+      url = `/api/batches/${encodeURIComponent(bm_uuid.value)}`;
+      fd.append('_method','PATCH');
+      method = 'POST';
+    }
 
     const res = await fetch(url,{
       method,
-      headers:{ 'Authorization':'Bearer '+TOKEN, 'Accept':'application/json', 'Cache-Control':'no-cache' }, // don't set Content-Type for FormData
+      headers:{ 'Authorization':'Bearer '+TOKEN, 'Accept':'application/json', 'Cache-Control':'no-cache' },
       body: fd
     });
 
@@ -882,7 +1040,7 @@ async function saveBatch(){
 
     ok('Batch saved');
     bootstrap.Modal.getOrCreateInstance(document.getElementById('batchModal')).hide();
-    load(); // refresh table with new values
+    load();
   }catch(e){ err(e.message||'Save failed'); }
 }
 
@@ -912,7 +1070,8 @@ async function deleteBatch(uuid){
   try{ const res=await fetch(`/api/batches/${encodeURIComponent(uuid)}`,{method:'DELETE',headers:{'Authorization':'Bearer '+TOKEN,'Accept':'application/json'}}); const j=await res.json().catch(()=>({})); if(!res.ok) throw new Error(firstError(j)||'Delete failed'); ok('Batch deleted'); load(); }catch(e){ err(e.message); }
 }
 async function restoreBatch(uuid){
-  try{ const res=await fetch(`/api/batches/${encodeURIComponent(uuid)}/restore`,{method:'POST',headers:{'Authorization':'Bearer '+TOKEN,'Accept':'application/json'}}); const j=await res.json().catch(()=>({})); if(!res.ok) throw new Error(firstError(j)||'Restore failed'); ok('Batch restored'); load(); }catch(e){ err(e.message); }
+  try{ const res=await fetch(`/api/batches/${encodeURIComponent(uuid)}/restore`,{method:'POST',headers:{'Authorization':'Bearer '+TOKEN,'Accept':'application/json'}}); const j=await res.json().catch(()=>({})); if(!res.ok) throw new Error(firstError(j)||'Restore failed'); ok('Batch restored'); load(); }
+  catch(e){ err(e.message); }
 }
 </script>
 @endpush
