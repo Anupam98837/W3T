@@ -411,24 +411,26 @@ document.addEventListener('DOMContentLoaded', () => {
   overlay?.addEventListener('click', closeSidebar);
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeSidebar(); });
 
-  // ===== Submenus
-  document.querySelectorAll('.w3-toggle').forEach(tg => {
-    tg.addEventListener('click', (e) => {
-      e.preventDefault();
-      const id = tg.dataset.target;
-      const el = document.getElementById(id);
-      const open = el.classList.toggle('w3-open');
-      tg.classList.toggle('w3-open', open);
-      tg.setAttribute('aria-expanded', open ? 'true' : 'false');
-    });
-  });
+  // ===== Active link + open parent (robust to absolute/relative URLs & trailing slashes)
+  const normalize = (p) => (p || '').replace(/\/+$/, '') || '/';
+  const path = normalize(window.location.pathname);
 
-  // ===== Active link + open parent
-  const path = window.location.pathname.replace(/\/+$/, '');
   document.querySelectorAll('.w3-menu a[href]').forEach(a => {
-    const href = a.getAttribute('href');
-    if (href && href !== '#' && href.replace(/\/+$/, '') === path){
+    const raw = a.getAttribute('href');
+    if (!raw || raw === '#') return;
+
+    let hrefPath = '';
+    try {
+      hrefPath = new URL(raw, window.location.origin).pathname;
+    } catch (e) {
+      hrefPath = a.pathname || raw;
+    }
+    hrefPath = normalize(hrefPath);
+
+    if (hrefPath === path){
       a.classList.add('active');
+      a.setAttribute('aria-current','page');
+
       const sub = a.closest('.w3-submenu');
       if (sub){
         sub.classList.add('w3-open');
@@ -443,8 +445,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const roleLabelEl = document.getElementById('userRoleLabel');
   function titleizeRole(r){
     if (!r) return 'Admin';
-    return r.replace(/_/g,' ')
-            .replace(/\b\w/g, c => c.toUpperCase());
+    return r.replace(/_/g,' ').replace(/\b\w/g, c => c.toUpperCase());
   }
   const roleFromStorage = sessionStorage.getItem('role') || localStorage.getItem('role');
   roleLabelEl && (roleLabelEl.textContent = titleizeRole(roleFromStorage) || 'Admin');

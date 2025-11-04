@@ -96,22 +96,11 @@ Route::middleware('checkRole:admin,super_admin')->group(function () {
     Route::get   ('/batches/{idOrUuid}/students',          [BatchController::class, 'studentsIndex']);
     Route::post  ('/batches/{idOrUuid}/students/toggle',   [BatchController::class, 'studentsToggle']);
 
+    //Instructor Routes 
+    Route::get   ('/batches/{batch}/instructors',            [BatchController::class,'instructorsIndex']);
+    Route::post  ('/batches/{batch}/instructors/toggle',     [BatchController::class,'instructorsToggle']);
+    Route::patch ('/batches/{batch}/instructors/update',     [BatchController::class,'instructorsUpdate']);
+
     // CSV upload
     Route::post  ('/batches/{idOrUuid}/students/upload-csv', [BatchController::class, 'studentsUploadCsv']);
-});
-
-Route::prefix('batch-instructors')->group(function () {
-    // Read endpoints (allow admin + instructor views)
-    Route::middleware('check.role:admin,super_admin,instructor')->group(function () {
-        Route::get('/', [BatchInstructorController::class, 'index']);
-        Route::get('/instructors-of-batch', [BatchInstructorController::class, 'instructorsOfBatch']);
-        Route::get('/batches-for-user', [BatchInstructorController::class, 'batchesForUser']);
-    });
-
-    // Write endpoints (restrict to admins)
-    Route::middleware('check.role:admin,super_admin')->group(function () {
-        Route::post('/toggle', [BatchInstructorController::class, 'toggle']);
-        Route::post('/bulk-sync-for-user', [BatchInstructorController::class, 'bulkSyncForUser']);
-        Route::post('/restore', [BatchInstructorController::class, 'restore']);
-    });
 });

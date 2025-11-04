@@ -853,4 +853,218 @@ public function studentsUploadCsv(Request $request, $idOrUuid)
 }
 
 
+/**
+ * GET /api/batches/{idOrUuid}/instructors?q=&assigned=&per_page=&page=
+ * assigned: 'all' (default) | '1' | '0'
+ */
+public function instructorsIndex(Request $request, $idOrUuid)
+{
+    $batch = $this->findBatch($idOrUuid);
+    if (!$batch) return response()->json(['success'=>false,'message'=>'Batch not found'], 404);
+
+    $v = Validator::make($request->all(), [
+        'q'        => 'nullable|string|max:255',
+        'assigned' => 'nullable|in:all,0,1',
+        'per_page' => 'nullable|integer|min:1|max:200',
+        'page'     => 'nullable|integer|min:1',
+    ]);
+    if ($v->fails()) {
+        return response()->json(['success'=>false,'errors'=>$v->errors()], 422);
+    }
+
+    $per  = (int)$request->input('per_page', 20);
+    $page = (int)$request->input('page', 1);
+    $assignedFilter = $request->input('assigned', 'all');
+
+    // Detect phone column (same approach as students)
+    $phoneCol = \Illuminate\Support\Facades\Schema::hasColumn('users','phone_number') ? 'phone_number'
+              : (\Illuminate\Support\Facades\Schema::hasColumn('users','phone') ? 'phone' : null);
+
+    $u = DB::table('users')
+        ->whereNull('deleted_at')
+        ->where('status','active')
+        ->where('role','instructor');
+
+    if ($request->filled('q')) {
+        $like = '%'.str_replace('%','\\%',$request->q).'%';
+        $u->where(function($qq) use ($like, $phoneCol){
+            $qq->where('name','like',$like)
+               ->orWhere('email','like',$like);
+            if ($phoneCol) $qq->orWhere($phoneCol,'like',$like);
+        });
+    }
+
+    $total = (clone $u)->count();
+
+    $select = ['id','name','email'];
+    if ($phoneCol) $select[] = DB::raw("$phoneCol as phone");
+
+    $rows = $u->select($select)
+        ->orderBy('name','asc')
+        ->offset(($page-1)*$per)
+        ->limit($per)
+        ->get();
+
+    // Pull assignments for these user ids (not soft-deleted)
+    $ids = $rows->pluck('id')->all();
+    $links = DB::table('batch_instructors')
+        ->where('batch_id', $batch->id)
+        ->whereNull('deleted_at')
+        ->whereIn('user_id', $ids)
+        ->get()
+        ->keyBy('user_id');
+
+    // If assigned filter requested, apply it server-side
+    $data = [];
+    foreach ($rows as $r) {
+        $link = $links->get($r->id);
+        $isAssigned = (bool)$link;
+
+        if ($assignedFilter === '1' && !$isAssigned) continue;
+        if ($assignedFilter === '0' &&  $isAssigned) continue;
+
+        $data[] = [
+            'id'            => (int)$r->id,
+            'name'          => $r->name,
+            'email'         => $r->email,
+            'phone'         => $r->phone ?? null,
+            'assigned'      => $isAssigned,
+            'role_in_batch' => $link->role_in_batch ?? null,
+            'assign_status' => $link->assign_status ?? null,
+            'assigned_at'   => $link->assigned_at ?? null,
+        ];
+    }
+
+    return response()->json([
+        'success'    => true,
+        'data'       => array_values($data),
+        'pagination' => [
+            'total'        => $total,
+            'per_page'     => $per,
+            'current_page' => $page,
+            'last_page'    => (int)ceil(max(1,$total)/max(1,$per)),
+        ],
+    ]);
+}
+
+/**
+ * POST /api/batches/{idOrUuid}/instructors/toggle
+ * Body: { user_id:int, assigned:bool, role_in_batch?:instructor|tutor|TA|mentor }
+ */
+public function instructorsToggle(Request $request, $idOrUuid)
+{
+    $uid = $this->authUserIdFromToken($request);
+    if (!$uid) return response()->json(['success'=>false,'message'=>'Unauthorized'], 401);
+
+    $batch = $this->findBatch($idOrUuid);
+    if (!$batch) return response()->json(['success'=>false,'message'=>'Batch not found'], 404);
+
+    $v = Validator::make($request->all(), [
+        'user_id'       => 'required|integer|exists:users,id',
+        'assigned'      => 'required|boolean',
+        'role_in_batch' => 'nullable|in:instructor,tutor,TA,mentor',
+    ]);
+    if ($v->fails()) {
+        return response()->json(['success'=>false,'errors'=>$v->errors()], 422);
+    }
+
+    $now  = now();
+    $ip   = $request->ip();
+    $roleInBatch = $request->input('role_in_batch', 'instructor');
+
+    if ($request->boolean('assigned')) {
+        // If a link (even soft-deleted) exists, revive; else insert
+        $existing = DB::table('batch_instructors')
+            ->where('batch_id', $batch->id)
+            ->where('user_id', (int)$request->user_id)
+            ->first();
+
+        if ($existing) {
+            DB::table('batch_instructors')
+              ->where('id', $existing->id)
+              ->update([
+                  'deleted_at'    => null,
+                  'assign_status' => 'active',
+                  'role_in_batch' => $roleInBatch ?: ($existing->role_in_batch ?? 'instructor'),
+                  'assigned_at'   => $existing->assigned_at ?: $now,
+                  'unassigned_at' => null,
+                  'updated_at'    => $now,
+              ]);
+        } else {
+            DB::table('batch_instructors')->insert([
+                'uuid'          => (string) Str::uuid(),
+                'batch_id'      => $batch->id,
+                'user_id'       => (int)$request->user_id,
+                'role_in_batch' => $roleInBatch,
+                'assign_status' => 'active',
+                'assigned_at'   => $now,
+                'unassigned_at' => null,
+                'created_by'    => $uid,
+                'created_at_ip' => $ip,
+                'created_at'    => $now,
+                'updated_at'    => $now,
+                'deleted_at'    => null,
+                'metadata'      => json_encode([]),
+            ]);
+        }
+    } else {
+        // Soft delete + mark removed
+        DB::table('batch_instructors')
+          ->where('batch_id', $batch->id)
+          ->where('user_id', (int)$request->user_id)
+          ->whereNull('deleted_at')
+          ->update([
+              'assign_status' => 'removed',
+              'unassigned_at' => $now,
+              'deleted_at'    => $now,
+              'updated_at'    => $now,
+          ]);
+    }
+
+    return response()->json(['success'=>true]);
+}
+
+/**
+ * PATCH /api/batches/{idOrUuid}/instructors/update
+ * Body: { user_id:int, role_in_batch?:..., assign_status?:active|standby|replaced|removed }
+ * Note: Requires the link to exist (not soft-deleted).
+ */
+public function instructorsUpdate(Request $request, $idOrUuid)
+{
+    $uid = $this->authUserIdFromToken($request);
+    if (!$uid) return response()->json(['success'=>false,'message'=>'Unauthorized'], 401);
+
+    $batch = $this->findBatch($idOrUuid);
+    if (!$batch) return response()->json(['success'=>false,'message'=>'Batch not found'], 404);
+
+    $v = Validator::make($request->all(), [
+        'user_id'       => 'required|integer|exists:users,id',
+        'role_in_batch' => 'sometimes|in:instructor,tutor,TA,mentor',
+        'assign_status' => 'sometimes|in:active,standby,replaced,removed',
+    ]);
+    if ($v->fails()) {
+        return response()->json(['success'=>false,'errors'=>$v->errors()], 422);
+    }
+
+    $link = DB::table('batch_instructors')
+        ->where('batch_id', $batch->id)
+        ->where('user_id', (int)$request->user_id)
+        ->whereNull('deleted_at')
+        ->first();
+
+    if (!$link) {
+        return response()->json(['success'=>false,'message'=>'Instructor is not assigned to this batch'], 404);
+    }
+
+    $upd = [];
+    if ($request->has('role_in_batch')) $upd['role_in_batch'] = $request->role_in_batch;
+    if ($request->has('assign_status')) $upd['assign_status'] = $request->assign_status;
+    if (empty($upd)) return response()->json(['success'=>true,'message'=>'Nothing to update']);
+
+    $upd['updated_at'] = now();
+    DB::table('batch_instructors')->where('id',$link->id)->update($upd);
+
+    return response()->json(['success'=>true,'message'=>'Instructor link updated']);
+}
+
 }

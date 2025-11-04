@@ -113,6 +113,7 @@ html.theme-dark .dropzone{background:#0b1020;border-color:var(--line-strong)}
 }
 .rt-btn:hover{box-shadow:var(--shadow-1)}
 html.theme-dark .rt-btn{background:#0f172a;border-color:var(--line-strong)}
+#instructorsModal .ins-role { min-width: 160px; }
 </style>
 @endpush
 
@@ -330,6 +331,77 @@ html.theme-dark .rt-btn{background:#0f172a;border-color:var(--line-strong)}
   </div>
 </div>
 
+{{-- ================= Assign Instructors (modal) ================= --}}
+<div class="modal fade" id="instructorsModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="fa fa-chalkboard-user me-2"></i>Assign Instructors</h5>
+        <a id="ins_add_btn" href="/admin/users/manage" class="btn btn-primary btn-sm ms-auto">
+          <i class="fa fa-user-plus me-1"></i> Add Instructor
+        </a>
+        <button type="button" class="btn-close ms-2" data-bs-dismiss="modal"></button>
+      </div>
+
+      <div class="modal-body">
+        <!-- Controls: search, per page, assigned filter -->
+        <div class="mstab-head">
+          <div class="left-tools d-flex align-items-center gap-2">
+            <input id="ins_q" class="form-control" style="width:240px" placeholder="Search by name/email/phone…">
+            <label class="text-muted small mb-0">Per page</label>
+            <select id="ins_per" class="form-select" style="width:90px">
+              <option>10</option><option selected>20</option><option>30</option><option>50</option>
+            </select>
+            <label class="text-muted small mb-0">Assigned</label>
+            <select id="ins_assigned" class="form-select" style="width:150px">
+              <option value="all" selected>All</option>
+              <option value="assigned">Assigned</option>
+              <option value="unassigned">Unassigned</option>
+            </select>
+            <button id="ins_apply" class="btn btn-light"><i class="fa fa-check me-1"></i>Apply</button>
+          </div>
+          <div class="text-muted small" id="ins_meta">—</div>
+        </div>
+
+        <!-- Table -->
+        <div class="table-responsive">
+          <table class="table table-hover align-middle st-table mb-0">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th style="width:28%;">Email</th>
+                <th style="width:18%;">Phone</th>
+                <th style="width:18%;">Role in Batch</th>
+                <th class="text-center" style="width:110px;">Assign</th>
+              </tr>
+            </thead>
+            <tbody id="ins_rows">
+              <tr id="ins_loader" style="display:none;">
+                <td colspan="5" class="p-3">
+                  <div class="placeholder-wave">
+                    <div class="placeholder col-12 mb-2" style="height:16px;"></div>
+                    <div class="placeholder col-12 mb-2" style="height:16px;"></div>
+                    <div class="placeholder col-12 mb-2" style="height:16px;"></div>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="d-flex justify-content-end p-2">
+          <ul id="ins_pager" class="pagination mb-0"></ul>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn btn-light" data-bs-dismiss="modal">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+
 {{-- ================= Create / Edit Batch (modal) ================= --}}
 <div class="modal fade" id="batchModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-xl modal-dialog-scrollable">
@@ -527,6 +599,20 @@ const bm_save         = document.getElementById('bm_save');
 const gl_wrap         = document.getElementById('gl_wrap');
 const gl_add          = document.getElementById('gl_add');
 
+/* ================== Instructors modal ================== */
+const ins_q       = document.getElementById('ins_q');
+const ins_per     = document.getElementById('ins_per');
+const ins_apply   = document.getElementById('ins_apply');
+const ins_assigned= document.getElementById('ins_assigned');
+
+const ins_rows    = document.getElementById('ins_rows');
+const ins_loader  = document.getElementById('ins_loader');
+const ins_meta    = document.getElementById('ins_meta');
+const ins_pager   = document.getElementById('ins_pager');
+
+let instructorsModal, ins_uuid=null, ins_page=1;
+
+
 /* === Bold/Italic buttons (works in both Create & Edit modes) === */
 const rt_bold   = document.getElementById('rt_bold');
 const rt_italic = document.getElementById('rt_italic');
@@ -679,6 +765,7 @@ function rowActions(r){
     <ul class="dropdown-menu dropdown-menu-end">
       <li><button class="dropdown-item" data-act="view" data-uuid="${r.uuid}"><i class="fa fa-eye"></i> View Batch</button></li>
       ${!inBin ? `<li><button class="dropdown-item" data-act="edit" data-uuid="${r.uuid}"><i class="fa fa-pen-to-square"></i> Edit Batch</button></li>` : ''}
+      ${!inBin ? `<li><button class="dropdown-item" data-act="instructors" data-uuid="${r.uuid}"><i class="fa fa-chalkboard-user"></i> Assign Instructor</button></li>` : ''}
       ${!inBin ? `<li><button class="dropdown-item" data-act="assign" data-uuid="${r.uuid}"><i class="fa fa-user-plus"></i> Manage Students</button></li>` : ''}
       <li><hr class="dropdown-divider"></li>
       ${(!inBin && !isArchived) ? `<li><button class="dropdown-item" data-act="archive" data-uuid="${r.uuid}"><i class="fa fa-box-archive"></i> Archive</button></li>` : ''}
@@ -891,6 +978,141 @@ async function toggleStudent(userId, assigned, checkboxEl){
   }
 }
 
+/* ================== Instructors modal (logic) ================== */
+function instructorsParams(){
+  const p = new URLSearchParams();
+  if (ins_q.value.trim()) p.set('q', ins_q.value.trim());
+  p.set('per_page', ins_per.value || 20);
+  p.set('page', ins_page);
+  if (ins_assigned.value === 'assigned')   p.set('assigned', '1');
+  if (ins_assigned.value === 'unassigned') p.set('assigned', '0');
+  return p.toString();
+}
+
+function openInstructors(uuid){
+  instructorsModal = instructorsModal || new bootstrap.Modal(document.getElementById('instructorsModal'));
+  ins_uuid = uuid; ins_page = 1; ins_assigned.value = 'all';
+  instructorsModal.show();
+  loadInstructors();
+}
+
+// filters & search
+ins_apply.addEventListener('click', ()=>{ ins_page=1; loadInstructors(); });
+ins_per.addEventListener('change', ()=>{ ins_page=1; loadInstructors(); });
+ins_assigned.addEventListener('change', ()=>{ ins_page=1; loadInstructors(); });
+
+let insT;
+ins_q.addEventListener('input', ()=>{
+  clearTimeout(insT);
+  insT = setTimeout(()=>{ ins_page=1; loadInstructors(); }, 350);
+});
+
+async function loadInstructors(){
+  if (!ins_uuid) return;
+  ins_loader.style.display = '';
+  ins_rows.querySelectorAll('tr:not(#ins_loader)').forEach(tr=>tr.remove());
+
+  try{
+    const res = await fetch(`/api/batches/${encodeURIComponent(ins_uuid)}/instructors?` + instructorsParams(), {
+      headers:{ 'Authorization':'Bearer '+TOKEN, 'Accept':'application/json' }
+    });
+    const j = await res.json(); if(!res.ok) throw new Error(j?.message || 'Failed to load instructors');
+
+    const items = j?.data || [];
+    const pag   = j?.pagination || { current_page: 1, per_page: Number(ins_per.value||20), total: items.length };
+
+    // Build rows
+    const frag = document.createDocumentFragment();
+    items.forEach(u=>{
+      const assigned = !!u.assigned;
+      const role = u.role_in_batch || 'instructor';
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td class="fw-semibold">${esc(u.name||'-')}</td>
+        <td>${esc(u.email||'-')}</td>
+        <td>${esc(u.phone ?? u.phone_number ?? '-')}</td>
+        <td>
+          <select class="form-select form-select-sm ins-role" ${assigned?'':'disabled'}>
+            <option value="instructor" ${role==='instructor'?'selected':''}>Instructor</option>
+            <option value="tutor"      ${role==='tutor'?'selected':''}>Tutor</option>
+            <option value="TA"         ${role==='TA'?'selected':''}>TA</option>
+            <option value="mentor"     ${role==='mentor'?'selected':''}>Mentor</option>
+          </select>
+        </td>
+        <td class="text-center">
+          <div class="form-check form-switch d-inline-block">
+            <input class="form-check-input ins-tg" type="checkbox" data-id="${u.id}" ${assigned?'checked':''}>
+          </div>
+        </td>`;
+      frag.appendChild(tr);
+    });
+    ins_rows.appendChild(frag);
+
+    // Toggle assign/unassign
+    ins_rows.querySelectorAll('.ins-tg').forEach(ch=>{
+      ch.addEventListener('change', ()=>{
+        const row  = ch.closest('tr');
+        const roleSel = row?.querySelector('.ins-role');
+        const roleVal = roleSel ? roleSel.value : 'instructor';
+        toggleInstructor(Number(ch.dataset.id), ch.checked, ch, roleVal);
+      });
+    });
+
+    // Pagination (server-driven)
+    const total=Number(pag.total||0), per=Number(pag.per_page||20), cur=Number(pag.current_page||1);
+    const pages=Math.max(1,Math.ceil(total/per));
+    function li(dis,act,label,t){ const c=['page-item',dis?'disabled':'',act?'active':''].filter(Boolean).join(' '); return `<li class="${c}"><a class="page-link" href="javascript:void(0)" data-page="${t||''}">${label}</a></li>`; }
+    let html=''; html+=li(cur<=1,false,'Prev',cur-1);
+    const w=2,s=Math.max(1,cur-w),e=Math.min(pages,cur+w);
+    for(let i=s;i<=e;i++) html+=li(false,i===cur,i);
+    html+=li(cur>=pages,false,'Next',cur+1);
+    ins_pager.innerHTML=html;
+    ins_pager.querySelectorAll('a.page-link[data-page]').forEach(a=> a.addEventListener('click',()=>{
+      const t=Number(a.dataset.page); if(!t||t===ins_page) return; ins_page=t; loadInstructors();
+    }));
+
+    // Meta label
+    const label = ins_assigned.value==='all' ? 'All' : (ins_assigned.value==='assigned' ? 'Assigned' : 'Unassigned');
+    ins_meta.textContent = `${label} — Page ${cur}/${pages} — ${total} instructor(s)`;
+  }catch(e){
+    err(e.message || 'Load error');
+  }finally{
+    ins_loader.style.display='none';
+  }
+}
+
+async function toggleInstructor(userId, assigned, checkboxEl, roleVal){
+  try{
+    const body = assigned
+      ? { user_id: userId, assigned: true,  role_in_batch: roleVal || 'instructor' }
+      : { user_id: userId, assigned: false };
+
+    const res = await fetch(`/api/batches/${encodeURIComponent(ins_uuid)}/instructors/toggle`,{
+      method:'POST',
+      headers:{ 'Authorization':'Bearer '+TOKEN, 'Content-Type':'application/json', 'Accept':'application/json' },
+      body: JSON.stringify(body)
+    });
+    const j = await res.json().catch(()=>({}));
+    if(!res.ok) throw new Error(j?.message || firstError(j) || 'Toggle failed');
+
+    // Enable/disable the role select to reflect assignment state
+    const row = checkboxEl.closest('tr');
+    const roleSel = row?.querySelector('.ins-role');
+    if (roleSel) roleSel.disabled = !assigned;
+
+    ok(assigned ? 'Instructor assigned to batch' : 'Instructor unassigned');
+
+    // If current filter would hide/show, refresh
+    if((ins_assigned.value==='assigned' && !assigned) || (ins_assigned.value==='unassigned' && assigned)){
+      loadInstructors();
+    }
+  }catch(e){
+    // Revert UI
+    if (checkboxEl) checkboxEl.checked = !assigned;
+    err(e.message);
+  }
+}
+
 /* CSV upload */
 ;['dragenter','dragover'].forEach(ev=> csvDrop.addEventListener(ev,e=>{e.preventDefault();e.stopPropagation();csvDrop.classList.add('drag');}));
 ;['dragleave','drop'].forEach(ev=> csvDrop.addEventListener(ev,e=>{e.preventDefault();e.stopPropagation();csvDrop.classList.remove('drag');}));
@@ -1051,6 +1273,7 @@ document.addEventListener('click',(e)=>{
   e.preventDefault(); const act=item.dataset.act, uuid=item.dataset.uuid;
   if(act==='view') openView(uuid);
   if(act==='edit') openEditModal(uuid);
+  if(act==='instructors') openInstructors(uuid);
   if(act==='assign') openStudents(uuid);
   if(act==='archive') return archiveBatch(uuid);
   if(act==='unarchive') return unarchiveBatch(uuid);
