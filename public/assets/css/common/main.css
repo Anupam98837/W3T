@@ -698,3 +698,83 @@ h3{ font-size: 1.1rem; }
 @media (prefers-reduced-motion: reduce){
   * { transition: none !important; }
 }
+
+
+
+
+
+/* Dropdowns inside table */
+.table-wrap .dropdown{position:relative}
+.dropdown [data-bs-toggle="dropdown"]{border-radius:10px}
+.dropdown-menu{border-radius:12px;border:1px solid var(--line-strong);box-shadow:var(--shadow-2);min-width:220px;z-index:1085}
+.dropdown-item{display:flex;align-items:center;gap:.6rem}
+.dropdown-item i{width:16px;text-align:center}
+.dropdown-item.text-danger{color:var(--danger-color) !important}
+
+/* Empty & loader */
+#empty{color:var(--muted-color)}
+.placeholder{background:linear-gradient(90deg, #00000010, #00000005, #00000010);border-radius:8px}
+
+/* Modals — match look across both modals */
+.modal-content{border-radius:16px;border:1px solid var(--line-strong);background:var(--surface)}
+.modal-header{border-bottom:1px solid var(--line-strong)}
+.modal-footer{border-top:1px solid var(--line-strong)}
+.form-control, .form-select{border-radius:12px;border:1px solid var(--line-strong);background:#fff}
+html.theme-dark .form-control, html.theme-dark .form-select{background:#0f172a;color:#e5e7eb;border-color:var(--line-strong)}
+.modal-title i{opacity:.9}
+
+/* ===== Featured Media modal — polished to mirror Create Module modal ===== */
+.media-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:8px}
+.media-head .meta .title{font-weight:700;color:var(--ink);font-family:var(--font-head);line-height:1.2}
+.media-head .meta .sub{color:var(--muted-color);font-size:13px}
+
+/* Section labels inside modal for consistency */
+.modal .section-label{font-weight:600;color:var(--ink);margin-top:6px}
+
+/* Dropzone */
+.dropzone{
+  border:1.5px dashed var(--line-strong);
+  border-radius:14px;
+  padding:18px;
+  text-align:center;
+  background:var(--surface-2, #fff);
+  transition: background .15s ease, border-color .15s ease, box-shadow .15s ease;
+}
+.dropzone.drag{background:color-mix(in oklab, var(--accent-color) 10%, transparent); border-color:var(--accent-color); box-shadow:0 0 0 3px color-mix(in oklab, var(--accent-color) 18%, transparent)}
+.dropzone .hint{color:var(--muted-color);font-size:13px}
+
+/* Media list */
+.media-list{margin-top:8px}
+.media-item{
+  display:grid;grid-template-columns:28px 1fr auto;align-items:center;gap:10px;
+  border:1px solid var(--line-strong);border-radius:12px;background:var(--surface-2, #fff);
+  padding:10px 12px;margin-bottom:8px
+}
+.media-item .handle{cursor:grab;opacity:.7}
+.media-item.dragging{opacity:.5}
+.media-item .url{font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:52vw}
+.media-item .kind{font-size:12px;color:var(--muted-color)}
+.media-item .btn-icon{border:none;background:transparent;padding:.25rem .4rem;color:#6b7280}
+.media-item .btn-icon:hover{color:var(--ink)}
+.media-item .icon{
+  width:28px;height:28px;border-radius:8px;display:flex;align-items:center;justify-content:center;
+  border:1px solid var(--line-strong);background:#fff
+}
+
+/* Dark tweaks */
+html.theme-dark .panel,
+html.theme-dark .table-wrap.card,
+html.theme-dark .modal-content{background:#0f172a;border-color:var(--line-strong)}
+html.theme-dark .table thead th{background:#0f172a;border-color:var(--line-strong);color:#94a3b8}
+html.theme-dark .table tbody tr{border-color:var(--line-soft)}
+html.theme-dark .dropdown-menu{background:#0f172a;border-color:var(--line-strong)}
+html.theme-dark .dropzone{background:#0b1020;border-color:var(--line-strong)}
+html.theme-dark .media-item{background:#0b1020;border-color:var(--line-strong)}
+
+/* Dropdown visibility safety nets */
+.table-wrap, .table-wrap .card-body, .table-responsive { overflow: visible !important; }
+.table-wrap .dropdown { position: relative; }
+.table-wrap .dropdown-menu { z-index: 2050; }
+
+/* File button look */
+.btn-light{background:var(--surface);border:1px solid var(--line-strong)}

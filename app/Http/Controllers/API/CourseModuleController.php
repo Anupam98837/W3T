@@ -18,35 +18,31 @@ class CourseModuleController extends Controller
     /** Allowed statuses */
     private const STATUSES = ['draft','published','archived'];
 
-    public function __construct()
-    {
-        // Route middleware is preferred, but keep this for parity with your other controllers if needed.
-        // In routes/api.php, also add: ->middleware('checkRole:admin,super_admin')
-    }
+    public function __construct() {}
 
     /* =========================================================
-     |                       LIST
+     |                       LIST (active)
      |  GET /api/course-modules
      |  ?course_id&status&q&sort=-created_at&page=1&per_page=20
+     |  NOTE: by default this now EXCLUDES archived items unless
+     |        status=archived is explicitly requested.
      |=========================================================*/
     public function index(Request $r)
     {
-        if ($resp = $this->requireRole($r, ['admin','super_admin'])) return $resp;
+        if ($resp = $this->requireRole($r, ['admin','super_admin','superadmin'])) return $resp;
 
         $q         = trim((string)$r->query('q', ''));
-        $status    = $r->query('status');
+        $status    = $r->query('status'); // if null => exclude archived
         $courseId  = $r->query('course_id');
         $page      = max(1, (int)$r->query('page', 1));
         $perPage   = min(100, max(1, (int)$r->query('per_page', 20)));
         $sort      = (string)$r->query('sort', '-created_at');
 
-        // Sorting
         $dir = Str::startsWith($sort, '-') ? 'desc' : 'asc';
         $col = ltrim($sort, '-');
         if (!in_array($col, self::SORTABLE, true)) $col = 'created_at';
 
-        $builder = DB::table('course_modules')
-            ->whereNull('deleted_at');
+        $builder = DB::table('course_modules')->whereNull('deleted_at');
 
         if ($courseId !== null && $courseId !== '') {
             $builder->where('course_id', (int)$courseId);
@@ -54,20 +50,67 @@ class CourseModuleController extends Controller
 
         if ($status && in_array($status, self::STATUSES, true)) {
             $builder->where('status', $status);
+        } else {
+            // Default: hide archived from normal list
+            $builder->where('status', '!=', 'archived');
         }
 
         if ($q !== '') {
             $builder->where(function ($qb) use ($q) {
-                $qb->where('title', 'like', '%' . $q . '%');
+                $qb->where('title', 'like', '%' . $q . '%')
+                   ->orWhere('short_description', 'like', '%' . $q . '%')
+                   ->orWhere('long_description', 'like', '%' . $q . '%');
             });
         }
 
         $total = (clone $builder)->count();
-        $rows  = $builder
-            ->orderBy($col, $dir)
-            ->orderBy('id', 'desc')
-            ->forPage($page, $perPage)
-            ->get();
+        $rows  = $builder->orderBy($col, $dir)->orderBy('id', 'desc')
+            ->forPage($page, $perPage)->get();
+
+        return response()->json([
+            'data'     => $rows,
+            'page'     => $page,
+            'per_page' => $perPage,
+            'total'    => $total,
+        ]);
+    }
+
+    /* =========================================================
+     |                    BIN (soft-deleted only)
+     |  GET /api/course-modules/bin
+     |  Same query params as index (course_id, q, sort, page…)
+     |=========================================================*/
+    public function bin(Request $r)
+    {
+        if ($resp = $this->requireRole($r, ['admin','super_admin','superadmin'])) return $resp;
+
+        $q         = trim((string)$r->query('q', ''));
+        $courseId  = $r->query('course_id');
+        $page      = max(1, (int)$r->query('page', 1));
+        $perPage   = min(100, max(1, (int)$r->query('per_page', 20)));
+        $sort      = (string)$r->query('sort', '-created_at');
+
+        $dir = Str::startsWith($sort, '-') ? 'desc' : 'asc';
+        $col = ltrim($sort, '-');
+        if (!in_array($col, self::SORTABLE, true)) $col = 'created_at';
+
+        $builder = DB::table('course_modules')->whereNotNull('deleted_at');
+
+        if ($courseId !== null && $courseId !== '') {
+            $builder->where('course_id', (int)$courseId);
+        }
+
+        if ($q !== '') {
+            $builder->where(function ($qb) use ($q) {
+                $qb->where('title', 'like', '%' . $q . '%')
+                   ->orWhere('short_description', 'like', '%' . $q . '%')
+                   ->orWhere('long_description', 'like', '%' . $q . '%');
+            });
+        }
+
+        $total = (clone $builder)->count();
+        $rows  = $builder->orderBy($col, $dir)->orderBy('id', 'desc')
+            ->forPage($page, $perPage)->get();
 
         return response()->json([
             'data'     => $rows,
@@ -83,24 +126,22 @@ class CourseModuleController extends Controller
      |=========================================================*/
     public function show(Request $r, string $idOrUuid)
     {
-        if ($resp = $this->requireRole($r, ['admin','super_admin'])) return $resp;
+        if ($resp = $this->requireRole($r, ['admin','super_admin','superadmin'])) return $resp;
 
-        $row = $this->findModule($idOrUuid);
+        $row = $this->findModule($idOrUuid, false);
         if (!$row) {
             return response()->json(['message' => 'Course module not found'], 404);
         }
-
         return response()->json(['data' => $row]);
     }
 
     /* =========================================================
-     |                       CREATE
+     |                       CREATE  (UNCHANGED)
      |  POST /api/course-modules
-     |  Body: { course_id, title, short_description?, long_description?,
-     |          order_no?, status?, metadata? }
      |=========================================================*/
     public function store(Request $r)
     {
+        // unchanged from your current implementation
         if ($resp = $this->requireRole($r, ['admin','superadmin'])) return $resp;
 
         $rules = [
@@ -113,13 +154,12 @@ class CourseModuleController extends Controller
             'long_description'  => ['nullable','string'],
             'order_no'          => ['nullable','integer','min:0'],
             'status'            => ['nullable', Rule::in(self::STATUSES)],
-            'metadata'          => ['nullable'], // JSON; validated in normalize
+            'metadata'          => ['nullable'],
         ];
 
         $data = $r->all();
         $validated = validator($data, $rules)->validate();
 
-        // Normalize
         $uuid      = (string) Str::uuid();
         $now       = now();
         $actor     = $this->actor($r);
@@ -146,8 +186,6 @@ class CourseModuleController extends Controller
             ]);
 
             $row = DB::table('course_modules')->where('id', $id)->first();
-
-            // Activity log (best-effort)
             $this->logActivity($actor, 'store', 'course_modules', $id, null, $row);
 
             DB::commit();
@@ -166,9 +204,9 @@ class CourseModuleController extends Controller
      |=========================================================*/
     public function update(Request $r, string $idOrUuid)
     {
-        if ($resp = $this->requireRole($r, ['admin','super_admin'])) return $resp;
+        if ($resp = $this->requireRole($r, ['admin','super_admin','superadmin'])) return $resp;
 
-        $row = $this->findModule($idOrUuid);
+        $row = $this->findModule($idOrUuid, false);
         if (!$row) return response()->json(['message' => 'Course module not found'], 404);
 
         $rules = [
@@ -186,7 +224,6 @@ class CourseModuleController extends Controller
 
         $payload = validator($r->all(), $rules)->validate();
 
-        // Build update set
         $set = [];
         foreach (['course_id','title','short_description','long_description','order_no','status'] as $k) {
             if (array_key_exists($k, $payload)) $set[$k] = $payload[$k];
@@ -195,7 +232,7 @@ class CourseModuleController extends Controller
             $set['metadata'] = $this->normalizeJson($payload['metadata']);
         }
         if (empty($set)) {
-            return response()->json(['data' => $row]); // nothing to change
+            return response()->json(['data' => $row]);
         }
 
         $actor = $this->actor($r);
@@ -220,14 +257,83 @@ class CourseModuleController extends Controller
     }
 
     /* =========================================================
+     |                    ARCHIVE / UNARCHIVE
+     |  POST /api/course-modules/{id|uuid}/archive
+     |  POST /api/course-modules/{id|uuid}/unarchive
+     |  (status flip only; NOT a delete)
+     |=========================================================*/
+    public function archive(Request $r, string $idOrUuid)
+    {
+        if ($resp = $this->requireRole($r, ['admin','super_admin','superadmin'])) return $resp;
+
+        $row = $this->findModule($idOrUuid, false);
+        if (!$row) return response()->json(['message' => 'Course module not found'], 404);
+
+        if ($row->status === 'archived') {
+            return response()->json(['message' => 'Already archived']);
+        }
+
+        $actor = $this->actor($r);
+        try {
+            DB::beginTransaction();
+            DB::table('course_modules')->where('id', $row->id)->update([
+                'status'     => 'archived',
+                'updated_at' => now(),
+            ]);
+            $newRow = DB::table('course_modules')->where('id', $row->id)->first();
+            $this->logActivity($actor, 'archive', 'course_modules', $row->id, $row, $newRow);
+            DB::commit();
+        } catch (Throwable $e) {
+            DB::rollBack();
+            Log::error('course_modules.archive failed', ['e' => $e]);
+            return response()->json(['message' => 'Failed to archive course module'], 500);
+        }
+
+        return response()->json(['data' => $newRow]);
+    }
+
+    public function unarchive(Request $r, string $idOrUuid)
+    {
+        if ($resp = $this->requireRole($r, ['admin','super_admin','superadmin'])) return $resp;
+
+        $row = $this->findModule($idOrUuid, false);
+        if (!$row) return response()->json(['message' => 'Course module not found'], 404);
+
+        if ($row->status !== 'archived') {
+            return response()->json(['message' => 'Module is not archived']);
+        }
+
+        $actor = $this->actor($r);
+        try {
+            DB::beginTransaction();
+            // You can choose to restore to 'draft' (safer) or keep previous. We'll use 'draft'.
+            DB::table('course_modules')->where('id', $row->id)->update([
+                'status'     => 'draft',
+                'updated_at' => now(),
+            ]);
+            $newRow = DB::table('course_modules')->where('id', $row->id)->first();
+            $this->logActivity($actor, 'unarchive', 'course_modules', $row->id, $row, $newRow);
+            DB::commit();
+        } catch (Throwable $e) {
+            DB::rollBack();
+            Log::error('course_modules.unarchive failed', ['e' => $e]);
+            return response()->json(['message' => 'Failed to unarchive course module'], 500);
+        }
+
+        return response()->json(['data' => $newRow]);
+    }
+
+    /* =========================================================
      |                       DELETE (Soft)
      |  DELETE /api/course-modules/{id|uuid}
+     |  NOTE: this is now a REAL "delete to bin":
+     |        sets deleted_at but DOES NOT change status.
      |=========================================================*/
     public function destroy(Request $r, string $idOrUuid)
     {
-        if ($resp = $this->requireRole($r, ['admin','super_admin'])) return $resp;
+        if ($resp = $this->requireRole($r, ['admin','super_admin','superadmin'])) return $resp;
 
-        $row = $this->findModule($idOrUuid);
+        $row = $this->findModule($idOrUuid, false);
         if (!$row) return response()->json(['message' => 'Course module not found'], 404);
 
         $actor = $this->actor($r);
@@ -238,14 +344,13 @@ class CourseModuleController extends Controller
             DB::table('course_modules')
                 ->where('id', $row->id)
                 ->update([
-                    'status'     => 'archived',
                     'deleted_at' => now(),
                     'updated_at' => now(),
                 ]);
 
             $deleted = DB::table('course_modules')->where('id', $row->id)->first();
 
-            $this->logActivity($actor, 'destroy', 'course_modules', $row->id, $row, $deleted);
+            $this->logActivity($actor, 'soft_delete', 'course_modules', $row->id, $row, $deleted);
 
             DB::commit();
         } catch (Throwable $e) {
@@ -254,18 +359,74 @@ class CourseModuleController extends Controller
             return response()->json(['message' => 'Failed to delete course module'], 500);
         }
 
-        return response()->json(['message' => 'Course module archived']);
+        return response()->json(['message' => 'Course module moved to bin']);
     }
 
     /* =========================================================
-     |                       REORDER (Optional but useful)
+     |                       RESTORE (from bin)
+     |  POST /api/course-modules/{id|uuid}/restore
+     |=========================================================*/
+    public function restore(Request $r, string $idOrUuid)
+    {
+        if ($resp = $this->requireRole($r, ['admin','super_admin','superadmin'])) return $resp;
+
+        $row = $this->findModule($idOrUuid, true); // include deleted
+        if (!$row || $row->deleted_at === null) {
+            return response()->json(['message' => 'Course module not found in bin'], 404);
+        }
+
+        $actor = $this->actor($r);
+        try {
+            DB::beginTransaction();
+            DB::table('course_modules')->where('id', $row->id)->update([
+                'deleted_at' => null,
+                'updated_at' => now(),
+            ]);
+            $newRow = DB::table('course_modules')->where('id', $row->id)->first();
+            $this->logActivity($actor, 'restore', 'course_modules', $row->id, $row, $newRow);
+            DB::commit();
+        } catch (Throwable $e) {
+            DB::rollBack();
+            Log::error('course_modules.restore failed', ['e' => $e]);
+            return response()->json(['message' => 'Failed to restore course module'], 500);
+        }
+
+        return response()->json(['data' => $newRow]);
+    }
+
+    /* =========================================================
+     |                       FORCE DELETE (permanent)
+     |  DELETE /api/course-modules/{id|uuid}/force
+     |=========================================================*/
+    public function forceDestroy(Request $r, string $idOrUuid)
+    {
+        if ($resp = $this->requireRole($r, ['admin','super_admin','superadmin'])) return $resp;
+
+        $row = $this->findModule($idOrUuid, true); // include deleted
+        if (!$row) return response()->json(['message' => 'Course module not found'], 404);
+
+        $actor = $this->actor($r);
+        try {
+            DB::beginTransaction();
+            DB::table('course_modules')->where('id', $row->id)->delete();
+            $this->logActivity($actor, 'force_delete', 'course_modules', $row->id, $row, null);
+            DB::commit();
+        } catch (Throwable $e) {
+            DB::rollBack();
+            Log::error('course_modules.forceDestroy failed', ['e' => $e]);
+            return response()->json(['message' => 'Failed to permanently delete module'], 500);
+        }
+
+        return response()->json(['message' => 'Course module permanently deleted']);
+    }
+
+    /* =========================================================
+     |                       REORDER (unchanged)
      |  POST /api/course-modules/reorder
-     |  Body: { course_id, ids: [moduleId1, moduleId2, ...] }
-     |        or { course_id, orders: { id: position, ... } }
      |=========================================================*/
     public function reorder(Request $r)
     {
-        if ($resp = $this->requireRole($r, ['admin','super_admin'])) return $resp;
+        if ($resp = $this->requireRole($r, ['admin','super_admin','superadmin'])) return $resp;
 
         $payload = validator($r->all(), [
             'course_id' => [
@@ -325,15 +486,19 @@ class CourseModuleController extends Controller
      |                       Helpers
      |=========================================================*/
 
-    private function findModule(string $idOrUuid)
-    {
-        $q = DB::table('course_modules')->whereNull('deleted_at');
-
-        if (ctype_digit($idOrUuid)) {
-            return $q->where('id', (int)$idOrUuid)->first();
-        }
-        return $q->where('uuid', $idOrUuid)->first();
+private function findModule(string $idOrUuid, bool $withTrashed = false)
+{
+    $q = DB::table('course_modules');
+    if (!$withTrashed) {
+        $q->whereNull('deleted_at');
     }
+
+    if (ctype_digit($idOrUuid)) {
+        return $q->where('id', (int)$idOrUuid)->first();
+    }
+    return $q->where('uuid', $idOrUuid)->first();
+}
+
 
     private function normalizeJson($val)
     {
@@ -345,22 +510,27 @@ class CourseModuleController extends Controller
                 return json_encode($decoded, JSON_UNESCAPED_UNICODE);
             }
         }
-        // Fallback: store as string (or null)
         return null;
     }
 
     private function actor(Request $r): array
     {
-        // Set by CheckRole middleware in your project (as per your other controllers)
         $role  = (string) ($r->attributes->get('auth_role') ?? '');
         $id    = (int)    ($r->attributes->get('auth_tokenable_id') ?? 0);
         return ['id' => $id ?: null, 'role' => $role];
     }
 
+    /** Accepts both 'super_admin' and 'superadmin' etc. */
     private function requireRole(Request $r, array $roles)
     {
         $role = (string) ($r->attributes->get('auth_role') ?? '');
-        if (!$role || !in_array($role, $roles, true)) {
+        if (!$role) return response()->json(['message' => 'Forbidden'], 403);
+
+        $canon = fn($s) => strtolower(preg_replace('/[^a-z]/','', $s));
+        $have  = $canon($role);
+        $allow = array_map($canon, $roles);
+
+        if (!in_array($have, $allow, true)) {
             return response()->json(['message' => 'Forbidden'], 403);
         }
         return null;

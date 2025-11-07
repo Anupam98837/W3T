@@ -2,9 +2,9 @@
 
 use Illuminate\Support\Facades\Route;
 
-Route::get('/', function () {
-    return view('ui.structure');
-});
+// Route::get('/', function () {
+//     return view('ui.structure');
+// });
 
 Route::get('/ui', function () {
     return view('ui.ui');
@@ -16,7 +16,7 @@ Route::get('/login', function () {
 
 // Login Routes 
 
-Route::get('auth/login', function () {
+Route::get('/', function () {
     return view('pages.auth.login');
 });
 
@@ -45,6 +45,10 @@ Route::get('super_admin/mailers/manage', function () {
     return view('pages.users.super_admin.pages.mailers.manageMailers');
 })->name('mailers.manage');
 
+Route::get('/super_admin/courses/{course}', fn ($course) =>
+    view('pages.users.super_admin.pages.course.viewCourse', ['courseParam' => $course])
+)->where('course', '^(?!create$|manage$|view$).+');
+
 
 // Admin Routes 
 
@@ -70,3 +74,22 @@ Route::get('/admin/batches/manage', function () {
 Route::get('/admin/mailers/manage', function () {
     return view('pages.users.admin.pages.mailers.manageMailers');
 })->name('mailers.manage');
+
+Route::get('/admin/coursesModule/manage', function () {
+    return view('pages.users.admin.pages.course.manageCourseModule');
+});
+
+Route::get('/admin/quizz/create', function () {
+    return view('pages.users.admin.pages.quizz.createQuizz');
+});
+Route::get('/admin/quizz/manage', function () {
+    return view('pages.users.admin.pages.quizz.manageQuizz');
+});
+
+Route::get('/admin/quizz/questions/manage', function () {
+    return view('pages.users.admin.pages.questions.manageQuestion');
+});
+
+Route::get('/admin/courses/{course}', fn ($course) =>
+    view('pages.users.admin.pages.course.viewCourse', ['courseParam' => $course])
+)->where('course', '^(?!create$|manage$|view$).+');

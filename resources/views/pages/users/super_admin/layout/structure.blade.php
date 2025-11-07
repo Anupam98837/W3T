@@ -187,6 +187,40 @@
     html.theme-dark .dropdown-menu .dropdown-item{ color:var(--text-color); }
     html.theme-dark .dropdown-menu .dropdown-item:hover{ background:#13203a; color:var(--accent-color); }
   </style>
+
+  <style>
+/* Force dark mode scrollbar styles */
+html.theme-dark ::-webkit-scrollbar {
+  width: 8px !important;
+}
+
+html.theme-dark ::-webkit-scrollbar-track {
+  background: #1e293b !important;
+  border-radius: 4px !important;
+}
+
+html.theme-dark ::-webkit-scrollbar-thumb {
+  background: #475569 !important;
+  border-radius: 4px !important;
+}
+
+html.theme-dark ::-webkit-scrollbar-thumb:hover {
+  background: #64748b !important;
+}
+
+/* Apply to specific scrollable containers */
+html.theme-dark .w3-sidebar-scroll::-webkit-scrollbar {
+  width: 6px !important;
+}
+
+html.theme-dark .w3-sidebar-scroll::-webkit-scrollbar-track {
+  background: #1e293b !important;
+}
+
+html.theme-dark .w3-sidebar-scroll::-webkit-scrollbar-thumb {
+  background: #475569 !important;
+}
+</style>
 </head>
 <body>
  
@@ -455,7 +489,7 @@ document.addEventListener('DOMContentLoaded', () => {
  
   // ===== Logout with SweetAlert2
   const API_LOGOUT = '/api/auth/logout';      // protected by checkRole
-  const LOGIN_PAGE = '/auth/login';
+  const LOGIN_PAGE = '/';
  
   function getBearerToken(){
     return sessionStorage.getItem('token') || localStorage.getItem('token') || null;

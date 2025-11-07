@@ -1,9 +1,9 @@
-{{-- resources/views/modules/courses/viewCourses.blade.php --}}
-@section('title','View Courses')
+{{-- resources/views/modules/courses/manageCourses.blade.php --}}
+@section('title','Manage Courses')
 
 @push('styles')
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"/>
-<link rel="stylesheet" href="{{ asset('assets/css/common/main.css') }}"/>
+<link rel="stylesheet" href="{{ asset('assets/css/common/extraStylings.css') }}"/>
 
 <style>
 /* ===== Shell ===== */
@@ -51,6 +51,10 @@ tr.is-archived td{background:color-mix(in oklab, var(--muted-color) 6%, transpar
 .dropdown-item{display:flex;align-items:center;gap:.6rem}
 .dropdown-item i{width:16px;text-align:center}
 .dropdown-item.text-danger{color:var(--danger-color) !important}
+
+/* Ensure pointer for View Course */
+.view-course-link,
+.dropdown-item { cursor: pointer; }
 
 /* Empty & loader */
 #empty{color:var(--muted-color)}
@@ -126,7 +130,7 @@ html.theme-dark .media-item{background:#0b1020;border-color:var(--line-strong)}
 @section('content')
 <div class="crs-wrap">
 
-  {{-- ================= Toolbar (unchanged structure) ================= --}}
+  {{-- ================= Toolbar ================= --}}
   <div class="row align-items-center g-2 mb-3 mfa-toolbar panel">
     <div class="col-12 col-lg d-flex align-items-center flex-wrap gap-2">
       <div class="position-relative" style="min-width:300px;">
@@ -160,8 +164,8 @@ html.theme-dark .media-item{background:#0b1020;border-color:var(--line-strong)}
         </select>
       </div>
 
-      <button id="btnApply" class="btn btn-light ms-1"><i class="fa fa-check me-1"></i>Apply</button>
-      <button id="btnReset" class="btn btn-light"><i class="fa fa-rotate-left me-1"></i>Reset</button>
+      <button id="btnApply" class="btn btn-primary ms-1"><i class="fa fa-check me-1"></i>Apply</button>
+      <button id="btnReset" class="btn btn-primary"><i class="fa fa-rotate-left me-1"></i>Reset</button>
     </div>
 
     <div class="col-12 col-lg-auto ms-lg-auto d-flex justify-content-lg-end">
@@ -268,9 +272,8 @@ html.theme-dark .media-item{background:#0b1020;border-color:var(--line-strong)}
   </div>
 </div>
 
-{{-- ================= Featured Media (modal) — now styled like Create Module ================= --}}
+{{-- ================= Featured Media (modal) ================= --}}
 <div class="modal fade" id="mediaModal" tabindex="-1" aria-hidden="true">
-  <!-- changed modal-xl to modal-lg for consistent sizing with module modal -->
   <div class="modal-dialog modal-lg modal-dialog-scrollable">
     <div class="modal-content">
       <div class="modal-header">
@@ -279,7 +282,6 @@ html.theme-dark .media-item{background:#0b1020;border-color:var(--line-strong)}
       </div>
 
       <div class="modal-body">
-        <!-- Course meta (mirrors module modal "info" line) -->
         <div class="media-head">
           <div class="meta">
             <div class="title" id="m_title">—</div>
@@ -406,14 +408,13 @@ document.addEventListener('click', (e) => {
   let currentCourse = null;  // {id, uuid, title, short}
   let mediaModal, moduleModal;
 
-  // Decode because we stored escaped text in data-* attributes
   function decodeHtml(s){
     const t = document.createElement('textarea');
     t.innerHTML = s == null ? '' : String(s);
     return t.value;
   }
 
-  // Handle clicks on dropdown items for current/future rows
+  // Handle dropdown actions
   rowsEl.addEventListener('click', (e) => {
     const item = e.target.closest('.dropdown-item[data-act]');
     if (!item) return;
@@ -433,7 +434,6 @@ document.addEventListener('click', (e) => {
     else if (act === 'delete')  deleteCourse(uuid, title);
     else if (act === 'edit')    goEdit(uuid);
 
-    // Hide the dropdown after selection
     const toggle = item.closest('.dropdown')?.querySelector('.dd-toggle');
     if (toggle) bootstrap.Dropdown.getOrCreateInstance(toggle).hide();
   });
@@ -501,6 +501,7 @@ document.addEventListener('click', (e) => {
     });
   }
 
+  /* >>>>> CHANGED: added a dedicated "View Course" link and ensured pointer cursor <<<<< */
   function rowActions(r){
     const isArchived = String(r.status||'').toLowerCase() === 'archived';
     const archiveToggle = isArchived
@@ -517,6 +518,11 @@ document.addEventListener('click', (e) => {
           <i class="fa fa-ellipsis-vertical"></i>
         </button>
         <ul class="dropdown-menu dropdown-menu-end">
+          <li>
+            <a class="dropdown-item view-course-link" href="${basePanel}/courses/${encodeURIComponent(r.uuid)}" title="View Course">
+              <i class="fa fa-eye"></i> View Course
+            </a>
+          </li>
           <li><button class="dropdown-item" data-act="edit" data-uuid="${r.uuid}" data-title="${escapeHtml(r.title||'')}">
             <i class="fa fa-pen-to-square"></i> Edit
           </button></li>
@@ -552,7 +558,8 @@ document.addEventListener('click', (e) => {
       tr.innerHTML = `
         <td>
           <div class="fw-semibold">
-            <a href="${basePanel}/courses/${encodeURIComponent(r.uuid)}" class="link-offset-2 link-underline-opacity-0">${escapeHtml(r.title||'')}</a>
+            <a href="${basePanel}/courses/${encodeURIComponent(r.uuid)}"
+               class="link-offset-2 link-underline-opacity-0 view-course-link">${escapeHtml(r.title||'')}</a>
           </div>
           <div class="text-muted small">${escapeHtml(r.slug||'')}</div>
         </td>
@@ -600,7 +607,6 @@ document.addEventListener('click', (e) => {
     metaTxt.textContent = `Showing page ${current} of ${totalPages} — ${total} result(s)`;
   }
 
-  /* ========= Fetch ========= */
   async function load(){
     showLoader(true);
     emptyEl.style.display='none';
@@ -628,7 +634,6 @@ document.addEventListener('click', (e) => {
     }
   }
 
-  /* ========= Course Actions ========= */
   async function archiveCourse(uuid, title){
     const {isConfirmed} = await Swal.fire({
       icon:'question', title:'Archive course?',
@@ -683,7 +688,7 @@ document.addEventListener('click', (e) => {
     }catch(e){ err(e.message); }
   }
 
-  /* ========= Modules Modal ========= */
+  // Modules modal (unchanged)
   function openModules(id, uuid, title, short){
     currentCourse = { id, uuid, title, short };
     document.getElementById('modCourseInfo').textContent = `${title || 'Course'} — ${short || ''}`.trim();
@@ -724,7 +729,7 @@ document.addEventListener('click', (e) => {
     }
   });
 
-  /* ========= Media Modal ========= */
+  // Media modal (unchanged except where needed)
   const mediaFiles = document.getElementById('mediaFiles');
   const urlRow     = document.getElementById('urlRow');
   const urlInput   = document.getElementById('urlInput');
@@ -800,12 +805,10 @@ document.addEventListener('click', (e) => {
       mediaList.innerHTML='';
       mediaList.appendChild(frag);
 
-      // Delete bindings
       mediaList.querySelectorAll('[data-del]').forEach(btn=>{
         btn.addEventListener('click', ()=> deleteMedia(btn.getAttribute('data-del')));
       });
 
-      // Drag & drop reorder
       initDragReorder();
     }catch(e){
       mediaList.innerHTML = '<div class="text-center text-danger small py-3">Failed to load media.</div>';
@@ -826,7 +829,6 @@ document.addEventListener('click', (e) => {
     }catch(e){ err(e.message); }
   }
 
-  // Upload - files
   mediaFiles.addEventListener('change', async ()=>{
     if(!mediaFiles.files?.length) return;
     await uploadFiles(mediaFiles.files);
@@ -846,7 +848,6 @@ document.addEventListener('click', (e) => {
     }catch(e){ err(e.message); }
   }
 
-  // Upload - URL
   btnAddUrl.addEventListener('click', ()=>{ urlRow.style.display = (urlRow.style.display==='none' ? '' : 'none'); });
   btnSaveUrl.addEventListener('click', async ()=>{
     const url=(urlInput.value||'').trim(); if(!/^https?:\/\//i.test(url)) return Swal.fire('Invalid URL','Provide a valid http(s) URL.','info');
@@ -862,7 +863,6 @@ document.addEventListener('click', (e) => {
     }catch(e){ err(e.message); }
   });
 
-  // Dropzone drag handling
   ;['dragenter','dragover'].forEach(ev=> dropzone.addEventListener(ev, e=>{ e.preventDefault(); e.stopPropagation(); dropzone.classList.add('drag'); }));
   ;['dragleave','drop'].forEach(ev=> dropzone.addEventListener(ev, e=>{ e.preventDefault(); e.stopPropagation(); dropzone.classList.remove('drag'); }));
   dropzone.addEventListener('drop', e=>{
@@ -900,7 +900,6 @@ document.addEventListener('click', (e) => {
     }catch(e){ err(e.message); }
   }
 
-  /* ========= Sorting / Filters ========= */
   document.querySelectorAll('th.sortable').forEach(th=>{
     th.addEventListener('click', ()=>{
       const col = th.dataset.col;
@@ -918,7 +917,6 @@ document.addEventListener('click', (e) => {
     q.value=''; status.value=''; ctype.value=''; perPageSel.value='20'; page=1; sort='-created_at'; load();
   });
 
-  /* ========= Init ========= */
   applyFromURL();
   load();
 })();

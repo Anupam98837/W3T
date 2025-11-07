@@ -1,6 +1,21 @@
 {{-- resources/views/modules/users/manageUsers.blade.php --}}
 <link rel="stylesheet" href="{{ asset('assets/css/common/main.css') }}">
 
+<style>
+/* Dropdowns inside table */
+.table-wrap .dropdown{position:relative}
+.dropdown [data-bs-toggle="dropdown"]{border-radius:10px}
+.dropdown-menu{border-radius:12px;border:1px solid var(--line-strong);box-shadow:var(--shadow-2);min-width:220px;z-index:1085}
+.dropdown-item{display:flex;align-items:center;gap:.6rem}
+.dropdown-item i{width:16px;text-align:center}
+.dropdown-item.text-danger{color:var(--danger-color) !important}
+
+/* Ensure overflow visibility for dropdowns */
+.table-responsive{overflow:visible !important}
+.card{overflow:visible !important}
+.card-body{overflow:visible !important}
+</style>
+
 <div class="container-fluid px-0">
   {{-- Heading + actions --}}
   <div class="panel shadow-1 rounded-1 mb-3">
@@ -10,7 +25,7 @@
         <div class="panel-sub">Manage platform users (roles: Super Admin, Admin, Instructor, Student, Author)</div>
       </div>
       <div class="d-flex gap-2 align-items-center" id="writeControls" style="display:none;">
-        <button class="btn btn-primary btn-sm" id="btnAddUser">
+        <button type="button" class="btn btn-primary btn-sm" id="btnAddUser">
           <i class="fa fa-plus me-1"></i> Add User
         </button>
       </div>
@@ -63,7 +78,7 @@
             <th>Name</th>
             <th>Email</th>
             <th style="width:160px;">Role</th>
-            <th style="width:180px;" class="text-end">Action</th>
+            <th style="width:108px;" class="text-end">Actions</th>
           </tr>
         </thead>
         <tbody id="usersTbody">
@@ -196,8 +211,26 @@
 {{-- Dependencies (SweetAlert2 + jQuery for convenience) --}}
 <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.all.min.js"></script>
+<!-- Ensure Bootstrap JS is loaded before our inline script -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 
 <script>
+// Delegated handler for dropdown toggles - safer version
+document.addEventListener('click', (e) => {
+  const btn = e.target.closest('.dd-toggle');
+  if (!btn) return;
+
+  try {
+    const inst = bootstrap.Dropdown.getOrCreateInstance(btn, {
+      autoClose: btn.getAttribute('data-bs-auto-close') || undefined,
+      boundary: btn.getAttribute('data-bs-boundary') || 'viewport'
+    });
+    inst.toggle();
+  } catch (ex) {
+    console.error('Dropdown toggle error', ex);
+  }
+});
+
 document.addEventListener('DOMContentLoaded', function(){
   // Guard: must have token in sessionStorage or localStorage
   const token = sessionStorage.getItem('token') || localStorage.getItem('token') || '';
@@ -329,19 +362,25 @@ document.addEventListener('DOMContentLoaded', function(){
            </div>`
         : `<span class="badge ${active?'badge-soft-success':'badge-soft-danger'}">${active?'Active':'Inactive'}</span>`;
 
-      // Action buttons by actor role
-      let actionHtml = '';
-      if (canWrite){
-        actionHtml += `
-          <button class="icon-btn me-1" data-action="view" title="View"><i class="fa fa-eye"></i></button>
-          <button class="icon-btn me-1" data-action="edit" title="Edit"><i class="fa fa-pen"></i></button>
-        `;
-        if (canDelete){
-          actionHtml += `<button class="icon-btn" data-action="delete" title="Delete" style="border-color:#ef4444;color:#b91c1c;"><i class="fa fa-trash"></i></button>`;
-        }
-      } else {
-        actionHtml = `<button class="icon-btn" data-action="view" title="View"><i class="fa fa-eye"></i></button>`;
+      // Action dropdown - improved to include explicit type attributes
+      let actionHtml = `
+        <div class="dropdown text-end" data-bs-display="static">
+          <button type="button" class="btn btn-light btn-sm dd-toggle" data-bs-toggle="dropdown" data-bs-auto-close="outside" data-bs-boundary="viewport" aria-expanded="false" title="Actions">
+            <i class="fa fa-ellipsis-vertical"></i>
+          </button>
+          <ul class="dropdown-menu dropdown-menu-end">
+            <li><button type="button" class="dropdown-item" data-action="view" title="View"><i class="fa fa-eye"></i> View</button></li>`;
+
+      if (canWrite) {
+        actionHtml += `<li><button type="button" class="dropdown-item" data-action="edit" title="Edit"><i class="fa fa-pen-to-square"></i> Edit</button></li>`;
       }
+
+      if (canDelete) {
+        actionHtml += `<li><hr class="dropdown-divider"></li>
+            <li><button type="button" class="dropdown-item text-danger" data-action="delete" title="Delete"><i class="fa fa-trash"></i> Delete</button></li>`;
+      }
+
+      actionHtml += `</ul></div>`;
 
       return `
         <tr data-id="${row.id}">
@@ -412,7 +451,7 @@ document.addEventListener('DOMContentLoaded', function(){
     }catch(ex){ err(ex.message); sw.checked = !sw.checked; }
   });
 
-  // Row: actions
+  // Row: dropdown actions
   tbody.addEventListener('click', (e)=>{
     const btn = e.target.closest('button[data-action]'); if(!btn) return;
     const tr = btn.closest('tr'); const id = tr?.dataset?.id; if(!id) return;
@@ -444,6 +483,12 @@ document.addEventListener('DOMContentLoaded', function(){
           fetchUsers().catch(()=>{});
         }catch(ex){ err(ex.message); } finally{ un(); }
       });
+    }
+
+    // Close the dropdown after action (safe)
+    const toggle = btn.closest('.dropdown')?.querySelector('.dd-toggle');
+    if (toggle) {
+      try { bootstrap.Dropdown.getOrCreateInstance(toggle).hide(); } catch(e) { /* ignore */ }
     }
   });
 
