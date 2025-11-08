@@ -10,6 +10,7 @@ use App\Http\Controllers\API\BatchController;
 use App\Http\Controllers\API\BatchInstructorController;
 use App\Http\Controllers\API\QuizzController;
 use App\Http\Controllers\API\QuestionController;
+use App\Http\Controllers\API\StudyMaterialController;
 
 
 Route::get('/user', function (Request $request) {
@@ -167,3 +168,15 @@ Route::middleware('checkRole:admin,super_admin,instructor')->group(function () {
     Route::post  ('/courses/{course}/assignments',          [AssignmentController::class, 'store']);
 });
 
+// Study Material Routes 
+
+Route::middleware('checkRole:admin,super_admin')->group(function () {
+    Route::get   ('/study-materials',                 [StudyMaterialController::class, 'index']);
+    Route::post  ('/study-materials',                 [StudyMaterialController::class, 'store']);
+    Route::patch ('/study-materials/{id}',            [StudyMaterialController::class, 'update']);
+    Route::delete('/study-materials/{id}',            [StudyMaterialController::class, 'destroy']);
+
+    // View endpoints
+    Route::get   ('/study-materials/show/{uuid}',     [StudyMaterialController::class, 'showByUuid']);
+    Route::get   ('/study-materials/stream/{uuid}/{fileId}', [StudyMaterialController::class, 'streamInline']);
+});

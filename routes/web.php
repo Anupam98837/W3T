@@ -93,3 +93,8 @@ Route::get('/admin/quizz/questions/manage', function () {
 Route::get('/admin/courses/{course}', fn ($course) =>
     view('pages.users.admin.pages.course.viewCourse', ['courseParam' => $course])
 )->where('course', '^(?!create$|manage$|view$).+');
+
+Route::get('/admin/course/studyMaterial/manage', function () {
+    return view('pages.users.admin.pages.studyMaterial.manageStudyMaterial');
+});
+
