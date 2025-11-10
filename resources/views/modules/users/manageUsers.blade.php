@@ -16,83 +16,126 @@
 .card-body{overflow:visible !important}
 </style>
 
-<div class="container-fluid px-0">
-  {{-- Heading + actions --}}
-  <div class="panel shadow-1 rounded-1 mb-3">
-    <div class="panel-head">
-      <div>
-        <h1 class="panel-title mb-0">Users <span class="text-muted fs-6" id="usersCount">—</span></h1>
-        <div class="panel-sub">Manage platform users (roles: Super Admin, Admin, Instructor, Student, Author)</div>
+<div class="crs-wrap">
+
+  {{-- ================= Filters ================= --}}
+  <div class="row align-items-center g-2 mb-3 mfa-toolbar panel">
+    <div class="col-12 col-lg d-flex align-items-center flex-wrap gap-2">
+
+      <div class="d-flex align-items-center gap-2">
+        <label class="text-muted small mb-0">Per Page</label>
+        <select id="perPage" class="form-select" style="width:96px;">
+          <option>10</option><option>20</option><option>50</option><option>100</option>
+        </select>
       </div>
-      <div class="d-flex gap-2 align-items-center" id="writeControls" style="display:none;">
-        <button type="button" class="btn btn-primary btn-sm" id="btnAddUser">
+
+      <div class="position-relative" style="min-width:300px;">
+        <input id="searchInput" type="search" class="form-control ps-5" placeholder="Search by name or email…">
+        <i class="fa fa-search position-absolute" style="left:12px; top:50%; transform:translateY(-50%); opacity:.6;"></i>
+      </div>
+
+      {{-- Filter Button to match courses page --}}
+      <button id="btnFilter" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#filterModal">
+        <i class="fa fa-filter me-1"></i>Filter
+      </button>
+
+      <button id="btnReset" class="btn btn-primary"><i class="fa fa-rotate-left me-1"></i>Reset</button>
+    </div>
+    
+    <div class="col-12 col-lg-auto ms-lg-auto d-flex justify-content-lg-end">
+      <div id="writeControls" style="display:none;">
+        <button type="button" class="btn btn-primary" id="btnAddUser">
           <i class="fa fa-plus me-1"></i> Add User
         </button>
       </div>
     </div>
   </div>
 
-  {{-- Filters --}}
-  <div class="panel shadow-1 rounded-1 mb-3">
-    <div class="row g-2 align-items-end">
-      <div class="col-6 col-md-2">
-        <label class="form-label mb-1">Rows</label>
-        <select id="perPage" class="form-select">
-          <option>10</option><option>20</option><option>50</option><option>100</option>
-        </select>
+  {{-- Table --}}
+  <div class="card table-wrap">
+    <div class="card-body p-0">
+      <div class="table-responsive">
+        <table class="table table-hover table-borderless align-middle mb-0">
+          <thead class="sticky-top" style="z-index:2;">
+            <tr>
+              <th style="width:88px;">Active</th>
+              <th style="width:74px;">Avatar</th>
+              <th>Name</th>
+              <th>Email</th>
+              <th style="width:160px;">Role</th>
+              <th style="width:108px;" class="text-end">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="usersTbody">
+            <tr>
+              <td colspan="6" class="text-center text-muted" style="padding:38px;">Loading…</td>
+            </tr>
+          </tbody>
+        </table>
       </div>
-      <div class="col-6 col-md-2">
-        <label class="form-label mb-1">Status</label>
-        <select id="statusFilter" class="form-select">
-          <option value="all">All</option>
-          <option value="active">Active</option>
-          <option value="inactive">Inactive</option>
-        </select>
-      </div>
-      <div class="col-12 col-md-3">
-        <label class="form-label mb-1">Role</label>
-        <select id="roleFilter" class="form-select">
-          <option value="">All</option>
-          <option value="super_admin">Super Admin</option>
-          <option value="admin">Admin</option>
-          <option value="instructor">Instructor</option>
-          <option value="student">Student</option>
-          <option value="author">Author</option>
-        </select>
-      </div>
-      <div class="col-12 col-md-5">
-        <label class="form-label mb-1">Search</label>
-        <input id="searchInput" type="search" class="form-control" placeholder="Search by name or email…">
+
+      {{-- Footer: pagination --}}
+      <div class="d-flex flex-wrap align-items-center justify-content-between p-3 gap-2">
+        <div class="text-muted small" id="resultsInfo">—</div>
+        <nav><ul id="pager" class="pagination mb-0"></ul></nav>
       </div>
     </div>
   </div>
+</div>
 
-  {{-- Table --}}
-  <div class="card shadow-1 rounded-1">
-    <div class="table-responsive">
-      <table class="table table-hover align-middle mb-0">
-        <thead>
-          <tr>
-            <th style="width:88px;">Active</th>
-            <th style="width:74px;">Avatar</th>
-            <th>Name</th>
-            <th>Email</th>
-            <th style="width:160px;">Role</th>
-            <th style="width:108px;" class="text-end">Actions</th>
-          </tr>
-        </thead>
-        <tbody id="usersTbody">
-          <tr>
-            <td colspan="6" class="text-center text-muted" style="padding:38px;">Loading…</td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
-    <div class="card-footer d-flex justify-content-between align-items-center">
-      <div id="resultsInfo" class="text-muted"></div>
-      <nav>
-        <ul class="pagination mb-0" id="pager"></ul>
-      </nav>
+{{-- ================= Filter Users Modal ================= --}}
+<div class="modal fade" id="filterModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-md">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="fa fa-filter me-2"></i>Filter Users</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div class="row g-3">
+          {{-- Status --}}
+          <div class="col-12">
+            <label class="form-label">Status</label>
+            <select id="modal_status" class="form-select">
+              <option value="all">All Status</option>
+              <option value="active">Active</option>
+              <option value="inactive">Inactive</option>
+            </select>
+          </div>
+
+          {{-- Role --}}
+          <div class="col-12">
+            <label class="form-label">Role</label>
+            <select id="modal_role" class="form-select">
+              <option value="">All Roles</option>
+              <option value="super_admin">Super Admin</option>
+              <option value="admin">Admin</option>
+              <option value="instructor">Instructor</option>
+              <option value="student">Student</option>
+              <option value="author">Author</option>
+            </select>
+          </div>
+
+          {{-- Sort By --}}
+          <div class="col-12">
+            <label class="form-label">Sort By</label>
+            <select id="modal_sort" class="form-select">
+              <option value="-created_at">Newest First</option>
+              <option value="created_at">Oldest First</option>
+              <option value="name">Name A-Z</option>
+              <option value="-name">Name Z-A</option>
+              <option value="email">Email A-Z</option>
+              <option value="-email">Email Z-A</option>
+            </select>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" id="btnApplyFilters" class="btn btn-primary">
+          <i class="fa fa-check me-1"></i>Apply Filters
+        </button>
+      </div>
     </div>
   </div>
 </div>
@@ -153,7 +196,7 @@
             <input type="password" class="form-control" id="userPasswordConfirmation" placeholder="••••••••"/>
           </div>
 
-          {{-- NEW: Optional profile/contact fields --}}
+          {{-- Optional profile/contact fields --}}
           <div class="col-md-6">
             <label class="form-label">Alt. Email</label>
             <input type="email" class="form-control" id="userAltEmail" maxlength="255" placeholder="alt@example.com"/>
@@ -243,16 +286,20 @@ document.addEventListener('DOMContentLoaded', function(){
 
   if (canWrite) document.getElementById('writeControls').style.display = 'flex';
 
-  // UI elements
+  // UI elements - REMOVED countEl since the page header was deleted
   const tbody     = document.getElementById('usersTbody');
   const pager     = document.getElementById('pager');
   const info      = document.getElementById('resultsInfo');
-  const countEl   = document.getElementById('usersCount');
 
   const perPageSel  = document.getElementById('perPage');
-  const statusSel   = document.getElementById('statusFilter');
-  const roleSel     = document.getElementById('roleFilter');
   const searchInput = document.getElementById('searchInput');
+  
+  // Filter modal elements
+  const modalStatus = document.getElementById('modal_status');
+  const modalRole = document.getElementById('modal_role');
+  const modalSort = document.getElementById('modal_sort');
+  const btnApplyFilters = document.getElementById('btnApplyFilters');
+  const btnReset = document.getElementById('btnReset');
 
   // Modal elements
   const userModalEl = document.getElementById('userModal');
@@ -302,14 +349,27 @@ document.addEventListener('DOMContentLoaded', function(){
   function escapeHtml(str){ return (str ?? '').toString().replace(/[&<>"']/g, s => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[s])); }
   function debounce(fn,ms=350){ let t; return (...a)=>{ clearTimeout(t); t=setTimeout(()=>fn(...a),ms); }; }
 
+  // Fix for image URLs - ensure they're absolute
+  function fixImageUrl(url) {
+    if (!url) return null;
+    // If it's already a full URL, return as is
+    if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('//')) {
+      return url;
+    }
+    // If it starts with /, it's already relative to root
+    if (url.startsWith('/')) {
+      return url;
+    }
+    // Otherwise, prepend with / to make it root-relative
+    return '/' + url;
+  }
+
   // State
-  let page=1, perPage=10, q='', statusFilter='all', roleFilter='', totalPages=1, totalCount=0;
+  let page=1, perPage=10, q='', statusFilter='all', roleFilter='', sort='-created_at', totalPages=1, totalCount=0;
   let lastRows = [];
 
   // Initial control values
   perPage = parseInt(perPageSel.value,10) || 10;
-  statusFilter = statusSel.value; // default 'all'
-  roleFilter = roleSel.value;
 
   // Fetch + render
   async function fetchUsers(){
@@ -318,8 +378,19 @@ document.addEventListener('DOMContentLoaded', function(){
       page:String(page),
       per_page:String(perPage),
       q:q,
-      status:statusFilter // 'all' | 'active' | 'inactive'
+      sort: sort
     });
+    
+    // Only add status if not 'all'
+    if (statusFilter && statusFilter !== 'all') {
+      params.set('status', statusFilter);
+    }
+    
+    // Only add role if not empty
+    if (roleFilter) {
+      params.set('role', roleFilter);
+    }
+    
     const res = await fetch(`/api/users?${params.toString()}`, { headers: authHeaders() });
     if (res.status === 401) { window.location.href='/'; return; }
     let json; try{ json = await res.json(); }catch{ json = {}; }
@@ -329,18 +400,14 @@ document.addEventListener('DOMContentLoaded', function(){
     totalPages = json.meta?.total_pages || 1;
     totalCount = json.meta?.total || (lastRows.length || 0);
 
-    // Client-side role filter on the current page (API doesn't filter by role)
-    let rows = lastRows;
-    if (roleFilter) rows = rows.filter(r => (r.role||'').toLowerCase() === roleFilter);
-
-    renderTable(rows);
+    renderTable(lastRows);
     renderPager();
 
-    const shown = rows.length;
+    const shown = lastRows.length;
     info.textContent = shown
       ? `Showing ${(page-1)*perPage + 1} to ${(page-1)*perPage + shown} of ${totalCount} entries`
       : `0 of ${totalCount}`;
-    countEl.textContent = `${totalCount} total`;
+    // REMOVED: countEl.textContent update since the element was deleted
   }
 
   function renderTable(rows){
@@ -352,9 +419,14 @@ document.addEventListener('DOMContentLoaded', function(){
     tbody.innerHTML = rows.map(row => {
       const r = (row.role||'').toLowerCase();
       const active = row.status === 'active';
-      const avatar = row.image
-        ? `<img src="${escapeHtml(row.image)}" alt="avatar" style="width:40px;height:40px;border-radius:10px;object-fit:cover;border:1px solid var(--line-strong);" loading="lazy">`
-        : `<div style="width:40px;height:40px;border-radius:10px;border:1px solid var(--line-strong);display:flex;align-items:center;justify-content:center;color:#9aa3b2;">—</div>`;
+      
+      // Fixed image URL handling with error fallback
+      const fixedImageUrl = fixImageUrl(row.image);
+      const avatar = fixedImageUrl
+        ? `<img src="${escapeHtml(fixedImageUrl)}" alt="avatar" style="width:40px;height:40px;border-radius:10px;object-fit:cover;border:1px solid var(--line-strong);" loading="lazy" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">`
+        : '';
+
+      const avatarFallback = `<div style="width:40px;height:40px;border-radius:10px;border:1px solid var(--line-strong);display:${fixedImageUrl ? 'none' : 'flex'};align-items:center;justify-content:center;color:#9aa3b2;">—</div>`;
 
       const toggle = canWrite
         ? `<div class="form-check form-switch m-0">
@@ -385,7 +457,7 @@ document.addEventListener('DOMContentLoaded', function(){
       return `
         <tr data-id="${row.id}">
           <td>${toggle}</td>
-          <td>${avatar}</td>
+          <td style="position:relative">${avatar}${avatarFallback}</td>
           <td class="fw-semibold">${escapeHtml(row.name || '')}</td>
           <td>${row.email ? `<a href="mailto:${escapeHtml(row.email)}">${escapeHtml(row.email)}</a>` : '<span class="text-muted">—</span>'}</td>
           <td><span class="badge badge-soft-primary"><i class="fa fa-user-shield me-1"></i>${escapeHtml(roleLabel(r))}</span></td>
@@ -420,9 +492,48 @@ document.addEventListener('DOMContentLoaded', function(){
   searchInput.addEventListener('input', onSearch);
 
   perPageSel.addEventListener('change', ()=>{ perPage=parseInt(perPageSel.value,10)||10; page=1; fetchUsers().catch(ex=>err(ex.message)); });
-  statusSel.addEventListener('change', ()=>{ statusFilter=statusSel.value; page=1; fetchUsers().catch(ex=>err(ex.message)); });
-  roleSel.addEventListener('change', ()=>{ roleFilter=roleSel.value; renderTable(filterByRole(lastRows)); });
-  function filterByRole(rows){ if (!roleFilter) return rows; return (rows||[]).filter(r => (r.role||'').toLowerCase()===roleFilter); }
+
+  // Filter modal functionality - FIXED: Update modal with current filter values when opened
+  const filterModalEl = document.getElementById('filterModal');
+  const filterModal = new bootstrap.Modal(filterModalEl);
+  
+  // Update modal inputs with current filter values when modal is shown
+  filterModalEl.addEventListener('show.bs.modal', () => {
+    modalStatus.value = statusFilter;
+    modalRole.value = roleFilter;
+    modalSort.value = sort;
+  });
+  
+  btnApplyFilters.addEventListener('click', () => {
+    statusFilter = modalStatus.value;
+    roleFilter = modalRole.value;
+    sort = modalSort.value;
+    page = 1;
+    
+    // Close modal properly
+    filterModal.hide();
+    
+    fetchUsers().catch(ex => err(ex.message));
+  });
+
+  // Reset filters - FIXED: Reset all filter states properly
+  btnReset.addEventListener('click', () => {
+    statusFilter = 'all';
+    roleFilter = '';
+    sort = '-created_at';
+    q = '';
+    page = 1;
+    perPage = 10;
+    
+    // Reset all controls
+    searchInput.value = '';
+    perPageSel.value = '10';
+    modalStatus.value = 'all';
+    modalRole.value = '';
+    modalSort.value = '-created_at';
+    
+    fetchUsers().catch(ex => err(ex.message));
+  });
 
   // Row: toggle active
   tbody.addEventListener('change', async (e)=>{
@@ -601,7 +712,10 @@ document.addEventListener('DOMContentLoaded', function(){
     roleInput.value   = (u.role || '').toLowerCase();
     statusInput.value = u.status || 'active';
 
-    if (u.image){ imgPrev.src = u.image; imgPrev.style.display='block'; }
+    if (u.image){ 
+      imgPrev.src = fixImageUrl(u.image) || u.image; 
+      imgPrev.style.display='block'; 
+    }
 
     modalTitle.textContent = viewOnly ? 'View User' : 'Edit User';
     saveBtn.style.display  = viewOnly ? 'none' : '';

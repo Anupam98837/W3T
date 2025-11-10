@@ -43,7 +43,7 @@
     /* Sidebar */
     .sidebar{ 
         background: var(--surface); 
-        border: 1px solid var(--border); 
+        border: 1px solid var(--line-strong); 
         border-radius: 12px; 
         overflow: hidden;
         position: sticky;
@@ -51,8 +51,8 @@
     }
     .sidebar-header{ 
         padding: 16px; 
-        border-bottom: 1px solid var(--border); 
-        background: var(--bg-gray);
+        border-bottom: 1px solid var(--line-soft); 
+        background: var(--bg-body);
     }
     .sidebar-header h6{ 
         margin: 0; 
@@ -62,12 +62,12 @@
     }
     .sidebar-search{
         padding: 12px 16px;
-        border-bottom: 1px solid var(--border);
+        border-bottom: 1px solid var(--line-soft);
     }
     .sidebar-search input{
         width: 100%;
         padding: 8px 12px 8px 36px;
-        border: 1px solid var(--border);
+        border: 1px solid var(--line-soft);
         border-radius: 8px;
         font-size: 13px;
         background: var(--surface);
@@ -83,7 +83,7 @@
     .question-list{ max-height: 600px; overflow-y: auto; }
     .question-item{ 
         padding: 12px 16px; 
-        border-bottom: 1px solid var(--border); 
+        border-bottom: 1px solid var(--line-soft); 
         cursor: pointer; 
         transition: all 0.2s;
         display: flex;
@@ -92,7 +92,7 @@
         gap: 12px;
         position: relative;
     }
-    .question-item:hover{ background: var(--bg-gray); }
+    .question-item:hover{ background: var(--bg-body); }
     .question-item.active{ 
         background: #eef2ff; 
         border-left: 3px solid var(--primary);
@@ -140,16 +140,12 @@
         color: var(--muted);
         transition: all 0.2s;
     }
-    .menu-btn:hover{
-        background: var(--bg-gray);
-        color: var(--ink);
-    }
     .menu-dropdown{
         position: absolute;
         top: 100%;
         right: 0;
         background: var(--surface);
-        border: 1px solid var(--border);
+        border: 1px solid var(--line-strong);
         border-radius: 6px;
         box-shadow: 0 4px 12px rgba(0,0,0,0.1);
         z-index: 100;
@@ -177,15 +173,15 @@
     /* Main Content */
     .main-content{
         background: var(--surface);
-        border: 1px solid var(--border);
+        border: 1px solid var(--line-strong);
         border-radius: 12px;
         overflow: hidden;
         position: relative;
     }
     .content-header{
         padding: 16px 20px;
-        border-bottom: 1px solid var(--border);
-        background: var(--bg-gray);
+        border-bottom: 1px solid var(--line-strong);
+        background: var(--bg-body);
         display: flex;
         align-items: center;
         justify-content: space-between;
@@ -261,7 +257,7 @@
 
     /* Rich Text Editor */
     .rte-wrapper{
-        border: 1px solid var(--border);
+        border: 1px solid var(--line-soft);
         border-radius: 8px;
         overflow: hidden;
     }
@@ -271,8 +267,8 @@
     }
     .rte-toolbar{
         padding: 8px;
-        background: var(--bg-gray);
-        border-bottom: 1px solid var(--border);
+        background: var(--surface);
+        border-bottom: 1px solid var(--line-soft);
         display: flex;
         gap: 4px;
         flex-wrap: wrap;
@@ -280,7 +276,7 @@
     .rte-toolbar button{
         width: 32px;
         height: 32px;
-        border: 1px solid var(--border);
+        border: 1px solid var(--line-soft);
         background: var(--surface);
         border-radius: 6px;
         cursor: pointer;
@@ -289,9 +285,10 @@
         align-items: center;
         justify-content: center;
         font-size: 13px;
+        color: var(--text-color);
     }
     .rte-toolbar button:hover{
-        background: var(--bg-gray);
+        background: var(--primary);
         border-color: var(--primary);
     }
     .rte-area{
@@ -349,8 +346,8 @@
     /* Code Editor Tab */
     .editor-tabs{
         display: flex;
-        border-bottom: 1px solid var(--border);
-        background: var(--bg-gray);
+        border-bottom: 1px solid var(--line-soft);
+        background: var(--surface);
     }
     .editor-tab{
         padding: 8px 16px;
@@ -392,7 +389,7 @@
     /* Answer Options */
     .answer-option{
         padding: 16px;
-        border: 1px solid var(--border);
+        border: 1px solid var(--line-strong);
         border-radius: 8px;
         margin-bottom: 12px;
         background: var(--surface);
@@ -438,7 +435,7 @@
         align-items: center;
         gap: 6px;
         padding: 6px 12px;
-        border: 1px solid var(--border);
+        border: 1px solid var(--danger);
         background: transparent;
         border-radius: 6px;
         font-size: 12px;
@@ -495,11 +492,11 @@
 
     .content-footer{
         padding: 16px 24px;
-        border-top: 1px solid var(--border);
+        border-top: 1px solid var(--line-strong);
         display: flex;
         justify-content: flex-end;
         gap: 12px;
-        background: var(--bg-gray);
+        background: var(--bg-body);
     }
 
     /* Add Button */
@@ -570,9 +567,9 @@
         font-size: 15px;
         font-weight: 600;
         color: var(--ink);
-        margin: 24px 0 12px;
+        margin: 0 0 12px;
         padding-bottom: 8px;
-        border-bottom: 2px solid var(--border);
+        border-bottom: 2px solid var(--line-strong);
     }
 
     .info-box{
@@ -695,6 +692,40 @@
         border-color: #6b7280;
         color: #f3f4f6;
     }
+
+    /* ===== Media Picker (W3T) ===== */
+.mp-overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9998;display:flex;align-items:center;justify-content:center}
+.mp-dialog{width:min(1100px,96vw);height:min(90vh,880px);background:var(--surface);border:1px solid var(--border);border-radius:14px;box-shadow:0 10px 30px rgba(0,0,0,.25);display:flex;flex-direction:column;overflow:hidden}
+.mp-header{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--border);background:var(--bg-gray)}
+.mp-title{font-weight:700;color:var(--ink)}
+.mp-close{border:0;background:transparent;color:var(--ink);width:36px;height:36px;border-radius:8px;cursor:pointer}
+.mp-toolbar{display:flex;gap:10px;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--border)}
+.mp-tabs{display:flex;gap:6px}
+.mp-tab{border:1px solid var(--border);background:var(--surface);padding:8px 12px;border-radius:8px;cursor:pointer;color:var(--ink);font-weight:600}
+.mp-tab.active{border-color:var(--primary);color:var(--primary);box-shadow:0 0 0 2px rgba(79,70,229,.1)}
+.mp-filters{display:flex;gap:8px;align-items:center}
+.mp-input{height:36px;border:1px solid var(--border);background:var(--surface);border-radius:8px;padding:0 10px;color:var(--ink)}
+.mp-body{flex:1;overflow:auto;position:relative}
+.mp-panel{height:100%;padding:16px 16px 8px}
+.mp-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:12px}
+.mp-card{border:1px solid var(--border);background:var(--surface);border-radius:12px;overflow:hidden;cursor:pointer;display:flex;flex-direction:column;transition:.15s}
+.mp-card:hover{transform:translateY(-2px);box-shadow:var(--shadow-2, 0 6px 18px rgba(0,0,0,.08))}
+.mp-thumb{width:100%;height:120px;object-fit:cover;background:#eee}
+.mp-meta{padding:8px 10px;display:flex;justify-content:space-between;gap:8px;align-items:center}
+.mp-title-sm{font-size:12px;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:120px}
+.mp-tag{font-size:10px;background:#eef2ff;color:#4338ca;padding:2px 6px;border-radius:6px}
+.mp-del{border:0;background:transparent;color:#ef4444;cursor:pointer}
+.mp-empty,.mp-loading{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--muted)}
+.mp-upload{display:grid;grid-template-columns:1.3fr .7fr;gap:16px}
+.mp-drop{border:2px dashed #cbd5e1;border-radius:12px;padding:28px;text-align:center;background:#f8fafc;cursor:pointer}
+.mp-drop.drag{background:#eef2ff;border-color:#64748b}
+.mp-preview{margin-top:14px;display:flex;align-items:center;gap:12px}
+.mp-preview img{width:120px;height:80px;object-fit:cover;border-radius:8px;border:1px solid var(--border)}
+.mp-footer{padding:12px 16px;border-top:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;background:var(--bg-gray)}
+.muted{color:var(--muted)}
+
+ .swal2-container { z-index: 99999 !important; }
+
     </style>
 </head>
 <body>
@@ -900,6 +931,80 @@
             <span id="errorMsg">Error!</span>
         </div>
     </div>
+
+    <!-- Media Picker (W3T) -->
+<div id="mediaPicker" class="mp-overlay" style="display:none;">
+  <div class="mp-dialog">
+    <div class="mp-header">
+      <div class="mp-title"><i class="fa fa-images me-2"></i>Media Library</div>
+      <button type="button" class="mp-close" id="mpCloseBtn"><i class="fa fa-times"></i></button>
+    </div>
+
+    <div class="mp-toolbar">
+      <div class="mp-tabs" role="tablist">
+        <button class="mp-tab active" data-tab="lib">Library</button>
+        <button class="mp-tab" data-tab="upload">Upload</button>
+      </div>
+      <div class="mp-filters">
+        <input id="mpSearch" class="mp-input" placeholder="Search title/description…">
+        <select id="mpUsageTag" class="mp-input">
+          <option value="">All tags</option>
+        </select>
+        <button id="mpRefresh" class="btn btn-light btn-sm"><i class="fa fa-rotate"></i></button>
+      </div>
+    </div>
+
+    <div class="mp-body">
+      <!-- LIBRARY -->
+      <div class="mp-panel" data-tab="lib" style="display:block;">
+        <div id="mpGrid" class="mp-grid"></div>
+        <div id="mpEmpty" class="mp-empty">No media found.</div>
+        <div id="mpLoading" class="mp-loading"><i class="fa fa-spinner fa-spin me-2"></i>Loading…</div>
+      </div>
+
+      <!-- UPLOAD -->
+      <div class="mp-panel" data-tab="upload">
+        <div class="mp-upload">
+          <div id="mpDrop" class="mp-drop">
+            <i class="fa fa-cloud-arrow-up fa-2x mb-2"></i>
+            <div>Drag & drop file here</div>
+            <div class="hint">or click to choose</div>
+            <input type="file" id="mpFile" class="d-none" accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.zip,.rar,.7z,.txt">
+            <button type="button" id="mpBrowse" class="btn btn-light btn-sm mt-2">Browse…</button>
+          </div>
+
+          <div class="mp-upload-meta">
+            <label class="form-label">Title (optional)</label>
+            <input id="mpTitle" class="mp-input" placeholder="Attachment title">
+            <label class="form-label mt-2">Usage tag (optional)</label>
+            <input id="mpTag" class="mp-input" placeholder="e.g., question, quiz, course">
+            <button id="mpUploadBtn" class="btn btn-primary mt-3">
+              <i class="fa fa-cloud-arrow-up me-1"></i>Upload
+            </button>
+
+            <div id="mpPreview" class="mp-preview" style="display:none;">
+              <img id="mpPreviewImg" alt="" />
+              <div class="meta">
+                <div id="mpPreviewName"></div>
+                <div id="mpPreviewInfo" class="muted"></div>
+              </div>
+              <button type="button" id="mpClear" class="btn btn-light btn-sm">Clear</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="mp-footer">
+      <div class="muted small" id="mpSelected">Selected: —</div>
+      <div class="mp-actions">
+        <button class="btn btn-light" id="mpCancel">Close</button>
+        <button class="btn btn-primary" id="mpInsert" disabled><i class="fa fa-check me-1"></i>Insert</button>
+      </div>
+    </div>
+  </div>
+</div>
+
     @endsection
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
@@ -960,6 +1065,290 @@
             const looksHtml = typeof data === 'string' && /<\s*(!doctype|html)\b/i.test(data);
             return { ok: res.ok && !looksHtml, status: res.status, isJson: isJson && !looksHtml, data, looksHtml };
         }
+
+        /* ===================== Media Picker (W3T) ===================== */
+(function(){
+  // DOM
+  const mpEl        = document.getElementById('mediaPicker');
+  const mpCloseBtn  = document.getElementById('mpCloseBtn');
+  const mpCancel    = document.getElementById('mpCancel');
+  const mpInsert    = document.getElementById('mpInsert');
+  const mpTabs      = document.querySelectorAll('.mp-tab');
+  const mpPanels    = document.querySelectorAll('.mp-panel');
+  const mpSearch    = document.getElementById('mpSearch');
+  const mpUsageTag  = document.getElementById('mpUsageTag');
+  const mpRefresh   = document.getElementById('mpRefresh');
+  const mpGrid      = document.getElementById('mpGrid');
+  const mpEmpty     = document.getElementById('mpEmpty');
+  const mpLoading   = document.getElementById('mpLoading');
+  const mpSelected  = document.getElementById('mpSelected');
+
+  // upload
+  const mpDrop      = document.getElementById('mpDrop');
+  const mpFile      = document.getElementById('mpFile');
+  const mpBrowse    = document.getElementById('mpBrowse');
+  const mpTitle     = document.getElementById('mpTitle');
+  const mpTag       = document.getElementById('mpTag');
+  const mpUploadBtn = document.getElementById('mpUploadBtn');
+  const mpPreview   = document.getElementById('mpPreview');
+  const mpPreviewImg= document.getElementById('mpPreviewImg');
+  const mpPreviewName=document.getElementById('mpPreviewName');
+  const mpPreviewInfo=document.getElementById('mpPreviewInfo');
+  const mpClear     = document.getElementById('mpClear');
+
+  // State
+  let mpCtx = { editor: null, usageTag: '', category: 'image' };
+  let mpList = [];
+  let mpSel = null;
+  let mpFileObj = null;
+
+  // Expose opener to outer scope
+  window.openMediaPicker = function(editorArea, opts){
+    mpCtx.editor   = editorArea;
+    mpCtx.usageTag = (opts && opts.usageTag) || '';
+    mpCtx.category = (opts && opts.category) || 'image';
+
+    // prefill usage tag on upload tab
+    mpTag.value = mpCtx.usageTag || '';
+    mpSearch.value = '';
+    mpSel = null; setSelectedInfo();
+
+    // show overlay
+    mpEl.style.display = 'flex';
+    document.body.style.overflow = 'hidden';
+
+    // tab: library
+    switchTab('lib');
+
+    // load list
+    loadLibrary();
+  };
+
+  function closePicker(){
+    mpEl.style.display = 'none';
+    document.body.style.overflow = '';
+    mpSel = null; setSelectedInfo();
+  }
+
+  function switchTab(key){
+    mpTabs.forEach(t => t.classList.toggle('active', t.dataset.tab === key));
+    mpPanels.forEach(p => p.style.display = (p.dataset.tab === key ? 'block' : 'none'));
+  }
+
+  // library
+  async function loadLibrary(){
+    mpLoading.style.display = 'flex';
+    mpEmpty.style.display   = 'none';
+    mpGrid.innerHTML = '';
+
+    // Build query (images only for editor)
+    const params = new URLSearchParams({
+      per_page:'60',
+      page:'1',
+      category: mpCtx.category || 'image',
+      status:'active'
+    });
+    const q = mpSearch.value.trim();
+    const tag = mpUsageTag.value.trim();
+    if (q)   params.set('q', q);
+    if (tag) params.set('usage_tag', tag);
+
+    const resp = await apiFetch('/api/media?' + params.toString(), { method: 'GET' });
+    mpLoading.style.display = 'none';
+
+    if (!resp.ok) { handleApiFailure('Media load failed', resp); return; }
+
+    const data = resp.isJson ? resp.data : {};
+    mpList = Array.isArray(data?.data) ? data.data : [];
+
+    // Fill tag filter from result set (unique)
+    const tags = Array.from(new Set(mpList.map(x => (x.usage_tag || '').trim()).filter(Boolean))).sort();
+    mpUsageTag.innerHTML = `<option value="">All tags</option>` + tags.map(t => `<option value="${t}">${t}</option>`).join('');
+    if (tag) mpUsageTag.value = tag;
+
+    renderGrid();
+  }
+
+  function renderGrid(){
+    if (!mpList.length){
+      mpEmpty.style.display = 'flex';
+      mpGrid.innerHTML = '';
+      return;
+    }
+    mpEmpty.style.display = 'none';
+    mpGrid.innerHTML = mpList.map(item => {
+      const thumb = item.category === 'image' ? item.url : iconFor(item.category);
+      return `
+      <div class="mp-card" data-id="${item.id}" data-uuid="${item.uuid}">
+        ${item.category === 'image'
+          ? `<img class="mp-thumb" src="${item.url}" alt="">`
+          : `<div class="mp-thumb" style="display:flex;align-items:center;justify-content:center;font-size:32px">${iconFor(item.category)}</div>`
+        }
+        <div class="mp-meta">
+          <div class="mp-title-sm" title="${esc(item.title||'')}">${esc(item.title|| (item.ext?('.'+item.ext):' (untitled)'))}</div>
+          <div class="d-flex align-items-center gap-2">
+            ${item.usage_tag ? `<span class="mp-tag">${esc(item.usage_tag)}</span>`:''}
+            <button class="mp-del" title="Delete" data-del="${item.id}"><i class="fa fa-trash"></i></button>
+          </div>
+        </div>
+      </div>`;
+    }).join('');
+
+    // Select/Insert on click
+    mpGrid.querySelectorAll('.mp-card').forEach(card => {
+      card.addEventListener('click', async (e) => {
+        // delete?
+        const delBtn = e.target.closest('[data-del]');
+        if (delBtn){
+          e.stopPropagation();
+          await deleteMedia(delBtn.getAttribute('data-del'));
+          return;
+        }
+        const id = card.getAttribute('data-id');
+        const row = mpList.find(x => String(x.id) === String(id));
+        if (!row) return;
+
+        // select + enable insert
+        mpSel = row; setSelectedInfo();
+
+        // UX: single click = select; double-click = insert immediately
+        if (e.detail >= 2) insertSelected();
+      });
+    });
+  }
+
+  function setSelectedInfo(){
+    if (!mpSel){ mpSelected.textContent = 'Selected: —'; mpInsert.disabled = true; return; }
+    mpSelected.textContent = `Selected: ${mpSel.title || mpSel.uuid} (${mpSel.category}, ${mpSel.ext || 'file'})`;
+    mpInsert.disabled = false;
+  }
+
+async function deleteMedia(id){
+  const c = await Swal.fire({
+    icon:'warning',
+    title:'Delete media permanently?',
+    text:'This will remove the file from disk.',
+    showCancelButton:true,
+    confirmButtonText:'Delete',
+    confirmButtonColor:'#ef4444'
+  });
+  if (!c.isConfirmed) return;
+
+  const resp = await apiFetch('/api/media/' + encodeURIComponent(id) + '?hard=true', { method:'DELETE' });
+  if (!resp.ok){ handleApiFailure('Delete failed', resp); return; }
+  showToast('success', 'Deleted permanently');
+  await loadLibrary();
+}
+
+
+  function insertSelected(){
+    if (!mpSel || !mpCtx.editor) return;
+    // restore cursor into the right editor before insertion
+    restoreCursorPosition();
+
+    const url = mpSel.url;
+    const html = `<img src="${url}" alt="${esc(mpSel.alt_text||'')}" style="max-width:100%; height:auto; border-radius:4px; margin:4px 0; display:block; cursor:move;">`;
+    document.execCommand('insertHTML', false, html);
+
+    // enable resizing on the newly inserted image
+    setTimeout(() => {
+      const imgs = mpCtx.editor.querySelectorAll('img');
+      const img = imgs[imgs.length-1];
+      if (img) makeImageResizable(img);
+    }, 50);
+
+    // copy to clipboard (as you asked)
+    navigator.clipboard?.writeText(url).catch(()=>{});
+    closePicker();
+  }
+
+  function iconFor(cat){
+    const map = { video:'<i class="fa fa-film"></i>', audio:'<i class="fa fa-music"></i>', document:'<i class="fa fa-file-lines"></i>', archive:'<i class="fa fa-file-zipper"></i>', other:'<i class="fa fa-file"></i>' };
+    return map[cat] || '<i class="fa fa-file"></i>';
+  }
+
+  // upload
+  function showPreview(file){
+    mpFileObj = file;
+    mpPreview.style.display = 'flex';
+    mpPreviewName.textContent = file.name || 'Selected file';
+    mpPreviewInfo.textContent = `${(file.size/1024).toFixed(1)} KB • ${file.type||'file'}`;
+    if (file.type.startsWith('image/')){
+      const url = URL.createObjectURL(file);
+      mpPreviewImg.src = url;
+      mpPreviewImg.onload = () => URL.revokeObjectURL(url);
+      mpPreviewImg.style.display = '';
+    } else {
+      mpPreviewImg.style.display = 'none';
+    }
+  }
+  function clearPreview(){
+    mpFile.value = '';
+    mpFileObj = null;
+    mpPreview.style.display = 'none';
+    mpPreviewImg.src = '';
+    mpPreviewName.textContent = '';
+    mpPreviewInfo.textContent = '';
+  }
+
+  // Drag & drop UI
+  ['dragenter','dragover'].forEach(evt=>{
+    mpDrop.addEventListener(evt, e=>{ e.preventDefault(); mpDrop.classList.add('drag'); });
+  });
+  ['dragleave','drop'].forEach(evt=>{
+    mpDrop.addEventListener(evt, e=>{ e.preventDefault(); mpDrop.classList.remove('drag'); });
+  });
+  mpDrop.addEventListener('click', e => { if (e.target.id !== 'mpBrowse') mpFile.click(); });
+  document.getElementById('mpBrowse').addEventListener('click', e=>{ e.stopPropagation(); mpFile.click(); });
+  mpFile.addEventListener('change', () => { if (mpFile.files && mpFile.files[0]) showPreview(mpFile.files[0]); });
+  mpDrop.addEventListener('drop', e => { const f = e.dataTransfer.files?.[0]; if (f) { mpFile.files = e.dataTransfer.files; showPreview(f); } });
+  mpClear.addEventListener('click', clearPreview);
+
+  mpUploadBtn.addEventListener('click', async ()=>{
+    const f = mpFileObj;
+    if (!f){ showToast('error', 'Choose a file'); return; }
+
+    // Prepare form-data
+    const fd = new FormData();
+    fd.append('file', f);
+    if (mpTitle.value.trim()) fd.append('title', mpTitle.value.trim());
+    if (mpCtx.usageTag || mpTag.value.trim()) fd.append('usage_tag', (mpTag.value.trim() || mpCtx.usageTag));
+    // status → active
+    fd.append('status', 'active');
+
+    // Upload
+    mpUploadBtn.disabled = true; mpUploadBtn.innerHTML = '<i class="fa fa-spinner fa-spin me-1"></i>Uploading…';
+    const resp = await apiFetch('/api/media', { method:'POST', body: fd });
+    mpUploadBtn.disabled = false; mpUploadBtn.innerHTML = '<i class="fa fa-cloud-arrow-up me-1"></i>Upload';
+
+    if (!resp.ok){ handleApiFailure('Upload failed', resp); return; }
+
+    const created = resp.isJson ? resp.data?.data || resp.data : null;
+    if (!created){ showToast('error','Server returned no row'); return; }
+
+    showToast('success','Uploaded');
+    clearPreview();
+    // refresh library, preselect the uploaded item
+    await loadLibrary();
+    mpSel = mpList.find(x => String(x.id) === String(created.id)) || created;
+    setSelectedInfo();
+    // Switch to Library so user can confirm/preview
+    switchTab('lib');
+  });
+
+  // Events
+  mpTabs.forEach(t => t.addEventListener('click', () => switchTab(t.dataset.tab)));
+  mpCloseBtn.addEventListener('click', closePicker);
+  mpCancel.addEventListener('click', closePicker);
+  mpInsert.addEventListener('click', insertSelected);
+  mpRefresh.addEventListener('click', loadLibrary);
+  mpUsageTag.addEventListener('change', loadLibrary);
+  mpSearch.addEventListener('input', debounce(loadLibrary, 250));
+
+  // tiny debounce
+  function debounce(fn, ms){ let t; return (...a)=>{ clearTimeout(t); t=setTimeout(()=>fn(...a), ms); }; }
+})();
+
 
         function handleApiFailure(prefix, resp){
             if (resp.looksHtml){
@@ -1342,10 +1731,10 @@
                     area.focus();
                     return;
                 }
-                if (b.hasAttribute('data-image')){
-                    showImageDialog(area);
-                    return;
-                }
+          if (b.hasAttribute('data-image')){
+                openMediaPicker(area, { usageTag: 'question', category: 'image' });
+                return;
+            }
             });
         }
 

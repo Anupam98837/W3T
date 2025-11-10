@@ -98,11 +98,11 @@
   <div class="cv-hero d-flex justify-content-center mb-3">
     <div id="cvHeroSkel" class="placeholder"></div>
     {{-- tiny transparent pixel as placeholder; hidden until real cover loads --}}
-    <img id="cvCover" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==" alt="Course cover">
+    <img class="img-fluid" id="cvCover" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==" alt="Course cover">
   </div>
 
   {{-- ===== Thumb strip (gallery) ===== --}}
-  <div id="cvThumbs" class="row g-2 mb-4 cv-thumbs"></div>
+  <div id="cvThumbs" class="d-flex justify-content-center row g-2 mb-4 cv-thumbs"></div>
 
   <div class="row g-3">
     {{-- ===== Left column ===== --}}

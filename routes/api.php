@@ -11,6 +11,7 @@ use App\Http\Controllers\API\BatchInstructorController;
 use App\Http\Controllers\API\QuizzController;
 use App\Http\Controllers\API\QuestionController;
 use App\Http\Controllers\API\StudyMaterialController;
+use App\Http\Controllers\API\MediaController;
 
 
 Route::get('/user', function (Request $request) {
@@ -179,4 +180,14 @@ Route::middleware('checkRole:admin,super_admin')->group(function () {
     // View endpoints
     Route::get   ('/study-materials/show/{uuid}',     [StudyMaterialController::class, 'showByUuid']);
     Route::get   ('/study-materials/stream/{uuid}/{fileId}', [StudyMaterialController::class, 'streamInline']);
+});
+
+
+// All Media Routes 
+
+
+Route::middleware(['checkRole:admin,super_admin,instructor,author'])->group(function () {
+    Route::get('/media',  [MediaController::class, 'index']);
+    Route::post('/media', [MediaController::class, 'store']);
+    Route::delete('/media/{idOrUuid}', [MediaController::class, 'destroy']);
 });

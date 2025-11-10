@@ -287,6 +287,18 @@ html.theme-dark .w3-sidebar-scroll::-webkit-scrollbar-thumb {
           <a href="/admin/quizz/create" class="w3-link">Create Quiz</a>
         </div>
       </div>
+
+            <!-- Assignments Group Menu - Added -->
+      <div class="w3-group">
+        <a href="#" class="w3-link w3-toggle" data-target="sm-assignments" aria-expanded="false">
+          <i class="fa-solid fa-file-lines"></i><span>Assignments</span>
+          <i class="fa fa-chevron-down w3-chev"></i>
+        </a>
+        <div id="sm-assignments" class="w3-submenu" role="group" aria-label="Assignments submenu">
+          <a href="/admin/assignments/manage" class="w3-link">All Assignments</a>
+          <a href="/admin/assignments/create" class="w3-link">Create Assignment</a>
+        </div>
+      </div>
     </nav>
  
     <!-- Operations -->

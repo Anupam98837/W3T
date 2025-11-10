@@ -9,8 +9,8 @@ use Illuminate\Support\Facades\Route;
 Route::get('/ui', function () {
     return view('ui.ui');
 });
-Route::get('/login', function () {
-    return view('ui.login');
+Route::get('/testing', function () {
+    return view('modules.testing');
 });
 
 
@@ -96,5 +96,16 @@ Route::get('/admin/courses/{course}', fn ($course) =>
 
 Route::get('/admin/course/studyMaterial/manage', function () {
     return view('pages.users.admin.pages.studyMaterial.manageStudyMaterial');
+});
+Route::get('/admin/course/studyMaterial/create', function () {
+    return view('pages.users.admin.pages.studyMaterial.createStudyMaterial');
+});
+
+Route::get('/admin/assignments/create', function () {
+    return view('pages.users.admin.pages.assignments.createAssignment');
+});
+ 
+Route::get('/admin/assignments/manage', function () {
+    return view('pages.users.admin.pages.assignments.manageAssignments');
 });
 
