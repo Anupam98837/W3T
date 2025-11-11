@@ -33,22 +33,42 @@
   .drop-icon{width:52px;height:52px;border-radius:999px;border:1px dashed var(--line-strong);display:flex;align-items:center;justify-content:center;margin-bottom:10px;opacity:.9}
   .file-list{margin-top:10px}
   .file-row{
-    display:grid;grid-template-columns:1fr auto auto;align-items:center;gap:10px;
+    display:grid;grid-template-columns:1fr auto auto auto;align-items:center;gap:12px;
     border:1px solid var(--line-strong);border-radius:12px;background:var(--surface-2,#fff);
-    padding:8px 10px;margin-bottom:8px
+    padding:10px 14px;margin-bottom:10px;transition:all 0.2s ease;
   }
-  .file-row .name{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .file-row .size{color:var(--muted-color);font-size:12px}
-  .file-row .rm{border:none;background:transparent;color:#6b7280}
-  .file-row .rm:hover{color:var(--ink)}
+  .file-row:hover{background:var(--surface-3);border-color:var(--line-medium);}
+  .file-row .name{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:500;color:var(--ink)}
+  .file-row .size{color:var(--muted-color);font-size:12px;min-width:70px;text-align:right}
+  
+  /* Improved button styles */
+  .btn-action{
+    border:none;background:transparent;padding:6px 10px;border-radius:6px;
+    transition:all 0.2s ease;cursor:pointer;font-size:13px;display:flex;align-items:center;gap:4px;
+    border:1px solid transparent;
+  }
+  .btn-preview{color:var(--primary-color);border-color:var(--primary-light);}
+  .btn-preview:hover{background:var(--primary-color);color:white;}
+  .btn-delete{color:var(--danger-color);border-color:var(--danger-light);}
+  .btn-delete:hover{background:var(--danger-color);color:white;}
+  
+  .btn-group{display:flex;gap:8px;align-items:center;}
 
   .btn-loading{pointer-events:none;opacity:.85}
   .btn-loading .btn-label{visibility:hidden}
   .btn-loading .btn-spinner{display:inline-block !important}
   .btn-spinner{display:none;width:1rem;height:1rem;border:.2rem solid #0001;border-top-color:#fff;border-radius:50%;vertical-align:-.125em;animation:rot 1s linear infinite}
 
+  /* Preview modal styles */
+  .preview-container {max-height: 70vh; overflow: auto;}
+  .preview-image {max-width: 100%; max-height: 60vh; border-radius: 8px;}
+  .preview-pdf {width: 100%; height: 500px; border: 1px solid var(--line-strong); border-radius: 8px;}
+  .preview-text {text-align: left; background: var(--surface-2); padding: 1rem; border-radius: 8px; max-height: 60vh; overflow: auto; font-family: monospace;}
+
   html.theme-dark .dropzone{background:#0f172a;border-color:var(--line-strong)}
   html.theme-dark .file-row{background:#0b1020;border-color:var(--line-strong)}
+  html.theme-dark .file-row:hover{background:#131d35;}
+  html.theme-dark .preview-text {background: #1a2335;}
 </style>
 
 @section('content')
@@ -102,9 +122,9 @@
         <textarea id="description" class="form-control" rows="4" placeholder="Short description..."></textarea>
         <div class="err" data-for="description"></div>
       </div>
+      <label class="form-check-label" for="allow_download">Allow Downloading Attachments</label>
       <div class="mb-3 form-check form-switch">
         <input class="form-check-input" type="checkbox" id="allow_download">
-        <label class="form-check-label" for="allow_download">Allow download of attachments</label>
       </div>
 
       {{-- Attachments --}}
@@ -135,6 +155,32 @@
     </div>
   </div>
 
+  {{-- Preview Modal --}}
+  <div class="modal fade" id="previewModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="previewModalTitle">File Preview</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <div id="previewContent" class="preview-container text-center">
+            <div class="p-4">
+              <i class="fas fa-file fa-3x text-muted mb-3"></i>
+              <p class="text-muted">Select a file to preview</p>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+          <a id="downloadPreview" href="#" class="btn btn-primary" download style="display: none;">
+            <i class="fas fa-download me-1"></i>Download
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+
   {{-- toasts --}}
   <div class="toast-container position-fixed top-0 end-0 p-3" style="z-index:1080">
     <div id="okToast" class="toast text-bg-success border-0">
@@ -156,6 +202,7 @@
   const TOKEN = localStorage.getItem('token') || sessionStorage.getItem('token') || '';
   const okToast  = new bootstrap.Toast($('okToast'));
   const errToast = new bootstrap.Toast($('errToast'));
+  const previewModal = new bootstrap.Modal($('previewModal'));
   const ok  = (m)=>{ $('okMsg').textContent  = m||'Done'; okToast.show(); };
   const err = (m)=>{ $('errMsg').textContent = m||'Something went wrong'; errToast.show(); };
 
@@ -191,25 +238,24 @@
     return json?.data || json?.rows || json?.items || json;
   }
 
-function fillSelect(sel, rows, labelKey){
-  sel.innerHTML = '';
-  const opt0 = document.createElement('option');
-  opt0.value = ''; opt0.textContent = 'Select...';
-  sel.appendChild(opt0);
+  function fillSelect(sel, rows, labelKey){
+    sel.innerHTML = '';
+    const opt0 = document.createElement('option');
+    opt0.value = ''; opt0.textContent = 'Select...';
+    sel.appendChild(opt0);
 
-  (rows||[]).forEach(r=>{
-    const label =
-      (labelKey && r[labelKey]) ||
-      r.badge_title || r.batch_name || r.title || r.name || r.label || r.code ||
-      ('#'+r.id);
+    (rows||[]).forEach(r=>{
+      const label =
+        (labelKey && r[labelKey]) ||
+        r.badge_title || r.batch_name || r.title || r.name || r.label || r.code ||
+        ('#'+r.id);
 
-    const o = document.createElement('option');
-    o.value = r.id;
-    o.textContent = label;
-    sel.appendChild(o);
-  });
-}
-
+      const o = document.createElement('option');
+      o.value = r.id;
+      o.textContent = label;
+      sel.appendChild(o);
+    });
+  }
 
   // Init: only load courses; modules & batches wait for course selection
   async function initDropdowns(){
@@ -255,28 +301,168 @@ function fillSelect(sel, rows, labelKey){
   /* ===== attachments ===== */
   const dz = $('dz'), input = $('attachments'), list = $('fileList');
   let dt = new DataTransfer();
-  function bytes(n){ if(n>=1<<30) return (n/(1<<30)).toFixed(1)+' GB'; if(n>=1<<20) return (n/(1<<20)).toFixed(1)+' MB'; if(n>=1<<10) return (n/(1<<10)).toFixed(1)+' KB'; return n+' B'; }
+  let filePreviewHandlers = new Map(); // Store file preview handlers
+  
+  function bytes(n){ 
+    if(n>=1<<30) return (n/(1<<30)).toFixed(1)+' GB'; 
+    if(n>=1<<20) return (n/(1<<20)).toFixed(1)+' MB'; 
+    if(n>=1<<10) return (n/(1<<10)).toFixed(1)+' KB'; 
+    return n+' B'; 
+  }
+  
+  function previewFile(file) {
+    const previewContent = $('previewContent');
+    const previewTitle = $('previewModalTitle');
+    const downloadBtn = $('downloadPreview');
+    
+    previewTitle.textContent = `Preview: ${file.name}`;
+    
+    // Create object URL for download
+    const fileUrl = URL.createObjectURL(file);
+    downloadBtn.href = fileUrl;
+    downloadBtn.download = file.name;
+    downloadBtn.style.display = 'inline-block';
+    
+    // Clear previous content
+    previewContent.innerHTML = '';
+    
+    const fileType = file.type;
+    const isImage = fileType.startsWith('image/');
+    const isPDF = fileType === 'application/pdf';
+    const isText = fileType.startsWith('text/');
+    
+    if (isImage) {
+      const img = document.createElement('img');
+      img.src = fileUrl;
+      img.alt = file.name;
+      img.className = 'preview-image';
+      previewContent.appendChild(img);
+    } else if (isPDF) {
+      const embed = document.createElement('embed');
+      embed.src = fileUrl;
+      embed.type = 'application/pdf';
+      embed.className = 'preview-pdf';
+      previewContent.appendChild(embed);
+    } else if (isText) {
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        const pre = document.createElement('pre');
+        pre.className = 'preview-text';
+        pre.textContent = e.target.result;
+        previewContent.appendChild(pre);
+      };
+      reader.readAsText(file);
+    } else {
+      previewContent.innerHTML = `
+        <div class="p-4">
+          <i class="fas fa-file fa-3x text-muted mb-3"></i>
+          <p class="text-muted">Preview not available for this file type</p>
+          <p class="small text-muted">File type: ${fileType || 'Unknown'}</p>
+        </div>
+      `;
+    }
+    
+    previewModal.show();
+  }
+
+  // Event delegation for file actions
+  function handleFileAction(e) {
+    const target = e.target;
+    const previewBtn = target.closest('.btn-preview');
+    const deleteBtn = target.closest('.btn-delete');
+    
+    if (previewBtn) {
+      e.preventDefault();
+      e.stopPropagation();
+      const row = previewBtn.closest('.file-row');
+      const index = Array.from(list.children).indexOf(row);
+      const file = dt.files[index];
+      if (file) {
+        previewFile(file);
+      }
+    } else if (deleteBtn) {
+      e.preventDefault();
+      e.stopPropagation();
+      const row = deleteBtn.closest('.file-row');
+      const index = Array.from(list.children).indexOf(row);
+      const next = new DataTransfer(); 
+      Array.from(dt.files).forEach((ff,i)=>{ if(i!==index) next.items.add(ff); }); 
+      dt = next; 
+      input.files = dt.files; 
+      redraw();
+    }
+  }
+
   function redraw(){
-    list.innerHTML=''; Array.from(dt.files).forEach((f,idx)=>{
-      const row = document.createElement('div'); row.className='file-row';
-      const n = document.createElement('div'); n.className='name'; n.textContent=f.name;
-      const s = document.createElement('div'); s.className='size'; s.textContent=bytes(f.size);
-      const rm = document.createElement('button'); rm.className='rm'; rm.type='button'; rm.innerHTML='<i class="fa fa-xmark"></i>';
-      rm.addEventListener('click', ()=>{ const next=new DataTransfer(); Array.from(dt.files).forEach((ff,i)=>{ if(i!==idx) next.items.add(ff); }); dt=next; input.files=dt.files; redraw(); });
-      row.appendChild(n); row.appendChild(s); row.appendChild(rm); list.appendChild(row);
+    list.innerHTML=''; 
+    Array.from(dt.files).forEach((f,idx)=>{
+      const row = document.createElement('div'); 
+      row.className='file-row';
+      
+      const n = document.createElement('div'); 
+      n.className='name'; 
+      n.textContent=f.name;
+      n.title = f.name;
+      
+      const s = document.createElement('div'); 
+      s.className='size'; 
+      s.textContent=bytes(f.size);
+      
+      const btnGroup = document.createElement('div');
+      btnGroup.className = 'btn-group';
+      
+      const previewBtn = document.createElement('button'); 
+      previewBtn.className='btn-action btn-preview'; 
+      previewBtn.type='button'; 
+      previewBtn.innerHTML='<i class="fa fa-eye"></i><span>Preview</span>';
+      previewBtn.title = 'Preview file';
+      
+      const rm = document.createElement('button'); 
+      rm.className='btn-action btn-delete'; 
+      rm.type='button'; 
+      rm.innerHTML='<i class="fa fa-trash"></i><span>Delete</span>';
+      rm.title = 'Remove file';
+      
+      btnGroup.appendChild(previewBtn);
+      btnGroup.appendChild(rm);
+      
+      row.appendChild(n); 
+      row.appendChild(s); 
+      row.appendChild(btnGroup); 
+      list.appendChild(row);
     });
   }
+  
   function addFiles(files){
     const maxPer = 50*1024*1024;
-    Array.from(files||[]).forEach(f=>{ if(f.size>maxPer){ fErr('attachments',`"${f.name}" exceeds 50 MB.`); return; } dt.items.add(f); });
-    input.files=dt.files; redraw();
+    let hasLargeFile = false;
+    
+    Array.from(files||[]).forEach(f=>{ 
+      if(f.size>maxPer){ 
+        fErr('attachments',`"${f.name}" exceeds 50 MB.`); 
+        hasLargeFile = true;
+        return; 
+      } 
+      dt.items.add(f); 
+    });
+    
+    input.files=dt.files; 
+    redraw();
+    
+    if (!hasLargeFile) {
+      fErr('attachments', '');
+    }
   }
+  
   dz.addEventListener('click', ()=> input.click());
   input.addEventListener('change', ()=> addFiles(input.files));
   ;['dragenter','dragover'].forEach(ev=> dz.addEventListener(ev, e=>{ e.preventDefault(); e.stopPropagation(); dz.classList.add('drag'); }));
   ;['dragleave','dragend','drop'].forEach(ev=> dz.addEventListener(ev, e=>{ e.preventDefault(); e.stopPropagation(); dz.classList.remove('drag'); }));
   dz.addEventListener('drop', e=> addFiles(e.dataTransfer && e.dataTransfer.files));
   $('btnClearAll').addEventListener('click', ()=>{ dt=new DataTransfer(); input.value=''; input.files=dt.files; redraw(); fErr('attachments',''); });
+
+  // Use event delegation for file actions
+  list.addEventListener('click', handleFileAction);
 
   /* ===== submit ===== */
   $('btnSave').addEventListener('click', async ()=>{
@@ -321,6 +507,15 @@ function fillSelect(sel, rows, labelKey){
     }finally{
       setSaving(false);
     }
+  });
+
+  // Clean up object URLs when modal is hidden
+  $('previewModal').addEventListener('hidden.bs.modal', function() {
+    const downloadBtn = $('downloadPreview');
+    if (downloadBtn.href.startsWith('blob:')) {
+      URL.revokeObjectURL(downloadBtn.href);
+    }
+    downloadBtn.style.display = 'none';
   });
 
   // boot

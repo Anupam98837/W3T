@@ -51,7 +51,7 @@
     .table .badge.badge-secondary{background:#64748b!important;color:#fff!important}
 
     /* Dropdowns inside table (with portal) */
-    .table-wrap .dropdown{position:relative;z-index:6}
+    .table-wrap .dropdown{position:relative;}
     .table-wrap .dd-toggle{position:relative;z-index:7}
     .dropdown [data-bs-toggle="dropdown"]{border-radius:10px}
     .table-wrap .dropdown-menu{border-radius:12px;border:1px solid var(--line-strong);box-shadow:var(--shadow-2);min-width:220px;z-index:5000}
@@ -75,6 +75,22 @@
     .form-control,.form-select,textarea{border-radius:12px;border:1px solid var(--line-strong);background:#fff}
     html.theme-dark .form-control,html.theme-dark .form-select,html.theme-dark textarea{background:#0f172a;color:#e5e7eb;border-color:var(--line-strong)}
 
+    /* ===== Text Editor Styles (from reference) ===== */
+    .toolbar{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px}
+    .tool{border:1px solid var(--line-strong);border-radius:10px;background:#fff;padding:6px 9px;cursor:pointer}
+    .tool:hover{background:var(--page-hover)}
+    .rte-wrap{position:relative}
+    .rte{
+      min-height:300px;max-height:600px;overflow:auto;
+      border:1px solid var(--line-strong);border-radius:12px;background:#fff;padding:12px;line-height:1.6;outline:none
+    }
+    .rte:focus{box-shadow:var(--ring);border-color:var(--accent-color)}
+    .rte-ph{position:absolute;top:12px;left:12px;color:#9aa3b2;pointer-events:none;font-size:var(--fs-14)}
+    .rte.has-content + .rte-ph{display:none}
+
+    /* Input focus polish */
+    .form-control:focus, .form-select:focus{box-shadow:0 0 0 3px color-mix(in oklab, var(--accent-color) 20%, transparent);border-color:var(--accent-color)}
+
     /* Dark tweaks */
     html.theme-dark .panel,
     html.theme-dark .table-wrap.card,
@@ -84,6 +100,8 @@
     html.theme-dark .dropdown-menu{background:#0f172a;border-color:var(--line-strong)}
     html.theme-dark .mfa-toolbar .form-control,
     html.theme-dark .mfa-toolbar .form-select{background:#0f172a;color:#e5e7eb;border-color:var(--line-strong)}
+    html.theme-dark .rte{background:#0f172a;border-color:var(--line-strong);color:#e5e7eb}
+    html.theme-dark .tool{background:#0f172a;border-color:var(--line-strong);color:#e5e7eb}
     </style>
 </head>
 <body>
@@ -510,21 +528,38 @@
             </select>
           </div>
           <div class="col-12"><label class="form-label">Tagline</label><input id="bm_tagline" class="form-control" maxlength="255" placeholder="Short hook line (optional)"></div>
+          
+          {{-- UPDATED TEXT EDITOR SECTION --}}
           <div class="col-12">
             <label class="form-label">Badge Description</label>
-            <div class="rt-toolbar" aria-label="Text formatting">
-              <button id="rt_bold" type="button" class="rt-btn" title="Bold (Ctrl/Cmd+B)"><i class="fa-solid fa-bold"></i></button>
-              <button id="rt_italic" type="button" class="rt-btn" title="Italic (Ctrl/Cmd+I)"><i class="fa-solid fa-italic"></i></button>
+            <div class="toolbar">
+              <button class="tool" type="button" data-cmd="bold"><i class="fa-solid fa-bold"></i></button>
+              <button class="tool" type="button" data-cmd="italic"><i class="fa-solid fa-italic"></i></button>
+              <button class="tool" type="button" data-cmd="underline"><i class="fa-solid fa-underline"></i></button>
+              <button class="tool" type="button" data-format="H1">H1</button>
+              <button class="tool" type="button" data-format="H2">H2</button>
+              <button class="tool" type="button" data-format="H3">H3</button>
+              <button class="tool" type="button" data-cmd="insertUnorderedList"><i class="fa-solid fa-list-ul"></i></button>
+              <button class="tool" type="button" data-cmd="insertOrderedList"><i class="fa-solid fa-list-ol"></i></button>
+              <button class="tool" type="button" id="btnLink"><i class="fa-solid fa-link"></i></button>
             </div>
-            <textarea id="bm_desc" class="form-control" rows="4" placeholder="Longer description (optional)"></textarea>
+            <div class="rte-wrap">
+              <div id="bm_desc_editor" class="rte" contenteditable="true" spellcheck="true"></div>
+              <div class="rte-ph">Write the batch description here…</div>
+            </div>
+            <div class="err" data-for="bm_desc"></div>
           </div>
+
           <div class="col-md-6"><label class="form-label">Contact Number</label><input id="bm_contact" class="form-control" maxlength="32" placeholder="+91… (optional)"></div>
           <div class="col-md-6"><label class="form-label">Note</label><input id="bm_note" class="form-control" placeholder="Internal note (optional)"></div>
           <div class="col-md-4"><label class="form-label">Start Date</label><input id="bm_start" type="date" class="form-control"></div>
           <div class="col-md-4"><label class="form-label">End Date</label><input id="bm_end" type="date" class="form-control"></div>
           <div class="col-md-4"><label class="form-label">Duration (auto)</label><input id="bm_duration_preview" class="form-control" readonly></div>
           <div class="col-md-6"><label class="form-label">Featured Image (optional)</label><input id="bm_image" type="file" class="form-control" accept="image/*"><div class="small text-muted mt-1">Max 5MB. jpg/jpeg/png/webp/gif</div></div>
-          <div class="col-md-6 d-flex align-items-end"><img id="bm_image_preview" class="bthumb" style="width:120px;height:80px" src="" alt="" /></div>
+          <div class="col-md-6 d-flex align-items-end">
+            {{-- UPDATED PREVIEW IMAGE WITH BETTER DEFAULT --}}
+            <img id="bm_image_preview" class="bthumb" style="width:120px;height:80px" src="https://dummyimage.com/120x80/e9e3f5/5e1570.jpg&text=Batch+Image" alt="Batch preview" />
+          </div>
           <div class="col-12">
             <label class="form-label">Group Links (Key → URL)</label>
             <div class="small text-muted mb-1">Example: <b>WhatsApp</b> → <span class="text-muted">https://chat.whatsapp.com/…</span> • <b>Telegram</b> → <span class="text-muted">https://t.me/…</span></div>
@@ -782,7 +817,8 @@ function rowActions(scope, r){
 
 function rowHTML(scope, r){
   const tr=document.createElement('tr');
-  const img = esc(r.featured_image||'');
+  // Use better default image
+  const img = esc(r.featured_image||'https://dummyimage.com/96x64/e9e3f5/5e1570.jpg&text=Batch');
   const dur = (Number(r.duration_days||0)>0) ? (r.duration_days+' days') : '-';
   const created = fmtDateTime(r.created_at);
   const delAt = fmtDateTime(r.deleted_at);
@@ -790,7 +826,7 @@ function rowHTML(scope, r){
   if((r.status||'').toLowerCase()==='archived' && scope!=='archived' && scope!=='bin') tr.classList.add('state-archived');
   if(r.deleted_at || scope==='bin') tr.classList.add('state-deleted');
 
-  const head = `<div class="bcell"><img class="bthumb" src="${img}" onerror="this.src='https://dummyimage.com/96x64/e9e3f5/5e1570.jpg&text=%F0%9F%8E%93';this.onerror=null;"><div><div class="fw-semibold">${esc(r.badge_title||'Untitled')}</div><div class="small text-muted">${esc(r.tagline||'')}</div></div></div>`;
+  const head = `<div class="bcell"><img class="bthumb" src="${img}" onerror="this.src='https://dummyimage.com/96x64/e9e3f5/5e1570.jpg&text=Batch';this.onerror=null;"><div><div class="fw-semibold">${esc(r.badge_title||'Untitled')}</div><div class="small text-muted">${esc(r.tagline||'')}</div></div></div>`;
 
   if(scope==='active'){
     tr.innerHTML = `<td>${head}</td><td class="text-capitalize">${esc(r.mode||'-')}</td><td>${badgeStatus(r.status)}</td><td>${fmtDate(r.starts_at)}</td><td>${fmtDate(r.ends_at)}</td><td>${dur}</td><td>${created}</td><td class="text-end">${rowActions(scope,r)}</td>`;
@@ -892,7 +928,7 @@ async function openView(uuid){
       linksHtml = r.group_links.map(u=>`<div class="small"><a href="${esc(u)}" target="_blank">${esc(u)}</a></div>`).join('');
     }
     const dur = (Number(r.duration_days||0)>0) ? (r.duration_days+' days') : '-';
-    vBody.innerHTML = `<div class="d-flex gap-3 align-items-start"><img class="bthumb" style="width:120px;height:80px" src="${esc(r.featured_image||'')}" onerror="this.src='https://dummyimage.com/200x120/e9e3f5/5e1570.jpg&text=Batch';this.onerror=null;"><div><div class="h5 mb-1">${esc(r.badge_title||'Untitled')}</div><div class="text-muted small">${esc(r.tagline||'')}</div><div class="mt-1">${badgeStatus(r.status)} <span class="ms-2 badge badge-info text-uppercase">${esc(r.mode||'-')}</span></div></div></div><hr class="my-3"><div class="row g-3"><div><span class="text-muted small">Duration:</span> <strong>${dur}</strong></div><div class="col-md-6"><div><span class="text-muted small">Contact:</span> ${esc(r.contact_number||'-')}</div><div><span class="text-muted small">Note:</span> ${esc(r.badge_note||'-')}</div></div><div class="col-12"><div class="mb-1 fw-semibold">Group Links</div>${linksHtml}</div><div class="col-12"><div class="mb-1 fw-semibold">Description</div><div class="small">${(r.badge_description||'').length?esc(r.badge_description):'<span class="text-muted">—</span>'}</div></div></div>`;
+    vBody.innerHTML = `<div class="d-flex gap-3 align-items-start"><img class="bthumb" style="width:120px;height:80px" src="${esc(r.featured_image||'https://dummyimage.com/200x120/e9e3f5/5e1570.jpg&text=Batch')}" onerror="this.src='https://dummyimage.com/200x120/e9e3f5/5e1570.jpg&text=Batch';this.onerror=null;"><div><div class="h5 mb-1">${esc(r.badge_title||'Untitled')}</div><div class="text-muted small">${esc(r.tagline||'')}</div><div class="mt-1">${badgeStatus(r.status)} <span class="ms-2 badge badge-info text-uppercase">${esc(r.mode||'-')}</span></div></div></div><hr class="my-3"><div class="row g-3"><div><span class="text-muted small">Duration:</span> <strong>${dur}</strong></div><div class="col-md-6"><div><span class="text-muted small">Contact:</span> ${esc(r.contact_number||'-')}</div><div><span class="text-muted small">Note:</span> ${esc(r.badge_note||'-')}</div></div><div class="col-12"><div class="mb-1 fw-semibold">Group Links</div>${linksHtml}</div><div class="col-12"><div class="mb-1 fw-semibold">Description</div><div class="small">${(r.badge_description||'').length?esc(r.badge_description):'<span class="text-muted">—</span>'}</div></div></div>`;
   }catch(e){ vBody.innerHTML = `<div class="text-danger">${esc(e.message||'Failed to load')}</div>`; }
 }
 
@@ -931,7 +967,7 @@ const bm_status = document.getElementById('bm_status');
 const bm_title_input = document.getElementById('bm_title_input');
 const bm_mode_select = document.getElementById('bm_mode_select');
 const bm_tagline = document.getElementById('bm_tagline');
-const bm_desc = document.getElementById('bm_desc');
+const bm_desc_editor = document.getElementById('bm_desc_editor');
 const bm_contact = document.getElementById('bm_contact');
 const bm_note = document.getElementById('bm_note');
 const bm_start = document.getElementById('bm_start');
@@ -943,25 +979,163 @@ const bm_save = document.getElementById('bm_save');
 const gl_wrap = document.getElementById('gl_wrap');
 const gl_add = document.getElementById('gl_add');
 
+/* =================== TEXT EDITOR SETUP =================== */
+const bm_desc_ph = bm_desc_editor.nextElementSibling;
+
+function toggleEditorPlaceholder(){
+  const hasContent = (bm_desc_editor.textContent || '').trim().length > 0;
+  bm_desc_editor.classList.toggle('has-content', hasContent);
+}
+
+// Initialize editor
+['input','keyup','paste','blur'].forEach(ev => bm_desc_editor.addEventListener(ev, toggleEditorPlaceholder));
+toggleEditorPlaceholder();
+
+// Toolbar functionality
+document.querySelectorAll('#batchModal .tool[data-cmd]').forEach(b=> {
+  b.addEventListener('click',()=>{
+    document.execCommand(b.dataset.cmd,false,null); 
+    bm_desc_editor.focus(); 
+    toggleEditorPlaceholder();
+  });
+});
+
+document.querySelectorAll('#batchModal .tool[data-format]').forEach(b=> {
+  b.addEventListener('click',()=>{
+    document.execCommand('formatBlock',false,b.dataset.format); 
+    bm_desc_editor.focus(); 
+    toggleEditorPlaceholder();
+  });
+});
+
+document.getElementById('btnLink').addEventListener('click',()=>{
+  const u = prompt('Enter URL (https://…)'); 
+  if(u && /^https?:\/\//i.test(u)){
+    document.execCommand('createLink',false,u); 
+    bm_desc_editor.focus();
+  }
+});
+
 function addGlRow(keyVal, urlVal){ const row=document.createElement('div'); row.className='gl-row d-flex align-items-center gap-2'; row.innerHTML=`<input class="form-control gl-key" placeholder="Key (e.g., WhatsApp, Telegram)" value="${esc(keyVal||'')}"><input class="form-control gl-url" placeholder="https://…" value="${esc(urlVal||'')}"><button type="button" class="btn btn-light" title="Remove"><i class="fa fa-xmark"></i></button>`; row.querySelector('button').addEventListener('click',()=> row.remove()); gl_wrap.appendChild(row); }
 function safeKey(k){ return (k||'').toString().trim().replace(/[^\w\-\.]/g,'_').substring(0,60) || 'Link'; }
 function collectGroupLinks(){ const rows=[...gl_wrap.querySelectorAll('.gl-row')]; const map={}; const used=new Set(); let idx=1; rows.forEach(r=>{ let key=r.querySelector('.gl-key')?.value?.trim()||''; const url=r.querySelector('.gl-url')?.value?.trim()||''; if(!url) return; if(!key){ try{ key=new URL(url).hostname.replace(/^www\./,''); }catch(_){ key='Link '+idx; } } key=safeKey(key); let base=key,i=2; while(used.has(key)){ key=`${base}_${i++}`; } used.add(key); map[key]=url; idx++; }); return map; }
 
-function resetBatchForm(){ bm_status.value='active'; bm_title_input.value=''; bm_mode_select.value='hybrid'; bm_tagline.value=''; bm_desc.value=''; bm_contact.value=''; bm_note.value=''; bm_start.value=''; bm_end.value=''; bm_dur_prev.value=''; bm_image.value=''; bm_img_prev.src=''; gl_wrap.innerHTML=''; addGlRow('',''); addGlRow('',''); }
+function resetBatchForm(){ 
+  bm_status.value='active'; 
+  bm_title_input.value=''; 
+  bm_mode_select.value='hybrid'; 
+  bm_tagline.value=''; 
+  bm_desc_editor.innerHTML=''; 
+  toggleEditorPlaceholder();
+  bm_contact.value=''; 
+  bm_note.value=''; 
+  bm_start.value=''; 
+  bm_end.value=''; 
+  bm_dur_prev.value=''; 
+  bm_image.value=''; 
+  bm_img_prev.src='https://dummyimage.com/120x80/e9e3f5/5e1570.jpg&text=Batch+Image'; 
+  gl_wrap.innerHTML=''; 
+  addGlRow('',''); 
+}
 
 function openCreateModal(){ const batchModal=new bootstrap.Modal(document.getElementById('batchModal')); bm_mode.value='create'; bm_uuid.value=''; bm_title.textContent='Create Batch'; resetBatchForm(); bm_course_id.value=currentCourseId; bm_course_label.value=courseSel.options[courseSel.selectedIndex]?.text || ''; batchModal.show(); }
-async function openEditModal(uuid){ const batchModal=new bootstrap.Modal(document.getElementById('batchModal')); bm_mode.value='edit'; bm_uuid.value=uuid; bm_title.textContent='Edit Batch'; resetBatchForm(); try{ const res=await fetch(`/api/batches/${encodeURIComponent(uuid)}`,{headers:{'Authorization':'Bearer '+TOKEN,'Accept':'application/json'}}); const j=await res.json(); if(!res.ok) throw new Error(j?.message||'Load failed'); const r=j.data||{}; bm_course_id.value=r.course_id||currentCourseId||''; bm_course_label.value=courseSel.options[courseSel.selectedIndex]?.text||''; bm_status.value=r.status||'active'; bm_title_input.value=r.badge_title||''; bm_mode_select.value=r.mode||'online'; bm_tagline.value=r.tagline||''; bm_desc.value=r.badge_description||''; bm_contact.value=r.contact_number||''; bm_note.value=r.badge_note||''; bm_start.value=r.starts_at?r.starts_at.slice(0,10):''; bm_end.value=r.ends_at?r.ends_at.slice(0,10):''; bm_dur_prev.value=(r.starts_at&&r.ends_at)?humanYMD(r.starts_at,r.ends_at):''; bm_img_prev.src=r.featured_image||''; gl_wrap.innerHTML=''; if (r.group_links && typeof r.group_links === 'object' && !Array.isArray(r.group_links)) { for (const [k,v] of Object.entries(r.group_links)) addGlRow(k||'', v||''); } else if (Array.isArray(r.group_links) && r.group_links.length && typeof r.group_links[0] === 'object') { r.group_links.forEach(x=> addGlRow(x.key||'', x.url||'')); } else if (Array.isArray(r.group_links)) { r.group_links.forEach(u=> addGlRow('', u||'')); } if(!gl_wrap.children.length) addGlRow('',''); batchModal.show(); }catch(e){ err(e.message||'Failed to open editor'); } }
+
+async function openEditModal(uuid){ 
+  const batchModal=new bootstrap.Modal(document.getElementById('batchModal')); 
+  bm_mode.value='edit'; 
+  bm_uuid.value=uuid; 
+  bm_title.textContent='Edit Batch'; 
+  resetBatchForm(); 
+  try{ 
+    const res=await fetch(`/api/batches/${encodeURIComponent(uuid)}`,{headers:{'Authorization':'Bearer '+TOKEN,'Accept':'application/json'}}); 
+    const j=await res.json(); 
+    if(!res.ok) throw new Error(j?.message||'Load failed'); 
+    const r=j.data||{}; 
+    bm_course_id.value=r.course_id||currentCourseId||''; 
+    bm_course_label.value=courseSel.options[courseSel.selectedIndex]?.text||''; 
+    bm_status.value=r.status||'active'; 
+    bm_title_input.value=r.badge_title||''; 
+    bm_mode_select.value=r.mode||'online'; 
+    bm_tagline.value=r.tagline||''; 
+    bm_desc_editor.innerHTML = r.badge_description || '';
+    toggleEditorPlaceholder();
+    bm_contact.value=r.contact_number||''; 
+    bm_note.value=r.badge_note||''; 
+    bm_start.value=r.starts_at?r.starts_at.slice(0,10):''; 
+    bm_end.value=r.ends_at?r.ends_at.slice(0,10):''; 
+    bm_dur_prev.value=(r.starts_at&&r.ends_at)?humanYMD(r.starts_at,r.ends_at):''; 
+    bm_img_prev.src=r.featured_image||'https://dummyimage.com/120x80/e9e3f5/5e1570.jpg&text=Batch+Image'; 
+    gl_wrap.innerHTML=''; 
+    if (r.group_links && typeof r.group_links === 'object' && !Array.isArray(r.group_links)) { 
+      for (const [k,v] of Object.entries(r.group_links)) addGlRow(k||'', v||''); 
+    } else if (Array.isArray(r.group_links) && r.group_links.length && typeof r.group_links[0] === 'object') { 
+      r.group_links.forEach(x=> addGlRow(x.key||'', x.url||'')); 
+    } else if (Array.isArray(r.group_links)) { 
+      r.group_links.forEach(u=> addGlRow('', u||'')); 
+    } 
+    if(!gl_wrap.children.length) addGlRow('',''); 
+    batchModal.show(); 
+  }catch(e){ 
+    err(e.message||'Failed to open editor'); 
+  } 
+}
 
 gl_add.addEventListener('click', ()=> addGlRow('',''));
 [bm_start,bm_end].forEach(el=> el.addEventListener('change', ()=>{ bm_dur_prev.value = (bm_start.value && bm_end.value) ? humanYMD(bm_start.value,bm_end.value) : ''; }));
-bm_image.addEventListener('change', ()=>{ if (bm_image.files && bm_image.files[0]) bm_img_prev.src = URL.createObjectURL(bm_image.files[0]); else bm_img_prev.src=''; });
-
-document.getElementById('rt_bold')?.addEventListener('click', ()=>{ wrapMd(bm_desc,'**','**','bold text'); });
-document.getElementById('rt_italic')?.addEventListener('click', ()=>{ wrapMd(bm_desc,'*','*','italic text'); });
-function wrapMd(el,left,right,placeholder){ el.focus(); const s=el.selectionStart||0,e=el.selectionEnd||0; const val=el.value||''; const sel=val.slice(s,e); const text=sel||placeholder||'text'; const out=left+text+right; el.value=val.slice(0,s)+out+val.slice(e); const caret=s+out.length; try{ el.setSelectionRange(caret,caret); }catch(_){} el.dispatchEvent(new Event('input',{bubbles:true})); }
+bm_image.addEventListener('change', ()=>{ if (bm_image.files && bm_image.files[0]) bm_img_prev.src = URL.createObjectURL(bm_image.files[0]); else bm_img_prev.src='https://dummyimage.com/120x80/e9e3f5/5e1570.jpg&text=Batch+Image'; });
 
 bm_save.addEventListener('click', saveBatch);
-async function saveBatch(){ if(!bm_title_input.value.trim()) return Swal.fire('Title required','Please enter a badge title.','info'); if(!bm_course_id.value) return Swal.fire('Course missing','Pick a course from the toolbar.','info'); if(bm_start.value && bm_end.value && (new Date(bm_end.value) < new Date(bm_start.value))) return Swal.fire('Invalid dates','End date cannot be before start date.','info'); const fd=new FormData(); fd.append('course_id', bm_course_id.value); fd.append('badge_title', bm_title_input.value.trim()); if(bm_desc.value.trim()) fd.append('badge_description', bm_desc.value.trim()); if(bm_tagline.value.trim()) fd.append('tagline', bm_tagline.value.trim()); fd.append('mode', bm_mode_select.value); if(bm_contact.value.trim()) fd.append('contact_number', bm_contact.value.trim()); if(bm_note.value.trim()) fd.append('badge_note', bm_note.value.trim()); fd.append('status', bm_status.value); if(bm_start.value) fd.append('starts_on', bm_start.value); if(bm_end.value) fd.append('ends_on', bm_end.value); const kv=collectGroupLinks(); const keys=Object.keys(kv); if(keys.length){ keys.forEach(k=> fd.append(`group_links[${k}]`, kv[k])); } else { fd.append('group_links[]',''); } if(bm_image.files && bm_image.files[0]) fd.append('featured_image', bm_image.files[0]); try{ let url='/api/batches', method='POST'; if (bm_mode.value==='edit' && bm_uuid.value) { url = `/api/batches/${encodeURIComponent(bm_uuid.value)}`; fd.append('_method','PATCH'); method = 'POST'; } const res = await fetch(url,{ method, headers:{ 'Authorization':'Bearer '+TOKEN, 'Accept':'application/json', 'Cache-Control':'no-cache' }, body: fd }); const j = await res.json().catch(()=>({})); if(!res.ok) throw new Error(firstError(j)||'Save failed'); ok('Batch saved'); bootstrap.Modal.getOrCreateInstance(document.getElementById('batchModal')).hide(); load('active'); }catch(e){ err(e.message||'Save failed'); } }
+async function saveBatch(){ 
+  if(!bm_title_input.value.trim()) return Swal.fire('Title required','Please enter a badge title.','info'); 
+  if(!bm_course_id.value) return Swal.fire('Course missing','Pick a course from the toolbar.','info'); 
+  if(bm_start.value && bm_end.value && (new Date(bm_end.value) < new Date(bm_start.value))) return Swal.fire('Invalid dates','End date cannot be before start date.','info'); 
+  const fd=new FormData(); 
+  fd.append('course_id', bm_course_id.value); 
+  fd.append('badge_title', bm_title_input.value.trim()); 
+  
+  // Use editor content instead of textarea
+  if(bm_desc_editor.innerHTML.trim()) fd.append('badge_description', bm_desc_editor.innerHTML.trim()); 
+  
+  if(bm_tagline.value.trim()) fd.append('tagline', bm_tagline.value.trim()); 
+  fd.append('mode', bm_mode_select.value); 
+  if(bm_contact.value.trim()) fd.append('contact_number', bm_contact.value.trim()); 
+  if(bm_note.value.trim()) fd.append('badge_note', bm_note.value.trim()); 
+  fd.append('status', bm_status.value); 
+  if(bm_start.value) fd.append('starts_on', bm_start.value); 
+  if(bm_end.value) fd.append('ends_on', bm_end.value); 
+  const kv=collectGroupLinks(); 
+  const keys=Object.keys(kv); 
+  if(keys.length){ 
+    keys.forEach(k=> fd.append(`group_links[${k}]`, kv[k])); 
+  } else { 
+    fd.append('group_links[]',''); 
+  } 
+  if(bm_image.files && bm_image.files[0]) fd.append('featured_image', bm_image.files[0]); 
+  try{ 
+    let url='/api/batches', method='POST'; 
+    if (bm_mode.value==='edit' && bm_uuid.value) { 
+      url = `/api/batches/${encodeURIComponent(bm_uuid.value)}`; 
+      fd.append('_method','PATCH'); 
+      method = 'POST'; 
+    } 
+    const res = await fetch(url,{ 
+      method, 
+      headers:{ 
+        'Authorization':'Bearer '+TOKEN, 
+        'Accept':'application/json', 
+        'Cache-Control':'no-cache' 
+      }, 
+      body: fd 
+    }); 
+    const j = await res.json().catch(()=>({})); 
+    if(!res.ok) throw new Error(firstError(j)||'Save failed'); 
+    ok('Batch saved'); 
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('batchModal')).hide(); 
+    load('active'); 
+  }catch(e){ 
+    err(e.message||'Save failed'); 
+  } 
+}
 
 async function archiveBatch(uuid){ const {isConfirmed}=await Swal.fire({icon:'question',title:'Archive batch?',showCancelButton:true,confirmButtonText:'Archive',confirmButtonColor:'#8b5cf6'}); if(!isConfirmed) return; try{ const res=await fetch(`/api/batches/${encodeURIComponent(uuid)}/archive`,{method:'PATCH',headers:{'Authorization':'Bearer '+TOKEN,'Accept':'application/json'}}); const j=await res.json().catch(()=>({})); if(!res.ok) throw new Error(firstError(j)||'Archive failed'); ok('Batch archived'); load('active'); }catch(e){ err(e.message); } }
 async function unarchiveBatch(uuid){ try{ const res=await fetch(`/api/batches/${encodeURIComponent(uuid)}`,{method:'PATCH',headers:{'Authorization':'Bearer '+TOKEN,'Content-Type':'application/json','Accept':'application/json'},body:JSON.stringify({status:'active'})}); const j=await res.json().catch(()=>({})); if(!res.ok) throw new Error(firstError(j)||'Unarchive failed'); ok('Batch unarchived'); load('archived'); load('active'); }catch(e){ err(e.message); } }

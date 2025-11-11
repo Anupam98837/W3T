@@ -75,6 +75,17 @@
   .toggle-switch input:checked + .toggle-slider{background:var(--primary-color)}
   .toggle-switch input:checked + .toggle-slider:before{transform:translateX(24px)}
 
+  /* Allowed submission types styling */
+  .selected-types{margin-top:12px;display:flex;gap:8px;flex-wrap:wrap}
+  .type-chip{background:var(--surface);border:1px solid var(--line-strong);padding:6px 8px;border-radius:999px;font-size:13px;display:inline-flex;align-items:center;gap:8px}
+  .type-chip .remove-type{cursor:pointer;color:var(--danger-color);font-size:12px;padding-left:6px}
+
+  /* Modal styles */
+  .modal .type-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;max-height:300px;overflow-y:auto;padding:5px}
+  .modal .type-item{display:flex;align-items:center;gap:8px;padding:8px;border:1px solid var(--line-strong);border-radius:8px;background:var(--surface);cursor:pointer;transition:background-color 0.2s}
+  .modal .type-item:hover{background:var(--page-hover)}
+  .modal .type-item input{transform:scale(1.15);margin:0}
+
   /* Button loading state */
   .btn-loading{pointer-events:none;opacity:.85}
   .btn-loading .btn-label{visibility:hidden}
@@ -104,28 +115,40 @@
     <div class="card-body position-relative">
       <div class="dim" id="busy"><div class="spin" aria-label="Saving…"></div></div>
 
-      {{-- Basic Information --}}
-      <h3 class="section-title">Basic Information</h3>
+      {{-- Course, Module, Batch Cascade --}}
+      <h3 class="section-title">Course & Module Selection</h3>
       <div class="divider-soft"></div>
 
       <div class="row g-3 mb-3">
-        <div class="col-md-6">
-          <label class="form-label" for="course_module_id">Course Module <span class="text-danger">*</span></label>
-          <select id="course_module_id" class="form-select">
+        <div class="col-md-4">
+          <label class="form-label" for="course_select">Course <span class="text-danger">*</span></label>
+          <select id="course_select" class="form-select">
+            <option value="">Select Course</option>
+            {{-- Options will be populated via JS --}}
+          </select>
+          <div class="err" data-for="course_id"></div>
+        </div>
+        <div class="col-md-4">
+          <label class="form-label" for="module_select">Module <span class="text-danger">*</span></label>
+          <select id="module_select" class="form-select" disabled>
             <option value="">Select Module</option>
             {{-- Options will be populated via JS --}}
           </select>
           <div class="err" data-for="course_module_id"></div>
         </div>
-        <div class="col-md-6">
-          <label class="form-label" for="batch_id">Batch <span class="text-danger">*</span></label>
-          <select id="batch_id" class="form-select">
+        <div class="col-md-4">
+          <label class="form-label" for="batch_select">Batch <span class="text-danger">*</span></label>
+          <select id="batch_select" class="form-select" disabled>
             <option value="">Select Batch</option>
             {{-- Options will be populated via JS --}}
           </select>
           <div class="err" data-for="batch_id"></div>
         </div>
       </div>
+
+      {{-- Basic Information --}}
+      <h3 class="section-title">Basic Information</h3>
+      <div class="divider-soft"></div>
 
       <div class="mb-3">
         <label class="form-label" for="title">Title <span class="text-danger">*</span></label>
@@ -171,7 +194,7 @@
       <div class="divider-soft"></div>
 
       <div class="row g-3 mb-3">
-        <div class="col-md-6">
+        <div class="col-md-4">
           <label class="form-label" for="status">Status</label>
           <select id="status" class="form-select">
             <option value="published" selected>Published</option>
@@ -179,30 +202,41 @@
             <option value="archived">Archived</option>
           </select>
         </div>
-        <div class="col-md-6">
+        <div class="col-md-4">
           <label class="form-label" for="submission_type">Submission Type</label>
           <select id="submission_type" class="form-select">
             <option value="file" selected>File Upload</option>
             <option value="text">Text Entry</option>
             <option value="link">Link/URL</option>
+            <option value="code">Code</option>
+            <option value="mixed">Mixed</option>
           </select>
         </div>
-      </div>
-
-      <div class="row g-3 mb-3">
         <div class="col-md-4">
           <label class="form-label" for="attempts_allowed">Attempts Allowed</label>
           <input id="attempts_allowed" class="form-control" type="number" min="1" value="3" placeholder="3">
         </div>
-        <div class="col-md-4">
+      </div>
+
+      <div class="row g-3 mb-3">
+        <div class="col-md-6">
           <label class="form-label" for="total_marks">Total Marks</label>
           <input id="total_marks" class="form-control" type="number" min="1" placeholder="100">
         </div>
-        <div class="col-md-4">
+        <div class="col-md-6">
           <label class="form-label" for="pass_marks">Pass Marks</label>
           <input id="pass_marks" class="form-control" type="number" min="0" placeholder="70">
         </div>
       </div>
+
+      {{-- Allowed submission types button --}}
+      <div class="mb-3 d-flex align-items-center" style="gap:10px">
+        <button type="button" id="btnAllowedTypes" class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#allowedTypesModal">
+          <i class="fa fa-list-check me-1"></i> Allowed submission types
+        </button>
+        <div id="selectedTypeWrap" class="selected-types" aria-hidden="false"></div>
+      </div>
+      <div id="selectedTypeHint" class="tiny mt-1">Select specific submission methods. If empty, all types are allowed.</div>
 
       {{-- Schedule --}}
       <h3 class="section-title">Schedule</h3>
@@ -280,6 +314,142 @@
     </div>
   </div>
 </div>
+
+<!-- Allowed submission types modal -->
+<div class="modal fade" id="allowedTypesModal" tabindex="-1" aria-labelledby="allowedTypesModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="fa fa-list-check me-2"></i> Allowed file types</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <p class="tiny">Select the file types you want to allow for submissions. These will be sent as allowed submission types.</p>
+
+        <div class="type-grid mb-3">
+          <!-- Documents -->
+          <label class="type-item">
+            <input type="checkbox" data-type="pdf"> 
+            <i class="fa fa-file-pdf text-danger"></i> 
+            <span>PDF (.pdf)</span>
+          </label>
+          <label class="type-item">
+            <input type="checkbox" data-type="doc"> 
+            <i class="fa fa-file-word text-primary"></i> 
+            <span>Word Document (.doc)</span>
+          </label>
+          <label class="type-item">
+            <input type="checkbox" data-type="docx"> 
+            <i class="fa fa-file-word text-primary"></i> 
+            <span>Word Document (.docx)</span>
+          </label>
+          
+          <!-- Archives -->
+          <label class="type-item">
+            <input type="checkbox" data-type="zip"> 
+            <i class="fa fa-file-zipper text-warning"></i> 
+            <span>ZIP Archive (.zip)</span>
+          </label>
+          <label class="type-item">
+            <input type="checkbox" data-type="rar"> 
+            <i class="fa fa-file-zipper text-warning"></i> 
+            <span>RAR Archive (.rar)</span>
+          </label>
+          <label class="type-item">
+            <input type="checkbox" data-type="7z"> 
+            <i class="fa fa-file-zipper text-warning"></i> 
+            <span>7-Zip Archive (.7z)</span>
+          </label>
+          
+          <!-- Images -->
+          <label class="type-item">
+            <input type="checkbox" data-type="jpg"> 
+            <i class="fa fa-image text-success"></i> 
+            <span>JPEG Image (.jpg)</span>
+          </label>
+          <label class="type-item">
+            <input type="checkbox" data-type="jpeg"> 
+            <i class="fa fa-image text-success"></i> 
+            <span>JPEG Image (.jpeg)</span>
+          </label>
+          <label class="type-item">
+            <input type="checkbox" data-type="png"> 
+            <i class="fa fa-image text-success"></i> 
+            <span>PNG Image (.png)</span>
+          </label>
+          
+          <!-- Other files -->
+          <label class="type-item">
+            <input type="checkbox" data-type="txt"> 
+            <i class="fa fa-file-lines text-secondary"></i> 
+            <span>Text File (.txt)</span>
+          </label>
+          <label class="type-item">
+            <input type="checkbox" data-type="pptx"> 
+            <i class="fa fa-file-powerpoint text-danger"></i> 
+            <span>PowerPoint (.pptx)</span>
+          </label>
+          <label class="type-item">
+            <input type="checkbox" data-type="xlsx"> 
+            <i class="fa fa-file-excel text-success"></i> 
+            <span>Excel (.xlsx)</span>
+          </label>
+          
+          <!-- Code files -->
+          <label class="type-item">
+            <input type="checkbox" data-type="js"> 
+            <i class="fa fa-code text-info"></i> 
+            <span>JavaScript (.js)</span>
+          </label>
+          <label class="type-item">
+            <input type="checkbox" data-type="py"> 
+            <i class="fa fa-code text-info"></i> 
+            <span>Python (.py)</span>
+          </label>
+          <label class="type-item">
+            <input type="checkbox" data-type="java"> 
+            <i class="fa fa-code text-info"></i> 
+            <span>Java (.java)</span>
+          </label>
+          <label class="type-item">
+            <input type="checkbox" data-type="html"> 
+            <i class="fa fa-code text-info"></i> 
+            <span>HTML (.html)</span>
+          </label>
+          <label class="type-item">
+            <input type="checkbox" data-type="css"> 
+            <i class="fa fa-code text-info"></i> 
+            <span>CSS (.css)</span>
+          </label>
+          <label class="type-item">
+            <input type="checkbox" data-type="cpp"> 
+            <i class="fa fa-code text-info"></i> 
+            <span>C++ (.cpp)</span>
+          </label>
+        </div>
+
+        <div class="mb-2">
+          <label class="form-label tiny mb-1">Add custom file type</label>
+          <div style="display:flex;gap:8px">
+            <input id="custom_type" class="form-control form-control-sm" placeholder="e.g., mp4, svg, php" maxlength="10" />
+            <button id="btnAddType" class="btn btn-sm btn-outline-primary" type="button">Add</button>
+          </div>
+          <div class="tiny mt-1">Enter file extension without dot. Will be added to allowed submission types.</div>
+        </div>
+
+        <div class="mt-3">
+          <label class="form-label tiny mb-1">Selected file types</label>
+          <div id="modalSelectedType" style="display:flex;gap:8px;flex-wrap:wrap"></div>
+        </div>
+
+      </div>
+      <div class="modal-footer">
+        <button type="button" id="btnClearAllTypes" class="btn btn-light">Clear All</button>
+        <button type="button" id="btnSaveTypes" class="btn btn-primary" data-bs-dismiss="modal">Save</button>
+      </div>
+    </div>
+  </div>
+</div>
 @endsection
 
 @push('scripts')
@@ -297,6 +467,9 @@
 
   const backList = '/admin/assignments/manage';
   const API_BASE = '/api/assignments';
+  const COURSES_API = '/api/courses';
+  const MODULES_API = '/api/course-modules';
+  const BATCHES_API  = '/api/batches';
 
   if(!TOKEN){
     Swal.fire('Login needed','Your session expired. Please login again.','warning')
@@ -321,45 +494,84 @@
     });
   }
 
-  /* ===== Load course modules & batches ===== */
-  async function loadDropdowns(){
-    try{
-      // Load course modules
-      const modRes = await fetch('/api/course-modules', {
-        headers:{ 'Authorization':'Bearer '+TOKEN, 'Accept':'application/json' }
-      });
-      if(modRes.ok){
-        const modData = await modRes.json();
-        const modules = modData.data || modData;
-        const modSelect = $('course_module_id');
-        modules.forEach(m => {
-          const opt = document.createElement('option');
-          opt.value = m.id;
-          opt.textContent = m.title || m.module_name || `Module ${m.id}`;
-          modSelect.appendChild(opt);
-        });
-      }
+  /* ===== Courses -> Modules -> Batches cascade ===== */
+  const courseSel = $('course_select');
+  const moduleSel = $('module_select');
+  const batchSel  = $('batch_select');
 
-      // Load batches
-      const batchRes = await fetch('/api/batches', {
-        headers:{ 'Authorization':'Bearer '+TOKEN, 'Accept':'application/json' }
+  async function fetchCourses(){
+    courseSel.innerHTML = '<option value="">Loading...</option>';
+    try{
+      const res = await fetch(COURSES_API + '?per_page=200', { headers:{ 'Authorization':'Bearer '+TOKEN }});
+      const json = await res.json().catch(()=> ({}));
+      const rows = (json && json.data) ? json.data : (Array.isArray(json) ? json : []);
+      courseSel.innerHTML = '<option value="">— Select course —</option>';
+      rows.forEach(function(c){
+        const opt = document.createElement('option');
+        opt.value = (c && c.id) != null ? c.id : '';
+        opt.textContent = (c && c.title) != null ? c.title : '';
+        courseSel.appendChild(opt);
       });
-      if(batchRes.ok){
-        const batchData = await batchRes.json();
-        const batches = batchData.data || batchData;
-        const batchSelect = $('batch_id');
-        batches.forEach(b => {
-          const opt = document.createElement('option');
-          opt.value = b.id;
-          opt.textContent = b.name || b.batch_name || `Batch ${b.id}`;
-          batchSelect.appendChild(opt);
-        });
-      }
     }catch(e){
-      console.error('Failed to load dropdowns:', e);
+      courseSel.innerHTML = '<option value="">— Failed to load —</option>';
+      console.error(e);
     }
   }
-  loadDropdowns();
+
+  async function fetchModulesFor(courseId){
+    moduleSel.innerHTML = '<option value="">Loading modules...</option>'; moduleSel.disabled = true;
+    try{
+      const res = await fetch(MODULES_API + '?course_id=' + encodeURIComponent(courseId) + '&per_page=200', { headers:{ 'Authorization':'Bearer '+TOKEN }});
+      const json = await res.json().catch(()=> ({}));
+      const rows = (json && json.data) ? json.data : (Array.isArray(json) ? json : []);
+      moduleSel.innerHTML = '<option value="">— Select module —</option>';
+      rows.forEach(function(m){
+        const opt = document.createElement('option');
+        opt.value = (m && m.id) != null ? m.id : '';
+        opt.textContent = (m && m.title) != null ? m.title : '';
+        moduleSel.appendChild(opt);
+      });
+      moduleSel.disabled = false;
+    }catch(e){
+      moduleSel.innerHTML = '<option value="">— Failed to load —</option>';
+      moduleSel.disabled = true;
+      console.error(e);
+    }
+  }
+
+  async function fetchBatchesFor(courseId){
+    batchSel.innerHTML = '<option value="">Loading batches...</option>'; batchSel.disabled = true;
+    try{
+      const res = await fetch(BATCHES_API + '?course_id=' + encodeURIComponent(courseId) + '&per_page=200', { headers:{ 'Authorization':'Bearer '+TOKEN }});
+      const json = await res.json().catch(()=> ({}));
+      const rows = (json && json.data) ? json.data : (Array.isArray(json) ? json : []);
+      batchSel.innerHTML = '<option value="">— Select batch —</option>';
+      rows.forEach(function(b){
+        const opt = document.createElement('option');
+        opt.value = (b && b.id) != null ? b.id : '';
+        opt.textContent = (b && (b.badge_title || b.tagline)) ? (b.badge_title || b.tagline) : ('Batch ' + ((b && b.id) ? b.id : ''));
+        batchSel.appendChild(opt);
+      });
+      batchSel.disabled = false;
+    }catch(e){
+      batchSel.innerHTML = '<option value="">— Failed to load —</option>';
+      batchSel.disabled = true;
+      console.error(e);
+    }
+  }
+
+  courseSel.addEventListener('change', async (ev)=>{
+    const v = ev.target.value;
+    moduleSel.innerHTML = '<option value="">— Select module —</option>'; moduleSel.disabled = true;
+    batchSel.innerHTML  = '<option value="">— Select batch —</option>';  batchSel.disabled = true;
+
+    if (!v) return;
+    await fetchModulesFor(v);
+    await fetchBatchesFor(v);
+  });
+
+  // initial load
+  fetchCourses();
 
   /* ===== enable/disable form during save ===== */
   function setFormDisabled(disabled){
@@ -480,28 +692,227 @@
   /* ===== Auto-slug generation ===== */
   const titleInput = $('title');
   const slugInput = $('slug');
-  titleInput.addEventListener('blur', ()=>{
-    if(!slugInput.value.trim()){
-      slugInput.value = titleInput.value.toLowerCase()
-        .replace(/[^a-z0-9]+/g, '-')
-        .replace(/^-+|-+$/g, '');
-    }
+  function slugify(s){
+    return String(s || '').toLowerCase()
+      .replace(/\s+/g,'-')
+      .replace(/[^\w\-]+/g,'')
+      .replace(/\-\-+/g,'-')
+      .replace(/^-+|-+$/g,'')
+      .slice(0,140);
+  }
+  titleInput.addEventListener('blur', ()=> {
+    if (!slugInput.value.trim()) slugInput.value = slugify(titleInput.value || '');
   });
 
   /* ===== errors ===== */
   function fErr(field,msg){ const el=document.querySelector(`.err[data-for="${field}"]`); if(el){ el.textContent=msg||''; el.style.display=msg?'block':'none'; } }
   function clrErr(){ document.querySelectorAll('.err').forEach(e=>{ e.textContent=''; e.style.display='none'; }); }
 
+  /* ===== Allowed submission types logic ===== */
+  let allowedSubmissionTypes = []; // e.g. ['pdf', 'doc', 'jpg']
+
+  const modalEl = document.getElementById('allowedTypesModal');
+  const modalSelectedEl = $('modalSelectedType');
+  const selectedWrap = $('selectedTypeWrap');
+  const selectedHint = $('selectedTypeHint');
+
+  // icon mapping for file types with colors
+  const typeIconMap = {
+    pdf: 'fa fa-file-pdf text-danger',
+    doc: 'fa fa-file-word text-primary',
+    docx: 'fa fa-file-word text-primary',
+    zip: 'fa fa-file-zipper text-warning',
+    rar: 'fa fa-file-zipper text-warning',
+    '7z': 'fa fa-file-zipper text-warning',
+    jpg: 'fa fa-image text-success',
+    jpeg: 'fa fa-image text-success',
+    png: 'fa fa-image text-success',
+    txt: 'fa fa-file-lines text-secondary',
+    pptx: 'fa fa-file-powerpoint text-danger',
+    xlsx: 'fa fa-file-excel text-success',
+    js: 'fa fa-code text-info',
+    py: 'fa fa-code text-info',
+    java: 'fa fa-code text-info',
+    html: 'fa fa-code text-info',
+    css: 'fa fa-code text-info',
+    cpp: 'fa fa-code text-info'
+  };
+
+  // type display names
+  const typeDisplayMap = {
+    pdf: 'PDF',
+    doc: 'Word (.doc)',
+    docx: 'Word (.docx)',
+    zip: 'ZIP',
+    rar: 'RAR',
+    '7z': '7-Zip',
+    jpg: 'JPEG',
+    jpeg: 'JPEG',
+    png: 'PNG',
+    txt: 'Text',
+    pptx: 'PowerPoint',
+    xlsx: 'Excel',
+    js: 'JavaScript',
+    py: 'Python',
+    java: 'Java',
+    html: 'HTML',
+    css: 'CSS',
+    cpp: 'C++'
+  };
+
+  // fill modal selection from allowedSubmissionTypes on open
+  modalEl && modalEl.addEventListener('show.bs.modal', function () {
+    const checkboxes = modalEl.querySelectorAll('input[type="checkbox"][data-type]');
+    checkboxes.forEach(cb => {
+      const type = (cb.dataset.type || '').toLowerCase();
+      cb.checked = allowedSubmissionTypes.includes(type);
+    });
+    renderModalSelected();
+  });
+
+  function renderModalSelected(){
+    modalSelectedEl.innerHTML = '';
+    allowedSubmissionTypes.forEach(function(type){
+      const div = document.createElement('div'); 
+      div.className='type-chip';
+      
+      const icon = document.createElement('i'); 
+      icon.className = (typeIconMap[type] || 'fa fa-file text-secondary') + ' fa-fw';
+      div.appendChild(icon);
+      
+      const txt = document.createElement('span'); 
+      txt.textContent = typeDisplayMap[type] || `.${type}`;
+      div.appendChild(txt);
+      
+      modalSelectedEl.appendChild(div);
+    });
+  }
+
+  function renderSelectedChips(){
+    selectedWrap.innerHTML = '';
+    if(allowedSubmissionTypes.length === 0){
+      selectedHint.style.display = 'block';
+      return;
+    }
+    selectedHint.style.display = 'none';
+    
+    allowedSubmissionTypes.forEach(function(type, idx){
+      const chip = document.createElement('div'); 
+      chip.className='type-chip';
+      
+      const icon = document.createElement('i'); 
+      icon.className = (typeIconMap[type] || 'fa fa-file text-secondary') + ' fa-fw';
+      chip.appendChild(icon);
+      
+      const strong = document.createElement('strong'); 
+      strong.textContent = typeDisplayMap[type] || `.${type}`;
+      chip.appendChild(strong);
+      
+      const rem = document.createElement('span'); 
+      rem.className='remove-type'; 
+      rem.dataset.idx = idx; 
+      rem.innerHTML='&times;';
+      rem.addEventListener('click', function(){
+        allowedSubmissionTypes.splice(idx,1);
+        
+        // Also uncheck the corresponding checkbox in modal if it exists
+        const existingCheckbox = modalEl.querySelector(`input[data-type="${type}"]`);
+        if(existingCheckbox) {
+          existingCheckbox.checked = false;
+        }
+        
+        renderModalSelected();
+        renderSelectedChips();
+      });
+      chip.appendChild(rem);
+      selectedWrap.appendChild(chip);
+    });
+  }
+
+  // modal checkboxes toggle
+  modalEl && modalEl.addEventListener('click', function(ev){
+    const target = ev.target;
+    if(target && target.matches('input[type="checkbox"][data-type]')){
+      const type = (target.dataset.type||'').toLowerCase();
+      if(target.checked){
+        if(!allowedSubmissionTypes.includes(type)) allowedSubmissionTypes.push(type);
+      } else {
+        allowedSubmissionTypes = allowedSubmissionTypes.filter(t=> t !== type);
+      }
+      renderModalSelected();
+      renderSelectedChips();
+    }
+  });
+
+  // add custom type
+  $('btnAddType').addEventListener('click', function(){
+    const val = ( $('custom_type').value || '' ).trim().toLowerCase();
+    if(!val){ 
+      err('Enter a file type'); 
+      return; 
+    }
+    if(!/^[a-z0-9_]{1,10}$/.test(val)){ 
+      err('Invalid file type (use letters, numbers or underscore, no dot)'); 
+      return; 
+    }
+    
+    // Check if already exists
+    if(!allowedSubmissionTypes.includes(val)) {
+      allowedSubmissionTypes.push(val);
+      
+      // Also check the corresponding checkbox in modal if it exists
+      const existingCheckbox = modalEl.querySelector(`input[data-type="${val}"]`);
+      if(existingCheckbox) {
+        existingCheckbox.checked = true;
+      }
+      
+      $('custom_type').value = '';
+      renderModalSelected();
+      renderSelectedChips();
+    } else {
+      err('This file type is already added');
+    }
+  });
+
+  // Also allow pressing Enter in the custom type input
+  $('custom_type').addEventListener('keypress', function(e){
+    if(e.key === 'Enter') {
+      e.preventDefault();
+      $('btnAddType').click();
+    }
+  });
+
+  // clear all in modal
+  $('btnClearAllTypes').addEventListener('click', function(){
+    allowedSubmissionTypes = [];
+    // uncheck checkboxes
+    modalEl.querySelectorAll('input[type="checkbox"][data-type]').forEach(cb => cb.checked = false);
+    renderModalSelected();
+    renderSelectedChips();
+  });
+
+  // save modal (close triggers with data-bs-dismiss already)
+  $('btnSaveTypes').addEventListener('click', function(){
+    // normalize unique
+    allowedSubmissionTypes = Array.from(new Set(allowedSubmissionTypes.map(t=> t.toLowerCase())));
+    renderSelectedChips();
+  });
+
+  // init UI
+  renderSelectedChips();
+
   /* ===== payload builder ===== */
   function buildPayload(){
     return {
-      course_module_id: $('course_module_id').value || null,
-      batch_id: $('batch_id').value || null,
+      course_id: courseSel.value || null,
+      course_module_id: moduleSel.value || null,
+      batch_id: batchSel.value || null,
       title: ($('title').value||'').trim(),
       slug: ($('slug').value||'').trim() || null,
       instructions: ($('instructions').innerHTML||'').trim() || null,
       status: $('status').value,
       submission_type: $('submission_type').value,
+      allowed_submission_types: allowedSubmissionTypes,
       attempts_allowed: Number($('attempts_allowed').value||0) || null,
       total_marks: Number($('total_marks').value||0) || null,
       pass_marks: Number($('pass_marks').value||0) || null,
@@ -529,8 +940,19 @@
       currentUUID = a.uuid || a.id || key;
 
       // fill fields
-      $('course_module_id').value = a.course_module_id || '';
-      $('batch_id').value = a.batch_id || '';
+      if(a.course_id) {
+        courseSel.value = a.course_id;
+        // Trigger cascade to load modules and batches
+        await fetchModulesFor(a.course_id);
+        await fetchBatchesFor(a.course_id);
+        
+        // Now set the module and batch values
+        setTimeout(() => {
+          if(a.course_module_id) moduleSel.value = a.course_module_id;
+          if(a.batch_id) batchSel.value = a.batch_id;
+        }, 500);
+      }
+      
       $('title').value = a.title || '';
       $('slug').value = a.slug || '';
       $('instructions').innerHTML = a.instructions || '';
@@ -539,6 +961,12 @@
       $('attempts_allowed').value = a.attempts_allowed || 3;
       $('total_marks').value = a.total_marks || '';
       $('pass_marks').value = a.pass_marks || '';
+      
+      // Load allowed submission types if they exist
+      if(a.allowed_submission_types && Array.isArray(a.allowed_submission_types)) {
+        allowedSubmissionTypes = [...a.allowed_submission_types];
+        renderSelectedChips();
+      }
       
       if(a.due_at){
         const d = new Date(a.due_at);
@@ -576,17 +1004,24 @@
     const title = ($('title').value||'').trim();
     if(!title){ fErr('title','Title is required.'); $('title').focus(); return; }
 
-    const courseModuleId = $('course_module_id').value;
-    if(!courseModuleId){ fErr('course_module_id','Course module is required.'); $('course_module_id').focus(); return; }
+    const courseId = courseSel.value;
+    if(!courseId){ fErr('course_id','Course is required.'); courseSel.focus(); return; }
 
-    const batchId = $('batch_id').value;
-    if(!batchId){ fErr('batch_id','Batch is required.'); $('batch_id').focus(); return; }
+    const courseModuleId = moduleSel.value;
+    if(!courseModuleId){ fErr('course_module_id','Course module is required.'); moduleSel.focus(); return; }
+
+    const batchId = batchSel.value;
+    if(!batchId){ fErr('batch_id','Batch is required.'); batchSel.focus(); return; }
 
     setSaving(true);
     try{
       let res, json;
 
-      const url  = isEdit ? `/api/assignments/${encodeURIComponent(currentUUID)}` : API_BASE;
+      // Use course-specific endpoint for creating assignments
+      const url = isEdit 
+        ? `/api/assignments/${encodeURIComponent(currentUUID)}`
+        : `/api/courses/${encodeURIComponent(courseId)}/assignments`;
+        
       const method = isEdit ? 'PUT' : 'POST';
 
       // If we have files, use multipart; otherwise JSON
@@ -594,7 +1029,16 @@
         const fd = new FormData();
         const payload = buildPayload();
         Object.entries(payload).forEach(([k,v])=> { 
-          if(v!==undefined && v!==null) fd.append(k, v); 
+          if(v!==undefined && v!==null) {
+            // Handle arrays properly for FormData
+            if(Array.isArray(v)) {
+              v.forEach(item => {
+                fd.append(k + '[]', item);
+              });
+            } else {
+              fd.append(k, v);
+            }
+          }
         });
         
         selectedFiles.forEach(f => fd.append('attachments[]', f));

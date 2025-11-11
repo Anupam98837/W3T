@@ -110,29 +110,22 @@ html.theme-dark .dropdown-menu{background:#0f172a;border-color:var(--line-strong
       {{-- Toolbar --}}
       <div class="row align-items-center g-2 mb-3 mfa-toolbar panel">
         <div class="col-12 col-xl d-flex align-items-center flex-wrap gap-2">
-          <div class="position-relative" style="min-width:300px;">
-            <input id="q" type="text" class="form-control ps-5" placeholder="Search by title…">
-            <i class="fa fa-search position-absolute" style="left:12px;top:50%;transform:translateY(-50%);opacity:.6;"></i>
-          </div>
-
-          <div class="d-flex align-items-center gap-2">
-            <label class="text-muted small mb-0">Public</label>
-            <select id="is_public" class="form-select" style="width:140px;">
-              <option value="">All</option>
-              <option value="yes">Yes</option>
-              <option value="no">No</option>
-            </select>
-          </div>
-
           <div class="d-flex align-items-center gap-2">
             <label class="text-muted small mb-0">Per page</label>
             <select id="per_page" class="form-select" style="width:96px;">
               <option>10</option><option selected>20</option><option>30</option><option>50</option><option>100</option>
             </select>
           </div>
+          
+          <div class="position-relative" style="min-width:300px;">
+            <input id="q" type="text" class="form-control ps-5" placeholder="Search by title…">
+            <i class="fa fa-search position-absolute" style="left:12px;top:50%;transform:translateY(-50%);opacity:.6;"></i>
+          </div>
 
-          <button id="btnApply" class="btn btn-light ms-1"><i class="fa fa-check me-1"></i>Apply</button>
-          <button id="btnReset" class="btn btn-light"><i class="fa fa-rotate-left me-1"></i>Reset</button>
+          <button id="btnFilter" class="btn btn-primary ms-1" data-bs-toggle="modal" data-bs-target="#filterModal">
+            <i class="fa fa-filter me-1"></i>Filter
+          </button>
+          <button id="btnReset" class="btn btn-primary"><i class="fa fa-rotate-left me-1"></i>Reset</button>
         </div>
 
         <div class="col-12 col-xl-auto ms-xl-auto d-flex justify-content-xl-end">
@@ -277,6 +270,34 @@ html.theme-dark .dropdown-menu{background:#0f172a;border-color:var(--line-strong
 
   </div><!-- /.tab-content -->
 
+</div>
+
+{{-- Filter Modal --}}
+<div class="modal fade" id="filterModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="fa fa-filter me-2"></i>Filter Quizzes</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-3">
+          <label for="filterIsPublic" class="form-label">Public</label>
+          <select id="filterIsPublic" class="form-select">
+            <option value="">All</option>
+            <option value="yes">Yes</option>
+            <option value="no">No</option>
+          </select>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+        <button id="btnApplyFilters" type="button" class="btn btn-primary">
+          <i class="fa fa-check me-1"></i>Apply Filters
+        </button>
+      </div>
+    </div>
+  </div>
 </div>
 
 {{-- Notes Modal --}}
@@ -430,10 +451,10 @@ document.addEventListener('click', (e) => {
   };
 
   /* ========= Shared filter elements (Active tab) ========= */
-  const q           = document.getElementById('q');
-  const isPublicSel = document.getElementById('is_public');
+  const q = document.getElementById('q');
+  const filterIsPublicSel = document.getElementById('filterIsPublic');
+  const btnApplyFilters = document.getElementById('btnApplyFilters');
   const perPageSel  = document.getElementById('per_page');
-  const btnApply    = document.getElementById('btnApply');
   const btnReset    = document.getElementById('btnReset');
 
   /* ========= State ========= */
@@ -457,7 +478,7 @@ document.addEventListener('click', (e) => {
 
     if (scope === 'active'){
       if (q && q.value.trim()) usp.set('q', q.value.trim());
-      if (isPublicSel && isPublicSel.value) usp.set('is_public', isPublicSel.value);
+      if (filterIsPublicSel && filterIsPublicSel.value) usp.set('is_public', filterIsPublicSel.value);
       usp.set('status','active');
     } else if (scope === 'archived'){
       usp.set('status','archived');
@@ -509,7 +530,7 @@ document.addEventListener('click', (e) => {
           <li><button class="dropdown-item text-danger" data-act="force" data-key="${key}" data-name="${esc(r.quiz_name||'')}"><i class="fa fa-skull-crossbones"></i> Delete Permanently</button></li>
         </ul>
       </div>`;
-  }
+    }
 
   function rowHTML(scope, r){
     const isArchived = String(r.status||'').toLowerCase()==='archived';
@@ -663,12 +684,26 @@ document.addEventListener('click', (e) => {
   /* ========= Filters (active tab) ========= */
   let srchT; 
   q?.addEventListener('input', ()=>{ clearTimeout(srchT); srchT=setTimeout(()=>{ state.active.page=1; load('active'); }, 350); });
-  btnApply?.addEventListener('click', ()=>{ state.active.page=1; load('active'); });
-  btnReset?.addEventListener('click', ()=>{
-    if (q) q.value=''; if (isPublicSel) isPublicSel.value='';
-    if (perPageSel) perPageSel.value='20';
-    sort='-created_at'; state.active.page=1; load('active');
+  
+  btnApplyFilters?.addEventListener('click', ()=>{
+    // Close the modal properly
+    const filterModal = bootstrap.Modal.getInstance(document.getElementById('filterModal'));
+    filterModal.hide();
+    
+    // Apply the filters
+    state.active.page=1; 
+    load('active');
   });
+  
+  btnReset?.addEventListener('click', ()=>{
+    if (q) q.value=''; 
+    if (filterIsPublicSel) filterIsPublicSel.value='';
+    if (perPageSel) perPageSel.value='20';
+    sort='-created_at'; 
+    state.active.page=1; 
+    load('active');
+  });
+  
   perPageSel?.addEventListener('change', ()=>{ state.active.page=1; load('active'); });
 
   /* ========= Tab change => load on demand ========= */

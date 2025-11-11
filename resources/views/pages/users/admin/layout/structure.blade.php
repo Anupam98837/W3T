@@ -299,6 +299,18 @@ html.theme-dark .w3-sidebar-scroll::-webkit-scrollbar-thumb {
           <a href="/admin/assignments/create" class="w3-link">Create Assignment</a>
         </div>
       </div>
+
+            <!-- Study Materials Group Menu - Added -->
+      <div class="w3-group">
+        <a href="#" class="w3-link w3-toggle" data-target="sm-study-materials" aria-expanded="false">
+          <i class="fa-solid fa-book"></i><span>Study Materials</span>
+          <i class="fa fa-chevron-down w3-chev"></i>
+        </a>
+        <div id="sm-study-materials" class="w3-submenu" role="group" aria-label="Study Materials submenu">
+          <a href="/admin/course/studyMaterial/create" class="w3-link">Create Study Material</a>
+          <a href="/admin/course/studyMaterial/manage" class="w3-link">All Study Materials</a>
+        </div>
+      </div>
     </nav>
  
     <!-- Operations -->
