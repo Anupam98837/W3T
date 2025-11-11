@@ -11,6 +11,9 @@ use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\Storage; 
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\Schema;
+use Carbon\Carbon;
+
 
 
 class CourseController extends Controller
@@ -800,6 +803,383 @@ public function viewCourse(Request $r, string $key)
 
     return response()->json(['data' => $payload]);
 }
+
+
+public function viewCourseByBatch(Request $r, string $batchKey)
+{
+    // ---- role from CheckRole (canonical: superadmin/admin/instructor/student/author)
+    $role = (string) $r->attributes->get('auth_role');
+    $uid  = (int) ($r->attributes->get('auth_tokenable_id') ?? 0);
+    if (!$role || !in_array($role, ['superadmin','admin','instructor','student'], true)) {
+        return response()->json(['error' => 'Unauthorized Access'], 403);
+    }
+    $isAdminLike = in_array($role, ['superadmin','admin'], true);
+    $isInstructor = $role === 'instructor';
+    $isStudent    = $role === 'student';
+
+    // ---- resolve batch by id / uuid / (optional) slug
+    $bq = DB::table('batches')->whereNull('deleted_at');
+    if (ctype_digit($batchKey)) {
+        $bq->where('id', (int)$batchKey);
+    } elseif (Str::isUuid($batchKey)) {
+        $bq->where('uuid', $batchKey);
+    } elseif (Schema::hasColumn('batches','slug')) {
+        $bq->where('slug', $batchKey);
+    } else {
+        return response()->json(['error' => 'Batch not found'], 404);
+    }
+    $batch = $bq->first();
+    if (!$batch) return response()->json(['error' => 'Batch not found'], 404);
+
+    // ---- detect pivot FK columns safely
+    $biUserCol = Schema::hasColumn('batch_instructors','user_id')
+        ? 'user_id'
+        : (Schema::hasColumn('batch_instructors','instructor_id') ? 'instructor_id' : null);
+
+    $bsUserCol = Schema::hasColumn('batch_students','user_id')
+        ? 'user_id'
+        : (Schema::hasColumn('batch_students','student_id') ? 'student_id' : null);
+
+    // ---- RBAC: must be assigned if instructor/student
+    if ($isInstructor) {
+        if (!$biUserCol) {
+            return response()->json(['error'=>'Schema issue: batch_instructors needs user_id OR instructor_id'], 500);
+        }
+        $assigned = DB::table('batch_instructors')
+            ->where('batch_id', $batch->id)
+            ->whereNull('deleted_at')
+            ->where($biUserCol, $uid)
+            ->exists();
+        if (!$assigned) return response()->json(['error' => 'Forbidden'], 403);
+    }
+    if ($isStudent) {
+        if (!$bsUserCol) {
+            return response()->json(['error'=>'Schema issue: batch_students needs user_id OR student_id'], 500);
+        }
+        $enrolled = DB::table('batch_students')
+            ->where('batch_id', $batch->id)
+            ->whereNull('deleted_at')
+            ->where($bsUserCol, $uid)
+            ->exists();
+        if (!$enrolled) return response()->json(['error' => 'Forbidden'], 403);
+    }
+
+    // ---- load course for this batch (students only see published)
+    $cq = DB::table('courses')->whereNull('deleted_at')->where('id', $batch->course_id);
+    if ($isStudent) $cq->where('status', 'published');
+    $course = $cq->first();
+    if (!$course) return response()->json(['error' => 'Course not found for this batch'], 404);
+
+    // ---- pricing
+    $price   = (float) ($course->price_amount ?? 0);
+    $discAmt = $course->discount_amount !== null ? (float)$course->discount_amount : null;
+    $discPct = $course->discount_percent !== null ? (float)$course->discount_percent : null;
+    $final   = $this->computeFinalPrice($price, $discAmt, $discPct);
+    $effectivePct = $price > 0 ? round((($price - $final) / $price) * 100, 2) : 0.0;
+
+    // ---- media (active only)
+    $mediaAll = DB::table('course_featured_media')
+        ->where('course_id', $course->id)
+        ->whereNull('deleted_at')
+        ->where('status', 'active')
+        ->orderBy('order_no')->orderBy('id')
+        ->get();
+    $cover = $mediaAll->firstWhere('featured_type', 'image') ?? $mediaAll->first();
+
+    // ---- modules (staff: all; students: only published)
+    $isStaff = $isAdminLike || $isInstructor;
+    $modQ = DB::table('course_modules')
+        ->select('id','uuid','title','short_description','long_description','order_no','status')
+        ->where('course_id', $course->id)
+        ->whereNull('deleted_at')
+        ->orderBy('order_no')->orderBy('id');
+    if (!$isStaff) $modQ->where('status', 'published');
+    $modules = $modQ->get();
+
+    // ---- instructors for sidebar (join only on the column that exists)
+    $instructors = collect();
+    if ($biUserCol) {
+        $instructors = DB::table('batch_instructors as bi')
+            ->join('users as u', function($j) use ($biUserCol){
+                $j->on('u.id', '=', DB::raw("bi.$biUserCol"));
+            })
+            ->where('bi.batch_id', $batch->id)
+            ->whereNull('bi.deleted_at')
+            ->whereNull('u.deleted_at')
+            ->select('u.id','u.uuid','u.name','u.email','u.role')
+            ->get()
+            ->map(fn($u) => [
+                'id'    => (int)$u->id,
+                'uuid'  => $u->uuid,
+                'name'  => $u->name,
+                'email' => $u->email,
+                'role'  => $u->role,
+            ])
+            ->values();
+    }
+
+    // ---- batch stats
+    $studentsCount = DB::table('batch_students')
+        ->where('batch_id', $batch->id)
+        ->whereNull('deleted_at')
+        ->count();
+
+    // ---- duration from course->metadata (optional)
+    $durationHours = null;
+    if (!empty($course->metadata)) {
+        try {
+            $meta = is_string($course->metadata) ? json_decode($course->metadata, true) : $course->metadata;
+            if (is_array($meta)) {
+                if (isset($meta['duration_hours']))        $durationHours = (float)$meta['duration_hours'];
+                elseif (isset($meta['duration']))          $durationHours = (float)$meta['duration'];
+                elseif (isset($meta['duration_minutes']))  $durationHours = round(((int)$meta['duration_minutes'])/60, 2);
+            }
+        } catch (\Throwable $e) {}
+    }
+
+    // ---- payload
+    $payload = [
+        'batch' => (array)$batch,
+        'course' => [
+            'id'                => (int)$course->id,
+            'uuid'              => $course->uuid,
+            'slug'              => $course->slug,
+            'title'             => $course->title,
+            'short_description' => $course->short_description,
+            'full_description'  => $course->full_description,
+            'status'            => $course->status,
+            'difficulty'        => $course->level,
+            'language'          => $course->language,
+            'course_type'       => $course->course_type,
+            'publish_at'        => $course->publish_at,
+            'unpublish_at'      => $course->unpublish_at,
+            'created_at'        => $course->created_at,
+            'duration_hours'    => $durationHours,
+        ],
+        'pricing' => [
+            'currency'           => $course->price_currency ?? 'INR',
+            'original'           => round($price, 2),
+            'final'              => $final,
+            'discount_amount'    => $discAmt,
+            'discount_percent'   => $discPct,
+            'effective_percent'  => $effectivePct,
+            'is_free'            => ($course->course_type === 'free') || ($price <= 0),
+            'has_discount'       => ($final < $price),
+            'discount_expires_at'=> $course->discount_expires_at,
+        ],
+        'media' => [
+            'cover'   => $cover ? [
+                'id'   => (int)$cover->id,
+                'uuid' => $cover->uuid,
+                'type' => $cover->featured_type,
+                'url'  => $cover->featured_url,
+            ] : null,
+            'gallery' => $mediaAll->map(fn($m) => [
+                'id'   => (int)$m->id,
+                'uuid' => $m->uuid,
+                'type' => $m->featured_type,
+                'url'  => $m->featured_url,
+            ])->values(),
+        ],
+        'modules' => $modules->map(fn($m) => [
+            'id'                => (int)$m->id,
+            'uuid'              => $m->uuid,
+            'title'             => $m->title,
+            'short_description' => $m->short_description,
+            'long_description'  => $m->long_description,
+            'order_no'          => (int)$m->order_no,
+            'status'            => $m->status,
+        ])->values(),
+        'instructors' => $instructors,
+        'stats' => [
+            'students_count'      => (int)$studentsCount,
+            'you_are_instructor'  => $isInstructor,
+            'you_are_student'     => $isStudent,
+        ],
+        'permissions' => [
+            'can_view_unpublished_modules' => $isStaff,
+        ],
+    ];
+
+    $this->logWithActor('[Course View By Batch] payload prepared', $r, [
+        'batch_id'  => (int)$batch->id,
+        'course_id' => (int)$course->id,
+        'modules'   => count($payload['modules']),
+        'media'     => count($payload['media']['gallery']),
+        'role'      => $role,
+    ]);
+
+    return response()->json(['data' => $payload]);
+}
+
+
+public function listCourseBatchCards(Request $r)
+{
+    // ---- role from CheckRole (canonical): superadmin, admin, instructor, student
+    $role = (string) $r->attributes->get('auth_role');
+    $uid  = (int) ($r->attributes->get('auth_tokenable_id') ?? 0);
+
+    if (!$role || !in_array($role, ['superadmin','admin','instructor','student'], true)) {
+        return response()->json(['error' => 'Unauthorized Access'], 403);
+    }
+
+    // --- query params
+    $page    = max(1, (int)$r->query('page', 1));
+    $perPage = max(1, min(100, (int)$r->query('per_page', 20)));
+    $qText   = trim((string)$r->query('q', ''));      // search course title / batch name
+    $sort    = (string)$r->query('sort', '-b.created_at'); // -b.starts_at, c.title, etc.
+
+    $isInstructor = $role === 'instructor';
+    $isStudent    = $role === 'student';
+
+    // ---- your schema (from migrations)
+    $bNameCol   = 'badge_title';  // batches.badge_title
+    $bStartCol  = 'starts_at';    // batches.starts_at
+    // end column (graceful detection)
+    $bEndCol    = \Illuminate\Support\Facades\Schema::hasColumn('batches','ends_at')   ? 'ends_at'
+                : (\Illuminate\Support\Facades\Schema::hasColumn('batches','end_date') ? 'end_date'
+                : (\Illuminate\Support\Facades\Schema::hasColumn('batches','finish_at')? 'finish_at'
+                : null));
+
+    $biUserCol  = 'user_id';      // batch_instructors.user_id
+    $bsUserCol  = 'user_id';      // batch_students.user_id
+
+    // --- base: batches + courses
+    $q = DB::table('batches as b')
+        ->join('courses as c', 'c.id', '=', 'b.course_id')
+        ->whereNull('b.deleted_at')
+        ->whereNull('c.deleted_at');
+
+    // Students see only published courses
+    if ($isStudent) {
+        $q->where('c.status', 'published');
+    }
+
+    // Role filters
+    if ($isInstructor) {
+        $q->join('batch_instructors as bi', 'bi.batch_id', '=', 'b.id')
+          ->whereNull('bi.deleted_at')
+          ->where("bi.$biUserCol", $uid);
+    } elseif ($isStudent) {
+        $q->join('batch_students as bs', 'bs.batch_id', '=', 'b.id')
+          ->whereNull('bs.deleted_at')
+          ->where("bs.$bsUserCol", $uid);
+    }
+
+    // Search filter
+    if ($qText !== '') {
+        $q->where(function($w) use ($qText, $bNameCol) {
+            $w->where('c.title', 'like', "%$qText%")
+              ->orWhere('c.slug', 'like', "%$qText%")
+              ->orWhere("b.$bNameCol", 'like', "%$qText%");
+        });
+    }
+
+    // Sorting
+    $dir = 'asc'; $col = $sort;
+    if (str_starts_with($sort, '-')) { $dir='desc'; $col=ltrim($sort,'-'); }
+    $sortable = ['b.created_at','b.updated_at','c.title','c.created_at',"b.$bStartCol"];
+    if ($bEndCol) $sortable[] = "b.$bEndCol";
+    if (!in_array($col, $sortable, true)) { $col = "b.$bStartCol"; $dir='desc'; }
+
+    // Count + page
+    $total = (clone $q)->count();
+
+    $rows = $q->select(
+            'b.id as batch_id',
+            'b.uuid as batch_uuid',
+            DB::raw("b.$bNameCol as batch_name"),
+            DB::raw("b.$bStartCol as batch_start"),
+            DB::raw($bEndCol ? "b.$bEndCol as batch_end" : "NULL as batch_end"),
+            'b.status as batch_status',
+            'c.id as course_id',
+            'c.uuid as course_uuid',
+            'c.slug as course_slug',
+            'c.title as course_title',
+            'c.short_description as course_short',
+            'c.status as course_status'
+        )
+        ->orderBy($col, $dir)
+        ->offset(($page-1)*$perPage)
+        ->limit($perPage)
+        ->get();
+
+    // --- Covers in one shot (prefer image; then any)
+    $courseIds = $rows->pluck('course_id')->unique()->values();
+    $covers = collect();
+    if ($courseIds->count() > 0) {
+        $covers = DB::table('course_featured_media')
+            ->whereIn('course_id', $courseIds)
+            ->whereNull('deleted_at')
+            ->where('status', 'active')
+            ->orderByRaw("CASE WHEN featured_type='image' THEN 0 ELSE 1 END")
+            ->orderBy('order_no')
+            ->orderBy('id')
+            ->get()
+            ->groupBy('course_id')
+            ->map(fn($grp) => optional($grp->first())->featured_url);
+    }
+
+    // --- Build cards (integer days only)
+    $today = Carbon::today();
+    $cards = $rows->map(function($r) use ($covers, $today) {
+        $start = $r->batch_start ? Carbon::parse($r->batch_start)->startOfDay() : null;
+        $end   = $r->batch_end   ? Carbon::parse($r->batch_end)->endOfDay()     : null;
+
+        $durationDays  = null;
+        if ($start && $end) {
+            // Inclusive duration: Mon→Wed = 3
+            $durationDays = (int) ($start->diffInDays($end) + 1);
+        }
+
+        $remainingDays = null;
+        if ($end) {
+            // Negative if in the past; clamp to 0
+            $remainingDays = (int) max(0, $today->diffInDays($end, false));
+        }
+
+        return [
+            'batch' => [
+                'id'             => (int)$r->batch_id,
+                'uuid'           => $r->batch_uuid,
+                'name'           => $r->batch_name,
+                'start_date'     => $r->batch_start,
+                'end_date'       => $r->batch_end,
+                'duration_days'  => $durationDays,   // integer
+                'remaining_days' => $remainingDays,  // integer, never negative
+                'status'         => $r->batch_status,
+            ],
+            'course' => [
+                'id'                => (int)$r->course_id,
+                'uuid'              => $r->course_uuid,
+                'slug'              => $r->course_slug,
+                'title'             => $r->course_title,
+                'short_description' => $r->course_short,
+                'status'            => $r->course_status,
+                'cover_url'         => $covers->get($r->course_id),
+            ],
+            // Frontend "View" → /api/courses/by-batch/{batch_uuid}/view
+            'view_hint' => [
+                'api' => "/api/courses/by-batch/{$r->batch_uuid}/view"
+            ],
+        ];
+    })->values();
+
+    return response()->json([
+        'data' => $cards,
+        'pagination' => [
+            'page'     => $page,
+            'per_page' => $perPage,
+            'total'    => $total,
+        ],
+        'role' => $role,
+    ]);
+}
+
+
+
+
+
 
 
 
