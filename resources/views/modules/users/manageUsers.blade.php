@@ -12,7 +12,6 @@
 
 /* Ensure overflow visibility for dropdowns */
 .table-responsive{overflow:visible !important}
-.card{overflow:visible !important}
 .card-body{overflow:visible !important}
 </style>
 

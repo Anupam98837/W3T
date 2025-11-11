@@ -118,7 +118,7 @@ h3{ font-size: 1.1rem; }
   border-radius: var(--radius-1);
   box-shadow: var(--shadow-1);
 }
-.card { overflow: hidden; }
+.card { overflow: auto; }
 .card-header, .modal-header, .popover-header {
   background: #f7f9fc;
   border-bottom: 1px solid var(--line-strong);
@@ -772,7 +772,6 @@ html.theme-dark .dropzone{background:#0b1020;border-color:var(--line-strong)}
 html.theme-dark .media-item{background:#0b1020;border-color:var(--line-strong)}
 
 /* Dropdown visibility safety nets */
-.table-wrap, .table-wrap .card-body, .table-responsive { overflow: visible !important; }
 .table-wrap .dropdown { position: relative; }
 .table-wrap .dropdown-menu { z-index: 2050; }
 

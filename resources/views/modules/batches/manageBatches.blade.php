@@ -23,7 +23,7 @@
     .tab-content,.tab-pane{overflow:visible}
 
     /* Table Card */
-    .table-wrap.card{position:relative;border:1px solid var(--line-strong);border-radius:16px;background:var(--surface);box-shadow:var(--shadow-2);overflow:visible}
+    .table-wrap.card{position:relative;border:1px solid var(--line-strong);border-radius:16px;background:var(--surface);box-shadow:var(--shadow-2);}
     .table-wrap .card-body{overflow:visible}
     .table-responsive{overflow:visible !important}
     .table{--bs-table-bg:transparent}
