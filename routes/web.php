@@ -90,9 +90,15 @@ Route::get('/admin/quizz/questions/manage', function () {
     return view('pages.users.admin.pages.questions.manageQuestion');
 });
 
+Route::get('/admin/courses/{uuid}/view', function (string $uuid) {
+    return view('modules.course.viewCourse.viewCourseLayout', [
+        'courseParam' => $uuid,   // use this in the Blade JS
+    ]);
+})->whereUuid('uuid')->name('admin.courses.global');
+
 Route::get('/admin/courses/{course}', fn ($course) =>
     view('pages.users.admin.pages.course.viewCourse', ['courseParam' => $course])
-)->where('course', '^(?!create$|manage$|view$).+');
+)->where('course', '^(?!create$|manage$|view$).+')->name('admin.courses.admin');
 
 Route::get('/admin/course/studyMaterial/manage', function () {
     return view('pages.users.admin.pages.studyMaterial.manageStudyMaterial');
@@ -108,4 +114,8 @@ Route::get('/admin/assignments/create', function () {
 Route::get('/admin/assignments/manage', function () {
     return view('pages.users.admin.pages.assignments.manageAssignments');
 });
-
+Route::get('/admin/courses/{uuid}/view', function (string $uuid) {
+    return view('modules.course.viewCourse.viewCourseLayout', [
+        'courseParam' => $uuid,   // <-- pass to Blade; JS will use this directly
+    ]);
+})->whereUuid('uuid')->name('admin.courses.view');
