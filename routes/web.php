@@ -119,3 +119,27 @@ Route::get('/admin/courses/{uuid}/view', function (string $uuid) {
         'courseParam' => $uuid,   // <-- pass to Blade; JS will use this directly
     ]);
 })->whereUuid('uuid')->name('admin.courses.view');
+
+
+// Student Routes
+Route::get('/student/dashboard', function () {
+    return view('pages.users.student.pages.common.dashboard');
+})->name('student.dashboard');
+
+Route::get('/student/courses', function () {
+    return view('pages.users.student.pages.courses.courses');
+});
+
+Route::get('/courses/{batch}/view', function($batchUuid) {
+    return view('modules.course.viewCourse.viewCourseLayout', ['batchUuid' => $batchUuid]);
+})->name('student.course.view');
+
+
+// Instructor Routes
+Route::get('/instructor/dashboard', function () {
+    return view('pages.users.instructor.pages.common.dashboard');
+})->name('instructor.dashboard');
+
+Route::get('/instructor/courses', function () {
+    return view('pages.users.instructor.pages.courses.courses');
+});

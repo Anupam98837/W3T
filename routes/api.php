@@ -47,7 +47,7 @@ Route::middleware(['checkRole:admin,super_admin'])->group(function () {
 
 // Course Routes 
 
-Route::middleware('checkRole:admin,super_admin')->group(function () {
+Route::middleware('checkRole:admin,super_admin,student,instructor')->group(function () {
     // Courses
     Route::get('/courses/cards', [CourseController::class, 'listCourseBatchCards']);
     Route::get   ('/courses',              [CourseController::class, 'index']);
@@ -55,7 +55,7 @@ Route::middleware('checkRole:admin,super_admin')->group(function () {
     Route::post  ('/courses',              [CourseController::class, 'store']);
     Route::put   ('/courses/{course}',     [CourseController::class, 'update']);
     Route::patch ('/courses/{course}',     [CourseController::class, 'update']);
-    
+
     Route::delete('/courses/{course}',     [CourseController::class, 'destroy']);
     Route::get('/courses/{course}/view', [CourseController::class, 'viewCourse']);
     Route::get('/courses/by-batch/{batch}/view', [CourseController::class, 'viewCourseByBatch']);
