@@ -299,7 +299,7 @@
         </div>
 
         <div class="d-flex justify-content-between align-items-center mt-3">
-          <a id="cancel1" class="btn btn-light" href="/super_admin/courses/manage">Cancel</a>
+          <a id="cancel1" class="btn btn-light" href="/admin/courses/manage">Cancel</a>
           <button id="to2" class="btn btn-primary" type="button" disabled>Proceed</button>
         </div>
       </div>

@@ -643,9 +643,9 @@
     .fill-blank-inputs {
         margin-top: 16px;
         padding: 16px;
-        border: 1px solid var(--border);
+        border: 1px solid var(--line-soft);
         border-radius: 8px;
-        background: var(--bg-gray);
+        background: var(--surface);
     }
     
     .fill-blank-input {

@@ -50,7 +50,74 @@
       gap:16px;
       min-height: calc(100dvh - 90px);
     }
-    @media (max-width: 992px){ .vc-grid{ grid-template-columns: 1fr; } }
+    @media (max-width: 992px){ 
+      .vc-grid{ grid-template-columns: 1fr; }
+      .vc-aside.mobile-hidden{ display: none; }
+      .vc-main.mobile-hidden{ display: none; }
+    }
+
+    /* ===== Back button ===== */
+    .back-to-courses-btn{
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 16px;
+      margin-bottom: 16px;
+      background: var(--surface);
+      border: 1px solid var(--line-strong);
+      border-radius: 10px;
+      cursor: pointer;
+      color: var(--ink);
+      font-weight: 600;
+      text-decoration: none;
+      transition: var(--transition);
+    }
+    .back-to-courses-btn:hover{
+      background: color-mix(in oklab, var(--accent-color) 8%, transparent);
+      border-color: var(--accent-color);
+      color: var(--ink);
+    }
+
+    /* ===== Aside Back button ===== */
+    .aside-back-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      background: var(--surface);
+      border: 1px solid var(--line-strong);
+      border-radius: 8px;
+      cursor: pointer;
+      color: var(--ink);
+      font-weight: 500;
+      font-size: var(--fs-13);
+      text-decoration: none;
+      transition: var(--transition);
+      margin-bottom: 12px;
+    }
+    .aside-back-btn:hover {
+      background: color-mix(in oklab, var(--accent-color) 8%, transparent);
+      border-color: var(--accent-color);
+      color: var(--ink);
+    }
+
+    /* ===== Mobile back button ===== */
+    .mobile-back-btn{
+      display: none;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      margin-bottom: 12px;
+      background: var(--surface);
+      border: 1px solid var(--line-strong);
+      border-radius: 10px;
+      cursor: pointer;
+      color: var(--ink);
+      font-weight: 600;
+    }
+    @media (max-width: 992px){
+      .mobile-back-btn{ display: flex; }
+    }
 
     /* ===== Left column (sticky card) ====================================== */
     .vc-aside .panel{ padding: 12px; position: sticky; top: 16px; }
@@ -58,7 +125,6 @@
       display:flex; align-items:flex-start; justify-content:space-between; gap:10px; margin-bottom:8px;
     }
     .vc-title{ font-family: var(--font-head); font-weight:700; color:var(--ink); margin:0; font-size:1.12rem; }
-    .vc-status{ font-size: 11px; }
 
     .vc-cover{
       width:100%; aspect-ratio: 16/10;
@@ -83,6 +149,46 @@
     }
     html.theme-dark .vc-chip{ background:#0f172a; }
 
+    .vc-batch-details{
+      margin: 12px 0;
+      padding: 12px;
+      border: 1px solid var(--line-strong);
+      border-radius: 12px;
+      background: var(--surface);
+    }
+    .vc-batch-title{
+      font-weight: 600;
+      color: var(--ink);
+      margin-bottom: 4px;
+    }
+    .vc-batch-description{
+      font-size: var(--fs-14);
+      color: var(--text-color);
+      margin-bottom: 8px;
+      line-height: 1.5;
+    }
+    .vc-batch-tagline{
+      font-size: var(--fs-13);
+      color: var(--muted-color);
+      margin-bottom: 8px;
+    }
+    .vc-batch-info{
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      font-size: var(--fs-13);
+    }
+    .vc-batch-info-item{
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      color: var(--muted-color);
+    }
+    .vc-batch-info-item i{
+      width: 14px;
+      text-align: center;
+    }
+
     .vc-search{ position:relative; margin-top:8px; }
     .vc-search input{ padding-left:34px; height:40px; border-radius:12px; }
     .vc-search i{ position:absolute; left:10px; top:50%; transform:translateY(-50%); color:#8a8593; }
@@ -94,11 +200,23 @@
     .vc-module{
       border:1px solid var(--line-strong); border-radius:12px; background:var(--surface);
       padding:10px; cursor:pointer; transition: var(--transition);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
     }
-    .vc-module:hover{ transform: translateY(-1px); }
+    .vc-module:hover{ border:2px solid color-mix(in oklab, var(--accent-color) 55%, transparent); }
+    .vc-module .module-content{ flex: 1; }
     .vc-module .t{ font-weight:600; color:var(--ink); }
     .vc-module .d{ font-size: var(--fs-13); color: var(--muted-color); }
-    .vc-module.active{ outline:2px solid color-mix(in oklab, var(--accent-color) 55%, transparent); }
+    .vc-module .module-arrow{ 
+      color: var(--muted-color); 
+      font-size: 1.2rem;
+      flex-shrink: 0;
+      transition: var(--transition);
+    }
+    .vc-module.active{ border:2px solid color-mix(in oklab, var(--accent-color) 55%, transparent); }
+    .vc-module.active .module-arrow{ color: var(--accent-color); }
 
     .vc-empty{ border:1px dashed var(--line-strong); border-radius: 10px; padding: 16px; text-align:center; color: var(--muted-color); }
 
@@ -139,12 +257,19 @@
       {{-- ================= LEFT: Overview + Modules ================= --}}
       <aside class="vc-aside">
         <div class="panel shadow-1">
+
+          <h2>Course Details - </h2>
           <div class="vc-head-left">
             <div>
               <h2 class="vc-title" id="courseTitle">Course</h2>
               <div class="text-muted" id="courseShort">—</div>
             </div>
-            <span class="badge badge-soft-primary vc-status" id="courseStatus">—</span>
+
+            {{-- Back button inside aside --}}
+          <a href="{{ url('/student/courses') }}" class="aside-back-btn">
+            <i class="fa fa-arrow-left"></i>
+            <span>Back to Courses</span>
+          </a>
           </div>
 
           <div class="vc-cover rounded-1 shadow-1 mb-2" id="mediaCover">
@@ -156,6 +281,15 @@
 
           <div class="vc-chips" id="courseChips"></div>
 
+          <h2>Batch Details - </h2>
+          <div class="vc-batch-details" id="batchDetails" style="display:none">
+            <div class="vc-batch-title" id="batchTitle"></div>
+            <div class="vc-batch-description" id="batchDescription"></div>
+            <div class="vc-batch-tagline" id="batchTagline"></div>
+            <div class="vc-batch-info" id="batchInfo"></div>
+          </div>
+
+          <h2>Course Modules - </h2>
           <div class="vc-search">
             <i class="fa fa-search"></i>
             <input id="moduleSearch" type="text" class="form-control" placeholder="Search modules...">
@@ -170,6 +304,11 @@
       {{-- ================= RIGHT: Module Header + Tabs ================= --}}
       <section class="vc-main">
         <div class="panel shadow-1">
+          <div class="mobile-back-btn" id="mobileBackBtn">
+            <i class="fa fa-arrow-left"></i>
+            <span>Back to Modules</span>
+          </div>
+
           <div class="vc-top">
             <div>
               <h1 class="title" id="moduleTitle">Select a module</h1>
@@ -215,7 +354,6 @@
     const el = {
       title:  document.getElementById('courseTitle'),
       short:  document.getElementById('courseShort'),
-      status: document.getElementById('courseStatus'),
       cover:  document.getElementById('mediaCover'),
       thumbs: document.getElementById('mediaThumbs'),
       chips:  document.getElementById('courseChips'),
@@ -225,7 +363,23 @@
       mTitle: document.getElementById('moduleTitle'),
       mShort: document.getElementById('moduleShort'),
       price:  document.getElementById('pricePill'),
+      aside:  document.querySelector('.vc-aside'),
+      main:   document.querySelector('.vc-main'),
+      backBtn: document.getElementById('mobileBackBtn'),
+      batchDetails: document.getElementById('batchDetails'),
+      batchTitle: document.getElementById('batchTitle'),
+      batchDescription: document.getElementById('batchDescription'),
+      batchTagline: document.getElementById('batchTagline'),
+      batchInfo: document.getElementById('batchInfo'),
     };
+
+    // ===== Mobile view toggle
+    el.backBtn.addEventListener('click', () => {
+      el.aside.classList.remove('mobile-hidden');
+      el.main.classList.add('mobile-hidden');
+      // Deactivate all modules
+      [...el.mList.children].forEach(c => c.classList.remove('active'));
+    });
 
     // ===== Token for protected API (admin/student/instructor later)
     const tok = sessionStorage.getItem('token') || localStorage.getItem('token') || '';
@@ -288,8 +442,11 @@
         div.className = 'vc-module';
         div.dataset.uuid = m.uuid;
         div.innerHTML = `
-          <div class="t">${m.title ?? 'Untitled module'}</div>
-          <div class="d">${m.short_description ?? ''}</div>
+          <div class="module-content">
+            <div class="t">${m.title ?? 'Untitled module'}</div>
+            <div class="d">${m.short_description ?? ''}</div>
+          </div>
+          <div class="module-arrow">›</div>
         `;
         div.addEventListener('click', () => {
           selectedModuleUuid = m.uuid;
@@ -297,6 +454,12 @@
           setModuleHeader(m);
           updateQueryParam('module', selectedModuleUuid);
           bus.emit('vc:module-changed', { moduleUuid: selectedModuleUuid, module: m });
+          
+          // Mobile: hide aside, show main
+          if (window.innerWidth <= 992) {
+            el.aside.classList.add('mobile-hidden');
+            el.main.classList.remove('mobile-hidden');
+          }
         });
         frag.appendChild(div);
       });
@@ -309,6 +472,12 @@
         [...el.mList.children].forEach(c => c.classList.toggle('active', c.dataset.uuid === selectedModuleUuid));
         setModuleHeader(chosen);
         bus.emit('vc:module-changed', { moduleUuid: selectedModuleUuid, module: chosen });
+        
+        // Mobile: if module preselected, show main
+        if (window.innerWidth <= 992) {
+          el.aside.classList.add('mobile-hidden');
+          el.main.classList.remove('mobile-hidden');
+        }
       }
     };
 
@@ -324,20 +493,14 @@
     };
 
     // ===== Fetch course view payload
-    const api = `/api/courses/${encodeURIComponent(courseKey)}/view`;
+    const api = `/api/courses/by-batch/${encodeURIComponent(courseKey)}/view`;
     fetch(api, { headers: { 'Accept':'application/json', ...auth } })
       .then(r => r.ok ? r.json() : r.json().then(j => Promise.reject(j)))
       .then(({ data }) => {
-        const { course, pricing, media, modules } = data;
+        const { course, pricing, media, modules, batch } = data;
 
         el.title.textContent  = course.title || 'Course';
         el.short.textContent  = course.short_description || '';
-        el.status.textContent = course.status || '—';
-        el.status.className   = 'badge ' + (
-          course.status === 'published' ? 'badge-soft-success' :
-          course.status === 'draft'     ? 'badge-soft-warning' :
-                                          'badge-soft-info'
-        );
 
         if (pricing){
           el.price.style.display = 'inline-flex';
@@ -355,6 +518,30 @@
         if (course.language)       chips.push(`<span class="vc-chip"><i class="fa fa-language"></i>${course.language}</span>`);
         if (course.duration_hours) chips.push(`<span class="vc-chip"><i class="fa fa-clock"></i>${course.duration_hours} hrs</span>`);
         el.chips.innerHTML = chips.join(' ');
+
+        // batch details - FIXED: Use badge_description from API response
+        if (batch) {
+          el.batchDetails.style.display = 'block';
+          el.batchTitle.textContent = batch.badge_title || 'Batch';
+          // FIX: Use badge_description instead of description
+          el.batchDescription.textContent = batch.badge_description || batch.description || '';
+          el.batchTagline.textContent = batch.tagline || '';
+          
+          const batchInfoItems = [];
+          if (batch.mode) {
+            const modeIcon = batch.mode === 'online' ? 'fa-globe' : batch.mode === 'offline' ? 'fa-location-dot' : 'fa-layer-group';
+            batchInfoItems.push(`<span class="vc-batch-info-item"><i class="fa ${modeIcon}"></i>${batch.mode.charAt(0).toUpperCase() + batch.mode.slice(1)}</span>`);
+          }
+          if (batch.starts_at) {
+            const startDate = new Date(batch.starts_at).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+            batchInfoItems.push(`<span class="vc-batch-info-item"><i class="fa fa-calendar-day"></i>Starts: ${startDate}</span>`);
+          }
+          if (batch.ends_at) {
+            const endDate = new Date(batch.ends_at).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+            batchInfoItems.push(`<span class="vc-batch-info-item"><i class="fa fa-calendar-check"></i>Ends: ${endDate}</span>`);
+          }
+          el.batchInfo.innerHTML = batchInfoItems.join('');
+        }
 
         if (media?.cover) setCover(media.cover);
         renderThumbs(media?.gallery || []);
