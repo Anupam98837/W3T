@@ -1,0 +1,1691 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Assignment — Student Documents</title>
+  <!-- Bootstrap 5 CSS -->
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Poppins:wght@500;600;700&display=swap" rel="stylesheet">
+     <!-- Link to your main.css file -->
+<link rel="stylesheet" href="/assets/css/common/main.css">
+  <link rel="stylesheet" href="/assets/css/common/extraStylings.css">
+  <style>
+        body {
+      font-family: var(--font-sans);
+      background: var(--bg-body);
+      color: var(--text-color);
+      margin: 0;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    .page-wrap {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 18px;
+    }
+
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .title {
+      font-family: var(--font-head);
+      font-weight: 700;
+      font-size: var(--fs-20);
+      color: var(--ink);
+      margin: 0;
+    }
+
+    .hint {
+      color: var(--muted-color);
+      font-size: var(--fs-14);
+    }
+
+    .container {
+      display: grid;
+      grid-template-columns: 320px 1fr;
+      gap: 18px;
+    }
+
+    .sidebar {
+      background: var(--surface);
+      border-radius: var(--radius-1);
+      padding: 18px;
+      border: 1px solid var(--line-strong);
+      box-shadow: var(--shadow-1);
+    }
+
+    .sidebar-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+    }
+
+    .sidebar-header strong {
+      font-family: var(--font-head);
+      font-weight: 600;
+      color: var(--ink);
+    }
+
+    .students-count {
+      color: var(--muted-color);
+      font-size: var(--fs-13);
+    }
+
+    .assignment-details {
+      background: linear-gradient(135deg, rgba(149,30,170,0.05) 0%, rgba(149,30,170,0.02) 100%);
+      border: 1px solid rgba(149,30,170,0.12);
+      border-radius: var(--radius-1);
+      padding: 16px;
+      margin-bottom: 20px;
+    }
+
+    .assignment-details h3 {
+      font-family: var(--font-head);
+      font-weight: 600;
+      color: var(--ink);
+      margin: 0 0 12px 0;
+      font-size: var(--fs-15);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .assignment-details h3 i {
+      color: var(--primary-color);
+    }
+
+    .detail-item {
+      margin-bottom: 10px;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+    }
+
+    .detail-label {
+      font-size: var(--fs-13);
+      color: var(--muted-color);
+      font-weight: 500;
+    }
+
+    .detail-value {
+      font-size: var(--fs-13);
+      color: var(--ink);
+      font-weight: 500;
+      text-align: right;
+      max-width: 60%;
+    }
+
+    .due-date {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      background: rgba(149,30,170,0.08);
+      color: var(--primary-color);
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-weight: 600;
+      font-size: var(--fs-12);
+    }
+
+    .student-pill {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      padding: 12px;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: var(--transition);
+      border: 1px solid transparent;
+    }
+
+    .student-pill:hover {
+      background: color-mix(in oklab, var(--primary-color) 4%, transparent);
+    }
+
+    .student-pill.active {
+      background: linear-gradient(90deg, rgba(149,30,170,0.06), rgba(149,30,170,0.03));
+      border: 1px solid rgba(149,30,170,0.12);
+    }
+
+    .avatar {
+      width: 40px;
+      height: 40px;
+      border-radius: 999px;
+      background: linear-gradient(135deg, #f1e5f4, #f9f0fc);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      color: var(--primary-color);
+      font-family: var(--font-head);
+    }
+
+    .student-info {
+      flex: 1;
+    }
+
+    .student-name {
+      font-weight: 600;
+      color: var(--ink);
+      margin-bottom: 2px;
+    }
+
+    .student-email {
+      color: var(--muted-color);
+      font-size: var(--fs-13);
+    }
+
+    .submission-count {
+      color: var(--muted-color);
+      font-size: var(--fs-13);
+    }
+
+    .content {
+      background: var(--surface);
+      border-radius: var(--radius-1);
+      padding: 18px;
+      border: 1px solid var(--line-strong);
+      box-shadow: var(--shadow-1);
+    }
+
+    .student-detail-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 18px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--line-soft);
+    }
+
+    .student-name-large {
+      font-family: var(--font-head);
+      font-weight: 700;
+      color: var(--ink);
+      margin: 0;
+    }
+
+    .student-email-large {
+      color: var(--muted-color);
+      font-size: var(--fs-14);
+      margin: 4px 0 0 0;
+    }
+
+    .student-stats {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .submission-badge {
+      background: linear-gradient(135deg, var(--primary-color), color-mix(in oklab, var(--primary-color) 80%, #8a2be2));
+      color: white;
+      padding: 6px 12px;
+      border-radius: 20px;
+      font-weight: 600;
+      font-size: var(--fs-13);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      box-shadow: 0 2px 8px rgba(149,30,170,0.2);
+    }
+
+    /* NEW: Give Marks Button */
+    .give-marks-btn {
+      background: linear-gradient(135deg, var(--success-color), color-mix(in oklab, var(--success-color) 80%, #27ae60));
+      color: white;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: var(--fs-13);
+      cursor: pointer;
+      transition: var(--transition);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      box-shadow: 0 2px 8px rgba(39, 174, 96, 0.2);
+    }
+
+    .give-marks-btn:hover {
+      filter: brightness(1.1);
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(39, 174, 96, 0.3);
+    }
+
+    .give-marks-btn:active {
+      transform: translateY(0);
+    }
+
+    .documents-section {
+      margin-top: 18px;
+    }
+
+    .section-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+    }
+
+    .section-title {
+      font-family: var(--font-head);
+      font-weight: 600;
+      color: var(--ink);
+      margin: 0;
+    }
+
+    .attempt-section {
+      margin-bottom: 24px;
+    }
+
+    .attempt-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--line-soft);
+    }
+
+    .attempt-title {
+      font-weight: 600;
+      color: var(--ink);
+      margin: 0;
+    }
+
+    .attempt-meta {
+      color: var(--muted-color);
+      font-size: var(--fs-13);
+    }
+
+    .doc-grid {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .doc-card {
+      border-radius: var(--radius-1);
+      padding: 16px;
+      border: 1px solid var(--line-strong);
+      background: var(--surface);
+      box-shadow: var(--shadow-1);
+      transition: var(--transition);
+    }
+
+    .doc-card:hover {
+      box-shadow: var(--shadow-2);
+      transform: translateY(-1px);
+    }
+
+    .doc-card-inner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+    }
+
+    .doc-info {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      flex: 1;
+    }
+
+    .doc-icon {
+      width: 50px;
+      height: 50px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--bg-body);
+      border: 1px solid var(--line-soft);
+      flex-shrink: 0;
+    }
+
+    .doc-icon i {
+      font-size: 20px;
+    }
+
+    .icon-pdf {
+      color: var(--danger-color);
+    }
+
+    .icon-image {
+      color: var(--success-color);
+    }
+
+    .icon-doc {
+      color: var(--info-color);
+    }
+
+    .icon-default {
+      color: var(--muted-color);
+    }
+
+    .doc-content {
+      flex: 1;
+    }
+
+    .doc-name {
+      font-weight: 600;
+      color: var(--ink);
+      margin-bottom: 4px;
+      white-space: normal;
+      word-wrap: break-word;
+      word-break: break-word;
+      overflow-wrap: break-word;
+    }
+
+    .doc-meta {
+      color: var(--muted-color);
+      font-size: var(--fs-13);
+    }
+
+    .doc-actions {
+      display: flex;
+      gap: 8px;
+      flex-shrink: 0;
+      margin-left: auto;
+    }
+
+    .btn-icon {
+      width: 36px;
+      height: 36px;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: var(--transition);
+      cursor: pointer;
+      border: 1px solid;
+      font-size: 14px;
+      text-decoration: none;
+    }
+
+    .btn-icon-primary {
+      background: var(--primary-color);
+      border-color: var(--primary-color);
+      color: #fff;
+    }
+
+    .btn-icon-primary:hover {
+      filter: brightness(.96);
+      transform: translateY(-1px);
+    }
+
+    .btn-icon-outline {
+      background: transparent;
+      border-color: var(--line-strong);
+      color: var(--text-color);
+    }
+
+    .btn-icon-outline:hover {
+      background: var(--line-soft);
+      transform: translateY(-1px);
+    }
+
+    .view-ui-link {
+      background: transparent;
+      border: 1px dashed rgba(149,30,170,0.16);
+      padding: 6px 10px;
+      border-radius: 8px;
+      color: var(--primary-color);
+      cursor: pointer;
+      font-size: var(--fs-13);
+      transition: var(--transition);
+    }
+
+    .view-ui-link:hover {
+      background: color-mix(in oklab, var(--primary-color) 8%, transparent);
+    }
+
+    /* Fullscreen Viewer */
+    .as-fullscreen {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.85);
+      z-index: 2147483647;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 18px;
+    }
+
+    .fs-inner {
+      width: 100%;
+      height: 100%;
+      max-width: 1400px;
+      max-height: 92vh;
+      background: var(--surface);
+      border-radius: var(--radius-1);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      box-shadow: var(--shadow-3);
+    }
+
+    .fs-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--line-strong);
+      background: var(--bg-body);
+    }
+
+    .fs-title {
+      font-weight: 700;
+      font-size: var(--fs-16);
+      color: var(--ink);
+    }
+
+    .fs-close {
+      border: 0;
+      background: transparent;
+      font-size: 18px;
+      cursor: pointer;
+      padding: 6px 10px;
+      color: var(--muted-color);
+      transition: var(--transition);
+    }
+
+    .fs-close:hover {
+      color: var(--ink);
+    }
+
+    .fs-body {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 10px;
+      background: var(--surface);
+    }
+
+    .as-fullscreen iframe,
+    .as-fullscreen img,
+    .as-fullscreen video {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      border: 0;
+    }
+
+    .as-empty {
+      border: 1px dashed var(--line-strong);
+      border-radius: var(--radius-1);
+      padding: 32px;
+      background: transparent;
+      color: var(--muted-color);
+      text-align: center;
+    }
+
+    .as-loader {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--muted-color);
+      justify-content: center;
+      padding: 20px;
+    }
+
+    .fa-spin {
+      animation: fa-spin 1s infinite linear;
+    }
+
+    @keyframes fa-spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    /* NEW: Grade Modal Styles */
+    .grade-modal {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.6);
+      z-index: 2147483647;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+
+    .grade-modal-inner {
+      width: 100%;
+      max-width: 800px;
+      max-height: 95vh;
+      background: var(--surface);
+      border-radius: var(--radius-1);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      box-shadow: var(--shadow-3);
+      border: 1px solid var(--line-strong);
+    }
+
+    .grade-modal-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 20px 24px;
+      border-bottom: 1px solid var(--line-strong);
+      background: var(--bg-body);
+    }
+
+    .grade-modal-title {
+      font-family: var(--font-head);
+      font-weight: 700;
+      font-size: var(--fs-18);
+      color: var(--ink);
+      margin: 0;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .grade-modal-title i {
+      color: var(--success-color);
+    }
+
+    .grade-modal-close {
+      border: 0;
+      background: transparent;
+      font-size: 18px;
+      cursor: pointer;
+      padding: 6px 10px;
+      color: var(--muted-color);
+      transition: var(--transition);
+      border-radius: 4px;
+    }
+
+    .grade-modal-close:hover {
+      color: var(--ink);
+      background: var(--line-soft);
+    }
+
+    .grade-modal-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 24px;
+    }
+
+    .grade-modal-footer {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 12px;
+      padding: 20px 24px;
+      border-top: 1px solid var(--line-strong);
+      background: var(--bg-body);
+    }
+
+    /* Form Styles */
+    .grade-form-group {
+      margin-bottom: 20px;
+    }
+
+    .grade-form-label {
+      display: block;
+      font-weight: 600;
+      color: var(--ink);
+      margin-bottom: 8px;
+      font-size: var(--fs-14);
+    }
+
+    .grade-form-input {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid var(--line-strong);
+      border-radius: var(--radius-1);
+      background: var(--surface);
+      color: var(--text-color);
+      font-size: var(--fs-14);
+      transition: var(--transition);
+    }
+
+    .grade-form-input:focus {
+      outline: none;
+      border-color: var(--primary-color);
+      box-shadow: 0 0 0 3px rgba(149, 30, 170, 0.1);
+    }
+
+    .grade-form-textarea {
+      min-height: 80px;
+      resize: vertical;
+    }
+
+    .grade-form-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+
+    /* Submissions List */
+    .submissions-list {
+      max-height: 200px;
+      overflow-y: auto;
+      border: 1px solid var(--line-strong);
+      border-radius: var(--radius-1);
+      margin-bottom: 20px;
+    }
+.submission-item {
+  padding: 12px;
+  border-radius: 10px;
+  border-bottom: 1px solid var(--line-soft);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+    .submission-item:last-child {
+      border-bottom: none;
+    }
+
+    .submission-item:hover {
+      background: var(--bg-body);
+    }
+
+    .submission-item.selected {
+      background: color-mix(in oklab, var(--success-color) 8%, transparent);
+      border-left: 3px solid var(--success-color);
+    }
+
+    .submission-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 8px;
+    }
+
+    .submission-attempt {
+      font-weight: 600;
+      color: var(--ink);
+    }
+
+    .submission-date {
+      color: var(--muted-color);
+      font-size: var(--fs-12);
+    }
+
+    .submission-meta {
+      display: flex;
+      gap: 12px;
+      font-size: var(--fs-12);
+      color: var(--muted-color);
+    }
+
+    .submission-meta span {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .submission-select-btn {
+      background: transparent;
+      border: 1px solid var(--line-strong);
+      color: var(--text-color);
+      padding: 6px 12px;
+      border-radius: 4px;
+      font-size: var(--fs-12);
+      cursor: pointer;
+      transition: var(--transition);
+    }
+
+    .submission-select-btn:hover {
+      background: var(--line-soft);
+    }
+
+    .submission-select-btn.selected {
+      background: var(--success-color);
+      border-color: var(--success-color);
+      color: white;
+    }
+
+    /* Alert Styles */
+    .grade-alert {
+      padding: 12px 16px;
+      border-radius: var(--radius-1);
+      margin-bottom: 20px;
+      font-size: var(--fs-14);
+      display: none;
+    }
+
+    .grade-alert.error {
+      background: color-mix(in oklab, var(--danger-color) 10%, transparent);
+      border: 1px solid color-mix(in oklab, var(--danger-color) 20%, transparent);
+      color: var(--danger-color);
+    }
+
+    .grade-alert.success {
+      background: color-mix(in oklab, var(--success-color) 10%, transparent);
+      border: 1px solid color-mix(in oklab, var(--success-color) 20%, transparent);
+      color: var(--success-color);
+    }
+
+    /* Loading State */
+    .grade-loading {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 20px;
+      color: var(--muted-color);
+    }
+
+    /* Button Styles */
+    .btn {
+      padding: 10px 20px;
+      border: none;
+      border-radius: var(--radius-1);
+      font-weight: 600;
+      font-size: var(--fs-14);
+      cursor: pointer;
+      transition: var(--transition);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .btn-primary {
+      background: var(--primary-color);
+      color: white;
+    }
+
+    .btn-primary:hover {
+      filter: brightness(1.1);
+      transform: translateY(-1px);
+    }
+
+    .btn-secondary {
+      background: var(--line-strong);
+      color: var(--text-color);
+    }
+
+    .btn-secondary:hover {
+      background: var(--line-strong);
+      filter: brightness(0.95);
+    }
+
+    .btn:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+      transform: none !important;
+    }
+    /* Fix: consistent sizing + alignment for two-column grade form */
+.grade-form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  align-items: start;     /* ensure both columns align at top */
+}
+
+/* ensure form groups stretch to full column height and align children */
+.grade-form-row .grade-form-group {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  gap: 8px;
+}
+
+/* Unified box model so width/height calculations are predictable */
+.grade-form-input,
+select.grade-form-input,
+.grade-form-input[type="number"],
+.grade-form-input[type="text"] {
+  box-sizing: border-box; /* <- important */
+  width: 100%;
+  min-height: 44px;       /* fixed visual height for inputs */
+  line-height: 1.25;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--line-strong);
+  background: var(--surface);
+  font-size: 14px;
+  vertical-align: middle;
+}
+
+/* textarea stays taller */
+.grade-form-textarea {
+  box-sizing: border-box;
+  min-height: 92px;
+  padding: 12px;
+  border-radius: 10px;
+  resize: vertical;
+}
+
+/* ensure select inherits same height & alignment */
+select.grade-form-input { min-height: 44px; }
+
+/* small screens: stack into single column */
+@media (max-width: 680px) {
+  .grade-form-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+    /* Responsive */
+    @media (max-width: 900px) {
+      .container {
+        grid-template-columns: 1fr;
+      }
+      
+      .sidebar, .content {
+        height: auto;
+      }
+    }
+
+    @media (max-width: 768px) {
+      .doc-card-inner {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 12px;
+      }
+      
+      .doc-info {
+        width: 100%;
+      }
+      
+      .doc-actions {
+        width: 100%;
+        justify-content: flex-end;
+        margin-left: 0;
+      }
+      
+      .grade-form-row {
+        grid-template-columns: 1fr;
+      }
+      
+      .grade-modal-footer {
+        flex-direction: column;
+      }
+      
+      .grade-modal-footer .btn {
+        width: 100%;
+        justify-content: center;
+      }
+    }
+
+    @media (max-width: 600px) {
+      .student-detail-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 8px;
+      }
+      
+      .student-stats {
+        text-align: left;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="page-wrap">
+    <div class="header">
+      <div class="hint" id="assignment_hint" style="display:none">Loading assignment...</div>
+    </div>
+
+    <div class="container">
+      <aside class="sidebar">
+        <!-- Assignment details (replace previous block) -->
+<div class="assignment-details">
+  <h3><i class="fas fa-book"></i> Assignment Details</h3>
+
+  <div class="detail-item">
+    <span class="detail-label">Assignment:</span>
+    <span class="detail-value" id="assignment_name">Loading...</span>
+  </div>
+
+  <div class="detail-item" style="display:none">
+    <span class="detail-label">Status:</span>
+    <span class="detail-value">
+      <!-- status badge — update its text via JS by targeting #assignment_status -->
+      <span id="assignment_status" class="due-date" style="background:transparent;color:var(--muted-color);font-weight:600;padding:4px 8px;border-radius:8px;">
+        Loading...
+      </span>
+    </span>
+  </div>
+
+  <div class="detail-item">
+    <span class="detail-label">Deadline:</span>
+    <span class="detail-value" id="due_date">
+      <span class="due-date"><i class="fas fa-clock"></i> Loading...</span>
+    </span>
+  </div>
+</div>
+
+        <div class="sidebar-header">
+          <strong>Submitted Students</strong>
+          <small class="students-count" id="students_count"></small>
+        </div>
+        <div id="students_host">
+          <div class="as-loader"><i class="fa fa-spinner fa-spin"></i> Loading students...</div>
+        </div>
+      </aside>
+
+      <main class="content">
+        <div class="student-detail-header">
+          <div>
+            <div class="student-name-large" id="student_name">Select a student</div>
+            <div class="student-email-large" id="student_email"></div>
+          </div>
+          <div class="student-stats" id="student_stats">
+            <div class="submission-badge">
+              <i class="fas fa-file-upload"></i>
+              <span id="submission_count">0</span> Submissions
+            </div>
+          </div>
+        </div>
+
+        <section class="documents-section">
+          <div class="section-header">
+            <h3 class="section-title">Documents</h3>
+            <div class="d-flex align-items-center gap-2">
+                <button id="give_marks_btn" class="give-marks-btn d-inline-flex align-items-center" style="display:none">
+    <i class="fas fa-check-circle"></i> Give Marks
+  </button>
+         <button id="open_in_ui" class="view-ui-link d-inline-flex align-items-center" style="display:none !important;">
+    <i class="fas fa-external-link-alt"></i>
+        </button>
+    </div>
+
+          </div>
+          <div id="documents_host">
+            <div class="as-empty">
+              <i class="fas fa-folder-open" style="font-size: 2rem; margin-bottom: 12px; opacity: 0.5;"></i>
+              <p>Select a student from the left to view their submitted documents.</p>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <!-- Fullscreen viewer -->
+  <div id="fs_viewer" class="as-fullscreen" style="display:none">
+    <div class="fs-inner">
+      <div class="fs-header">
+        <div class="fs-title" id="fs_title">Document</div>
+        <div><button class="fs-close" id="fs_close"><i class="fa fa-times"></i></button></div>
+      </div>
+      <div class="fs-body" id="fs_body"></div>
+    </div>
+  </div>
+
+  <!-- Grade Modal -->
+  <div id="grade_modal" class="grade-modal" style="display:none">
+    <div class="grade-modal-inner">
+      <div class="grade-modal-header">
+        <h3 class="grade-modal-title"><i class="fas fa-check-circle"></i> <span id="grade_modal_title">Grade Submission</span></h3>
+        <button class="grade-modal-close" id="grade_modal_close"><i class="fas fa-times"></i></button>
+      </div>
+
+      <div class="grade-modal-body">
+        <div id="grade_alert" class="grade-alert error" style="display:none"></div>
+
+        <div id="grade_loading" class="grade-loading" style="display:none"><i class="fa fa-spinner fa-spin"></i> <span>Loading submissions...</span></div>
+
+        <div id="grade_content" style="display:none">
+          <div class="submissions-list" id="submissions_list"></div>
+
+          <form id="grade_form">
+            <div class="grade-form-row">
+              <div class="grade-form-group">
+                <label class="grade-form-label">Marks *</label>
+                <input type="number" step="0.01" min="0" class="grade-form-input" name="marks" required placeholder="Enter marks">
+              </div>
+              <div class="grade-form-group">
+                <label class="grade-form-label">Grade Letter</label>
+                <input type="text" class="grade-form-input" name="grade_letter" placeholder="e.g., A, B+, etc.">
+              </div>
+            </div>
+
+            <div class="grade-form-group">
+              <label class="grade-form-label">Apply Late Penalty</label>
+              <select class="grade-form-input" name="apply_late_penalty">
+                <option value="true">Yes (apply automatic penalty)</option>
+                <option value="false">No (override penalty)</option>
+              </select>
+            </div>
+
+            <div class="grade-form-group">
+              <label class="grade-form-label">Feedback / Notes</label>
+              <textarea class="grade-form-input grade-form-textarea" name="grader_note" placeholder="Add feedback for the student..."></textarea>
+            </div>
+
+            <input type="hidden" name="submission_id" value="">
+            <input type="hidden" name="submission_uuid" value="">
+          </form>
+        </div>
+
+        <div id="grade_empty" class="as-empty" style="display:none">
+          <i class="fas fa-file" style="font-size: 2rem; margin-bottom: 12px; opacity: 0.5;"></i>
+          <p>No submissions found for grading.</p>
+        </div>
+      </div>
+
+      <div class="grade-modal-footer">
+        <button class="btn btn-secondary" id="grade_cancel_btn">Cancel</button>
+        <button class="btn btn-primary" id="grade_submit_btn" disabled><i class="fas fa-check"></i> Save Marks</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    /* ---------- AUTH + API HELPERS ---------- */
+    const role = (sessionStorage.getItem('role') || localStorage.getItem('role') || '').toLowerCase();
+    const TOKEN = localStorage.getItem('token') || sessionStorage.getItem('token') || '';
+    const apiBase = '/api/assignments';
+    const defaultHeaders = {
+      'Authorization': TOKEN ? ('Bearer ' + TOKEN) : '',
+      'Accept': 'application/json'
+    };
+
+    async function apiFetch(url, opts = {}) {
+      // Normalize final url (prefix with apiBase unless already starting with /api)
+      let finalUrl = url;
+      if (!String(url).startsWith('/api')) {
+        if (String(url).startsWith('/')) finalUrl = apiBase + url;
+        else finalUrl = apiBase + '/' + url;
+      }
+      const headers = Object.assign({}, defaultHeaders, opts.headers || {});
+      const finalOpts = Object.assign({}, opts, { headers });
+      const res = await fetch(finalUrl, finalOpts);
+      if (res.status === 401 || res.status === 403) {
+        const errText = await (res.clone().text().catch(()=>'')) || '';
+        const err = new Error('UNAUTHORIZED');
+        err.status = res.status;
+        err.body = errText;
+        throw err;
+      }
+      return res;
+    }
+
+    /* ---------- small helpers ---------- */
+    function escapeHtml(s){ if (s==null) return ''; return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+    function looksLikeUuid(s){ if (!s || typeof s !== 'string') return false; return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s); }
+    function formatBytes(bytes, decimals = 2) { if (!bytes || bytes === 0) return '0 B'; const k = 1024; const dm = decimals < 0 ? 0 : decimals; const sizes = ['B','KB','MB','GB','TB']; const i = Math.floor(Math.log(bytes)/Math.log(k)) || 0; return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + (sizes[i]||'B'); }
+
+    /* ---------- state & elements ---------- */
+    const studentsHost = document.getElementById('students_host');
+    const studentsCountEl = document.getElementById('students_count');
+    const assignmentHint = document.getElementById('assignment_hint');
+    const openInUiBtn = document.getElementById('open_in_ui');
+    const giveMarksBtn = document.getElementById('give_marks_btn');
+    const courseNameEl = document.getElementById('course_name');
+    const assignmentNameEl = document.getElementById('assignment_name');
+    const dueDateEl = document.getElementById('due_date');
+    const submissionCountEl = document.getElementById('submission_count');
+
+    let studentsData = [];
+    let selectedStudent = null;
+    let currentAssignment = { id: null, uuid: null, title: null, due_at: null, course_name: null };
+    window.__ASSIGNMENT_KEY__ = window.__ASSIGNMENT_KEY__ || (location.pathname.split('/').filter(Boolean).includes('assignments') ? location.pathname.split('/').filter(Boolean)[location.pathname.split('/').filter(Boolean).indexOf('assignments')+1] : '13');
+    window.__PRESELECT_STUDENT__ = window.__PRESELECT_STUDENT__ || null;
+
+    /* ---------- UI alert helpers ---------- */
+    function showAlertInModal(message, type) {
+      const alertBox = document.getElementById('grade_alert');
+      if (!alertBox) { window.alert(message); return; }
+      alertBox.textContent = message;
+      alertBox.className = `grade-alert ${type}`;
+      alertBox.style.display = 'block';
+    }
+
+    function showAlert(message, type='error') { showAlertInModal(message, type); }
+
+    /* ---------- fetch student-status and render ---------- */
+    async function fetchStudentStatus(){
+      try{
+        const assignmentKey = window.__ASSIGNMENT_KEY__;
+        const candidates = [
+          `/${assignmentKey}/student-status`,
+          `/${assignmentKey}/students/status`,
+          `/${assignmentKey}/student-submission-status`,
+          `/${assignmentKey}/students/documents`
+        ];
+
+        let j = null;
+        for(const u of candidates){
+          try{
+            const r = await apiFetch(u);
+            if (!r.ok) continue;
+            const candidateJson = await r.json().catch(()=>null);
+            if (!candidateJson) continue;
+            if (Array.isArray(candidateJson) || candidateJson.data || candidateJson.submitted || candidateJson.students) {
+              j = candidateJson;
+              break;
+            }
+          } catch(e){
+            if (e && e.status && (e.status === 401 || e.status === 403)) throw e;
+          }
+        }
+
+        if (!j) throw new Error('Failed to fetch submitted students');
+
+        let arr = [];
+        if (j.data && Array.isArray(j.data.submitted)) arr = j.data.submitted;
+        else if (j.submitted && Array.isArray(j.submitted)) arr = j.submitted;
+        else if (j.data && Array.isArray(j.data.students)) arr = j.data.students;
+        else if (Array.isArray(j)) arr = j;
+        else if (j.data && Array.isArray(j.data)) arr = j.data;
+        else if (j.students && Array.isArray(j.students)) arr = j.students;
+        else arr = [];
+
+        if (arr.length === 0 && j.data && j.data.student) arr = [ j.data.student ];
+
+        if (j.data && j.data.assignment) setAssignmentInfo(j.data.assignment);
+        else if (j.assignment) setAssignmentInfo(j.assignment);
+
+        studentsData = arr.map(s => ({
+          student_id: s.student_id ?? s.id ?? s.studentId ?? s.user_id ?? null,
+          student_uuid: s.student_uuid ?? s.uuid ?? s.user_uuid ?? s.userUuid ?? null,
+          name: s.student_name ?? s.name ?? s.full_name ?? '',
+          email: s.student_email ?? s.email ?? '',
+          submission_count: s.submission_count ?? s.total_submissions ?? s.documents_count ?? 1,
+          raw: s
+        }));
+
+        renderStudents();
+      }catch(err){
+        if (err && err.status && (err.status === 401 || err.status === 403)) {
+          studentsHost.innerHTML = '<div class="as-empty">Access denied. You are not authorized to view submissions.</div>';
+          console.warn('Auth error fetching student status', err);
+          return;
+        }
+        console.warn('fetchStudentStatus err',err);
+        studentsHost.innerHTML = '<div class="as-empty">Failed to load students.</div>';
+      }
+    }
+
+    function setAssignmentInfo(data){
+  if (!data) return;
+  currentAssignment.id = data.id ?? currentAssignment.id;
+  currentAssignment.uuid = data.uuid ?? currentAssignment.uuid ?? (looksLikeUuid(data.id? String(data.id):'') ? data.id : currentAssignment.uuid);
+  currentAssignment.title = data.title ?? currentAssignment.title;
+  currentAssignment.due_at = data.due_at ?? currentAssignment.due_at;
+  currentAssignment.course_name = data.course_name ?? data.course ?? currentAssignment.course_name;
+  const status = data.status ?? data.assignment_status ?? data.state ?? 'Unknown';
+
+  assignmentHint.textContent = currentAssignment.title ? `${currentAssignment.title} — due ${currentAssignment.due_at||'N/A'}` : '';
+  document.getElementById('assignment_name').textContent = currentAssignment.title || 'Loading...';
+  document.getElementById('due_date').innerHTML = currentAssignment.due_at ? `<span class="due-date"><i class="fas fa-clock"></i> ${escapeHtml(currentAssignment.due_at)}</span>` : '<span class="due-date"><i class="fas fa-clock"></i> No due date</span>';
+  document.getElementById('assignment_status').textContent = String(status);
+}
+
+    function renderStudents(){
+      if (!studentsData || studentsData.length === 0){
+        studentsHost.innerHTML = '<div class="as-empty"><i class="fas fa-users" style="font-size: 2rem; margin-bottom: 12px; opacity: 0.5;"></i><p>No students have submitted yet.</p></div>';
+        studentsCountEl.textContent = '';
+        return;
+      }
+      studentsCountEl.textContent = `${studentsData.length}`;
+      const html = studentsData.map(s => {
+        const initials = (s.name || s.email || '#').split(' ').map(x=>x[0]).slice(0,2).join('').toUpperCase();
+        return `
+          <div class="student-pill" data-sid="${encodeURIComponent(s.student_id||'')}" data-suuid="${encodeURIComponent(s.student_uuid||'')}">
+            <div class="avatar">${initials}</div>
+            <div class="student-info">
+              <div class="student-name">${escapeHtml(s.name||'Student')}</div>
+              <div class="student-email">${escapeHtml(s.email||'')}</div>
+            </div>
+            <div class="submission-count">${s.submission_count||1} sub</div>
+          </div>
+        `;
+      }).join('');
+      studentsHost.innerHTML = html;
+
+      studentsHost.querySelectorAll('.student-pill').forEach(el => {
+        el.addEventListener('click', async () => {
+          const sid = decodeURIComponent(el.getAttribute('data-sid')||'');
+          const suuid = decodeURIComponent(el.getAttribute('data-suuid')||'');
+          const student = studentsData.find(x => (String(x.student_id) === String(sid)) || (x.student_uuid && String(x.student_uuid) === String(suuid)));
+          if (!student) return;
+          document.querySelectorAll('.student-pill').forEach(p=>p.classList.remove('active'));
+          el.classList.add('active');
+          await loadStudentDocuments(student);
+        });
+      });
+
+      const pre = window.__PRESELECT_STUDENT__;
+      let pick = null;
+      if (pre) {
+        const decoded = decodeURIComponent(pre);
+        pick = studentsData.find(s => (s.student_uuid && String(s.student_uuid) === String(pre)) || (s.student_uuid && String(s.student_uuid) === String(decoded)) || String(s.student_id) === String(pre) || String(s.student_id) === String(decoded));
+      }
+      if (!pick) pick = studentsData[0];
+      if (pick) {
+        const selector = Array.from(studentsHost.querySelectorAll('.student-pill')).find(el => {
+          const su = decodeURIComponent(el.getAttribute('data-suuid')||'');
+          const si = decodeURIComponent(el.getAttribute('data-sid')||'');
+          return (pick.student_uuid && String(pick.student_uuid) === String(su)) || (String(pick.student_id) === String(si));
+        });
+        if (selector) { selector.classList.add('active'); loadStudentDocuments(pick); }
+      }
+    }
+
+    /* ---------- load student documents ---------- */
+    async function loadStudentDocuments(student){
+      selectedStudent = student;
+      document.getElementById('student_name').textContent = student.name || 'Student';
+      document.getElementById('student_email').textContent = student.email || '';
+      submissionCountEl.textContent = student.submission_count || 0;
+      updateGiveMarksButton();
+
+      if (currentAssignment.uuid && student.student_uuid) {
+        openInUiBtn.style.display = 'inline-flex';
+        openInUiBtn.onclick = () => {
+          const uiPath = `/assignments/${encodeURIComponent(currentAssignment.uuid)}/students/${encodeURIComponent(student.student_uuid)}/documents`;
+          window.open(uiPath, '_blank');
+        };
+      } else {
+        openInUiBtn.style.display = 'none';
+        openInUiBtn.onclick = null;
+      }
+
+      const docsHost = document.getElementById('documents_host');
+      docsHost.innerHTML = '<div class="as-loader"><i class="fa fa-spinner fa-spin"></i> Loading documents...</div>';
+
+      const aKey = currentAssignment.uuid || window.__ASSIGNMENT_KEY__;
+      const candidates = [];
+      if (aKey && student.student_uuid) candidates.push(`/${aKey}/students/${student.student_uuid}/documents`);
+      if (window.__ASSIGNMENT_KEY__ && student.student_uuid) candidates.push(`/${window.__ASSIGNMENT_KEY__}/students/${student.student_uuid}/documents`);
+      if (window.__ASSIGNMENT_KEY__ && student.student_id) {
+        candidates.push(`/${window.__ASSIGNMENT_KEY__}/students/${student.student_id}/documents`);
+        candidates.push(`/${window.__ASSIGNMENT_KEY__}/student/${student.student_id}/documents`);
+      }
+      if (student.email) candidates.push(`/${window.__ASSIGNMENT_KEY__}/students/${encodeURIComponent(student.email)}/documents`);
+
+      let resJson = null;
+      for (const u of candidates){
+        try{
+          const resp = await apiFetch(u);
+          if (!resp.ok) continue;
+          const parsed = await resp.json().catch(()=>null);
+          if (!parsed) continue;
+          if ((parsed.data && (parsed.data.submissions || Array.isArray(parsed.data))) || Array.isArray(parsed.submissions) || (parsed.data && parsed.data.assignment)) {
+            resJson = parsed;
+            break;
+          }
+        } catch(e){
+          if (e && e.status && (e.status === 401 || e.status === 403)) {
+            docsHost.innerHTML = '<div class="as-empty">Access denied. You are not authorized to view these documents.</div>';
+            console.warn('Auth error loading student documents', e);
+            return;
+          }
+        }
+      }
+
+      if (!resJson) {
+        try {
+          const alt = `/${window.__ASSIGNMENT_KEY__}/submissions`;
+          const r2 = await apiFetch(alt);
+          if (r2.ok) {
+            const j2 = await r2.json().catch(()=>null);
+            const items = (j2 && j2.data && j2.data.submissions) ? j2.data.submissions : (j2 && j2.submissions) ? j2.submissions : (Array.isArray(j2)? j2 : []);
+            const filtered = items.filter(it => {
+              if (!it) return false;
+              if (student.student_uuid && (it.student_uuid === student.student_uuid || it.uuid === student.student_uuid)) return true;
+              if (student.student_id && (String(it.student_id) === String(student.student_id) || String(it.user_id) === String(student.student_id))) return true;
+              return false;
+            });
+            if (filtered.length) resJson = { data: { submissions: filtered } };
+          }
+        } catch(e){
+          if (e && e.status && (e.status === 401 || e.status === 403)) {
+            docsHost.innerHTML = '<div class="as-empty">Access denied. You are not authorized to view these documents.</div>';
+            return;
+          }
+        }
+      }
+
+      if (!resJson || !resJson.data) {
+        docsHost.innerHTML = '<div class="as-empty"><i class="fas fa-file" style="font-size: 2rem; margin-bottom: 12px; opacity: 0.5;"></i><p>No documents found for this student.</p></div>';
+        return;
+      }
+
+      const submissions = resJson.data.submissions || (Array.isArray(resJson.data) ? resJson.data : []);
+      if (!Array.isArray(submissions) || submissions.length === 0){
+        docsHost.innerHTML = '<div class="as-empty"><i class="fas fa-file" style="font-size: 2rem; margin-bottom: 12px; opacity: 0.5;"></i><p>No documents found for this student.</p></div>';
+        return;
+      }
+
+      if (resJson.data.assignment) setAssignmentInfo(resJson.data.assignment);
+
+      const submissionsHtml = submissions.map(sub => {
+        const attach = sub.all_attachments || sub.attachments || sub.attachments_json || sub.attachmentsJson || [];
+        let attachments = [];
+        if (Array.isArray(attach)) attachments = attach;
+        else if (typeof attach === 'string' && attach.trim()) {
+          try { attachments = JSON.parse(attach); } catch(e){ attachments = []; }
+        }
+
+        const attachmentsHtml = attachments.map(a => {
+          const url = a.url || a.path || '#';
+          const safeName = a.name || (url.split('/').pop() || 'file');
+          const ext = (safeName.split('.').pop()||'').toLowerCase();
+          let iconClass = 'icon-default';
+          let iconType = 'fa-file';
+          if (ext === 'pdf') { iconClass = 'icon-pdf'; iconType = 'fa-file-pdf'; }
+          else if (['jpg','jpeg','png','gif','svg','bmp'].includes(ext)) { iconClass = 'icon-image'; iconType = 'fa-file-image'; }
+          else if (['doc','docx'].includes(ext)) { iconClass = 'icon-doc'; iconType = 'fa-file-word'; }
+          else if (['xls','xlsx'].includes(ext)) { iconType = 'fa-file-excel'; }
+          else if (['ppt','pptx'].includes(ext)) { iconType = 'fa-file-powerpoint'; }
+          else if (['zip','rar','7z'].includes(ext)) { iconType = 'fa-file-archive'; }
+
+          return `
+            <div class="doc-card">
+              <div class="doc-card-inner">
+                <div class="doc-info">
+                  <div class="doc-icon ${iconClass}"><i class="fas ${iconType}"></i></div>
+                  <div class="doc-content">
+                    <div class="doc-name">${escapeHtml(safeName)}</div>
+                    <div class="doc-meta">${escapeHtml(a.mime||'')} • ${formatBytes(a.size||0)}</div>
+                  </div>
+                </div>
+                <div class="doc-actions">
+                  <button class="btn-icon btn-icon-primary" data-url="${escapeHtml(url)}" data-name="${escapeHtml(safeName)}" title="View"><i class="fa fa-eye"></i></button>
+                  <a class="btn-icon btn-icon-outline" href="${escapeHtml(url)}" target="_blank" rel="noopener" title="Download"><i class="fa fa-download"></i></a>
+                </div>
+              </div>
+            </div>
+          `;
+        }).join('');
+
+        return `
+          <div class="attempt-section">
+            <div class="attempt-header">
+              <div class="attempt-title">Attempt ${escapeHtml(String(sub.attempt_no || sub.attempt || sub.attemptNo || '—'))} <small style="color: var(--muted-color); font-weight: 600;">${escapeHtml(sub.status||'')}</small></div>
+              <div class="attempt-meta">Submitted: ${escapeHtml(sub.submitted_at||sub.submittedAt||'')}</div>
+            </div>
+            <div class="doc-grid">${attachmentsHtml}</div>
+          </div>
+        `;
+      }).join('');
+
+      docsHost.innerHTML = submissionsHtml;
+
+      // wire view
+      docsHost.querySelectorAll('.btn-primary[data-url]').forEach(btn => {
+        btn.addEventListener('click', (ev) => {
+          const u = btn.getAttribute('data-url');
+          const name = btn.getAttribute('data-name') || 'Document';
+          openViewer(u, name);
+        });
+      });
+    }
+
+    /* ---------- Grade modal ---------- */
+    function updateGiveMarksButton() {
+      if (selectedStudent && (selectedStudent.student_id || selectedStudent.student_uuid)) giveMarksBtn.style.display = 'flex';
+      else giveMarksBtn.style.display = 'none';
+    }
+
+    async function openGradeModal() {
+      if (!selectedStudent) { showAlert('Please select a student first.', 'error'); return; }
+      const modal = document.getElementById('grade_modal');
+      const title = document.getElementById('grade_modal_title');
+      const loading = document.getElementById('grade_loading');
+      const content = document.getElementById('grade_content');
+      const empty = document.getElementById('grade_empty');
+      const alertBox = document.getElementById('grade_alert');
+      const submitBtn = document.getElementById('grade_submit_btn');
+
+      alertBox.style.display = 'none';
+      content.style.display = 'none';
+      empty.style.display = 'none';
+      loading.style.display = 'flex';
+      if (submitBtn) submitBtn.disabled = true;
+
+      title.textContent = `Grade: ${selectedStudent.name || 'Student'}`;
+      modal.style.display = 'flex';
+
+      try {
+        const submissions = await fetchSubmissionsForGrading();
+        loading.style.display = 'none';
+        if (!submissions || submissions.length === 0) { empty.style.display = 'block'; return; }
+        renderSubmissionsList(submissions);
+        content.style.display = 'block';
+      } catch (error) {
+        loading.style.display = 'none';
+        showAlertInModal('Failed to load submissions: ' + (error.message || error), 'error');
+      }
+    }
+
+    async function fetchSubmissionsForGrading() {
+      const assignmentKey = currentAssignment.uuid || window.__ASSIGNMENT_KEY__;
+      const studentKey = selectedStudent.student_uuid || selectedStudent.student_id;
+      if (!assignmentKey || !studentKey) throw new Error('Missing assignment or student information');
+
+      const candidates = [];
+      if (currentAssignment.uuid && selectedStudent.student_uuid) candidates.push(`/${currentAssignment.uuid}/students/${selectedStudent.student_uuid}/documents`);
+      candidates.push(`/${assignmentKey}/students/${studentKey}/documents`);
+      candidates.push(`/${assignmentKey}/student/${studentKey}/documents`);
+
+      for (const endpoint of candidates) {
+        try {
+          const response = await apiFetch(endpoint);
+          if (!response.ok) continue;
+          const data = await response.json();
+          const submissions = data?.data?.submissions || data?.submissions || [];
+          if (submissions.length > 0) return submissions;
+        } catch (error) {
+          console.warn(`Failed to fetch from ${endpoint}:`, error);
+        }
+      }
+
+      throw new Error('No submissions found');
+    }
+
+    function renderSubmissionsList(submissions) {
+      const container = document.getElementById('submissions_list');
+      const form = document.getElementById('grade_form');
+      const submitBtn = document.getElementById('grade_submit_btn');
+
+      submissions.sort((a, b) => (b.attempt_no || 0) - (a.attempt_no || 0));
+
+      const submissionsHtml = submissions.map((submission, index) => {
+        const attempt = submission.attempt_no || submission.attempt || index + 1;
+        const submittedAt = submission.submitted_at || submission.created_at || 'Unknown date';
+        const isLate = submission.is_late || submission.late || false;
+        const currentMarks = submission.total_marks || submission.marks || 'Not graded';
+        const submissionId = submission.id || submission.submission_id || '';
+        const submissionUuid = submission.submission_uuid || submission.uuid || '';
+
+        return `
+          <div class="submission-item ${index === 0 ? 'selected' : ''}" data-submission-id="${escapeHtml(submissionId)}" data-submission-uuid="${escapeHtml(submissionUuid)}">
+            <div class="submission-header">
+              <div class="submission-attempt">Attempt ${escapeHtml(String(attempt))}</div>
+              <div class="submission-date">${new Date(submittedAt).toLocaleString()}</div>
+            </div>
+            <div class="submission-meta">
+              <span><i class="fas ${isLate ? 'fa-clock' : 'fa-check'}"></i> ${isLate ? 'Late' : 'On Time'}</span>
+              <span><i class="fas fa-file"></i> ${submission.all_attachments?.length || 0} files</span>
+              <span><i class="fas fa-star"></i> ${escapeHtml(String(currentMarks))}</span>
+            </div>
+            <div style="margin-top: 8px;">
+              <button type="button" class="submission-select-btn ${index === 0 ? 'selected' : ''}" onclick="selectSubmission(this, '${escapeHtml(submissionId)}', '${escapeHtml(submissionUuid)}')">${index === 0 ? 'Selected' : 'Select for Grading'}</button>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      container.innerHTML = submissionsHtml;
+
+      if (submissions.length > 0) {
+        const firstSubmission = submissions[0];
+        const submissionId = firstSubmission.id || firstSubmission.submission_id || '';
+        const submissionUuid = firstSubmission.submission_uuid || firstSubmission.uuid || '';
+        const sidField = form.querySelector('input[name="submission_id"]');
+        const suuidField = form.querySelector('input[name="submission_uuid"]');
+        if (sidField) sidField.value = submissionId;
+        if (suuidField) suuidField.value = submissionUuid;
+        if (submitBtn) submitBtn.disabled = false;
+      } else {
+        if (submitBtn) submitBtn.disabled = true;
+      }
+    }
+
+    function selectSubmission(button, submissionId, submissionUuid) {
+      document.querySelectorAll('.submission-item').forEach(item => item.classList.remove('selected'));
+      document.querySelectorAll('.submission-select-btn').forEach(btn => { btn.classList.remove('selected'); btn.textContent = 'Select for Grading'; });
+
+      button.classList.add('selected');
+      button.textContent = 'Selected';
+      button.closest('.submission-item').classList.add('selected');
+
+      const form = document.getElementById('grade_form');
+      form.querySelector('input[name="submission_id"]').value = submissionId;
+      form.querySelector('input[name="submission_uuid"]').value = submissionUuid;
+      const submitBtn = document.getElementById('grade_submit_btn');
+      if (submitBtn) submitBtn.disabled = false;
+    }
+
+    /* ---------- submitGrade (fixed endpoint) ---------- */
+    // Exposed on window so inline onclicks (if any) or listeners can call it
+    window.submitGrade = async function submitGrade(e) {
+      if (e && e.preventDefault) e.preventDefault();
+      const submitBtn = document.getElementById('grade_submit_btn');
+      const form = document.getElementById('grade_form');
+      if (!form) { console.error('grade_form not found'); return; }
+
+      const marksVal = form.querySelector('input[name="marks"]')?.value;
+      const gradeLetter = form.querySelector('input[name="grade_letter"]')?.value;
+      const applyLatePenalty = form.querySelector('select[name="apply_late_penalty"]')?.value;
+      const grader_note = form.querySelector('textarea[name="grader_note"]')?.value;
+      const submission_id = form.querySelector('input[name="submission_id"]')?.value;
+      const submission_uuid = form.querySelector('input[name="submission_uuid"]')?.value;
+
+      if (!submission_id && !submission_uuid) {
+        showAlertInModal('No submission selected for grading.', 'error'); return;
+      }
+      if (!marksVal || isNaN(Number(marksVal))) {
+        showAlertInModal('Please enter valid marks.', 'error'); return;
+      }
+
+      const origHtml = submitBtn ? submitBtn.innerHTML : null;
+      if (submitBtn) { submitBtn.disabled = true; submitBtn.innerHTML = '<i class="fa fa-spinner fa-spin"></i> Saving...'; }
+
+      try {
+        const payload = {
+          marks: Number(marksVal),
+          grade: gradeLetter || null,
+          apply_late_penalty: String(applyLatePenalty) === 'true',
+          grader_note: grader_note || null
+        };
+
+        // IMPORTANT: call the route that exists in your Laravel routes file:
+        const subKey = submission_id || submission_uuid;
+
+        // Primary: /submissions/{submission}/grade  (this becomes /api/assignments/submissions/{submission}/grade via apiFetch)
+        let gradeEndpoint = `/submissions/${encodeURIComponent(subKey)}/grade`;
+        let res;
+        try {
+          res = await apiFetch(gradeEndpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
+        } catch (err) {
+          // if POST /submissions/{id}/grade doesn't exist or fails to connect,
+          // fallback to updating the submission resource via PATCH (common alternative)
+          console.warn('Primary grade endpoint failed, trying fallback PATCH on submission resource', err);
+          gradeEndpoint = `/submissions/${encodeURIComponent(subKey)}`;
+          res = await apiFetch(gradeEndpoint, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ grader_note: payload.grader_note, marks: payload.marks, grade: payload.grade })
+          });
+        }
+
+        if (!res.ok) {
+          const txt = await res.text().catch(()=>null);
+          throw new Error(txt || `Server returned ${res.status}`);
+        }
+
+        showAlertInModal('Marks saved successfully.', 'success');
+
+        setTimeout(() => {
+          closeGradeModal();
+          if (selectedStudent) loadStudentDocuments(selectedStudent).catch(()=>{});
+          else fetchStudentStatus().catch(()=>{});
+        }, 700);
+
+      } catch (err) {
+        console.error('submitGrade error', err);
+        showAlertInModal('Failed to save marks: ' + (err.message || err), 'error');
+      } finally {
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          if (origHtml) submitBtn.innerHTML = origHtml;
+        }
+      }
+    };
+
+    function closeGradeModal() {
+      const modal = document.getElementById('grade_modal');
+      modal.style.display = 'none';
+      const form = document.getElementById('grade_form');
+      if (form) form.reset();
+      try {
+        form.querySelector('input[name="submission_id"]').value = '';
+        form.querySelector('input[name="submission_uuid"]').value = '';
+      } catch (e) {}
+      const alertBox = document.getElementById('grade_alert');
+      if (alertBox) alertBox.style.display = 'none';
+    }
+
+    /* ---------- viewer ---------- */
+    function openViewer(url, name){
+      const fs = document.getElementById('fs_viewer');
+      const title = document.getElementById('fs_title');
+      const body = document.getElementById('fs_body');
+      title.textContent = name || 'Document';
+      const ext = (url.split('.').pop().split('?')[0]||'').toLowerCase();
+      if (['jpg','jpeg','png','gif','svg','bmp'].includes(ext)){
+        body.innerHTML = `<img src="${escapeHtml(url)}" alt="${escapeHtml(name)}"/>`;
+      } else if (ext === 'pdf'){
+        body.innerHTML = `<iframe src="${escapeHtml(url)}" style="width:100%;height:100%;border:0"></iframe>`;
+      } else if (['mp4','webm','ogg'].includes(ext)){
+        body.innerHTML = `<video controls src="${escapeHtml(url)}" style="width:100%;height:100%"></video>`;
+      } else {
+        body.innerHTML = `<iframe src="${escapeHtml(url)}" style="width:100%;height:100%;border:0"></iframe>`;
+      }
+      fs.style.display = 'flex';
+    }
+
+    /* ---------- initial load ---------- */
+    (async ()=>{
+      if (looksLikeUuid(window.__ASSIGNMENT_KEY__)) currentAssignment.uuid = window.__ASSIGNMENT_KEY__;
+      await fetchStudentStatus();
+      if (!currentAssignment.uuid && studentsData.length) {
+        try { await loadStudentDocuments(studentsData[0]); } catch(e){ /* ignore */ }
+      }
+    })();
+
+    /* ---------- event listeners ---------- */
+    document.getElementById('fs_close').addEventListener('click', () => {
+      const fs = document.getElementById('fs_viewer');
+      fs.style.display = 'none';
+      document.getElementById('fs_body').innerHTML = '';
+    });
+
+    document.getElementById('give_marks_btn').addEventListener('click', openGradeModal);
+    document.getElementById('grade_modal_close').addEventListener('click', closeGradeModal);
+    document.getElementById('grade_cancel_btn').addEventListener('click', closeGradeModal);
+    document.getElementById('grade_submit_btn').addEventListener('click', window.submitGrade);
+
+    document.getElementById('grade_modal').addEventListener('click', (e) => { if (e.target.id === 'grade_modal') closeGradeModal(); });
+  </script>
+</body>
+</html>

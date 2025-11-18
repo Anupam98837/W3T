@@ -249,7 +249,7 @@ html.theme-dark .w3-sidebar-scroll::-webkit-scrollbar-thumb {
         <div id="sm-courses" class="w3-submenu" role="group" aria-label="Courses submenu">
           <a href="/admin/courses/manage" class="w3-link">All Courses</a>
           <a href="/admin/courses/create" class="w3-link">Create Course</a>
-          <a href="/admin/categories" class="w3-link">Categories</a>
+          <a href="/admin/courses" class="w3-link">Running Courses</a>
         </div>
       </div>
  

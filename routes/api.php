@@ -12,7 +12,8 @@ use App\Http\Controllers\API\QuizzController;
 use App\Http\Controllers\API\QuestionController;
 use App\Http\Controllers\API\StudyMaterialController;
 use App\Http\Controllers\API\MediaController;
-
+use App\Http\Controllers\API\AssignmentController;
+use App\Http\Controllers\API\AssignmentSubmissionController;
 
 Route::get('/user', function (Request $request) {
     return $request->user();
@@ -160,7 +161,7 @@ Route::middleware('checkRole:admin,super_admin')
 
 
 // Assignments (admin, super_admin, instructor)
-Route::middleware('checkRole:admin,super_admin,instructor')->group(function () {
+Route::middleware('checkRole:admin,super_admin,instructor, student')->group(function () {
     // Generic assignment endpoints
     Route::get   ('/assignments',                   [AssignmentController::class, 'index']);
     Route::get   ('/assignments/{assignment}',      [AssignmentController::class, 'show']);     // {id|uuid|slug}
@@ -171,15 +172,87 @@ Route::middleware('checkRole:admin,super_admin,instructor')->group(function () {
     // Optional: assignments under a course (list/create) — keeps parity with courses routes
     Route::get   ('/courses/{course}/assignments',          [AssignmentController::class, 'index']);
     Route::post  ('/courses/{course}/assignments',          [AssignmentController::class, 'store']);
+    
+// New: hard delete / bin / restore
+Route::delete('/assignments/{assignment}/force',          [AssignmentController::class, 'forceDelete']); // hard delete
+Route::get   ('/assignments/bin',                         [AssignmentController::class, 'indexDeleted']); // list deleted (system-wide)
+Route::post  ('/assignments/{assignment}/restore',        [AssignmentController::class, 'restore']);     // restore soft-deleted
+
+// Batch-scoped assignment endpoints
+Route::get   ('/batches/{batchKey}/assignments',          [AssignmentController::class, 'viewAssignmentByBatch']);
+Route::post  ('/assignments/batch/{batchKey}',          [AssignmentController::class, 'storeByBatch']);
+Route::get   ('/batches/{batchKey}/assignments/bin',      [AssignmentController::class, 'binByBatch']);
 });
 
-// Study Material Routes 
+Route::middleware('checkRole:admin,super_admin,instructor,student')->prefix('assignments')->group(function () {
 
-Route::middleware('checkRole:admin,super_admin')->group(function () {
+    Route::post('{assignmentId}/submit', [AssignmentSubmissionController::class,'uploadByAssignment'])->name('assignments.submit')->where('assignmentId','[0-9]+');
+
+    Route::post('submit', [AssignmentSubmissionController::class,'upload'])->name('assignments.submit.generic');
+
+    Route::get('{assignmentId}/submit-info', [AssignmentSubmissionController::class,'assignmentInfo'])->name('assignments.submit.info')->where('assignmentId','[0-9]+');
+
+    Route::get('my-submissions/{assignmentKey}', [AssignmentSubmissionController::class,'mySubmissions'])->name('assignments.submissions.my')->where('assignmentKey','[A-Za-z0-9\-_]+');
+
+    Route::get('my-submission/{submissionKey}', [AssignmentSubmissionController::class,'mySubmissionDetail'])->name('assignments.submission.my_detail')->where('submissionKey','[A-Za-z0-9\-_]+');
+
+    Route::get('submission/uuid/{uuid}', [AssignmentSubmissionController::class,'show'])->name('assignments.submission.show')->whereUuid('uuid');
+
+    Route::delete('submission/key/{submissionKey}', [AssignmentSubmissionController::class,'softDeleteSubmission'])->name('assignments.submission.soft_delete')->where('submissionKey','[A-Za-z0-9\-_]+');
+
+    Route::post('submission/key/{submissionKey}/restore', [AssignmentSubmissionController::class,'restoreSubmission'])->name('assignments.submission.restore')->where('submissionKey','[A-Za-z0-9\-_]+');
+
+    Route::delete('submission/key/{submissionKey}/force', [AssignmentSubmissionController::class,'forceDeleteSubmission'])->name('assignments.submission.force_delete')->where('submissionKey','[A-Za-z0-9\-_]+');
+
+});
+
+// Instructor-only routes
+Route::middleware('checkRole:admin,super_admin,instructor')
+     ->prefix('assignments')
+     ->group(function () {
+
+    // Get all submissions for a specific assignment
+    Route::get('{assignmentKey}/submissions', [AssignmentSubmissionController::class, 'assignmentSubmissions'])
+         ->name('assignments.submissions.all')
+         ->where('assignmentKey','[A-Za-z0-9\-_]+');
+
+    // Get student submission status (submitted/not submitted)
+    Route::get('{assignmentKey}/student-status', [AssignmentSubmissionController::class, 'studentSubmissionStatus'])
+         ->name('assignments.submissions.status')
+         ->where('assignmentKey','[A-Za-z0-9\-_]+');
+
+    // Get submission statistics
+    Route::get('{assignmentKey}/submission-stats', [AssignmentSubmissionController::class, 'submissionStats'])
+         ->name('assignments.submissions.stats')
+         ->where('assignmentKey','[A-Za-z0-9\-_]+');
+    Route::get('/assignments/{assignmentKey}/export/submitted', [AssignmentSubmissionController::class, 'exportSubmittedStudentsCSV']);
+Route::get('/assignments/{assignmentKey}/export/unsubmitted', [AssignmentSubmissionController::class, 'exportUnsubmittedStudentsCSV']);
+Route::get('/assignments/{assignmentKey}/export/all', [AssignmentSubmissionController::class, 'exportAllStudentsStatusCSV']);
+// Grading routes
+Route::post('/submissions/{submission}/grade', [AssignmentSubmissionController::class, 'gradeSubmission']);
+Route::get('/submissions/{submission}/marks', [AssignmentSubmissionController::class, 'getSubmissionMarks']);
+Route::get('{assignmentKey}/marks', [AssignmentSubmissionController::class, 'getAssignmentMarks']);
+// Route::put('/assignments/{assignment}/penalty-settings', [AssignmentSubmissionController::class, 'updatePenaltySettings']);
+Route::post('/submissions/bulk-grade', [AssignmentSubmissionController::class, 'bulkGradeSubmissions']);
+// Document viewing routes
+Route::get('/assignments/{assignment}/submissions-documents', [AssignmentSubmissionController::class, 'getAssignmentSubmissionsWithDocuments']);
+Route::get('/{assignment}/students/{student}/documents', [AssignmentSubmissionController::class, 'getStudentAssignmentDocuments']);
+Route::get('/submissions/{submission}/download-documents', [AssignmentSubmissionController::class, 'downloadSubmissionDocuments']);
+});
+// Study Material Routes 
+Route::middleware('checkRole:admin,super_admin,instructor,student')->group(function () {
     Route::get   ('/study-materials',                 [StudyMaterialController::class, 'index']);
+    Route::get('/study-materials/batch/{batchKey}', [StudyMaterialController::class, 'viewStudyMaterialByBatch']);
+    Route::post('/study-materials/batch/{batchKey}', [StudyMaterialController::class, 'storeByBatch']);
+
+    // Route::get('/study-materials/page',[StudyMaterialController::class, 'indexByQuery']);
     Route::post  ('/study-materials',                 [StudyMaterialController::class, 'store']);
     Route::patch ('/study-materials/{id}',            [StudyMaterialController::class, 'update']);
     Route::delete('/study-materials/{id}',            [StudyMaterialController::class, 'destroy']);
+    Route::post('/study-materials/{id}/restore', [StudyMaterialController::class, 'restore']);
+    Route::delete('/study-materials/{id}/force', [StudyMaterialController::class, 'forceDelete']);
+    Route::get('/study-materials/deleted', [StudyMaterialController::class, 'indexDeleted']);
+    Route::get('/study-materials/bin/batch/{batchKey}', [StudyMaterialController::class, 'binByBatch']);
 
     // View endpoints
     Route::get   ('/study-materials/show/{uuid}',     [StudyMaterialController::class, 'showByUuid']);

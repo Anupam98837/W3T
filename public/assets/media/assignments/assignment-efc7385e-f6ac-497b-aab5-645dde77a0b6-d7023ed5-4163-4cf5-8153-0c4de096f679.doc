@@ -1,0 +1,81 @@
+﻿<!doctype html>
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<meta charset="utf-8" />
+<title>Job 77 — Expenses</title>
+<style>
+  body{font-family:Arial,Helvetica,sans-serif;font-size:12px;color:#333;margin:12px;}
+  h1{color:#0369a1;margin:0 0 6px;}
+  h2{color:#0369a1;margin-top:14px;}
+  .meta{font-size:11px;color:#64748b;margin-bottom:8px;}
+  table{width:100%;border-collapse:collapse;margin-top:10px;mso-table-lspace:0pt;mso-table-rspace:0pt;}
+  th,td{border:1px solid #ddd;padding:6px 8px;vertical-align:top;}
+  th{background:#f3f4f6;font-weight:700;text-align:left;}
+  td.right{text-align:right;}
+  a{color:#0b5dd7;word-break:break-word;text-decoration:underline;}
+  td, th { mso-line-height-rule:exactly; }
+  table.totals th, table.totals td { padding:6px 8px; }
+</style>
+</head>
+<body>
+  <h1>Job 77 — Expenses</h1>
+  <div class="meta">Generated: 12/11/2025, 8:07:47 pm</div>
+
+  <div style="margin-top:8px;margin-bottom:6px;font-weight:600;font-size:20px;color:#0369a1;">Total Expense: <strong>74,367.00</strong></div><h2>Expense Summary</h2><table class="totals"><thead><tr><th>Person</th><th>Currency</th><th style="text-align:right">Total</th></tr></thead><tbody><tr><td>sampriti</td><td>INR</td><td style="text-align:right">74367.00</td></tr></tbody></table><br/>
+  <h2> Expense Data </h2>
+  <table>
+    <thead>
+      <tr>
+        <th style="width:6%;">ID</th>
+        <th style="width:12%;">Date</th>
+        <th style="width:30%;">Head</th>
+        <th style="width:12%;text-align:right">Amount</th>
+        <th style="width:8%;">Currency</th>
+        <th style="width:18%;">Note</th>
+        <th style="width:10%;">Creator</th>
+        <th style="width:6%;">Attachments</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+          <td>4</td>
+          <td>2025-11-12</td>
+          <td>xdsfdsgfggfg</td>
+          <td style="text-align:right">3500.00</td>
+          <td>INR</td>
+          <td></td>
+          <td>sampriti</td>
+          <td></td>
+        </tr><tr>
+          <td>3</td>
+          <td>2025-11-12</td>
+          <td>sfdfgfg</td>
+          <td style="text-align:right">68767.00</td>
+          <td>INR</td>
+          <td></td>
+          <td>sampriti</td>
+          <td></td>
+        </tr><tr>
+          <td>2</td>
+          <td>2025-11-12</td>
+          <td>June Bill</td>
+          <td style="text-align:right">100.00</td>
+          <td>INR</td>
+          <td></td>
+          <td>sampriti</td>
+          <td></td>
+        </tr><tr>
+          <td>1</td>
+          <td>2025-11-12</td>
+          <td>seating tables</td>
+          <td style="text-align:right">2000.00</td>
+          <td>INR</td>
+          <td></td>
+          <td>sampriti</td>
+          <td></td>
+        </tr>
+    </tbody>
+  </table>
+</body>
+</html>
