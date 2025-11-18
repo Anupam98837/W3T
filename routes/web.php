@@ -111,14 +111,19 @@ Route::get('/admin/assignments/create', function () {
     return view('pages.users.admin.pages.assignments.createAssignment');
 });
  
-Route::get('/admin/assignments/manage', function () {
-    return view('pages.users.admin.pages.assignments.manageAssignments');
-});
+// Route::get('/admin/assignments/manage', function () {
+//     return view('pages.users.admin.pages.assignments.manageAssignments');
+// });
+
 Route::get('/admin/courses/{uuid}/view', function (string $uuid) {
     return view('modules.course.viewCourse.viewCourseLayout', [
         'courseParam' => $uuid,   // <-- pass to Blade; JS will use this directly
     ]);
 })->whereUuid('uuid')->name('admin.courses.view');
+
+Route::get('/admin/courses', function () {
+    return view('pages.users.admin.pages.course.courses');
+});
 
 
 // Student Routes
@@ -127,7 +132,7 @@ Route::get('/student/dashboard', function () {
 })->name('student.dashboard');
 
 Route::get('/student/courses', function () {
-    return view('pages.users.student.pages.courses.courses');
+    return view('pages.users.student.pages.course.courses');
 });
 
 Route::get('/courses/{batch}/view', function($batchUuid) {
@@ -141,5 +146,19 @@ Route::get('/instructor/dashboard', function () {
 })->name('instructor.dashboard');
 
 Route::get('/instructor/courses', function () {
-    return view('pages.users.instructor.pages.courses.courses');
+    return view('pages.users.instructor.pages.course.courses');
 });
+
+// Route::get('/admin/viewdocuments', function () {
+//     return view('modules.course.viewCourse.viewCourseTabs.assignmentSubmissionView');
+// })->name('admin.viewdocuments');
+
+Route::get('/assignments/{assignment}/students/{student}/documents', function (string $assignment, string $student) {
+    return view('modules.course.viewCourse.viewCourseTabs.assignmentSubmissionView', [
+        'assignmentKey' => $assignment,
+        'studentKey' => $student,
+    ]);
+})
+->whereUuid('assignment')
+->whereUuid('student')
+->name('admin.assignments.student.documents');

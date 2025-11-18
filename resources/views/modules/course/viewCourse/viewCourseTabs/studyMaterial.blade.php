@@ -1,3 +1,1350 @@
-<div class="panel rounded-1" style="border:1px dashed var(--line-strong); background:transparent">
-  <div class="text-muted">Study Material — <strong>Coming soon…</strong></div>
+{{-- resources/views/StudyMaterial.blade.php --}}
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"/>
+<!-- SweetAlert2 -->
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+<style>
+/* ... (your CSS unchanged) ... */
+.sm-list{max-width:1100px;margin:18px auto}
+.sm-card{border-radius:12px;padding:18px}
+.sm-item{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px;border-radius:10px;border:1px solid var(--line-strong);background:var(--surface-2,#fff)}
+.sm-item+.sm-item{margin-top:10px}
+.sm-item .left{display:flex;gap:12px;align-items:center}
+.sm-item .meta{display:flex;flex-direction:column;gap:4px}
+.sm-item .meta .title{font-weight:700;color:var(--ink);font-family:var(--font-head)}
+.sm-item .meta .sub{color:var(--muted-color);font-size:13px}
+.sm-item .btn{padding:6px 10px;border-radius:8px;font-size:13px}
+.sm-empty{border:1px dashed var(--line-strong);border-radius:12px;padding:18px;background:transparent;color:var(--muted-color);text-align:center}
+.sm-loader{display:flex;align-items:center;gap:8px;color:var(--muted-color)}
+.duration-pill{font-size:12px;color:var(--muted-color);background:transparent;border-radius:999px;padding:4px 8px;border:1px solid var(--line-strong)}
+.sm-fullscreen{position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:2147483647;display:flex;align-items:center;justify-content:center;padding:18px}
+.sm-fullscreen .fs-inner{width:100%;height:100%;max-width:1400px;max-height:92vh;background:#fff;border-radius:8px;overflow:hidden;display:flex;flex-direction:column}
+.sm-fullscreen .fs-header{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-bottom:1px solid rgba(0,0,0,0.06);background:#fafafa}
+.sm-fullscreen .fs-title{font-weight:700;font-size:16px;color:#111}
+.sm-fullscreen .fs-close{border:0;background:transparent;font-size:18px;cursor:pointer;padding:6px 10px}
+.sm-fullscreen .fs-body{flex:1;display:flex;align-items:center;justify-content:center;padding:10px;background:#fff}
+.sm-fullscreen iframe,.sm-fullscreen img,.sm-fullscreen video{width:100%;height:100%;object-fit:contain;border:0}
+.sm-more{position:relative;display:inline-block}
+.sm-more .sm-dd-btn{display:inline-flex;align-items:center;justify-content:center;border:1px solid var(--line-strong);background:var(--surface);color:var(--ink);padding:6px 8px;border-radius:10px;cursor:pointer;font-size:var(--fs-14)}
+.sm-more .sm-dd{position:absolute;top:calc(100% + 6px);right:0;min-width:160px;background:var(--surface);border:1px solid var(--line-strong);box-shadow:var(--shadow-2);border-radius:10px;overflow:hidden;display:none;z-index:1000;padding:6px 0}
+.sm-more .sm-dd.show{display:block}
+.sm-more .sm-dd a,.sm-more .sm-dd button.dropdown-item{display:flex;align-items:center;gap:10px;padding:10px 12px;text-decoration:none;color:inherit;cursor:pointer;background:transparent;border:0;width:100%;text-align:left;font-size:14px}
+.sm-more .sm-dd a:hover,.sm-more .sm-dd button.dropdown-item:hover{background:color-mix(in oklab,var(--muted-color) 6%,transparent)}
+.sm-more .sm-dd .divider{height:1px;background:var(--line-strong);margin:6px 0}
+.sm-more .sm-dd i{width:18px;text-align:center;font-size:14px}
+.sm-icon-purple{color:#6f42c1}
+.sm-icon-red{color:#dc3545}
+.sm-icon-black{color:#111}
+.sm-more .sm-dd a.text-danger,.sm-more .sm-dd button.dropdown-item.text-danger{color:var(--danger-color,#dc2626)!important}
+@media(max-width:720px){.sm-item{flex-direction:column;align-items:flex-start}.sm-item .right{width:100%;display:flex;justify-content:flex-end;gap:8px}.sm-more .sm-dd{right:6px;left:auto;min-width:160px}}
+/* Make modal body scrollable and fit inside viewport */
+.modal.show .modal-dialog {
+  max-height: calc(100vh - 48px); /* room for header + footer + margin */
+}
+.modal.show .modal-content {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+.modal.show .modal-body {
+  overflow: auto;
+  /* subtract header/footer heights — adjust if your header/footer are taller */
+  max-height: calc(100vh - 200px);
+  -webkit-overflow-scrolling: touch; /* smooth scrolling on iOS */
+}
+
+#sm_existing_attachments .btn { padding: 6px 8px; font-size: 13px; }
+#sm_existing_attachments .small.text-primary { text-decoration: underline; cursor: pointer; }
+
+</style>
+
+<div class="crs-wrap">
+  <div class="panel sm-card rounded-1 shadow-1" style="padding:18px;">
+    <div class="d-flex align-items-center w-100">
+  <h2 class="panel-title d-flex align-items-center gap-2 mb-0">
+<i class="fa fa-book" style="color: var(--primary-color);"></i>
+    Study Material
+  </h2>
+
+  <!-- BIN BUTTON pushed to the end -->
+  <button id="btn-bin" class="btn btn-light text-danger ms-auto" title="Bin / Deleted Items">
+    <i class="fa fa-trash text-danger"></i> Bin
+  </button>
 </div>
+
+
+    <div class="panel-head w-100 mt-3">
+      <div class="container-fluid px-0">
+
+        <!-- Border Box -->
+        <div class="p-3 border rounded-3" style="background:white;">
+
+          <div class="row g-3 align-items-center">
+
+            <!-- Search -->
+            <div class="col-md-5 col-lg-4">
+              <div class="input-group">
+                <span class="input-group-text bg-white">
+                  <i class="fa fa-search text-muted"></i>
+                </span>
+                <input id="sm-search" type="text" class="form-control" placeholder="Search study materials...">
+              </div>
+            </div>
+
+            <!-- Sort + Refresh -->
+            <div class="col-md-4 col-lg-4 d-flex align-items-center gap-2">
+              <select id="sm-sort" class="form-select">
+    <option value="" disabled selected>Sort by</option>
+    <option value="created_desc">Newest first</option>
+    <option value="created_asc">Oldest first</option>
+    <option value="title_asc">Title A → Z</option>
+</select>
+              <button id="btn-refresh" class="btn btn-outline-primary d-flex align-items-center gap-1">
+                <i class="fa fa-rotate-right"></i>
+                Refresh
+              </button>
+
+            </div>
+            <!-- Bin + Upload -->
+            <div class="col-md-2 col-lg-4 d-flex justify-content-end">
+              <!-- Upload visible only for admin (JS will show/hide) -->
+              <button id="btn-upload" class="btn btn-primary" style="display:none;"
+                      data-bs-toggle="modal" data-bs-target="#createSmModal">
+                + Study Material
+              </button>
+
+              
+            </div>
+
+          </div>
+
+        </div>
+        <!-- End Border Box -->
+
+      </div>
+    </div>
+
+    <div style="margin-top:14px;">
+      <div id="sm-loader" class="sm-loader" style="display:none;">
+        <div class="spin" aria-hidden="true"></div>
+        <div class="text-muted">Loading study materials…</div>
+      </div>
+
+      <div id="sm-empty" class="sm-empty" style="display:none;">
+        <div style="font-weight:600; margin-bottom:6px;">No study materials yet</div>
+        <div class="text-muted small">Materials uploaded by instructors will appear here.</div>
+      </div>
+
+      <div id="sm-items" style="display:none; margin-top:8px;">
+        <!-- items inserted by JS -->
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Create Study Material Modal -->
+<div class="modal fade" id="createSmModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="fa fa-plus me-2"></i>Study Material Details</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+
+      <form id="smCreateForm" class="needs-validation" novalidate>
+        <div class="modal-body">
+          <div id="smCreateAlert" style="display:none;" class="alert alert-danger small"></div>
+
+          <div class="row g-3">
+            <div class="col-12">
+              <div id="smContextInfo" class="small text-muted mb-2">Adding to: <span id="smContextText">—</span></div>
+              <div id="smContextError" class="alert alert-warning small" style="display:none;">
+                Unable to detect the target Batch for this page. Make sure this page is opened from a batch context.
+              </div>
+            </div>
+            <!-- hidden fields for edit mode -->
+            <input type="hidden" id="sm_id" name="id" value="">
+            <input type="hidden" id="sm__method" name="_method" value="">
+
+            <div class="col-12">
+              <label class="form-label">Title <span class="text-danger">*</span></label>
+              <input id="sm_title" name="title" type="text" class="form-control" maxlength="255" required>
+              <div class="invalid-feedback">Title required.</div>
+            </div>
+
+            <div class="col-12">
+              <label class="form-label">Description</label>
+              <textarea id="sm_description" name="description" class="form-control" rows="3"></textarea>
+            </div>
+
+            <div class="col-md-6">
+              <label class="form-label">View policy</label>
+              <select id="sm_view_policy" name="view_policy" class="form-select">
+                <option value="inline_only" selected>Inline only (no download)</option>
+                <option value="downloadable">Downloadable</option>
+              </select>
+            </div>
+
+            <!-- existing attachments placeholder (for edit mode) -->
+            <div class="col-12" id="sm_existing_attachments_wrap" style="display:none;">
+              <label class="form-label">Existing attachments</label>
+              <div id="sm_existing_attachments" class="small text-muted" style="padding:8px; border:1px dashed var(--line-strong); border-radius:6px; background: #fbfbfb;"></div>
+              <div class="small text-muted mt-1">Select files to remove before updating (server-side removal).</div>
+            </div>
+
+            <div class="col-12">
+              <label class="form-label">Attachments <span class="text-danger">*</span> <small class="text-muted">(multiple allowed, max 50MB each)</small></label>
+              <input id="sm_attachments" name="attachments[]" type="file" class="form-control" multiple required >
+              <div class="small text-muted mt-1">Supported: images, pdf, video, etc. (You cannot prefill file inputs due to browser security.)</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+          <button id="smCreateSubmit" type="submit" class="btn btn-primary">
+            <i class="fa fa-save me-1"></i> Create
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+<!-- DIFF Confirm Modal (place near existing modals) -->
+<div class="modal fade" id="smDiffModal" tabindex="-1" aria-hidden="true">
+<div class="modal-dialog modal-lg modal-dialog-scrollable">
+<div class="modal-content">
+<div class="modal-header">
+<h5 class="modal-title"><i class="fa fa-code-merge me-2"></i> Confirm changes</h5>
+<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+</div>
+<div class="modal-body" id="smDiffBody" style="font-family: monospace; font-size:13px;">
+<!-- diff rows inserted by JS -->
+</div>
+<div class="modal-footer">
+<button type="button" id="smDiffCancel" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+<button type="button" id="smDiffConfirm" class="btn btn-primary">Confirm & Continue</button>
+</div>
+</div>
+</div>
+</div>
+
+{{-- Details Modal (shows study material metadata — opens when user clicks View in ⋮ menu) --}}
+<div id="details-modal" class="modal" style="display:none;" aria-hidden="true">
+  <div class="modal-dialog" style="max-width:560px; margin:80px auto;">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Study Material Details</h5>
+        <button type="button" id="details-close" class="btn btn-light">Close</button>
+      </div>
+      <div class="modal-body" id="details-body" style="padding:18px;">
+        <!-- Filled by JS -->
+      </div>
+      <div class="modal-footer" id="details-footer" style="display:none;">
+        <!-- optional actions injected by JS (Edit for admins) -->
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+(function(){
+  const role = (sessionStorage.getItem('role') || localStorage.getItem('role') || '').toLowerCase();
+  const TOKEN = localStorage.getItem('token') || sessionStorage.getItem('token') || '';
+  if (!TOKEN) {
+    Swal.fire({
+      icon: 'warning',
+      title: 'Login required',
+      text: 'Please sign in to continue.',
+      allowOutsideClick: false,
+      allowEscapeKey: false
+    }).then(() => { window.location.href = '/'; });
+    return;
+  }
+
+  const isAdmin      = role.includes('admin')|| role.includes('superadmin');
+  const isSuperAdmin = role.includes('super_admin') || role.includes('superadmin');
+  const isInstructor = role.includes('instructor');
+
+  const canCreate = isAdmin || isSuperAdmin || isInstructor;
+  const canEdit   = isAdmin || isSuperAdmin || isInstructor;
+  const canDelete = isAdmin || isSuperAdmin || isInstructor;
+  const canViewBin = isAdmin || isSuperAdmin;
+
+  const apiBase = '/api/study-materials';
+  const defaultHeaders = { 'Authorization': 'Bearer ' + TOKEN, 'Accept': 'application/json' };
+
+  // DOM refs
+  const $loader = document.getElementById('sm-loader');
+  const $empty  = document.getElementById('sm-empty');
+  const $items  = document.getElementById('sm-items');
+  const $search = document.getElementById('sm-search');
+  const $sort   = document.getElementById('sm-sort');
+  const $refresh = document.getElementById('btn-refresh');
+  const $uploadBtn = document.getElementById('btn-upload');
+  const $btnBin = document.getElementById('btn-bin');
+
+  const detailsModal = document.getElementById('details-modal');
+  const detailsBody = document.getElementById('details-body');
+  const detailsClose = document.getElementById('details-close');
+  const detailsFooter = document.getElementById('details-footer');
+
+  const createModalEl = document.getElementById('createSmModal');
+
+  const smIdInput = document.getElementById('sm_id');
+  const smMethodInput = document.getElementById('sm__method');
+  const smTitleInput = document.getElementById('sm_title');
+  const smDescInput = document.getElementById('sm_description');
+  const smViewPolicy = document.getElementById('sm_view_policy');
+  const smAttachmentsInput = document.getElementById('sm_attachments');
+  const smExistingWrap = document.getElementById('sm_existing_attachments_wrap');
+  const smExistingList = document.getElementById('sm_existing_attachments');
+  const smCreateSubmitBtn = document.getElementById('smCreateSubmit');
+  const smCreateFormEl = document.getElementById('smCreateForm');
+
+  // ---------------------
+  // URL / page context extraction
+  // ---------------------
+  // Use the deriveCourseKey approach you provided:
+  const deriveCourseKey = () => {
+    const parts = location.pathname.split('/').filter(Boolean);
+    const last = parts.at(-1)?.toLowerCase();
+    if (last === 'view' && parts.length >= 2) return parts.at(-2);
+    return parts.at(-1);
+  };
+
+  function getQueryParam(name) {
+    try { return (new URL(window.location.href)).searchParams.get(name); } catch(e) { return null; }
+  }
+
+  // Ensure .crs-wrap dataset contains batch id if we can get it from URL (only set when not present)
+  (function ensureBatchInDomFromUrl() {
+    const host = document.querySelector('.crs-wrap');
+    if (!host) return;
+    const existing = host.dataset.batchId ?? host.dataset.batch_id ?? '';
+    if (!existing || String(existing).trim() === '') {
+      const pathKey = deriveCourseKey();
+      if (pathKey) {
+        host.dataset.batchId = String(pathKey);
+        host.dataset.batch_id = String(pathKey);
+      }
+      const qModule = getQueryParam('module') || getQueryParam('course_module_id');
+      if (qModule) {
+        host.dataset.moduleId = String(qModule);
+        host.dataset.module_id = String(qModule);
+      }
+    }
+  })();
+
+  // read context (prefer DOM dataset, fallback to URL-derived batch + query module)
+  // read context (prefer DOM dataset, fallback to URL-derived batch + query module)
+function readContext() {
+    const host = document.querySelector('.crs-wrap');
+    if (host) {
+        const batchId = host.dataset.batchId ?? host.dataset.batch_id ?? '';
+        const moduleId = host.dataset.moduleId ?? host.dataset.module_id ?? '';
+        if (batchId) return { batch_id: String(batchId) || null, module_id: moduleId || null };
+    }
+    // fallback: derive from path and query
+    const pathBatch = deriveCourseKey() || null;
+    const qModule = getQueryParam('module') || getQueryParam('course_module_id') || null;
+    return { batch_id: pathBatch || null, module_id: qModule || null };
+}
+  // ---------------------
+  // small UI helpers
+  // ---------------------
+  function showOk(msg){
+    Swal.fire({ toast:true, position:'top-end', icon:'success', title: msg || 'Done', showConfirmButton:false, timer:2500, timerProgressBar:true });
+  }
+  function showErr(msg){
+    Swal.fire({ toast:true, position:'top-end', icon:'error', title: msg || 'Something went wrong', showConfirmButton:false, timer:3500, timerProgressBar:true });
+  }
+
+  function showLoader(v){ if ($loader) $loader.style.display = v ? 'flex' : 'none'; }
+  function showEmpty(v){ if ($empty) $empty.style.display = v ? 'block' : 'none'; }
+  function showItems(v){ if ($items) $items.style.display = v ? 'block' : 'none'; }
+
+  function formatSize(bytes){
+    if (bytes == null) return '';
+    const units = ['B','KB','MB','GB'];
+    let i = 0; let b = Number(bytes);
+    while(b >= 1024 && i < units.length-1){ b /= 1024; i++; }
+    return `${b.toFixed(b<10 && i>0 ? 1 : 0)} ${units[i]}`;
+  }
+
+  function escapeHtml(str){ return String(str || '').replace(/[&<>"'`=\/]/g, s => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;","/":"&#x2F;","`":"&#x60","=":"&#x3D;"}[s])); }
+
+  async function apiFetch(url, opts = {}) {
+    opts.headers = Object.assign({}, opts.headers || {}, defaultHeaders);
+    const res = await fetch(url, opts);
+    if (res.status === 401) {
+      try {
+        await Swal.fire({ icon: 'warning', title: 'Session expired', text: 'Please login again.', allowOutsideClick: false, allowEscapeKey: false });
+      } catch(e){}
+      location.href = '/';
+      throw new Error('Unauthorized');
+    }
+    return res;
+  }
+
+  function closeAllDropdowns(){ document.querySelectorAll('.sm-more .sm-dd.show').forEach(d => { d.classList.remove('show'); d.setAttribute('aria-hidden', 'true'); }); }
+  document.addEventListener('click', () => closeAllDropdowns());
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeAllDropdowns(); });
+function normalizeAttachments(row) {
+  let raw = row.attachment ?? row.attachments ?? [];
+  // If server returned a JSON string like "[]"
+  if (typeof raw === 'string' && raw.trim() !== '') {
+    try {
+      raw = JSON.parse(raw);
+    } catch (e) {
+      // try fallback: maybe comma separated URLs
+      const possibleUrls = raw.split(/\s*,\s*|\s*\|\|\s*/).filter(Boolean);
+      if (possibleUrls.length) raw = possibleUrls;
+      else raw = [];
+    }
+  }
+  // if a single object was returned
+  if (raw && !Array.isArray(raw)) raw = [raw];
+
+  const arr = (raw || []).map((a, idx) => {
+    // if a is string -> treat it as url/path
+    if (typeof a === 'string') {
+      const url = a;
+      const ext = (url.split('?')[0].split('.').pop() || '').toLowerCase();
+      return { id: `s-${idx}`, url, path: url, name: url.split('/').pop(), mime: '', ext };
+    }
+    // if object, map common keys
+    const url = a.signed_url || a.url || a.path || a.file_url || a.storage_url || null;
+    const name = a.name || a.label || (url ? url.split('/').pop() : (a.original_name || `file-${idx}`));
+    const mime = a.mime || a.content_type || a.contentType || '';
+    let ext = (a.ext || a.extension || '').toLowerCase();
+    if (!ext && url) ext = (url.split('?')[0].split('.').pop() || '').toLowerCase();
+    return {
+      id: a.id || a.attachment_id || a.file_id || a.storage_key || (`o-${idx}`),
+      url,
+      signed_url: a.signed_url,
+      path: a.path,
+      name,
+      mime,
+      ext,
+      size: a.size || a.file_size || a.filesize || 0,
+      raw: a
+    };
+  });
+
+  // filter out null-ish entries
+  return arr.filter(it => it && (it.url || it.path || it.signed_url));
+}
+
+  // ---------------------
+  // UI builders (unchanged)
+  // ---------------------
+ function createItemRow(row) {
+  // ensure attachments normalized for later use
+  const attachments = normalizeAttachments(row);
+  // If the API used 'attachment_count' not matching actual array, keep it
+  row.attachment = attachments;
+  if (typeof row.attachment_count === 'undefined') row.attachment_count = attachments.length;
+
+  const wrapper = document.createElement('div'); wrapper.className = 'sm-item';
+
+  const left = document.createElement('div'); left.className = 'left';
+  const icon = document.createElement('div'); icon.className = 'icon';
+  icon.style.width = '44px'; icon.style.height = '44px'; icon.style.borderRadius = '10px';
+  icon.style.display = 'flex'; icon.style.alignItems = 'center'; icon.style.justifyContent = 'center';
+  icon.style.border = '1px solid var(--line-strong)';
+  icon.style.background = 'linear-gradient(180deg, rgba(0,0,0,0.02), transparent)';
+  icon.innerHTML = '<i class="fa fa-file" style="color:var(--secondary-color)"></i>';
+
+  const meta = document.createElement('div'); meta.className = 'meta';
+  const title = document.createElement('div'); title.className = 'title'; title.textContent = row.title || 'Untitled';
+  const sub = document.createElement('div'); sub.className = 'sub';
+  sub.textContent = row.description ? row.description : (row.attachment_count ? `${row.attachment_count} attachment(s)` : '—');
+  meta.appendChild(title); meta.appendChild(sub);
+  left.appendChild(icon); left.appendChild(meta);
+
+  const right = document.createElement('div'); right.className = 'right';
+  right.style.display = 'flex'; right.style.alignItems = 'center'; right.style.gap = '8px';
+  const datePill = document.createElement('div'); datePill.className = 'duration-pill';
+  datePill.textContent = row.created_at ? new Date(row.created_at).toLocaleDateString() : '';
+  right.appendChild(datePill);
+
+  const previewBtn = document.createElement('button');
+  previewBtn.className = 'btn btn-outline-primary'; previewBtn.style.minWidth = '80px';
+  previewBtn.textContent = 'Preview'; previewBtn.type = 'button';
+  if (Array.isArray(row.attachment) && row.attachment.length > 0) {
+    previewBtn.addEventListener('click', () => openFullscreenPreview(row, row.attachment || [], 0));
+    if (row.attachment.length > 1) {
+      const badge = document.createElement('span');
+      badge.className = 'small text-muted';
+      badge.style.marginLeft = '6px';
+      badge.textContent = `(${row.attachment.length})`;
+      previewBtn.appendChild(badge);
+    }
+  } else {
+    previewBtn.disabled = true; previewBtn.classList.add('btn-light');
+  }
+  right.appendChild(previewBtn);
+
+  const moreWrap = document.createElement('div'); moreWrap.className = 'sm-more';
+  moreWrap.innerHTML = `
+    <button class="sm-dd-btn" aria-haspopup="true" aria-expanded="false" title="More">⋮</button>
+    <div class="sm-dd" role="menu" aria-hidden="true">
+      <a href="#" data-action="view"><i class="fa fa-eye sm-icon-purple"></i><span>View</span></a>
+      ${canEdit ? `<a href="#" data-action="edit"><i class="fa fa-pen sm-icon-black"></i><span>Edit</span></a>` : ''}
+      ${canDelete ? `<div class="divider"></div><a href="#" data-action="delete" class="text-danger"><i class="fa fa-trash sm-icon-red"></i><span>Delete</span></a>` : ''}
+    </div>
+  `;
+  right.appendChild(moreWrap);
+  wrapper.appendChild(left); wrapper.appendChild(right);
+
+  // dropdown wiring (unchanged)
+  const ddBtn = moreWrap.querySelector('.sm-dd-btn');
+  const dd = moreWrap.querySelector('.sm-dd');
+  if (ddBtn && dd) {
+    ddBtn.addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      const isOpen = dd.classList.contains('show');
+      closeAllDropdowns();
+      if (!isOpen) { dd.classList.add('show'); dd.setAttribute('aria-hidden', 'false'); ddBtn.setAttribute('aria-expanded','true'); }
+    });
+  }
+
+  const viewBtn = moreWrap.querySelector('[data-action="view"]');
+  if (viewBtn) viewBtn.addEventListener('click', (ev) => { ev.preventDefault(); ev.stopPropagation(); openDetailsModal(row); closeAllDropdowns(); });
+
+  const editBtn = moreWrap.querySelector('[data-action="edit"]');
+  if (editBtn) editBtn.addEventListener('click', (ev) => { ev.preventDefault(); ev.stopPropagation(); enterEditMode(row); closeAllDropdowns(); });
+
+  const delBtn = moreWrap.querySelector('[data-action="delete"]');
+  if (delBtn) {
+    delBtn.addEventListener('click', async (ev) => {
+      ev.preventDefault(); ev.stopPropagation();
+      const r = await Swal.fire({
+        title: 'Move to Bin?',
+        text: `Move "${row.title || 'this item'}" to Bin?`,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: 'Yes, move it',
+        cancelButtonText: 'Cancel'
+      });
+      if (!r.isConfirmed) { closeAllDropdowns(); return; }
+
+      try {
+        const res = await apiFetch(`${apiBase}/${encodeURIComponent(row.id)}`, { method: 'DELETE' });
+        if (!res.ok) throw new Error('Delete failed: ' + res.status);
+        showOk('Moved to Bin');
+        await loadMaterials();
+      } catch (e) { console.error(e); showErr('Delete failed'); }
+      finally { closeAllDropdowns(); }
+    });
+  }
+
+  return wrapper;
+}
+
+  function renderList(items){
+    if (!$items) return;
+    $items.innerHTML = '';
+    if (!items || items.length === 0){ showItems(false); showEmpty(true); return; }
+    showEmpty(false); showItems(true);
+    items.forEach(it => $items.appendChild(createItemRow(it)));
+  }
+
+  function openDetailsModal(row) {
+    detailsModal.style.display = 'block';
+    detailsModal.classList.add('show');
+    detailsModal.setAttribute('aria-hidden', 'false');
+
+    const backdrop = document.createElement('div');
+    backdrop.className = 'modal-backdrop fade show';
+    backdrop.id = 'detailsBackdrop';
+    document.body.appendChild(backdrop);
+
+    document.body.classList.add('modal-open');
+    backdrop.addEventListener('click', closeDetailsModal);
+
+    const attachments = row.attachment && Array.isArray(row.attachment) ? row.attachment : [];
+    const attachList = attachments.length ? attachments.map(a => {
+      const name = a.name || (a.url || a.path || '').split('/').pop();
+      const size = a.size ? ` (${formatSize(a.size)})` : '';
+      return `<div style="display:flex; justify-content:space-between; gap:8px;"><div>${escapeHtml(name)}</div><div style="color:var(--muted-color); font-size:13px;">${escapeHtml(a.mime || a.ext || '')}${size}</div></div>`;
+    }).join('') : '<div style="color:var(--muted-color)">No attachments</div>';
+
+    if (detailsBody) {
+      detailsBody.innerHTML = `
+        <div style="display:flex; flex-direction:column; gap:12px; font-size:15px;">
+          <div><strong>Title:</strong> ${escapeHtml(row.title || 'Untitled')}</div>
+          <div><strong>Description:</strong> ${escapeHtml(row.description || '—')}</div>
+          <div><strong>Created At:</strong> ${row.created_at ? new Date(row.created_at).toLocaleString() : '—'}</div>
+          <div><strong>Created By:</strong> ${escapeHtml(row.creator_name || row.created_by_name || '—')}</div>
+          <div><strong>Attachments:</strong> ${attachments.length} file(s)</div>
+          <div style="margin-top:6px;">${attachList}</div>
+          <div style="color:var(--muted-color); font-size:13px; margin-top:6px;"><strong>ID:</strong> ${escapeHtml(String(row.id || ''))}</div>
+        </div>
+      `;
+    }
+
+    if (detailsFooter) {
+      detailsFooter.innerHTML = '';
+      const close = document.createElement('button'); close.className = 'btn btn-light'; close.textContent = 'Close';
+      close.addEventListener('click', closeDetailsModal); detailsFooter.appendChild(close);
+      if (canCreate || canEdit) {
+        const edit = document.createElement('button'); edit.className = 'btn btn-primary'; edit.textContent = 'Edit';
+        edit.addEventListener('click', () => { enterEditMode(row); closeDetailsModal(); });
+        detailsFooter.appendChild(edit);
+      }
+    }
+  }
+  function closeDetailsModal() {
+    detailsModal.classList.remove('show');
+    detailsModal.style.display = 'none';
+    detailsModal.setAttribute('aria-hidden', 'true');
+
+    const bd = document.getElementById('detailsBackdrop'); if (bd) bd.remove();
+    document.body.classList.remove('modal-open');
+
+    if (detailsBody) detailsBody.innerHTML = '';
+    if (detailsFooter) detailsFooter.innerHTML = '';
+  }
+  if (detailsClose) detailsClose.addEventListener('click', closeDetailsModal);
+
+  // ---------------------
+  // Fullscreen preview helpers (unchanged)
+  // ---------------------
+  function closeFullscreenPreview() {
+    const existing = document.querySelector('.sm-fullscreen');
+    if (!existing) return;
+    const blobUrl = existing.dataset.blobUrl;
+    if (blobUrl) try { URL.revokeObjectURL(blobUrl); } catch(e){}
+    document.removeEventListener('contextmenu', suppressContextMenuWhileOverlay);
+    existing.remove();
+    document.documentElement.style.overflow = ''; document.body.style.overflow = '';
+  }
+  function suppressContextMenuWhileOverlay(e){ e.preventDefault(); }
+
+  async function fetchProtectedBlob(url) {
+    const res = await apiFetch(url, { method: 'GET', headers: { 'Authorization': 'Bearer ' + TOKEN, 'Accept': '*/*' } });
+    if (!res.ok) throw new Error('Failed to fetch file: ' + res.status);
+    return await res.blob();
+  }
+
+  async function isUrlPublic(url) {
+    try {
+      const res = await fetch(url, { method: 'HEAD', mode: 'cors' });
+      return res.ok;
+    } catch (e) {
+      try {
+        const res2 = await fetch(url, { method: 'GET', headers: { 'Range': 'bytes=0-0' }, mode: 'cors' });
+        return res2.ok;
+      } catch (err) { return false; }
+    }
+  }
+
+  async function openFullscreenPreview(row, attachments = [], startIndex = 0) {
+    closeFullscreenPreview();
+    if (!Array.isArray(attachments) || attachments.length === 0) return;
+
+    attachments = attachments.map(a => (typeof a === 'string' ? { url: a } : a || {}));
+    let currentIndex = Math.max(0, Math.min(startIndex || 0, attachments.length - 1));
+    const wrap = document.createElement('div');
+    wrap.className = 'sm-fullscreen';
+    wrap.setAttribute('role', 'dialog'); wrap.setAttribute('aria-modal', 'true');
+    wrap.dataset.blobUrl = '';
+    wrap.dataset.currentIndex = String(currentIndex);
+
+    const inner = document.createElement('div'); inner.className = 'fs-inner';
+    const header = document.createElement('div'); header.className = 'fs-header';
+    const title = document.createElement('div'); title.className = 'fs-title'; title.textContent = row.title || '';
+    const controls = document.createElement('div'); controls.style.display = 'flex'; controls.style.alignItems = 'center'; controls.style.gap = '8px';
+
+    const prevBtn = document.createElement('button'); prevBtn.className = 'fs-close btn btn-sm'; prevBtn.type = 'button'; prevBtn.title = 'Previous'; prevBtn.innerHTML = '◀';
+    const nextBtn = document.createElement('button'); nextBtn.className = 'fs-close btn btn-sm'; nextBtn.type = 'button'; nextBtn.title = 'Next'; nextBtn.innerHTML = '▶';
+    const idxIndicator = document.createElement('div'); idxIndicator.style.fontSize = '13px'; idxIndicator.style.color = 'var(--muted-color)';
+    idxIndicator.textContent = `${currentIndex + 1} / ${attachments.length}`;
+
+    const closeBtn = document.createElement('button'); closeBtn.className = 'fs-close'; closeBtn.innerHTML = '✕'; closeBtn.setAttribute('aria-label','Close preview');
+
+    controls.appendChild(prevBtn);
+    controls.appendChild(idxIndicator);
+    controls.appendChild(nextBtn);
+    header.appendChild(title);
+    header.appendChild(controls);
+    header.appendChild(closeBtn);
+
+    const body = document.createElement('div'); body.className = 'fs-body';
+    inner.appendChild(header); inner.appendChild(body); wrap.appendChild(inner); document.body.appendChild(wrap);
+    document.documentElement.style.overflow = 'hidden'; document.body.style.overflow = 'hidden';
+    document.addEventListener('contextmenu', suppressContextMenuWhileOverlay);
+
+    async function renderAt(index) {
+      index = Math.max(0, Math.min(index, attachments.length - 1));
+      currentIndex = index;
+      wrap.dataset.currentIndex = index;
+      idxIndicator.textContent = `${currentIndex + 1} / ${attachments.length}`;
+
+      const prevBlob = wrap.dataset.blobUrl;
+      if (prevBlob) { try { URL.revokeObjectURL(prevBlob); } catch(e){} wrap.dataset.blobUrl = ''; }
+
+      const attachment = attachments[currentIndex] || {};
+      const urlCandidate = attachment.signed_url || attachment.url || attachment.path || null;
+      const mime = (attachment.mime || '') ;
+      const ext = ((attachment.ext || '')).toLowerCase();
+      body.innerHTML = '';
+
+      try {
+        if (urlCandidate) {
+          const publicOk = await isUrlPublic(urlCandidate);
+          if (publicOk) {
+            if (mime.startsWith('image/') || ['png','jpg','jpeg','gif','webp'].includes(ext)) {
+              const img = document.createElement('img'); img.src = urlCandidate; img.alt = attachment.name || row.title || 'image'; img.style.maxWidth = '100%'; img.style.maxHeight = '100%'; img.style.objectFit = 'contain';
+              body.appendChild(img); return;
+            }
+            if (mime === 'application/pdf' || ext === 'pdf') {
+              const iframe = document.createElement('iframe'); iframe.src = urlCandidate + (urlCandidate.indexOf('#') === -1 ? '#toolbar=0&navpanes=0&scrollbar=0' : '&toolbar=0&navpanes=0&scrollbar=0'); iframe.setAttribute('aria-label', row.title || 'PDF preview'); iframe.style.width='100%'; iframe.style.height='100%';
+              body.appendChild(iframe); return;
+            }
+            if (mime.startsWith('video/') || ['mp4','webm','ogg'].includes(ext)) {
+              const v = document.createElement('video'); v.controls = true; v.style.width = '100%'; const s = document.createElement('source'); s.src = urlCandidate; s.type = mime || 'video/mp4'; v.appendChild(s); body.appendChild(v); return;
+            }
+            const iframe = document.createElement('iframe'); iframe.src = urlCandidate; iframe.setAttribute('aria-label', row.title || 'Preview'); iframe.style.width='100%'; iframe.style.height='100%';
+            body.appendChild(iframe); return;
+          }
+        }
+
+        if (!urlCandidate) {
+          body.innerHTML = '<div>No preview available for this file.</div>'; return;
+        }
+
+        const blob = await fetchProtectedBlob(urlCandidate);
+        const blobUrl = URL.createObjectURL(blob);
+        wrap.dataset.blobUrl = blobUrl;
+
+        if (mime.startsWith('image/') || ['png','jpg','jpeg','gif','webp'].includes(ext)) {
+          const img = document.createElement('img'); img.src = blobUrl; img.alt = attachment.name || row.title || 'image'; img.style.maxWidth='100%'; img.style.maxHeight='100%'; img.style.objectFit='contain';
+          body.appendChild(img); return;
+        }
+        if (mime === 'application/pdf' || ext === 'pdf') {
+          const iframe = document.createElement('iframe'); iframe.src = blobUrl + '#toolbar=0&navpanes=0&scrollbar=0'; iframe.setAttribute('aria-label', row.title || 'PDF preview'); iframe.style.width='100%'; iframe.style.height='100%';
+          body.appendChild(iframe); return;
+        }
+        if (mime.startsWith('video/') || ['mp4','webm','ogg'].includes(ext)) {
+          const v = document.createElement('video'); v.controls = true; v.style.width='100%'; v.src = blobUrl; body.appendChild(v); return;
+        }
+        const iframe = document.createElement('iframe'); iframe.src = blobUrl; iframe.style.width='100%'; iframe.style.height='100%';
+        body.appendChild(iframe); return;
+      } catch (err) {
+        console.error('Preview error', err);
+        body.innerHTML = '<div>Unable to preview this file (permission denied or unsupported).</div>';
+      }
+    }
+
+    prevBtn.addEventListener('click', () => { if (currentIndex > 0) renderAt(currentIndex - 1); });
+    nextBtn.addEventListener('click', () => { if (currentIndex < attachments.length - 1) renderAt(currentIndex + 1); });
+
+    const keyHandler = (e) => {
+      if (e.key === 'Escape') { closeFullscreenPreview(); }
+      if (e.key === 'ArrowLeft') { if (currentIndex > 0) renderAt(currentIndex - 1); }
+      if (e.key === 'ArrowRight') { if (currentIndex < attachments.length - 1) renderAt(currentIndex + 1); }
+    };
+    document.addEventListener('keydown', keyHandler);
+
+    function cleanupOnClose() {
+      try { const b = wrap.dataset.blobUrl; if (b) URL.revokeObjectURL(b); } catch(e){}
+      document.removeEventListener('keydown', keyHandler);
+      document.removeEventListener('contextmenu', suppressContextMenuWhileOverlay);
+    }
+
+    const originalClose = closeFullscreenPreview;
+    function wrappedClose() {
+      cleanupOnClose();
+      originalClose();
+    }
+
+    try { closeBtn.removeEventListener('click', closeFullscreenPreview); } catch(e){}
+    closeBtn.addEventListener('click', wrappedClose);
+
+    const prevCloseFn = window._sm_close_fullscreen_preview;
+    window._sm_close_fullscreen_preview = () => { cleanupOnClose(); if (typeof prevCloseFn === 'function') prevCloseFn(); };
+
+    await renderAt(currentIndex);
+  }
+
+  // -------------------------
+  // loadMaterials (uses batch_id/module_id filters)
+  // -------------------------
+  // -------------------------
+// loadMaterials (uses the new batch endpoint)
+// -------------------------
+async function loadMaterials(){
+    showLoader(true); showItems(false); showEmpty(false);
+    try {
+        const ctx = readContext();
+        if (!ctx || !ctx.batch_id) {
+            throw new Error('Batch context required');
+        }
+
+        // Use the new batch endpoint
+        const url = `${apiBase}/batch/${encodeURIComponent(ctx.batch_id)}`;
+        const res = await apiFetch(url);
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const json = await res.json().catch(()=>null);
+        
+        if (!json || !json.data) {
+            throw new Error('Invalid response format');
+        }
+
+        // Extract and flatten materials from the new response structure
+        const modulesWithMaterials = json.data.modules_with_materials || [];
+        let allMaterials = [];
+        
+        modulesWithMaterials.forEach(moduleGroup => {
+            if (moduleGroup.materials && Array.isArray(moduleGroup.materials)) {
+                moduleGroup.materials.forEach(material => {
+                    // Add module info to each material for display
+                    material.module_title = moduleGroup.module?.title || 'Unknown Module';
+                    material.module_uuid = moduleGroup.module?.uuid || '';
+                    allMaterials.push(material);
+                });
+            }
+        });
+
+        // Apply sorting
+        const sortVal = $sort ? $sort.value : 'created_desc';
+        allMaterials.sort((a,b)=>{
+            const da = a.created_at ? new Date(a.created_at) : new Date(0);
+            const db = b.created_at ? new Date(b.created_at) : new Date(0);
+            if (sortVal === 'created_desc') return db - da;
+            if (sortVal === 'created_asc') return da - db;
+            if (sortVal === 'title_asc') return (a.title||'').localeCompare(b.title||'');
+            return 0;
+        });
+        
+        renderList(allMaterials);
+        
+        // Store batch context for later use
+        if (json.data.batch) {
+            window.currentBatchContext = json.data.batch;
+        }
+        
+    } catch (e) {
+        console.error('Load materials error:', e);
+        if ($items) $items.innerHTML = '<div class="sm-empty">Unable to load study materials — please refresh.</div>';
+        showItems(true);
+        showErr('Failed to load study materials: ' + (e.message || 'Unknown error'));
+    } finally { showLoader(false); }
+}
+  if ($refresh) $refresh.addEventListener('click', loadMaterials);
+  if ($search) $search.addEventListener('keyup', (e)=> { if (e.key === 'Enter') loadMaterials(); });
+  if ($sort) $sort.addEventListener('change', loadMaterials);
+
+  // Try to initialize bootstrap modal instance if available
+  let createModalInstance = null;
+  try { if (window.bootstrap && typeof window.bootstrap.Modal === 'function' && createModalEl) createModalInstance = new bootstrap.Modal(createModalEl); } catch(e){ createModalInstance = null; }
+
+  // Upload button handling
+  if ($uploadBtn) {
+    $uploadBtn.type = 'button';
+    if (canCreate) {
+      $uploadBtn.style.display = 'inline-block';
+      const cleanBtn = $uploadBtn.cloneNode(true);
+      $uploadBtn.parentNode.replaceChild(cleanBtn, $uploadBtn);
+      cleanBtn.addEventListener('click', (ev) => { ev.preventDefault(); showCreateModal(); });
+    } else {
+      $uploadBtn.style.display = 'none';
+    }
+  }
+
+  let _manualBackdrop = null;
+  function showCreateModal() {
+    const smFormEl = document.getElementById('smCreateForm');
+    if (smFormEl) {
+      const isEditing = (smIdInput && smIdInput.value && smIdInput.value.trim() !== '');
+      if (!isEditing) {
+        smFormEl.reset();
+        smFormEl.classList.remove('was-validated');
+      } else {
+        smFormEl.classList.remove('was-validated');
+      }
+    }
+
+    const smAlert = document.getElementById('smCreateAlert'); if (smAlert) smAlert.style.display = 'none';
+    updateContextDisplay();
+
+    if (createModalInstance && typeof createModalInstance.show === 'function') { createModalInstance.show(); return; }
+    if (!createModalEl) return;
+
+    _manualBackdrop = document.createElement('div'); _manualBackdrop.className = 'modal-backdrop fade show';
+    document.body.appendChild(_manualBackdrop);
+
+    createModalEl.classList.add('show'); createModalEl.style.display = 'block'; createModalEl.setAttribute('aria-hidden','false');
+    document.body.classList.add('modal-open'); document.documentElement.style.overflow = 'hidden';
+
+    if (!createModalEl._fallbackHooksAdded) {
+      createModalEl.querySelectorAll('[data-bs-dismiss], .btn-close').forEach(btn => btn.addEventListener('click', hideCreateModal));
+      _manualBackdrop.addEventListener('click', hideCreateModal);
+      document.addEventListener('keydown', _fallbackEscHandler);
+      createModalEl._fallbackHooksAdded = true;
+    }
+  }
+
+  function hideCreateModal() {
+    if (createModalInstance && typeof createModalInstance.hide === 'function') { try { createModalInstance.hide(); } catch(e){} return; }
+    if (!createModalEl) return;
+    createModalEl.classList.remove('show'); createModalEl.style.display = 'none'; createModalEl.setAttribute('aria-hidden','true');
+    document.body.classList.remove('modal-open'); document.documentElement.style.overflow = '';
+    if (_manualBackdrop && _manualBackdrop.parentNode) { _manualBackdrop.parentNode.removeChild(_manualBackdrop); _manualBackdrop = null; }
+    try { document.removeEventListener('keydown', _fallbackEscHandler); } catch(e){}
+    exitEditMode();
+  }
+  function _fallbackEscHandler(e){ if (e.key === 'Escape') hideCreateModal(); }
+
+  function enterEditMode(row){
+    if (smIdInput) smIdInput.value = row.id || '';
+    if (smMethodInput) smMethodInput.value = 'PATCH';
+    if (smTitleInput) smTitleInput.value = row.title || '';
+    if (smDescInput) smDescInput.value = row.description || '';
+    if (smViewPolicy) smViewPolicy.value = row.view_policy || 'inline_only';
+    if (smAttachmentsInput) smAttachmentsInput.value = '';
+    if (smExistingWrap && smExistingList) {
+      const attachments = row.attachment && Array.isArray(row.attachment) ? row.attachment : [];
+      smExistingList.innerHTML = '';
+      if (attachments.length) {
+        attachments.forEach((a, idx) => {
+          const id = a.id || a.attachment_id || a.file_id || a.storage_key || a.key || (a.url || a.path || '').split('/').pop() || (`file-${idx}`);
+          const name = a.name || (a.url || a.path || '').split('/').pop() || `(attachment ${idx+1})`;
+          const size = a.size ? ` (${formatSize(a.size)})` : '';
+          const mime = a.mime || a.ext || '';
+
+          const rowEl = document.createElement('div');
+          rowEl.style.display = 'flex';
+          rowEl.style.alignItems = 'center';
+          rowEl.style.justifyContent = 'space-between';
+          rowEl.style.gap = '8px';
+          rowEl.style.padding = '8px';
+          rowEl.style.borderRadius = '6px';
+          rowEl.style.border = '1px dashed var(--line-strong)';
+          rowEl.style.background = '#fbfbfb';
+
+          const left = document.createElement('div');
+          left.style.display = 'flex';
+          left.style.flexDirection = 'column';
+          left.innerHTML = `<div style="font-weight:600">${escapeHtml(name)}${escapeHtml(size)}</div>
+                            <div class="small text-muted" style="margin-top:4px;">${escapeHtml(mime)}</div>`;
+
+          const right = document.createElement('div');
+          right.style.display = 'flex';
+          right.style.alignItems = 'center';
+          right.style.gap = '8px';
+
+          const chk = document.createElement('input');
+          chk.type = 'checkbox';
+          chk.name = 'remove_attachments[]';
+          chk.value = id;
+          chk.style.display = 'none';
+          chk.title = 'Marked for removal';
+
+          const removeBtn = document.createElement('button');
+          removeBtn.type = 'button'; removeBtn.className = 'btn btn-sm btn-outline-danger';
+          removeBtn.innerHTML = '<i class="fa fa-trash"></i> Remove';
+          removeBtn.title = 'Remove this file on update';
+
+          const undoBtn = document.createElement('button');
+          undoBtn.type = 'button'; undoBtn.className = 'btn btn-sm btn-outline-secondary';
+          undoBtn.style.display = 'none';
+          undoBtn.innerHTML = '<i class="fa fa-undo"></i> Undo';
+
+          if (a.url || a.signed_url || a.path) {
+            const previewLink = document.createElement('a');
+            previewLink.href = a.signed_url || a.url || a.path;
+            previewLink.target = '_blank';
+            previewLink.className = 'small text-primary';
+             previewLink.style.display = 'none';
+            previewLink.style.marginRight = '8px';
+            previewLink.textContent = 'Preview';
+            right.appendChild(previewLink);
+          }
+
+          removeBtn.addEventListener('click', () => {
+            chk.checked = true;
+            rowEl.style.opacity = '0.45';
+            rowEl.style.filter = 'grayscale(0.4)';
+            removeBtn.style.display = 'none';
+            undoBtn.style.display = '';
+          });
+
+          undoBtn.addEventListener('click', () => {
+            chk.checked = false;
+            rowEl.style.opacity = '';
+            rowEl.style.filter = '';
+            removeBtn.style.display = '';
+            undoBtn.style.display = 'none';
+          });
+
+          right.appendChild(chk);
+          right.appendChild(removeBtn);
+          right.appendChild(undoBtn);
+
+          rowEl.appendChild(left);
+          rowEl.appendChild(right);
+          smExistingList.appendChild(rowEl);
+        });
+      } else {
+        smExistingList.innerHTML = '<div class="text-muted small">No existing attachments</div>';
+      }
+      smExistingWrap.style.display = '';
+    }
+
+    const modalTitle = createModalEl.querySelector('.modal-title');
+    if (modalTitle) modalTitle.innerHTML = '<i class="fa fa-pen me-2"></i> Edit Study Material';
+    if (smCreateSubmitBtn) smCreateSubmitBtn.innerHTML = '<i class="fa fa-save me-1"></i> Update';
+    updateContextDisplay();
+    if (createModalInstance && typeof createModalInstance.show === 'function') createModalInstance.show();
+    else showCreateModal();
+  }
+
+  function exitEditMode(){
+    if (smIdInput) smIdInput.value = '';
+    if (smMethodInput) smMethodInput.value = '';
+    if (smCreateFormEl) smCreateFormEl.reset();
+    if (smExistingList) smExistingList.innerHTML = '';
+    if (smExistingWrap) smExistingWrap.style.display = 'none';
+    const modalTitle = createModalEl.querySelector('.modal-title');
+    if (modalTitle) modalTitle.innerHTML = '<i class="fa fa-plus me-2"></i> Add Study Material';
+    if (smCreateSubmitBtn) smCreateSubmitBtn.innerHTML = '<i class="fa fa-save me-1"></i> Create';
+  }
+
+  try { if (createModalEl) createModalEl.addEventListener('hidden.bs.modal', exitEditMode); } catch(e){}
+
+  // Init create form handling
+  (function initCreateForm(){
+    const smForm = smCreateFormEl;
+    if (!smForm) return;
+    const smSubmit = smCreateSubmitBtn;
+    const smAlert  = document.getElementById('smCreateAlert');
+
+    smForm.addEventListener('submit', async (ev) => {
+      ev.preventDefault(); ev.stopPropagation();
+      if (smAlert) smAlert.style.display = 'none';
+      smForm.classList.add('was-validated');
+      if (!smForm.checkValidity()) return;
+
+      const editingId = smIdInput && smIdInput.value ? smIdInput.value.trim() : '';
+const ctx = readContext();
+// use batch_id (what readContext returns); accept either for safety
+const batchKey = ctx?.batch_id ?? ctx?.batch_uuid ?? null;
+if (!editingId && !batchKey) {
+  if (smAlert) { smAlert.innerHTML = 'Missing Batch context — cannot create study material here.'; smAlert.style.display = ''; }
+  return;
+}
+
+      // build FormData (inside submit handler) — replace existing fd append for module
+const fd = new FormData();
+if (ctx && ctx.batch_id) fd.append('batch_uuid', ctx.batch_id);
+
+// MODULE: try to send numeric id as course_module_id; fall back to module_uuid
+const mod = ctx && ctx.module_id ? String(ctx.module_id).trim() : '';
+if (mod) {
+  if (/^\d+$/.test(mod)) {
+    fd.append('course_module_id', mod);           // integer id - preferred
+  } else {
+    fd.append('module_uuid', mod);                // uuid fallback (server must accept it)
+  }
+}
+
+fd.append('title', smTitleInput ? smTitleInput.value.trim() : '');
+fd.append('description', smDescInput ? smDescInput.value.trim() : '');
+fd.append('view_policy', smViewPolicy ? smViewPolicy.value : 'inline_only');
+
+const files = smAttachmentsInput && smAttachmentsInput.files ? smAttachmentsInput.files : [];
+for (let i = 0; i < files.length; i++) fd.append('attachments[]', files[i]);
+
+const toRemove = Array.from(smForm.querySelectorAll('input[name="remove_attachments[]"]:checked')).map(n => n.value);
+toRemove.forEach(v => fd.append('remove_attachments[]', v));
+
+
+      const prevHtml = smSubmit ? smSubmit.innerHTML : (editingId ? 'Update' : 'Create');
+      if (smSubmit) { smSubmit.disabled = true; smSubmit.innerHTML = `<i class="fa fa-spinner fa-spin me-1"></i> ${editingId ? 'Updating...' : 'Creating...'}`; }
+      try {
+        // determine endpoint & method: creating -> use batch endpoint; editing -> existing item endpoint
+        let endpoint = apiBase;
+        let method = 'POST';
+
+        if (editingId) {
+          // Edit path: use PATCH to /api/study-materials/{id} (via _method form override)
+          fd.append('_method', 'PATCH');
+          fd.append('id', editingId);
+          endpoint = `${apiBase}/${encodeURIComponent(editingId)}`;
+          method = 'POST'; // using POST + _method=PATCH (keeps existing server expectations)
+        } else {
+          // Create path: use storeByBatch API which expects a batchKey in URL
+          const ctxBatch = ctx && ctx.batch_id ? ctx.batch_id : null;
+          if (!ctxBatch) {
+            if (smAlert) { smAlert.innerHTML = 'Missing Batch context — cannot create study material here.'; smAlert.style.display = ''; }
+            throw new Error('Missing batch context');
+          }
+          endpoint = `${apiBase}/batch/${encodeURIComponent(ctxBatch)}`;
+          method = 'POST';
+          // Note: server infers course_id from the batch; we optionally include module_uuid
+          // fd.append('batch_uuid', ctx.batch_id); // optional; already appended above
+        }
+
+        const res = await apiFetch(endpoint, { method: method, body: fd });
+        const json = await res.json().catch(()=>({}));
+        if (!res.ok) {
+          if (res.status === 422 && json.errors) {
+            let msgs = [];
+            for (const k in json.errors) {
+              if (Array.isArray(json.errors[k])) msgs.push(`${k}: ${json.errors[k].join(', ')}`);
+              else msgs.push(`${k}: ${json.errors[k]}`);
+            }
+            if (smAlert) { smAlert.innerHTML = msgs.map(m => `<div>${escapeHtml(m)}</div>`).join(''); smAlert.style.display = ''; }
+          } else {
+            if (smAlert) { smAlert.innerHTML = `<div>${escapeHtml(json.message || 'Failed to create/update study material')}</div>`; smAlert.style.display = ''; }
+          }
+          throw new Error('Save error');
+        }
+
+        try { if (createModalInstance && typeof createModalInstance.hide === 'function') createModalInstance.hide(); else hideCreateModal(); } catch(e){ hideCreateModal(); }
+        exitEditMode();
+        showOk(json.message || (editingId ? 'Updated' : 'Created'));
+        await loadMaterials();
+      } catch (err) { console.error('Create/Update failed', err); showErr('Save failed'); }
+      finally { if (smSubmit) { smSubmit.disabled = false; smSubmit.innerHTML = prevHtml; } }
+    });
+
+    if (createModalEl) { try { createModalEl.addEventListener('show.bs.modal', () => updateContextDisplay()); } catch(e){} }
+  })();
+
+  // context UI update
+  function updateContextDisplay() {
+    const ctx = readContext();
+    const ctxText = document.getElementById('smContextText');
+    const ctxErr  = document.getElementById('smContextError');
+    const submitBtn = document.getElementById('smCreateSubmit');
+
+    const isEditing = (smIdInput && smIdInput.value && smIdInput.value.trim() !== '');
+
+    if (!ctx || !ctx.batch_id) {
+      if (ctxText) ctxText.textContent = isEditing ? 'Editing (batch unknown)' : 'Missing context';
+      if (isEditing) {
+        if (ctxErr) ctxErr.style.display = 'none';
+        if (submitBtn) submitBtn.disabled = false;
+        return;
+      }
+      if (ctxErr) ctxErr.style.display = '';
+      if (submitBtn) submitBtn.disabled = true;
+    } else {
+      if (ctxText) ctxText.textContent = `Batch: ${ctx.batch_id}` + (ctx.module_id ? ` • Module: ${ctx.module_id}` : '');
+      if (ctxErr) ctxErr.style.display = 'none';
+      if (submitBtn) submitBtn.disabled = false;
+    }
+  }
+
+  // -------------------------
+  // BIN / Deleted items logic (kept largely same; minor change: include batch filter)
+  // -------------------------
+  (function initBin(){
+    if (!$btnBin) return;
+    if (!canViewBin) {
+      $btnBin.style.display = 'none';
+      return;
+    } else {
+      $btnBin.style.display = 'inline-block';
+    }
+
+    // REPLACE your existing fetchDeletedMaterials(...) with this:
+async function fetchDeletedMaterials(params = '') {
+  // prefer using a dedicated batch endpoint when batch context available
+  try {
+    const ctx = readContext();
+    let url;
+    if (ctx && ctx.batch_id) {
+      // call the new bin-by-batch endpoint
+      url = `${apiBase}/bin/batch/${encodeURIComponent(ctx.batch_id)}`;
+      // optional: include module filter as query param if module present
+      if (ctx.module_id) url += `?module_uuid=${encodeURIComponent(ctx.module_id)}`;
+    } else {
+      // fallback: generic deleted endpoint with optional params
+      url = '/api/study-materials/deleted' + (params ? ('?' + params) : '');
+    }
+
+    const r = await apiFetch(url);
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const j = await r.json().catch(() => null);
+
+    // support both styles: { data: [...] } or direct array / items
+    const items = j && (j.data || j.items) ? (j.data || j.items) : (Array.isArray(j) ? j : []);
+    // filter to only entries with deleted_at AND ensure attachments parsed
+    return (items || []).map(it => {
+      if (typeof it.attachment === 'string' && it.attachment) {
+        try { it.attachment = JSON.parse(it.attachment); } catch { /* leave as-is */ }
+      }
+      return it;
+    }).filter(it => !!(it && (it.deleted_at || it.deletedAt)));
+  } catch (e) {
+    console.error('fetchDeletedMaterials failed', e);
+    return [];
+  }
+}
+
+
+    function buildBinTable(items) {
+      if (!document.getElementById('bin-overflow-css')) {
+        const s = document.createElement('style'); s.id = 'bin-overflow-css';
+        s.textContent = `.dropdown-menu { overflow: visible !important; white-space: nowrap; } .table-responsive { overflow: visible !important; }`;
+        document.head.appendChild(s);
+      }
+
+      const wrap = document.createElement('div'); wrap.className = 'sm-card p-3';
+      const heading = document.createElement('div'); heading.className = 'd-flex align-items-center justify-content-between mb-2';
+      heading.innerHTML = `<div class="fw-semibold" style="font-size:15px">Deleted Study Materials</div>
+        <div class="d-flex gap-2">
+          <button id="bin-refresh" class="btn btn-sm btn-primary"><i class="fa fa-rotate-right me-1"></i></button>
+          <button id="bin-back" class="btn btn-sm btn-outline-primary"> <i class="fa fa-arrow-left me-1"></i> Back</button>
+        </div>`;
+      wrap.appendChild(heading);
+
+      const resp = document.createElement('div'); resp.className = 'table-responsive';
+      const table = document.createElement('table'); table.className = 'table table-hover table-borderless table-sm mb-0'; table.style.fontSize = '13px';
+      table.innerHTML = `<thead class="text-muted" style="font-weight:600; font-size:var(--fs-14);">
+        <tr>
+          <th class="text-start">Study material</th>
+          <th style="width:140px">Created</th>
+          <th style="width:160px">Deleted At</th>
+          <th style="width:120px">Attachments</th>
+          <th style="width:120px" class="text-end">Actions</th>
+        </tr>
+      </thead><tbody></tbody>`;
+      const tbody = table.querySelector('tbody');
+
+      if (!items || items.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="5" class="text-center py-3 text-muted small">No deleted items.</td></tr>`;
+      } else {
+        items.forEach((it, idx) => {
+          if (typeof it.attachment === 'string' && it.attachment) {
+            try { it.attachment = JSON.parse(it.attachment); } catch { it.attachment = []; }
+          }
+          const attCount = Array.isArray(it.attachment) ? it.attachment.length : (it.attachment_count || 0);
+          const tr = document.createElement('tr'); tr.style.borderTop = '1px solid var(--line-soft)';
+          const titleTd = document.createElement('td');
+          titleTd.innerHTML = `<div class="fw-semibold" style="line-height:1.1;">${escapeHtml(it.title || 'Untitled')}</div>
+            <div class="small text-muted mt-1">${escapeHtml(it.description || it.slug || '')}</div>`;
+          const createdTd = document.createElement('td'); createdTd.textContent = it.created_at ? new Date(it.created_at).toLocaleString() : '-';
+          const deletedTd = document.createElement('td'); deletedTd.textContent = it.deleted_at ? new Date(it.deleted_at).toLocaleString() : '-';
+          const attachTd = document.createElement('td'); attachTd.textContent = `${attCount} file(s)`;
+          const actionsTd = document.createElement('td'); actionsTd.className = 'text-end';
+          const dd = document.createElement('div'); dd.className = 'dropdown d-inline-block';
+          dd.innerHTML = `
+            <button class="btn btn-sm btn-light" type="button" id="binDdBtn${idx}" data-bs-toggle="dropdown" aria-expanded="false">
+              <span style="font-size:18px; line-height:1;">⋮</span>
+            </button>
+            <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="binDdBtn${idx}" style="min-width:160px;">
+              <li><button class="dropdown-item restore-action" type="button"><i class="fa fa-rotate-left me-2"></i> Restore</button></li>
+              <li><hr class="dropdown-divider"></li>
+              <li><button class="dropdown-item text-danger force-action" type="button"><i class="fa fa-skull-crossbones me-2"></i> Delete permanently</button></li>
+            </ul>`;
+          actionsTd.appendChild(dd);
+          tr.appendChild(titleTd); tr.appendChild(createdTd); tr.appendChild(deletedTd); tr.appendChild(attachTd); tr.appendChild(actionsTd);
+          tbody.appendChild(tr);
+
+          const restoreBtn = dd.querySelector('.restore-action');
+          const forceBtn = dd.querySelector('.force-action');
+
+          restoreBtn.addEventListener('click', () => {
+            try { bootstrap.Dropdown.getOrCreateInstance(dd.querySelector('[data-bs-toggle="dropdown"]')).hide(); } catch {}
+            restoreItem(it);
+          });
+
+          forceBtn.addEventListener('click', () => {
+            try { bootstrap.Dropdown.getOrCreateInstance(dd.querySelector('[data-bs-toggle="dropdown"]')).hide(); } catch {}
+            forceDeleteItem(it);
+          });
+        });
+      }
+
+      resp.appendChild(table);
+      wrap.appendChild(resp);
+
+      setTimeout(() => {
+        wrap.querySelector('#bin-refresh')?.addEventListener('click', () => openBin());
+        wrap.querySelector('#bin-back')?.addEventListener('click', () => loadMaterials());
+      }, 0);
+
+      return wrap;
+    }
+
+    async function restoreItem(item) {
+      const r = await Swal.fire({ title: 'Restore item?', text: `Restore "${item.title || 'this item'}"?`, icon: 'question', showCancelButton: true, confirmButtonText: 'Yes, restore', cancelButtonText: 'Cancel' });
+      if (!r.isConfirmed) return;
+      try {
+        const url = `/api/study-materials/${encodeURIComponent(item.id)}/restore`;
+        const res = await apiFetch(url, { method: 'POST' });
+        if (!res.ok) throw new Error('Restore failed: ' + res.status);
+        showOk('Restored');
+        await openBin();
+      } catch (e) { console.error(e); showErr('Restore failed'); }
+    }
+
+    async function forceDeleteItem(item) {
+      const r = await Swal.fire({
+        title: 'Permanently delete?',
+        html: `Permanently delete "<strong>${escapeHtml(item.title || 'this item')}</strong>"?<br><strong>This cannot be undone.</strong>`,
+        icon: 'warning', showCancelButton: true, confirmButtonText: 'Yes, delete permanently', cancelButtonText: 'Cancel', focusCancel: true
+      });
+      if (!r.isConfirmed) return;
+      try {
+        const url = `/api/study-materials/${encodeURIComponent(item.id)}/force`;
+        const res = await apiFetch(url, { method: 'DELETE' });
+        if (!res.ok) throw new Error('Delete failed: ' + res.status);
+        showOk('Permanently deleted');
+        await openBin();
+      } catch (e) { console.error(e); showErr('Delete failed'); }
+    }
+
+    let _prevContent = null;
+    async function openBin() {
+      if (!_prevContent && $items) _prevContent = $items.innerHTML;
+      showLoader(true); showEmpty(false); showItems(false);
+      try {
+        const host = document.querySelector('.crs-wrap');
+        const params = new URLSearchParams();
+        const ctx = readContext();
+        if (ctx && ctx.batch_id) params.set('batch_uuid', ctx.batch_id);
+        if (ctx && ctx.module_id) params.set('module_uuid', ctx.module_id);
+        const items = await fetchDeletedMaterials(params.toString());
+        const tableEl = buildBinTable(items || []);
+        if ($items) { $items.innerHTML = ''; $items.appendChild(tableEl); showItems(true); }
+
+        const back = document.getElementById('bin-back');
+        if (back) back.addEventListener('click', (e)=>{ e.preventDefault(); restorePreviousList(); });
+
+        const refresh = document.getElementById('bin-refresh');
+        if (refresh) refresh.addEventListener('click', (e)=>{ e.preventDefault(); openBin(); });
+      } catch (e) {
+        console.error(e);
+        if ($items) $items.innerHTML = '<div class="sm-empty p-3">Unable to load bin. Try refreshing the page.</div>';
+        showItems(true);
+        showErr('Failed to load bin');
+      } finally { showLoader(false); }
+    }
+
+    function restorePreviousList() {
+      if ($items) {
+        if (_prevContent !== null) {
+          $items.innerHTML = _prevContent;
+          _prevContent = null;
+        } else {
+          if (typeof loadMaterials === 'function') loadMaterials();
+        }
+      }
+    }
+
+    $btnBin.addEventListener('click', (ev) => { ev.preventDefault(); openBin(); });
+  })();
+
+  // initial UI and data load
+  updateContextDisplay();
+  loadMaterials();
+})();
+</script>
