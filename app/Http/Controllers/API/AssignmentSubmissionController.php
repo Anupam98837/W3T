@@ -2773,4 +2773,155 @@ public function bulkGradeSubmissions(Request $r)
         return response()->json(['error' => 'Failed to process bulk grading'], 500);
     }
 }
+/**
+ * Get student's marks for all attempts of a specific assignment
+ */
+public function getMyAssignmentMarks(Request $r, string $assignmentKey)
+{
+    $actor = $this->actor($r);
+    if (empty($actor['role']) || $actor['role'] !== 'student') {
+        return response()->json(['error' => 'Unauthorized'], 403);
+    }
+    $studentId = (int) $actor['id'];
+
+    // Resolve assignment by key (id, uuid, or slug)
+    $assignment = $this->resolveAssignment($assignmentKey);
+    if (!$assignment) {
+        return response()->json(['error' => 'Assignment not found'], 404);
+    }
+
+    // Get all submissions for this student and assignment, ordered by attempt number
+    $submissions = DB::table('assignment_submissions')
+        ->where('assignment_id', $assignment->id)
+        ->where('student_id', $studentId)
+        ->whereNull('deleted_at')
+        ->orderBy('attempt_no', 'asc')
+        ->get();
+
+    // Process submissions to include marks and penalty details
+    $attempts = $submissions->map(function($submission) {
+        // Decode metadata for grading details
+        $gradingDetails = [];
+        $flags = [];
+        
+        if (!empty($submission->metadata)) {
+            try {
+                $metadata = json_decode($submission->metadata, true);
+                $gradingDetails = $metadata['grading_details'] ?? [];
+            } catch (\Throwable $e) {
+                $gradingDetails = [];
+            }
+        }
+
+        if (!empty($submission->flags_json)) {
+            try {
+                $flags = json_decode($submission->flags_json, true);
+            } catch (\Throwable $e) {
+                $flags = [];
+            }
+        }
+
+        // Calculate late days if applicable
+        $lateDays = 0;
+        if ($submission->late_minutes > 0) {
+            $lateDays = ceil($submission->late_minutes / (24 * 60)); // Convert minutes to days (rounded up)
+        }
+
+        return [
+            'attempt_no' => $submission->attempt_no,
+            'submission_id' => $submission->id,
+            'submission_uuid' => $submission->uuid,
+            'status' => $submission->status,
+            'submitted_at' => $submission->submitted_at,
+            'submitted_at_formatted' => $submission->submitted_at ? 
+                Carbon::parse($submission->submitted_at)->format('M j, Y g:i A') : null,
+            
+            // Marks information
+            'total_marks' => $submission->total_marks,
+            'grade_letter' => $submission->grade_letter,
+            'graded_at' => $submission->graded_at,
+            'graded_at_formatted' => $submission->graded_at ? 
+                Carbon::parse($submission->graded_at)->format('M j, Y g:i A') : null,
+            'grader_note' => $submission->grader_note,
+            'feedback_html' => $submission->feedback_html,
+            'feedback_visible' => (bool)$submission->feedback_visible,
+            
+            // Late submission details
+            'is_late' => (bool)$submission->is_late,
+            'late_minutes' => $submission->late_minutes,
+            'late_days' => $lateDays,
+            
+            // Penalty information
+            'penalty_details' => [
+                'penalty_applied' => !empty($gradingDetails['late_penalty_applied']) && $gradingDetails['late_penalty_applied'],
+                'penalty_amount' => $gradingDetails['late_penalty_amount'] ?? 0,
+                'penalty_percentage' => $gradingDetails['late_penalty_percentage'] ?? 0,
+                'given_marks' => $gradingDetails['given_marks'] ?? $submission->total_marks,
+                'final_marks_after_penalty' => $gradingDetails['final_marks_after_penalty'] ?? $submission->total_marks,
+            ],
+            
+            // Submission content (optional - you might want to exclude large fields)
+            'has_content_text' => !empty($submission->content_text),
+            'has_content_html' => !empty($submission->content_html),
+            'link_url' => $submission->link_url,
+            'repo_url' => $submission->repo_url,
+            
+            // Attachments info (without full details to keep response small)
+            'attachments_count' => 0, // We'll calculate this below
+        ];
+    });
+
+    // Count attachments for each submission
+    foreach ($submissions as $index => $submission) {
+        if (!empty($submission->attachments_json)) {
+            try {
+                $attachments = json_decode($submission->attachments_json, true);
+                if (is_array($attachments)) {
+                    $attempts[$index]['attachments_count'] = count($attachments);
+                }
+            } catch (\Throwable $e) {
+                // Keep count as 0
+            }
+        }
+    }
+
+    // Get assignment details
+    $assignmentDetails = [
+        'id' => $assignment->id,
+        'uuid' => $assignment->uuid ?? null,
+        'title' => $assignment->title ?? 'Unknown Assignment',
+        'description' => $assignment->description ?? null,
+        'due_at' => $assignment->due_at,
+        'due_at_formatted' => $assignment->due_at ? 
+            Carbon::parse($assignment->due_at)->format('M j, Y g:i A') : null,
+        'max_marks' => $assignment->max_marks ?? $assignment->total_marks ?? null,
+        'attempts_allowed' => $assignment->attempts_allowed ?? $assignment->max_attempts ?? null,
+    ];
+
+    // Calculate statistics
+    $totalAttempts = $attempts->count();
+    $gradedAttempts = $attempts->where('total_marks', '!==', null)->count();
+    $latestAttempt = $attempts->last();
+    $bestAttempt = $attempts->where('total_marks', '!==', null)
+        ->sortByDesc('total_marks')
+        ->first();
+
+    $statistics = [
+        'total_attempts' => $totalAttempts,
+        'graded_attempts' => $gradedAttempts,
+        'latest_attempt_no' => $latestAttempt['attempt_no'] ?? null,
+        'best_marks' => $bestAttempt['total_marks'] ?? null,
+        'best_attempt_no' => $bestAttempt['attempt_no'] ?? null,
+        'has_late_submissions' => $attempts->where('is_late', true)->isNotEmpty(),
+    ];
+
+    return response()->json([
+        'message' => 'Assignment marks fetched successfully',
+        'data' => [
+            'assignment' => $assignmentDetails,
+            'statistics' => $statistics,
+            'attempts' => $attempts->values(), // Ensure sequential indexing
+        ],
+    ], 200);
+}
 }

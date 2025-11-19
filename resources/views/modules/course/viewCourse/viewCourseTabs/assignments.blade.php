@@ -9,7 +9,7 @@
 .crs-wrap{ }
 .as-list{max-width:1100px;margin:18px auto}
 .as-card{border-radius:12px;padding:18px}
-.as-item{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px;border-radius:10px;border:1px solid var(--line-strong);background:var(--surface-2,#fff)}
+.as-item{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px;border-radius:10px;border:1px solid var(--line-strong)}
 .as-item+.as-item{margin-top:10px}
 .as-item .left{display:flex;gap:12px;align-items:center}
 .as-item .meta{display:flex;flex-direction:column;gap:4px}
@@ -247,11 +247,11 @@ body.role-privileged #submitAssignSend {
 
     <div class="panel-head w-100 mt-3">
       <div class="container-fluid px-0">
-        <div class="p-3 border rounded-3" style="background:white;">
+        <div class="p-3 border rounded-3">
           <div class="row g-3 align-items-center">
             <div class="col-md-5 col-lg-4">
               <div class="input-group">
-                <span class="input-group-text bg-white">
+                <span class="input-group-text">
                   <i class="fa fa-search text-muted"></i>
                 </span>
                 <input id="as-search" type="text" class="form-control" placeholder="Search assignments...">
@@ -524,7 +524,7 @@ body.role-privileged #submitAssignSend {
             <label class="form-label">Submit Instructions</label>
             <div id="submit_instructions"
               class="p-3"
-              style="border:1px dashed var(--line-strong); border-radius:12px; background:var(--surface-2,#faf5ff); min-height:80px; color:var(--muted-color);">
+              style="border:1px dashed var(--line-strong); border-radius:12px;min-height:80px; color:var(--muted-color);">
               <div class="tiny text-muted">No instructions provided.</div>
             </div>
           </div>
@@ -721,12 +721,12 @@ if (Array.isArray(row.attachments) && row.attachments.length > 0) {
     if(ddBtn&&dd){ddBtn.addEventListener('click',ev=>{ev.stopPropagation();const isOpen=dd.classList.contains('show');closeAllDropdowns();if(!isOpen){dd.classList.add('show');dd.setAttribute('aria-hidden','false');ddBtn.setAttribute('aria-expanded','true');}});}
     const viewBtn=moreWrap.querySelector('[data-action="view"]');if(viewBtn)viewBtn.addEventListener('click',ev=>{ev.preventDefault();ev.stopPropagation();openDetailsModal(row);closeAllDropdowns();});
 const editBtn = moreWrap.querySelector('[data-action="edit"]');
-// show Submit option only to students (not admins/instructors)
-// show Submit option to student, admin, and instructor
 if (typeof role !== 'undefined') {
   try {
     const normRole = String(role).toLowerCase().replace(/[-\s]/g, '_');
     const canShowSubmit = ['student', 'admin', 'instructor', 'super_admin', 'superadmin'].includes(normRole);
+
+    // --- Submissions link for permitted roles ---
     if (canShowSubmit) {
       const a = document.createElement('a');
       a.href = '#';
@@ -739,7 +739,8 @@ if (typeof role !== 'undefined') {
         dd.appendChild(a);
       }
       a.addEventListener('click', (ev) => {
-        ev.preventDefault(); ev.stopPropagation();
+        ev.preventDefault();
+        ev.stopPropagation();
         closeAllDropdowns();
         if (typeof openSubmitModal === 'function') {
           openSubmitModal(row);
@@ -748,9 +749,283 @@ if (typeof role !== 'undefined') {
         }
       });
     }
-  } catch (ex) { console.warn('attach submit action failed', ex); }
-}
 
+    // --- View Marks (student only) ---
+    if (normRole === 'student') {
+      const vm = document.createElement('a');
+      vm.href = '#';
+      vm.setAttribute('data-action', 'view-marks');
+      vm.innerHTML = `<i class="fa fa-star as-icon-black"></i><span>View Marks</span>`;
+      const divider2 = dd.querySelector('.divider');
+      if (divider2) divider2.insertAdjacentElement('beforebegin', vm);
+      else dd.appendChild(vm);
+
+      vm.addEventListener('click', async (ev) => {
+        ev.preventDefault();
+        ev.stopPropagation();
+        closeAllDropdowns();
+
+        // Helper function to format marks data
+        const formatMarksData = (marksData) => {
+          if (!marksData) return '<p>No marks data available.</p>';
+          
+          // Handle array of attempts
+          if (Array.isArray(marksData)) {
+            return `
+              <div class="marks-container" style="max-height: 400px; overflow-y: auto;">
+                ${marksData.map((attempt, index) => `
+                  <div class="attempt-card" style="border: 1px solid #ddd; border-radius: 8px; padding: 15px; margin-bottom: 15px; background: #f9f9f9;">
+                    <h4 style="margin: 0 0 10px 0; color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 5px;">
+                      Attempt ${index + 1}
+                    </h4>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+                      ${attempt.score !== undefined ? `
+                        <div><strong>Score:</strong></div>
+                        <div style="font-weight: bold; color: #27ae60;">${attempt.score}</div>
+                      ` : ''}
+                      ${attempt.total_marks !== undefined ? `
+                        <div><strong>Total Marks:</strong></div>
+                        <div>${attempt.total_marks}</div>
+                      ` : ''}
+                      ${attempt.percentage !== undefined ? `
+                        <div><strong>Percentage:</strong></div>
+                        <div style="font-weight: bold; color: #e67e22;">${attempt.percentage}%</div>
+                      ` : ''}
+                      ${attempt.grade ? `
+                        <div><strong>Grade:</strong></div>
+                        <div style="font-weight: bold; color: #9b59b6;">${attempt.grade}</div>
+                      ` : ''}
+                      ${attempt.feedback ? `
+                        <div><strong>Feedback:</strong></div>
+                        <div style="font-style: italic; color: #7f8c8d;">${attempt.feedback}</div>
+                      ` : ''}
+                      ${attempt.graded_by ? `
+                        <div><strong>Graded By:</strong></div>
+                        <div>${attempt.graded_by}</div>
+                      ` : ''}
+                      ${attempt.graded_at ? `
+                        <div><strong>Graded At:</strong></div>
+                        <div>${new Date(attempt.graded_at).toLocaleString()}</div>
+                      ` : ''}
+                      ${attempt.submitted_at ? `
+                        <div><strong>Submitted At:</strong></div>
+                        <div>${new Date(attempt.submitted_at).toLocaleString()}</div>
+                      ` : ''}
+                    </div>
+                  </div>
+                `).join('')}
+              </div>
+            `;
+          }
+          
+          // Handle single attempt object
+          else if (typeof marksData === 'object') {
+            return `
+              <div class="marks-container" style="max-width: 500px;">
+                <div class="attempt-card" style="border: 1px solid #ddd; border-radius: 8px; padding: 15px; background: #f9f9f9;">
+                  <h4 style="margin: 0 0 15px 0; color: #2c3e50; text-align: center;">Marks Details</h4>
+                  <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                    ${marksData.score !== undefined ? `
+                      <div><strong>Score:</strong></div>
+                      <div style="font-weight: bold; color: #27ae60; font-size: 1.1em;">${marksData.score}</div>
+                    ` : ''}
+                    ${marksData.total_marks !== undefined ? `
+                      <div><strong>Total Marks:</strong></div>
+                      <div>${marksData.total_marks}</div>
+                    ` : ''}
+                    ${marksData.percentage !== undefined ? `
+                      <div><strong>Percentage:</strong></div>
+                      <div style="font-weight: bold; color: #e67e22; font-size: 1.1em;">${marksData.percentage}%</div>
+                    ` : ''}
+                    ${marksData.grade ? `
+                      <div><strong>Grade:</strong></div>
+                      <div style="font-weight: bold; color: #9b59b6; font-size: 1.1em;">${marksData.grade}</div>
+                    ` : ''}
+                    ${marksData.feedback ? `
+                      <div><strong>Feedback:</strong></div>
+                      <div style="grid-column: 1 / -1; font-style: italic; color: #7f8c8d; padding: 8px; background: white; border-radius: 4px; margin-top: 5px;">
+                        ${marksData.feedback}
+                      </div>
+                    ` : ''}
+                    ${marksData.graded_by ? `
+                      <div><strong>Graded By:</strong></div>
+                      <div>${marksData.graded_by}</div>
+                    ` : ''}
+                    ${marksData.graded_at ? `
+                      <div><strong>Graded At:</strong></div>
+                      <div>${new Date(marksData.graded_at).toLocaleString()}</div>
+                    ` : ''}
+                  </div>
+                </div>
+              </div>
+            `;
+          }
+          
+          // Fallback for unexpected format
+          return `<pre style="text-align:left; white-space: pre-wrap;">${JSON.stringify(marksData, null, 2)}</pre>`;
+        };
+
+        // Helper: present marks in formatted way
+        function presentMarks(marksData) {
+          if (typeof openMarksModal === 'function') {
+            return openMarksModal(marksData, { assignment: row });
+          }
+          
+          return Swal.fire({
+            title: 'Submission Marks',
+            html: formatMarksData(marksData),
+            width: 600,
+            showCloseButton: true,
+            showConfirmButton: true,
+            confirmButtonText: 'OK',
+            customClass: {
+              container: 'marks-swal-container'
+            }
+          });
+        }
+        
+        // 1) If marks embedded on row already — show immediately
+        const embeddedMarks =
+          row.marks ||
+          row.my_marks ||
+          row.student_marks ||
+          (row.my_submission && row.my_submission.marks) ||
+          (row.submission && row.submission.marks) ||
+          null;
+
+        if (embeddedMarks) {
+          if (typeof openMarksModal === 'function') {
+            return openMarksModal(embeddedMarks, { assignment: row });
+          }
+          return presentMarks(embeddedMarks);
+        }
+
+        // 2) Try assignment-scoped route first: /api/assignments/{id}/student/marks
+        const assignId = row.id || row.uuid || row.assignment_id || row.key || row.slug || null;
+        if (assignId) {
+          try {
+            const url = `/api/assignments/${encodeURIComponent(assignId)}/student/marks`;
+            const res = await apiFetch(url, { method: 'GET' });
+            if (res && res.ok) {
+              const j = await res.json().catch(() => null);
+              const marksData = j && (j.data || j.marks) ? (j.data || j.marks) : j;
+              if (marksData) {
+                return presentMarks(marksData);
+              }
+              // if OK but empty, fall through to discovery
+            }
+          } catch (e) {
+            console.warn('assignment-scoped marks route failed', e);
+            // fall through
+          }
+        }
+
+        // 3) Try to find a submission id on the row
+        let submissionId =
+          row.submission_id ||
+          (row.submission && (row.submission.id || row.submission.uuid)) ||
+          (row.my_submission && (row.my_submission.id || row.my_submission.uuid)) ||
+          (row.latest_submission && (row.latest_submission.id || row.latest_submission.uuid)) ||
+          (row.user_submission && (row.user_submission.id || row.user_submission.uuid)) ||
+          (row.submissions && Array.isArray(row.submissions) && row.submissions[0] && (row.submissions[0].id || row.submissions[0].uuid)) ||
+          null;
+
+        // helper: discover student's submission via likely endpoints
+        async function discoverSubmissionFromApi(assignIdOrKey) {
+          if (!assignIdOrKey) return null;
+          const candidates = [
+            `/api/assignments/${encodeURIComponent(assignIdOrKey)}/my-submission`,
+            `/assignments/${encodeURIComponent(assignIdOrKey)}/my-submission`,
+            `/api/assignments/${encodeURIComponent(assignIdOrKey)}/submissions?mine=1`,
+            `/api/assignments/${encodeURIComponent(assignIdOrKey)}/submissions?me=1`,
+            `/api/submissions?assignment_id=${encodeURIComponent(assignIdOrKey)}&me=1`,
+            `/api/submissions?assignment_key=${encodeURIComponent(assignIdOrKey)}&me=1`,
+            `/api/submissions?assignment_id=${encodeURIComponent(assignIdOrKey)}`
+          ];
+          for (const p of candidates) {
+            try {
+              const r = await apiFetch(p, { method: 'GET' });
+              if (!r || !r.ok) continue;
+              const j = await r.json().catch(() => null);
+              if (!j) continue;
+              const candidate = j && (j.data || j.submission || j.submissions || j.items) ? (j.data || j.submission || j.submissions || j.items) : j;
+              if (!candidate) continue;
+              if (Array.isArray(candidate) && candidate.length) {
+                const s = candidate[0];
+                const id = s && (s.id || s.uuid);
+                if (id) return id;
+              } else if (typeof candidate === 'object') {
+                const id = candidate.id || candidate.uuid || (candidate.submission && (candidate.submission.id || candidate.submission.uuid));
+                if (id) return id;
+              }
+            } catch (e) {
+              // ignore and continue
+              continue;
+            }
+          }
+          return null;
+        }
+
+        // 4) If no submissionId found, try discovery using assignment id/title
+        if (!submissionId) {
+          const assignGuess = row.id || row.uuid || row.assignment_id || row.key || row.slug || row.title || null;
+          if (assignGuess) {
+            try {
+              submissionId = await discoverSubmissionFromApi(assignGuess);
+            } catch (e) {
+              console.warn('submission discovery failed', e);
+            }
+          }
+        }
+
+        if (!submissionId) {
+          showErr('No submission found for this assignment. Submit first to view marks.');
+          return;
+        }
+
+        // 5) Fetch marks from submission-scoped endpoints as a final fallback
+        const markPaths = [
+          `/api/submissions/${encodeURIComponent(submissionId)}/marks`,
+          `/submissions/${encodeURIComponent(submissionId)}/marks`
+        ];
+        try {
+          let res = null;
+          let json = null;
+          for (const p of markPaths) {
+            try {
+              res = await apiFetch(p, { method: 'GET' });
+              if (res && res.ok) {
+                json = await res.json().catch(() => null);
+                break;
+              }
+            } catch (e) {
+              // try next
+              continue;
+            }
+          }
+
+          if (!res || !res.ok || !json) {
+            showErr('Could not fetch marks (server error).');
+            return;
+          }
+
+          const marksData = (json && (json.data || json.marks)) ? (json.data || json.marks) : json;
+          if (!marksData) {
+            showErr('No marks data returned.');
+            return;
+          }
+
+          presentMarks(marksData);
+        } catch (err) {
+          console.error('View marks failed', err);
+          showErr('Failed to load marks.');
+        }
+      });
+    } // end if student
+  } catch (ex) {
+    console.warn('attach submit/view-marks action failed', ex);
+  }
+} // end if typeof role
 if (editBtn) {
   editBtn.addEventListener('click', async (ev) => {
     ev.preventDefault();
@@ -804,7 +1079,7 @@ if (viewInstBtn) {
 
     return wrapper;
   }
-
+  
   function renderList(items){if(!$items)return;$items.innerHTML='';if(!items||items.length===0){showItems(false);showEmpty(true);return;}showEmpty(false);showItems(true);items.forEach(it=>$items.appendChild(createItemRow(it)));}
   function openInstructionsModal(row) {
   if (!detailsModal || !detailsBody) return;
@@ -1086,6 +1361,10 @@ wrap.addEventListener('contextmenu', (e) => {
   const cancelBtn = document.getElementById('submitAssignCancel');
   const closeBtn  = modalEl.querySelector('.btn-close, #submitAssignClose');
   const anyDismiss = modalEl.querySelectorAll('[data-bs-dismiss="modal"], .modal-close');
+  // module-level helpers
+  let _openModalController = null;
+  const _assignmentInfoCache = new Map(); // key -> info
+  const STUDENT_PREVIEW_COUNT = 5;
 
   let bsModal = null;
   if(window.bootstrap && typeof bootstrap.Modal === 'function') bsModal = bootstrap.Modal.getOrCreateInstance(modalEl,{backdrop:'static'});
@@ -1332,56 +1611,118 @@ function setFileInputVisibility(show) {
 }
 
   // Render assignment info (allowed types + attempts)
-  function renderAssignmentInfo(info) {
-    if (!info) {
-      if (noteEl) { const c = noteEl.querySelector('#submit_note_content'); if(c) c.textContent = 'Unable to load submission info'; }
-      if (attemptsEl) { const c = attemptsEl.querySelector('#submit_attempts_content'); if(c) c.textContent = 'Unable to load attempts info'; }
-      submitBtn.disabled = false;
-      setFileInputVisibility(true);
-      return;
-    }
+// Replace your existing renderAssignmentInfo with this function
+function renderAssignmentInfo(info) {
+  // defensive defaults
+  const noteDefault = 'Unable to load submission info';
+  const attemptsDefault = 'Unable to load attempts info';
 
-    const noteContent = info.allowed_display ||
-      (info.allowed_submission_types && info.allowed_submission_types.length > 0 ? info.allowed_submission_types.join(', ') : 'No restrictions');
-
+  if (!info) {
     if (noteEl) {
       const c = noteEl.querySelector('#submit_note_content');
-      if (c) c.textContent = `Allowed submission types: ${noteContent}`;
+      if (c) c.textContent = noteDefault;
     }
+    if (attemptsEl) {
+      const c = attemptsEl.querySelector('#submit_attempts_content');
+      if (c) c.textContent = attemptsDefault;
+      attemptsEl.className = 'alert alert-info mb-3';
+    }
+    submitBtn.disabled = false;
+    setFileInputVisibility(true);
+    return;
+  }
 
+  // Note content (allowed types)
+  const noteContent = info.allowed_display ||
+    (info.allowed_submission_types && info.allowed_submission_types.length > 0
+      ? info.allowed_submission_types.join(', ')
+      : 'No restrictions');
+
+  if (noteEl) {
+    const c = noteEl.querySelector('#submit_note_content');
+    if (c) c.textContent = `Allowed submission types: ${noteContent}`;
+  }
+
+  // ---------- Different presentation for students vs admin/instructor ----------
+  if (isPrivileged) {
+    // Admin / Instructor view: show total attempts allowed and attempts taken (if available)
     let attemptsText = '';
     if (info.attempts_allowed !== null && info.attempts_allowed !== undefined) {
-      // attemptsText = `${info.attempts_taken || 0} of ${info.attempts_allowed} attempts used. `;
-      if (info.attempts_left !== null && info.attempts_left !== undefined) {
-        attemptsText += `${info.attempts_left} attempts remaining.`;
-      } else {
-        attemptsText += 'Unlimited attempts.';
+      attemptsText = `Total attempts allowed: ${info.attempts_allowed}`;
+      // also show attempts taken when available
+      if (info.attempts_taken !== null && info.attempts_taken !== undefined) {
+        // attemptsText += ` • ${info.attempts_taken} attempts used`;
       }
     } else {
-      attemptsText = `${info.attempts_taken || 0} submissions made. Unlimited attempts allowed.`;
+      // no limit
+      attemptsText = 'Total attempts allowed: Unlimited';
+      if (info.attempts_taken !== null && info.attempts_taken !== undefined) {
+        attemptsText += ` • ${info.attempts_taken} attempts used`;
+      }
     }
 
     if (attemptsEl) {
       const c = attemptsEl.querySelector('#submit_attempts_content');
       if (c) c.textContent = attemptsText;
+      // admin view should look informational
+      attemptsEl.className = 'alert alert-info mb-3';
     }
 
-    if (info.attempts_left === 0) {
-      if (attemptsEl) attemptsEl.className = 'alert alert-danger mb-3';
-      submitBtn.disabled = true;
-      submitBtn.innerHTML = '<i class="fa fa-ban me-1"></i> No Attempts Left';
-      setFileInputVisibility(false);
+    // Admins shouldn't be blocked by attempt limits in this UI; enable submit UI but hide file inputs if configured elsewhere
+    submitBtn.disabled = false;
+    submitBtn.innerHTML = '<i class="fa fa-paper-plane me-1"></i> Submit';
+    // note: do not change file input visibility here; callers already toggle it based on role
+    return;
+  }
+
+  // ---------- Student view (default) ----------
+  // Determine attempts remaining if available
+  let attemptsText = '';
+  if (info.attempts_allowed !== null && info.attempts_allowed !== undefined) {
+    if (info.attempts_left !== null && info.attempts_left !== undefined) {
+      attemptsText = `${info.attempts_left} attempts remaining.`;
+    } else if (info.attempts_taken !== null && info.attempts_taken !== undefined) {
+      // attempts_allowed present but attempts_left missing — compute if possible
+      const left = typeof info.attempts_allowed === 'number' && typeof info.attempts_taken === 'number'
+        ? Math.max(0, info.attempts_allowed - info.attempts_taken)
+        : null;
+      attemptsText = (left === null) ? 'Attempts information available.' : `${left} attempts remaining.`;
     } else {
-      if (info.attempts_left !== null && info.attempts_left !== undefined && info.attempts_left < 3) {
-        if (attemptsEl) attemptsEl.className = 'alert alert-warning mb-3';
-      } else {
-        if (attemptsEl) attemptsEl.className = 'alert alert-info mb-3';
-      }
-      submitBtn.disabled = false;
-      submitBtn.innerHTML = '<i class="fa fa-paper-plane me-1"></i> Submissions';
-      setFileInputVisibility(true);
+      attemptsText = 'Attempts information available.';
+    }
+  } else {
+    // unlimited attempts
+    if (info.attempts_taken !== null && info.attempts_taken !== undefined) {
+      attemptsText = `${info.attempts_taken} submissions made. Unlimited attempts allowed.`;
+    } else {
+      attemptsText = 'Unlimited attempts allowed.';
     }
   }
+
+  if (attemptsEl) {
+    const c = attemptsEl.querySelector('#submit_attempts_content');
+    if (c) c.textContent = attemptsText;
+    // highlight when only a few attempts are left
+    if (info.attempts_left !== null && info.attempts_left !== undefined && info.attempts_left === 0) {
+      attemptsEl.className = 'alert alert-danger mb-3';
+    } else if (info.attempts_left !== null && info.attempts_left !== undefined && info.attempts_left < 3) {
+      attemptsEl.className = 'alert alert-warning mb-3';
+    } else {
+      attemptsEl.className = 'alert alert-info mb-3';
+    }
+  }
+
+  // enforce UI behavior for zero attempts left for students
+  if (info.attempts_left === 0) {
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<i class="fa fa-ban me-1"></i> No Attempts Left';
+    setFileInputVisibility(false);
+  } else {
+    submitBtn.disabled = false;
+    submitBtn.innerHTML = '<i class="fa fa-paper-plane me-1"></i> Submit';
+    setFileInputVisibility(true);
+  }
+}
 
   // Render existing submissions for student view (unchanged)
   function renderExistingSubmissions(submissions) {

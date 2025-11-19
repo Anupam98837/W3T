@@ -5,8 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Assignment — Student Documents</title>
   <!-- Bootstrap 5 CSS -->
-<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -14,14 +13,20 @@
      <!-- Link to your main.css file -->
 <link rel="stylesheet" href="/assets/css/common/main.css">
   <link rel="stylesheet" href="/assets/css/common/extraStylings.css">
+
   <style>
-        body {
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
       font-family: var(--font-sans);
       background: var(--bg-body);
       color: var(--text-color);
       margin: 0;
       -webkit-font-smoothing: antialiased;
       -moz-osx-font-smoothing: grayscale;
+      line-height: 1.5;
     }
 
     .page-wrap {
@@ -61,6 +66,7 @@
       padding: 18px;
       border: 1px solid var(--line-strong);
       box-shadow: var(--shadow-1);
+      /* height: fit-content; */
     }
 
     .sidebar-header {
@@ -168,26 +174,35 @@
       font-weight: 700;
       color: var(--primary-color);
       font-family: var(--font-head);
+      flex-shrink: 0;
     }
 
     .student-info {
       flex: 1;
+      min-width: 0; /* Allow text truncation */
     }
 
     .student-name {
       font-weight: 600;
       color: var(--ink);
       margin-bottom: 2px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
 
     .student-email {
       color: var(--muted-color);
       font-size: var(--fs-13);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
 
     .submission-count {
       color: var(--muted-color);
       font-size: var(--fs-13);
+      flex-shrink: 0;
     }
 
     .content {
@@ -201,7 +216,7 @@
     .student-detail-header {
       display: flex;
       justify-content: space-between;
-      align-items: center;
+      align-items: flex-start;
       margin-bottom: 18px;
       padding-bottom: 12px;
       border-bottom: 1px solid var(--line-soft);
@@ -212,6 +227,7 @@
       font-weight: 700;
       color: var(--ink);
       margin: 0;
+      font-size: var(--fs-20);
     }
 
     .student-email-large {
@@ -224,6 +240,8 @@
       display: flex;
       align-items: center;
       gap: 12px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
     }
 
     .submission-badge {
@@ -237,6 +255,7 @@
       align-items: center;
       gap: 6px;
       box-shadow: 0 2px 8px rgba(149,30,170,0.2);
+      flex-shrink: 0;
     }
 
     /* NEW: Give Marks Button */
@@ -254,6 +273,7 @@
       align-items: center;
       gap: 6px;
       box-shadow: 0 2px 8px rgba(39, 174, 96, 0.2);
+      flex-shrink: 0;
     }
 
     .give-marks-btn:hover {
@@ -340,6 +360,7 @@
       align-items: center;
       gap: 16px;
       flex: 1;
+      min-width: 0; /* Allow text truncation */
     }
 
     .doc-icon {
@@ -376,6 +397,7 @@
 
     .doc-content {
       flex: 1;
+      min-width: 0; /* Allow text truncation */
     }
 
     .doc-name {
@@ -467,7 +489,7 @@
       width: 100%;
       height: 100%;
       max-width: 1400px;
-      max-height: 92vh;
+      /* max-height: 92vh; */
       background: var(--surface);
       border-radius: var(--radius-1);
       overflow: hidden;
@@ -680,14 +702,16 @@
       border-radius: var(--radius-1);
       margin-bottom: 20px;
     }
-.submission-item {
-  padding: 12px;
-  border-radius: 10px;
-  border-bottom: 1px solid var(--line-soft);
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
+
+    .submission-item {
+      padding: 12px;
+      border-radius: 10px;
+      border-bottom: 1px solid var(--line-soft);
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
     .submission-item:last-child {
       border-bottom: none;
     }
@@ -822,70 +846,182 @@
       cursor: not-allowed;
       transform: none !important;
     }
+
     /* Fix: consistent sizing + alignment for two-column grade form */
-.grade-form-row {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 14px;
-  align-items: start;     /* ensure both columns align at top */
-}
+    .grade-form-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+      align-items: start;     /* ensure both columns align at top */
+    }
 
-/* ensure form groups stretch to full column height and align children */
-.grade-form-row .grade-form-group {
-  display: flex;
-  flex-direction: column;
-  justify-content: flex-start;
-  gap: 8px;
-}
+    /* ensure form groups stretch to full column height and align children */
+    .grade-form-row .grade-form-group {
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-start;
+      gap: 8px;
+    }
 
-/* Unified box model so width/height calculations are predictable */
-.grade-form-input,
-select.grade-form-input,
-.grade-form-input[type="number"],
-.grade-form-input[type="text"] {
-  box-sizing: border-box; /* <- important */
-  width: 100%;
-  min-height: 44px;       /* fixed visual height for inputs */
-  line-height: 1.25;
-  padding: 10px 12px;
-  border-radius: 10px;
-  border: 1px solid var(--line-strong);
-  background: var(--surface);
-  font-size: 14px;
-  vertical-align: middle;
-}
+    /* Unified box model so width/height calculations are predictable */
+    .grade-form-input,
+    select.grade-form-input,
+    .grade-form-input[type="number"],
+    .grade-form-input[type="text"] {
+      box-sizing: border-box; /* <- important */
+      width: 100%;
+      min-height: 44px;       /* fixed visual height for inputs */
+      line-height: 1.25;
+      padding: 10px 12px;
+      border-radius: 10px;
+      border: 1px solid var(--line-strong);
+      background: var(--surface);
+      font-size: 14px;
+      vertical-align: middle;
+    }
 
-/* textarea stays taller */
-.grade-form-textarea {
-  box-sizing: border-box;
-  min-height: 92px;
-  padding: 12px;
-  border-radius: 10px;
-  resize: vertical;
-}
+    /* textarea stays taller */
+    .grade-form-textarea {
+      box-sizing: border-box;
+      min-height: 92px;
+      padding: 12px;
+      border-radius: 10px;
+      resize: vertical;
+    }
 
-/* ensure select inherits same height & alignment */
-select.grade-form-input { min-height: 44px; }
+    /* ensure select inherits same height & alignment */
+    select.grade-form-input { min-height: 44px; }
 
-/* small screens: stack into single column */
-@media (max-width: 680px) {
-  .grade-form-row {
-    grid-template-columns: 1fr;
-  }
-}
+    /* Back pill (matches provided image) */
+    .back-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 12px;
+      border-radius: 10px;
+      border: 2px solid rgba(149,30,170,0.95);
+      background: transparent;
+      color: rgba(149,30,170,0.95);
+      font-weight: 600;
+      font-size: var(--fs-14);
+      line-height: 1;
+      cursor: pointer;
+      min-height: 20px;
+      transition: background 160ms ease, transform 120ms ease, box-shadow 120ms ease;
+    }
 
-    /* Responsive */
+    /* arrow icon sizing */
+    .back-pill .back-icon {
+      font-size: var(--fs-14);
+      display: inline-block;
+      margin-left: -2px; /* tighten space to match image */
+    }
+
+    /* hover / focus */
+    .back-pill:hover {
+      background: color-mix(in oklab, rgba(149,30,170,0.12) 12%, transparent);
+      transform: translateY(-1px);
+      box-shadow: 0 6px 18px rgba(149,30,170,0.06);
+    }
+
+    .back-pill:active { transform: translateY(0); }
+    .back-pill:focus { outline: 0; box-shadow: 0 0 0 4px rgba(149,30,170,0.08); border-color: rgba(149,30,170,1); }
+
+    /* base pill (use on #assignment_status or .due-date) */
+    #assignment_status {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 10px;
+      border-radius: 999px;
+      font-weight: 700;
+      font-size: 0.85rem;
+      line-height: 1;
+      color: var(--muted-color);      /* default text color (overridden by variants) */
+      background: transparent;        /* default bg */
+      border: 1px solid rgba(0,0,0,0.06);
+      box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+      text-transform: capitalize;
+      min-width: 64px;
+      justify-content: center;
+      white-space: nowrap;
+    }
+
+    /* variant colors — add one of these classes to the element */
+    #assignment_status.status-published,
+    .due-date.status-published {
+      background: linear-gradient(90deg,#6f42c1,#9b59ff);
+      color: #fff;
+      border-color: rgba(149,30,170,0.12);
+    }
+
+    #assignment_status.status-draft,
+    .due-date.status-draft {
+      background: linear-gradient(90deg,#6c757d,#495057);
+      color: #f3e7e7ff;
+      border-color: rgba(0,0,0,0.06);
+    }
+
+    #assignment_status.status-due-soon,
+    .due-date.status-due-soon {
+      background: linear-gradient(90deg,#ffb84d,#ff8a00);
+      color: #111;
+      border-color: rgba(255,138,0,0.12);
+    }
+
+    #assignment_status.status-overdue,
+    .due-date.status-overdue {
+      background: linear-gradient(90deg,#ff6b6b,#ff4757);
+      color: #fff;
+      border-color: rgba(255,71,87,0.12);
+    }
+
+    #assignment_status.status-closed {
+      background: linear-gradient(90deg,#7f8fa6,#4b5860);
+      color: #fff;
+      border-color: rgba(0,0,0,0.06);
+    }
+
+    /* ============================================== */
+    /* RESPONSIVE DESIGN - MEDIA QUERIES */
+    /* ============================================== */
+
+    /* Large tablets and small desktops */
+    @media (max-width: 1024px) {
+      .page-wrap {
+        padding: 16px;
+      }
+      
+      .container {
+        gap: 16px;
+      }
+      
+      .sidebar, .content {
+        padding: 16px;
+      }
+    }
+
+    /* Tablets */
     @media (max-width: 900px) {
       .container {
         grid-template-columns: 1fr;
       }
       
-      .sidebar, .content {
+      .sidebar {
         height: auto;
       }
-    }
-
-    @media (max-width: 768px) {
+      
+      .student-detail-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 12px;
+      }
+      
+      .student-stats {
+        width: 100%;
+        justify-content: space-between;
+      }
+      
       .doc-card-inner {
         flex-direction: column;
         align-items: flex-start;
@@ -905,6 +1041,37 @@ select.grade-form-input { min-height: 44px; }
       .grade-form-row {
         grid-template-columns: 1fr;
       }
+    }
+
+    /* Large phones */
+    @media (max-width: 768px) {
+      .page-wrap {
+        padding: 14px;
+      }
+      
+      .header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 8px;
+      }
+      
+      .title {
+        font-size: var(--fs-18);
+      }
+      
+      .sidebar, .content {
+        padding: 14px;
+      }
+      
+      .student-name-large {
+        font-size: var(--fs-18);
+      }
+      
+      .section-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 12px;
+      }
       
       .grade-modal-footer {
         flex-direction: column;
@@ -914,55 +1081,341 @@ select.grade-form-input { min-height: 44px; }
         width: 100%;
         justify-content: center;
       }
+      
+      .student-pill {
+        padding: 10px;
+      }
+      
+      .avatar {
+        width: 36px;
+        height: 36px;
+      }
+      
+      .assignment-details {
+        padding: 14px;
+      }
     }
 
+    /* Medium phones */
     @media (max-width: 600px) {
-      .student-detail-header {
+      .page-wrap {
+        padding: 12px;
+      }
+      
+      .sidebar, .content {
+        padding: 12px;
+      }
+      
+      .student-stats {
         flex-direction: column;
         align-items: flex-start;
         gap: 8px;
       }
       
-      .student-stats {
+      .detail-item {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 4px;
+      }
+      
+      .detail-value {
         text-align: left;
+        max-width: 100%;
+      }
+      
+      .attempt-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 6px;
+      }
+      
+      .doc-icon {
+        width: 42px;
+        height: 42px;
+      }
+      
+      .doc-icon i {
+        font-size: 18px;
+      }
+      
+      .back-pill { 
+        font-size: 13px; 
+        min-height: 18px; 
+        padding: 5px 10px;
+      }
+      
+      .back-pill .back-icon { 
+        font-size: 13px; 
+      }
+      
+      #assignment_status, .due-date {
+        padding: 5px 8px;
+        font-size: 0.78rem;
+        min-width: 54px;
+      }
+      
+      .submission-meta {
+        flex-wrap: wrap;
+        gap: 8px;
       }
     }
+
+    /* Small phones */
+    @media (max-width: 480px) {
+      .page-wrap {
+        padding: 10px;
+      }
+      
+      .sidebar, .content {
+        padding: 10px;
+      }
+      
+      .student-name-large {
+        font-size: var(--fs-16);
+      }
+      
+      .student-email-large {
+        font-size: var(--fs-13);
+      }
+      
+      .submission-badge,
+      .give-marks-btn {
+        font-size: var(--fs-12);
+        padding: 5px 10px;
+      }
+      
+      .doc-card {
+        padding: 12px;
+      }
+      
+      .doc-info {
+        gap: 12px;
+      }
+      
+      .btn-icon {
+        width: 32px;
+        height: 32px;
+        font-size: 12px;
+      }
+      
+      .grade-modal-header,
+      .grade-modal-body,
+      .grade-modal-footer {
+        padding: 16px;
+      }
+      
+      .grade-modal-title {
+        font-size: var(--fs-16);
+      }
+      
+      .fs-header {
+        padding: 10px 12px;
+      }
+      
+      .fs-title {
+        font-size: var(--fs-14);
+      }
+    }
+
+    /* Very small phones */
+    @media (max-width: 360px) {
+      .page-wrap {
+        padding: 8px;
+      }
+      
+      .sidebar, .content {
+        padding: 10px;
+      }
+      
+      .assignment-details {
+        padding: 12px;
+      }
+      
+      .student-pill {
+        gap: 8px;
+      }
+      
+      .avatar {
+        width: 32px;
+        height: 32px;
+        font-size: var(--fs-12);
+      }
+      
+      .student-name {
+        font-size: var(--fs-14);
+      }
+      
+      .student-email {
+        font-size: var(--fs-12);
+      }
+      
+      .submission-count {
+        font-size: var(--fs-12);
+      }
+      
+      .doc-icon {
+        width: 36px;
+        height: 36px;
+      }
+      
+      .doc-icon i {
+        font-size: 16px;
+      }
+      
+      .doc-name {
+        font-size: var(--fs-14);
+      }
+      
+      .doc-meta {
+        font-size: var(--fs-12);
+      }
+    }
+    /* ---------- Dark-mode tweaks — rely on main.css tokens only (no :root redefinitions) ---------- */
+/* Place this at the end of your stylesheet (after main.css) */
+
+html.theme-dark {
+  /* nothing defined here — we rely on tokens from main.css */
+}
+
+/* Assignment card subtle tint in dark */
+html.theme-dark .assignment-details {
+  background: color-mix(in oklab, var(--primary-color) 5%, var(--surface));
+  border-color: color-mix(in oklab, var(--primary-color) 10%, var(--line-strong));
+}
+
+/* Avatar: keep contrast but use token-driven tints */
+html.theme-dark .avatar {
+  background: color-mix(in oklab, var(--accent-color) 6%, var(--surface));
+  color: var(--accent-color);
+  border: 1px solid color-mix(in oklab, var(--accent-color) 8%, var(--line-strong));
+}
+
+/* Student pill hover in dark */
+html.theme-dark .student-pill:hover {
+  background: color-mix(in oklab, var(--primary-color) 6%, transparent);
+}
+
+/* Student-pill active */
+html.theme-dark .student-pill.active {
+  background: color-mix(in oklab, var(--primary-color) 8%, var(--surface));
+  border-color: color-mix(in oklab, var(--primary-color) 12%, var(--line-strong));
+}
+
+/* Submission badge: use tokens for gradient + softer shadow */
+html.theme-dark .submission-badge {
+  background: linear-gradient(135deg,
+    color-mix(in oklab, var(--primary-color) 24%, transparent) 0%,
+    color-mix(in oklab, var(--accent-color) 14%, transparent) 100%);
+  box-shadow: 0 6px 18px color-mix(in oklab, var(--primary-color) 8%, transparent);
+  color: var(--surface);
+}
+
+/* Back pill: remove hard-coded purple and use tokens */
+html.theme-dark .back-pill {
+  border-color: color-mix(in oklab, var(--primary-color) 95%, var(--line-strong));
+  color: var(--primary-color);
+  background: transparent;
+  box-shadow: none;
+}
+html.theme-dark .back-pill:hover {
+  background: color-mix(in oklab, var(--primary-color) 8%, transparent);
+  box-shadow: 0 6px 18px color-mix(in oklab, var(--primary-color) 6%, transparent);
+}
+
+/* Doc card / icons contrast in dark */
+html.theme-dark .doc-card {
+  background: color-mix(in oklab, var(--surface) 100%, var(--surface));
+  border-color: var(--line-strong);
+}
+html.theme-dark .doc-icon { background: color-mix(in oklab, var(--line-strong) 8%, var(--surface)); border-color: var(--line-strong); }
+
+/* Fullscreen / viewer header background */
+html.theme-dark .fs-header {
+  background: var(--surface);
+  border-bottom-color: var(--line-strong);
+}
+html.theme-dark .fs-close { color: var(--muted-color); }
+html.theme-dark .fs-close:hover { color: var(--ink); }
+
+/* Grade modal: use tokens for overlays + inner bg */
+html.theme-dark .grade-modal { background: rgba(0,0,0,0.6); }
+html.theme-dark .grade-modal-inner { background: var(--surface); border-color: var(--line-strong); box-shadow: var(--shadow-3); }
+html.theme-dark .grade-modal-header,
+html.theme-dark .grade-modal-footer { background: var(--bg-body); border-color: var(--line-strong); }
+
+/* Buttons and controls: ensure hover states use token-driven tones */
+html.theme-dark .btn-primary { background: var(--primary-color); border-color: var(--primary-color); color: var(--surface); }
+html.theme-dark .btn-secondary { background: var(--line-strong); color: var(--text-color); }
+
+/* RTE / editor & toolbar were already token-driven; give small dark tweak */
+html.theme-dark .tool { background: var(--surface); border-color: var(--line-strong); color: var(--text-color); }
+html.theme-dark .rte { background: var(--surface); color: var(--text-color); border-color: var(--line-strong); box-shadow: none; }
+
+/* Empty / loader states */
+html.theme-dark .as-empty, html.theme-dark .as-loader { background: transparent; color: var(--muted-color); border-color: var(--line-strong); }
+
+/* Fine tune small hard-coded rgba usages in your styles that referenced specific hex — convert with tokens */
+html.theme-dark .avatar { box-shadow: 0 1px 2px color-mix(in oklab, var(--line-strong) 30%, transparent); }
+html.theme-dark .doc-card:hover { box-shadow: var(--shadow-2); transform: translateY(-1px); }
+
+/* Accessibility: increase placeholder contrast slightly in dark mode */
+html.theme-dark .rte-ph { color: color-mix(in oklab, var(--muted-color) 110%, var(--text-color)); }
+
+/* Keep overlay darkness strong in dark-mode */
+html.theme-dark .as-fullscreen { background: rgba(0,0,0,0.9); }
+
+/* end dark-mode tweaks */
+
   </style>
 </head>
 <body>
   <div class="page-wrap">
-    <div class="header">
+    <div class="header" style="display:none">
+      <h1 class="title">Assignment Submissions</h1>
       <div class="hint" id="assignment_hint" style="display:none">Loading assignment...</div>
     </div>
 
     <div class="container">
       <aside class="sidebar">
-        <!-- Assignment details (replace previous block) -->
-<div class="assignment-details">
-  <h3><i class="fas fa-book"></i> Assignment Details</h3>
+        <!-- Assignment details -->
+        <div class="assignment-details">
+          <h3><i class="fas fa-book"></i> Assignment Details</h3>
 
-  <div class="detail-item">
-    <span class="detail-label">Assignment:</span>
-    <span class="detail-value" id="assignment_name">Loading...</span>
-  </div>
+          <div class="detail-item">
+            <span class="detail-label">Assignment:</span>
+            <span class="detail-value" id="assignment_name">Loading...</span>
+          </div>
+          <div class="detail-item">
+            <span class="detail-label">Total marks:</span>
+            <span class="detail-value" id="assignment_total_marks">Loading...</span>
+          </div>
+          <div class="detail-item">
+            <span class="detail-label">Passing marks:</span>
+            <span class="detail-value" id="assignment_passing_marks">—</span>
+          </div>
 
-  <div class="detail-item" style="display:none">
-    <span class="detail-label">Status:</span>
-    <span class="detail-value">
-      <!-- status badge — update its text via JS by targeting #assignment_status -->
-      <span id="assignment_status" class="due-date" style="background:transparent;color:var(--muted-color);font-weight:600;padding:4px 8px;border-radius:8px;">
-        Loading...
-      </span>
-    </span>
-  </div>
+          <div class="detail-item">
+            <span class="detail-label">Late penalty:</span>
+            <span class="detail-value" id="assignment_late_penalty">Loading...</span>
+          </div>
 
-  <div class="detail-item">
-    <span class="detail-label">Deadline:</span>
-    <span class="detail-value" id="due_date">
-      <span class="due-date"><i class="fas fa-clock"></i> Loading...</span>
-    </span>
-  </div>
-</div>
+          <div class="detail-item">
+            <span class="detail-label">Status:</span>
+            <span class="detail-value">
+              <!-- status badge — update its text via JS by targeting #assignment_status -->
+              <span id="assignment_status" class="due-date" style="background:transparent;color:var(--muted-color);font-weight:600;padding:4px 8px;border-radius:8px;">
+                Loading...
+              </span>
+            </span>
+          </div>
+
+          <div class="detail-item">
+            <span class="detail-label">Deadline:</span>
+            <span class="detail-value" id="due_date">
+              <span class="due-date"><i class="fas fa-clock"></i> Loading...</span>
+            </span>
+          </div>
+        </div>
 
         <div class="sidebar-header">
           <strong>Submitted Students</strong>
@@ -980,6 +1433,11 @@ select.grade-form-input { min-height: 44px; }
             <div class="student-email-large" id="student_email"></div>
           </div>
           <div class="student-stats" id="student_stats">
+            <!-- Back pill -->
+            <button id="back_btn" class="back-pill" type="button" aria-label="Go back">
+              <i class="fas fa-arrow-left back-icon" aria-hidden="true"></i>
+              <span class="back-text">Back</span>
+            </button>
             <div class="submission-badge">
               <i class="fas fa-file-upload"></i>
               <span id="submission_count">0</span> Submissions
@@ -991,14 +1449,13 @@ select.grade-form-input { min-height: 44px; }
           <div class="section-header">
             <h3 class="section-title">Documents</h3>
             <div class="d-flex align-items-center gap-2">
-                <button id="give_marks_btn" class="give-marks-btn d-inline-flex align-items-center" style="display:none">
-    <i class="fas fa-check-circle"></i> Give Marks
-  </button>
-         <button id="open_in_ui" class="view-ui-link d-inline-flex align-items-center" style="display:none !important;">
-    <i class="fas fa-external-link-alt"></i>
-        </button>
-    </div>
-
+              <button id="give_marks_btn" class="give-marks-btn d-inline-flex align-items-center" style="display:none">
+                <i class="fas fa-check-circle"></i> Give Marks
+              </button>
+              <button id="open_in_ui" class="view-ui-link d-inline-flex align-items-center" style="display:none !important;">
+                <i class="fas fa-external-link-alt"></i>
+              </button>
+            </div>
           </div>
           <div id="documents_host">
             <div class="as-empty">
@@ -1082,610 +1539,854 @@ select.grade-form-input { min-height: 44px; }
   </div>
 
   <script>
-    /* ---------- AUTH + API HELPERS ---------- */
-    const role = (sessionStorage.getItem('role') || localStorage.getItem('role') || '').toLowerCase();
-    const TOKEN = localStorage.getItem('token') || sessionStorage.getItem('token') || '';
-    const apiBase = '/api/assignments';
-    const defaultHeaders = {
-      'Authorization': TOKEN ? ('Bearer ' + TOKEN) : '',
-      'Accept': 'application/json'
-    };
+/* ---------- AUTH + API HELPERS ---------- */
+const role = (sessionStorage.getItem('role') || localStorage.getItem('role') || '').toLowerCase();
+const TOKEN = localStorage.getItem('token') || sessionStorage.getItem('token') || '';
+const apiBase = '/api/assignments';
+const defaultHeaders = {
+  'Authorization': TOKEN ? ('Bearer ' + TOKEN) : '',
+  'Accept': 'application/json'
+};
+document.documentElement.classList.add('theme-dark'); // enable
+document.documentElement.classList.remove('theme-dark'); // disable
 
-    async function apiFetch(url, opts = {}) {
-      // Normalize final url (prefix with apiBase unless already starting with /api)
-      let finalUrl = url;
-      if (!String(url).startsWith('/api')) {
-        if (String(url).startsWith('/')) finalUrl = apiBase + url;
-        else finalUrl = apiBase + '/' + url;
-      }
-      const headers = Object.assign({}, defaultHeaders, opts.headers || {});
-      const finalOpts = Object.assign({}, opts, { headers });
-      const res = await fetch(finalUrl, finalOpts);
-      if (res.status === 401 || res.status === 403) {
-        const errText = await (res.clone().text().catch(()=>'')) || '';
-        const err = new Error('UNAUTHORIZED');
-        err.status = res.status;
-        err.body = errText;
-        throw err;
-      }
-      return res;
-    }
+async function apiFetch(url, opts = {}) {
+  let finalUrl = url;
+  if (!String(url).startsWith('/api')) {
+    if (String(url).startsWith('/')) finalUrl = apiBase + url;
+    else finalUrl = apiBase + '/' + url;
+  }
+  const headers = Object.assign({}, defaultHeaders, opts.headers || {});
+  const finalOpts = Object.assign({}, opts, { headers });
+  const res = await fetch(finalUrl, finalOpts);
+  if (res.status === 401 || res.status === 403) {
+    const errText = await (res.clone().text().catch(()=>'')) || '';
+    const err = new Error('UNAUTHORIZED');
+    err.status = res.status;
+    err.body = errText;
+    throw err;
+  }
+  return res;
+}
 
-    /* ---------- small helpers ---------- */
-    function escapeHtml(s){ if (s==null) return ''; return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
-    function looksLikeUuid(s){ if (!s || typeof s !== 'string') return false; return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s); }
-    function formatBytes(bytes, decimals = 2) { if (!bytes || bytes === 0) return '0 B'; const k = 1024; const dm = decimals < 0 ? 0 : decimals; const sizes = ['B','KB','MB','GB','TB']; const i = Math.floor(Math.log(bytes)/Math.log(k)) || 0; return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + (sizes[i]||'B'); }
+/* ---------- small helpers ---------- */
+function escapeHtml(s){ if (s==null) return ''; return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function looksLikeUuid(s){ if (!s || typeof s !== 'string') return false; return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s); }
+function formatBytes(bytes, decimals = 2) { if (!bytes || bytes === 0) return '0 B'; const k = 1024; const dm = decimals < 0 ? 0 : decimals; const sizes = ['B','KB','MB','GB','TB']; const i = Math.floor(Math.log(bytes)/Math.log(k)) || 0; return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + (sizes[i]||'B'); }
 
-    /* ---------- state & elements ---------- */
-    const studentsHost = document.getElementById('students_host');
-    const studentsCountEl = document.getElementById('students_count');
-    const assignmentHint = document.getElementById('assignment_hint');
-    const openInUiBtn = document.getElementById('open_in_ui');
-    const giveMarksBtn = document.getElementById('give_marks_btn');
-    const courseNameEl = document.getElementById('course_name');
-    const assignmentNameEl = document.getElementById('assignment_name');
-    const dueDateEl = document.getElementById('due_date');
-    const submissionCountEl = document.getElementById('submission_count');
+/* ---------- state & elements ---------- */
+const studentsHost = document.getElementById('students_host');
+const studentsCountEl = document.getElementById('students_count');
+const assignmentHint = document.getElementById('assignment_hint');
+const openInUiBtn = document.getElementById('open_in_ui');
+const giveMarksBtn = document.getElementById('give_marks_btn');
+const courseNameEl = document.getElementById('course_name');
+const assignmentNameEl = document.getElementById('assignment_name');
+const dueDateEl = document.getElementById('due_date');
+const submissionCountEl = document.getElementById('submission_count');
 
-    let studentsData = [];
-    let selectedStudent = null;
-    let currentAssignment = { id: null, uuid: null, title: null, due_at: null, course_name: null };
-    window.__ASSIGNMENT_KEY__ = window.__ASSIGNMENT_KEY__ || (location.pathname.split('/').filter(Boolean).includes('assignments') ? location.pathname.split('/').filter(Boolean)[location.pathname.split('/').filter(Boolean).indexOf('assignments')+1] : '13');
-    window.__PRESELECT_STUDENT__ = window.__PRESELECT_STUDENT__ || null;
+let studentsData = [];
+let selectedStudent = null;
+let currentAssignment = { id: null, uuid: null, title: null, due_at: null, course_name: null };
+window.__ASSIGNMENT_KEY__ = window.__ASSIGNMENT_KEY__ || (location.pathname.split('/').filter(Boolean).includes('assignments') ? location.pathname.split('/').filter(Boolean)[location.pathname.split('/').filter(Boolean).indexOf('assignments')+1] : '13');
+window.__PRESELECT_STUDENT__ = window.__PRESELECT_STUDENT__ || null;
 
-    /* ---------- UI alert helpers ---------- */
-    function showAlertInModal(message, type) {
-      const alertBox = document.getElementById('grade_alert');
-      if (!alertBox) { window.alert(message); return; }
-      alertBox.textContent = message;
-      alertBox.className = `grade-alert ${type}`;
-      alertBox.style.display = 'block';
-    }
+/* ---------- UI alert helpers ---------- */
+function showAlertInModal(message, type) {
+  const alertBox = document.getElementById('grade_alert');
+  if (!alertBox) { window.alert(message); return; }
+  alertBox.textContent = message;
+  alertBox.className = `grade-alert ${type}`;
+  alertBox.style.display = 'block';
+}
+function showAlert(message, type='error') { showAlertInModal(message, type); }
 
-    function showAlert(message, type='error') { showAlertInModal(message, type); }
+/* ---------- fetch student-status and render ---------- */
+async function fetchStudentStatus(){
+  try{
+    const assignmentKey = window.__ASSIGNMENT_KEY__;
+    const candidates = [
+      `/${assignmentKey}/student-status`,
+      `/${assignmentKey}/students/status`,
+      `/${assignmentKey}/student-submission-status`,
+      `/${assignmentKey}/students/documents`
+    ];
 
-    /* ---------- fetch student-status and render ---------- */
-    async function fetchStudentStatus(){
+    let j = null;
+    for(const u of candidates){
       try{
-        const assignmentKey = window.__ASSIGNMENT_KEY__;
-        const candidates = [
-          `/${assignmentKey}/student-status`,
-          `/${assignmentKey}/students/status`,
-          `/${assignmentKey}/student-submission-status`,
-          `/${assignmentKey}/students/documents`
-        ];
+        const r = await apiFetch(u);
+        if (!r.ok) continue;
+        const candidateJson = await r.json().catch(()=>null);
+        if (!candidateJson) continue;
+        if (Array.isArray(candidateJson) || candidateJson.data || candidateJson.submitted || candidateJson.students) {
+          j = candidateJson;
+          break;
+        }
+      } catch(e){
+        if (e && e.status && (e.status === 401 || e.status === 403)) throw e;
+      }
+    }
 
-        let j = null;
-        for(const u of candidates){
-          try{
-            const r = await apiFetch(u);
-            if (!r.ok) continue;
-            const candidateJson = await r.json().catch(()=>null);
-            if (!candidateJson) continue;
-            if (Array.isArray(candidateJson) || candidateJson.data || candidateJson.submitted || candidateJson.students) {
-              j = candidateJson;
-              break;
+    if (!j) throw new Error('Failed to fetch submitted students');
+
+    let arr = [];
+    if (j.data && Array.isArray(j.data.submitted)) arr = j.data.submitted;
+    else if (j.submitted && Array.isArray(j.submitted)) arr = j.submitted;
+    else if (j.data && Array.isArray(j.data.students)) arr = j.data.students;
+    else if (Array.isArray(j)) arr = j;
+    else if (j.data && Array.isArray(j.data)) arr = j.data;
+    else if (j.students && Array.isArray(j.students)) arr = j.students;
+    else arr = [];
+
+    if (arr.length === 0 && j.data && j.data.student) arr = [ j.data.student ];
+
+    if (j.data && j.data.assignment) setAssignmentInfo(j.data.assignment);
+    else if (j.assignment) setAssignmentInfo(j.assignment);
+
+    studentsData = arr.map(s => ({
+      student_id: s.student_id ?? s.id ?? s.studentId ?? s.user_id ?? null,
+      student_uuid: s.student_uuid ?? s.uuid ?? s.user_uuid ?? s.userUuid ?? null,
+      name: s.student_name ?? s.name ?? s.full_name ?? '',
+      email: s.student_email ?? s.email ?? '',
+      submission_count: s.submission_count ?? s.total_submissions ?? s.documents_count ?? 1,
+      raw: s
+    }));
+
+    renderStudents();
+  }catch(err){
+    if (err && err.status && (err.status === 401 || err.status === 403)) {
+      studentsHost.innerHTML = '<div class="as-empty">Access denied. You are not authorized to view submissions.</div>';
+      console.warn('Auth error fetching student status', err);
+      return;
+    }
+    console.warn('fetchStudentStatus err',err);
+    studentsHost.innerHTML = '<div class="as-empty">Failed to load students.</div>';
+  }
+}
+
+/* ---------- new: fetch assignment details from GET /assignments/{assignment} ---------- */
+async function fetchAssignmentDetails(assignmentKey) {
+  if (!assignmentKey) return;
+
+  const endpoints = [
+    `/${assignmentKey}`,
+    `/${assignmentKey}/show`,
+    `/${assignmentKey}/details`
+  ];
+
+  for (const ep of endpoints) {
+    try {
+      const res = await apiFetch(ep);
+      if (!res.ok) continue;
+      const json = await res.json().catch(()=>null);
+      if (!json) continue;
+
+      const assignmentData = json.data?.assignment ?? json.assignment ?? json.data ?? json;
+
+      if (assignmentData && (assignmentData.id || assignmentData.uuid || assignmentData.title)) {
+        setAssignmentInfo(assignmentData);
+
+        // render some quick fields (kept for backward compatibility)
+        const totalMarks = assignmentData.total_marks ?? assignmentData.max_marks ?? assignmentData.marks_max ?? assignmentData.maximum_marks ?? assignmentData.totalMarks ?? null;
+        const latePenaltyRaw = assignmentData.late_penalty ?? assignmentData.late_penalty_percent ?? assignmentData.late_penalty_percentage ?? assignmentData.late_penalty_rate ?? assignmentData.latePenalty ?? assignmentData.latePenaltyPercent ?? null;
+
+        const tmEl = document.getElementById('assignment_total_marks');
+        if (tmEl) {
+          tmEl.textContent = (totalMarks !== null && totalMarks !== undefined && totalMarks !== '') ? String(totalMarks) : '—';
+        }
+
+        const lpEl = document.getElementById('assignment_late_penalty');
+        if (lpEl) {
+          if (latePenaltyRaw === null || latePenaltyRaw === undefined || latePenaltyRaw === '') {
+            lpEl.textContent = '—';
+          } else {
+            const n = Number(latePenaltyRaw);
+            if (!isNaN(n)) {
+              if (n > 0 && n <= 1) {
+                lpEl.textContent = (n * 100).toFixed(2).replace(/\.00$/,'') + '%';
+              } else if (n >= 1 && n <= 100) {
+                lpEl.textContent = n.toString().replace(/\.00$/,'') + '%';
+              } else {
+                lpEl.textContent = String(latePenaltyRaw);
+              }
+            } else {
+              lpEl.textContent = String(latePenaltyRaw);
             }
-          } catch(e){
-            if (e && e.status && (e.status === 401 || e.status === 403)) throw e;
           }
         }
 
-        if (!j) throw new Error('Failed to fetch submitted students');
-
-        let arr = [];
-        if (j.data && Array.isArray(j.data.submitted)) arr = j.data.submitted;
-        else if (j.submitted && Array.isArray(j.submitted)) arr = j.submitted;
-        else if (j.data && Array.isArray(j.data.students)) arr = j.data.students;
-        else if (Array.isArray(j)) arr = j;
-        else if (j.data && Array.isArray(j.data)) arr = j.data;
-        else if (j.students && Array.isArray(j.students)) arr = j.students;
-        else arr = [];
-
-        if (arr.length === 0 && j.data && j.data.student) arr = [ j.data.student ];
-
-        if (j.data && j.data.assignment) setAssignmentInfo(j.data.assignment);
-        else if (j.assignment) setAssignmentInfo(j.assignment);
-
-        studentsData = arr.map(s => ({
-          student_id: s.student_id ?? s.id ?? s.studentId ?? s.user_id ?? null,
-          student_uuid: s.student_uuid ?? s.uuid ?? s.user_uuid ?? s.userUuid ?? null,
-          name: s.student_name ?? s.name ?? s.full_name ?? '',
-          email: s.student_email ?? s.email ?? '',
-          submission_count: s.submission_count ?? s.total_submissions ?? s.documents_count ?? 1,
-          raw: s
-        }));
-
-        renderStudents();
-      }catch(err){
-        if (err && err.status && (err.status === 401 || err.status === 403)) {
-          studentsHost.innerHTML = '<div class="as-empty">Access denied. You are not authorized to view submissions.</div>';
-          console.warn('Auth error fetching student status', err);
-          return;
-        }
-        console.warn('fetchStudentStatus err',err);
-        studentsHost.innerHTML = '<div class="as-empty">Failed to load students.</div>';
+        return;
       }
+    } catch (err) {
+      console.warn('fetchAssignmentDetails try failed for', ep, err);
     }
+  }
 
-    function setAssignmentInfo(data){
+  const tmEl = document.getElementById('assignment_total_marks');
+  if (tmEl) tmEl.textContent = '—';
+  const lpEl = document.getElementById('assignment_late_penalty');
+  if (lpEl) lpEl.textContent = '—';
+}
+
+/* ---------- setAssignmentInfo (updated) ---------- */
+function setAssignmentInfo(data){
   if (!data) return;
+
+  // merge core properties
   currentAssignment.id = data.id ?? currentAssignment.id;
   currentAssignment.uuid = data.uuid ?? currentAssignment.uuid ?? (looksLikeUuid(data.id? String(data.id):'') ? data.id : currentAssignment.uuid);
-  currentAssignment.title = data.title ?? currentAssignment.title;
-  currentAssignment.due_at = data.due_at ?? currentAssignment.due_at;
-  currentAssignment.course_name = data.course_name ?? data.course ?? currentAssignment.course_name;
-  const status = data.status ?? data.assignment_status ?? data.state ?? 'Unknown';
+  currentAssignment.title = data.title ?? data.name ?? currentAssignment.title;
+  currentAssignment.due_at = data.due_at ?? data.dueAt ?? data.due ?? currentAssignment.due_at;
+  currentAssignment.course_name = data.course_name ?? data.course ?? data.courseName ?? currentAssignment.course_name;
 
+  // status
+  const status = data.status ?? data.assignment_status ?? data.state ?? data.status_text ?? 'Unknown';
+
+  // total marks candidates
+  const totalMarksCandidates = [
+    'total_marks','totalMarks','max_marks','maxMarks','marks_max','maximum_marks','maximumMarks',
+    'marks','full_marks','fullMarks'
+  ];
+  let totalMarks = null;
+  for (const k of totalMarksCandidates) {
+    if (typeof data[k] !== 'undefined' && data[k] !== null && data[k] !== '') {
+      totalMarks = data[k];
+      break;
+    }
+  }
+
+  // late penalty candidates
+  let latePenaltyRaw = null;
+  const lateKeys = [
+    'late_penalty_percent','late_penalty_percentage','late_penalty_rate',
+    'late_penalty_per_day','late_penalty_per_hour','late_penalty_value','latePenaltyPercent','penalty','late_penalty'
+  ];
+  for (const k of lateKeys) {
+    if (typeof data[k] !== 'undefined' && data[k] !== null && data[k] !== '') {
+      latePenaltyRaw = data[k];
+      break;
+    }
+  }
+  if (!latePenaltyRaw && data.late && typeof data.late === 'object') {
+    if (typeof data.late.value !== 'undefined') latePenaltyRaw = data.late;
+    else if (typeof data.late.penalty !== 'undefined') latePenaltyRaw = data.late.penalty;
+  }
+  if (!latePenaltyRaw && data.late_policy) latePenaltyRaw = data.late_policy;
+
+  // passing marks detection
+  const passingCandidates = ['passing_marks','passingMarks','pass_marks','passMarks','passing_mark','passing_mark_percent','passing_percentage','pass_percent','passing_percent','minimum_passing_marks','minimum_pass_marks','pass_mark'];
+  let passingRaw = null;
+  for (const k of passingCandidates) {
+    if (typeof data[k] !== 'undefined' && data[k] !== null && data[k] !== '') {
+      passingRaw = data[k];
+      break;
+    }
+  }
+  if (!passingRaw && data.passing && typeof data.passing === 'object') {
+    passingRaw = data.passing.value ?? data.passing.percent ?? passingRaw;
+  }
+
+  // helper: format total marks
+  function formatTotalMarks(m) {
+    if (m === null || typeof m === 'undefined' || m === '') return '—';
+    if (typeof m === 'object') {
+      if (typeof m.out_of !== 'undefined') return String(m.out_of) + ' pts';
+      if (typeof m.max !== 'undefined') return String(m.max) + ' pts';
+      return JSON.stringify(m);
+    }
+    const n = Number(m);
+    if (!isNaN(n)) {
+      return (Number.isInteger(n) ? n : n.toFixed(2)) + ' pts';
+    }
+    return String(m);
+  }
+
+  // helper: format late penalty
+  function formatLatePenalty(lp) {
+    if (lp === null || typeof lp === 'undefined' || lp === '') return '—';
+    if (typeof lp === 'object') {
+      const type = (lp.type || lp.kind || '').toString().toLowerCase();
+      const val = (typeof lp.value !== 'undefined') ? lp.value : (lp.amount ?? lp.penalty ?? null);
+      const per = lp.per ?? lp.period ?? lp.unit ?? null;
+      if (val !== null && val !== undefined) {
+        const num = Number(val);
+        if (!isNaN(num)) {
+          if (type === 'percent' || type === 'percentage' || String(val).includes('%') || (num > 0 && num <= 1)) {
+            const percent = (num > 0 && num <= 1) ? (num * 100) : num;
+            return `${String(percent).replace(/\.00$/,'')}%${per ? ` ${per}` : ''}`;
+          } else {
+            return `${num}${per ? ` ${per}` : ''} (points)`;
+          }
+        }
+        return `${String(val)}${per ? ` ${per}` : ''}`;
+      }
+      if (lp.description) return lp.description;
+      return JSON.stringify(lp);
+    }
+    if (typeof lp === 'string') return lp;
+    const n = Number(lp);
+    if (!isNaN(n)) {
+      if (n > 0 && n <= 1) return (n * 100).toFixed(2).replace(/\.00$/,'') + '%';
+      else if (n >= 1 && n <= 100) return String(n).replace(/\.00$/,'') + '%';
+      else return String(n);
+    }
+    return String(lp);
+  }
+
+  // helper: format passing marks (plain text)
+  function formatPassing(m) {
+    if (m === null || typeof m === 'undefined' || m === '') return '—';
+    if (typeof m === 'string' && m.trim().endsWith('%')) return m.trim();
+    const n = Number(m);
+    if (!isNaN(n)) {
+      if (n > 0 && n <= 1) return (n * 100).toFixed(0).replace(/\.0$/,'') + '%';
+      if (n >= 1 && n <= 100) return (Number.isInteger(n) ? n : n.toFixed(2)) + '%';
+      return (Number.isInteger(n) ? n : n.toFixed(2)) + ' pts';
+    }
+    return String(m);
+  }
+
+  // update assignmentHint + DOMs
   assignmentHint.textContent = currentAssignment.title ? `${currentAssignment.title} — due ${currentAssignment.due_at||'N/A'}` : '';
   document.getElementById('assignment_name').textContent = currentAssignment.title || 'Loading...';
   document.getElementById('due_date').innerHTML = currentAssignment.due_at ? `<span class="due-date"><i class="fas fa-clock"></i> ${escapeHtml(currentAssignment.due_at)}</span>` : '<span class="due-date"><i class="fas fa-clock"></i> No due date</span>';
-  document.getElementById('assignment_status').textContent = String(status);
+
+  // status pill handling
+  const statusEl = document.getElementById('assignment_status');
+  if (statusEl) {
+    // clear inline styles so CSS controls the look
+    statusEl.style.cssText = '';
+    // reset classes that we may use for colors
+    statusEl.classList.remove('status-draft','status-due-soon','status-overdue','status-closed');
+    const st = String(status || '').toLowerCase();
+    if (st.includes('draft')) statusEl.classList.add('status-draft');
+    else if (st.includes('overdue') || st.includes('late')) statusEl.classList.add('status-overdue');
+    else if (st.includes('due') || st.includes('due soon') || st.includes('upcoming')) statusEl.classList.add('status-due-soon');
+    else if (st.includes('closed') || st.includes('archived')) statusEl.classList.add('status-closed');
+    // fallback style class (if you want a purple default, keep existing CSS)
+    statusEl.textContent = String(status);
+  }
+
+  // update course name if present
+  const courseEl = document.getElementById('course_name');
+  if (courseEl) courseEl.textContent = currentAssignment.course_name ?? '—';
+
+  // render total marks
+  const tmEl = document.getElementById('assignment_total_marks');
+  if (tmEl) tmEl.textContent = formatTotalMarks(totalMarks);
+
+  // render late penalty
+  const lpEl = document.getElementById('assignment_late_penalty');
+  if (lpEl) lpEl.textContent = formatLatePenalty(latePenaltyRaw);
+
+  // render passing marks into plain text element (create if missing)
+  let passEl = document.getElementById('assignment_passing_marks');
+  if (!passEl) {
+    // try to insert it after total marks row for visual parity
+    const totalRow = document.getElementById('assignment_total_marks')?.closest('.detail-item') ?? null;
+    if (totalRow) {
+      const wrapper = document.createElement('div');
+      wrapper.className = 'detail-item';
+      wrapper.innerHTML = `<span class="detail-label">Passing marks:</span><span class="detail-value" id="assignment_passing_marks">—</span>`;
+      totalRow.parentNode.insertBefore(wrapper, totalRow.nextSibling);
+    } else {
+      // fallback: append to assignment-details container
+      const details = document.querySelector('.assignment-details');
+      if (details) details.insertAdjacentHTML('beforeend', `<div class="detail-item"><span class="detail-label">Passing marks:</span><span class="detail-value" id="assignment_passing_marks">—</span></div>`);
+    }
+    passEl = document.getElementById('assignment_passing_marks');
+  }
+  if (passEl) passEl.textContent = formatPassing(passingRaw);
+
+  // store on currentAssignment
+  currentAssignment.total_marks = totalMarks ?? currentAssignment.total_marks;
+  currentAssignment.late_penalty = latePenaltyRaw ?? currentAssignment.late_penalty;
+  currentAssignment.passing_marks = passingRaw ?? currentAssignment.passing_marks;
 }
 
-    function renderStudents(){
-      if (!studentsData || studentsData.length === 0){
-        studentsHost.innerHTML = '<div class="as-empty"><i class="fas fa-users" style="font-size: 2rem; margin-bottom: 12px; opacity: 0.5;"></i><p>No students have submitted yet.</p></div>';
-        studentsCountEl.textContent = '';
+/* ---------- students rendering & documents (unchanged) ---------- */
+function renderStudents(){
+  if (!studentsData || studentsData.length === 0){
+    studentsHost.innerHTML = '<div class="as-empty"><i class="fas fa-users" style="font-size: 2rem; margin-bottom: 12px; opacity: 0.5;"></i><p>No students have submitted yet.</p></div>';
+    studentsCountEl.textContent = '';
+    return;
+  }
+  studentsCountEl.textContent = `${studentsData.length}`;
+  const html = studentsData.map(s => {
+    const initials = (s.name || s.email || '#').split(' ').map(x=>x[0]).slice(0,2).join('').toUpperCase();
+    return `
+      <div class="student-pill" data-sid="${encodeURIComponent(s.student_id||'')}" data-suuid="${encodeURIComponent(s.student_uuid||'')}">
+        <div class="avatar">${initials}</div>
+        <div class="student-info">
+          <div class="student-name">${escapeHtml(s.name||'Student')}</div>
+          <div class="student-email">${escapeHtml(s.email||'')}</div>
+        </div>
+        <div class="submission-count">${s.submission_count||1} sub</div>
+      </div>
+    `;
+  }).join('');
+  studentsHost.innerHTML = html;
+
+  studentsHost.querySelectorAll('.student-pill').forEach(el => {
+    el.addEventListener('click', async () => {
+      const sid = decodeURIComponent(el.getAttribute('data-sid')||'');
+      const suuid = decodeURIComponent(el.getAttribute('data-suuid')||'');
+      const student = studentsData.find(x => (String(x.student_id) === String(sid)) || (x.student_uuid && String(x.student_uuid) === String(suuid)));
+      if (!student) return;
+      document.querySelectorAll('.student-pill').forEach(p=>p.classList.remove('active'));
+      el.classList.add('active');
+      await loadStudentDocuments(student);
+    });
+  });
+
+  const pre = window.__PRESELECT_STUDENT__;
+  let pick = null;
+  if (pre) {
+    const decoded = decodeURIComponent(pre);
+    pick = studentsData.find(s => (s.student_uuid && String(s.student_uuid) === String(pre)) || (s.student_uuid && String(s.student_uuid) === String(decoded)) || String(s.student_id) === String(pre) || String(s.student_id) === String(decoded));
+  }
+  if (!pick) pick = studentsData[0];
+  if (pick) {
+    const selector = Array.from(studentsHost.querySelectorAll('.student-pill')).find(el => {
+      const su = decodeURIComponent(el.getAttribute('data-suuid')||'');
+      const si = decodeURIComponent(el.getAttribute('data-sid')||'');
+      return (pick.student_uuid && String(pick.student_uuid) === String(su)) || (String(pick.student_id) === String(si));
+    });
+    if (selector) { selector.classList.add('active'); loadStudentDocuments(pick); }
+  }
+}
+
+/* ---------- load student documents (unchanged) ---------- */
+async function loadStudentDocuments(student){
+  selectedStudent = student;
+  document.getElementById('student_name').textContent = student.name || 'Student';
+  document.getElementById('student_email').textContent = student.email || '';
+  submissionCountEl.textContent = student.submission_count || 0;
+  updateGiveMarksButton();
+
+  if (currentAssignment.uuid && student.student_uuid) {
+    openInUiBtn.style.display = 'inline-flex';
+    openInUiBtn.onclick = () => {
+      const uiPath = `/assignments/${encodeURIComponent(currentAssignment.uuid)}/students/${encodeURIComponent(student.student_uuid)}/documents`;
+      window.open(uiPath, '_blank');
+    };
+  } else {
+    openInUiBtn.style.display = 'none';
+    openInUiBtn.onclick = null;
+  }
+
+  const docsHost = document.getElementById('documents_host');
+  docsHost.innerHTML = '<div class="as-loader"><i class="fa fa-spinner fa-spin"></i> Loading documents...</div>';
+
+  const aKey = currentAssignment.uuid || window.__ASSIGNMENT_KEY__;
+  const candidates = [];
+  if (aKey && student.student_uuid) candidates.push(`/${aKey}/students/${student.student_uuid}/documents`);
+  if (window.__ASSIGNMENT_KEY__ && student.student_uuid) candidates.push(`/${window.__ASSIGNMENT_KEY__}/students/${student.student_uuid}/documents`);
+  if (window.__ASSIGNMENT_KEY__ && student.student_id) {
+    candidates.push(`/${window.__ASSIGNMENT_KEY__}/students/${student.student_id}/documents`);
+    candidates.push(`/${window.__ASSIGNMENT_KEY__}/student/${student.student_id}/documents`);
+  }
+  if (student.email) candidates.push(`/${window.__ASSIGNMENT_KEY__}/students/${encodeURIComponent(student.email)}/documents`);
+
+  let resJson = null;
+  for (const u of candidates){
+    try{
+      const resp = await apiFetch(u);
+      if (!resp.ok) continue;
+      const parsed = await resp.json().catch(()=>null);
+      if (!parsed) continue;
+      if ((parsed.data && (parsed.data.submissions || Array.isArray(parsed.data))) || Array.isArray(parsed.submissions) || (parsed.data && parsed.data.assignment)) {
+        resJson = parsed;
+        break;
+      }
+    } catch(e){
+      if (e && e.status && (e.status === 401 || e.status === 403)) {
+        docsHost.innerHTML = '<div class="as-empty">Access denied. You are not authorized to view these documents.</div>';
+        console.warn('Auth error loading student documents', e);
         return;
-      }
-      studentsCountEl.textContent = `${studentsData.length}`;
-      const html = studentsData.map(s => {
-        const initials = (s.name || s.email || '#').split(' ').map(x=>x[0]).slice(0,2).join('').toUpperCase();
-        return `
-          <div class="student-pill" data-sid="${encodeURIComponent(s.student_id||'')}" data-suuid="${encodeURIComponent(s.student_uuid||'')}">
-            <div class="avatar">${initials}</div>
-            <div class="student-info">
-              <div class="student-name">${escapeHtml(s.name||'Student')}</div>
-              <div class="student-email">${escapeHtml(s.email||'')}</div>
-            </div>
-            <div class="submission-count">${s.submission_count||1} sub</div>
-          </div>
-        `;
-      }).join('');
-      studentsHost.innerHTML = html;
-
-      studentsHost.querySelectorAll('.student-pill').forEach(el => {
-        el.addEventListener('click', async () => {
-          const sid = decodeURIComponent(el.getAttribute('data-sid')||'');
-          const suuid = decodeURIComponent(el.getAttribute('data-suuid')||'');
-          const student = studentsData.find(x => (String(x.student_id) === String(sid)) || (x.student_uuid && String(x.student_uuid) === String(suuid)));
-          if (!student) return;
-          document.querySelectorAll('.student-pill').forEach(p=>p.classList.remove('active'));
-          el.classList.add('active');
-          await loadStudentDocuments(student);
-        });
-      });
-
-      const pre = window.__PRESELECT_STUDENT__;
-      let pick = null;
-      if (pre) {
-        const decoded = decodeURIComponent(pre);
-        pick = studentsData.find(s => (s.student_uuid && String(s.student_uuid) === String(pre)) || (s.student_uuid && String(s.student_uuid) === String(decoded)) || String(s.student_id) === String(pre) || String(s.student_id) === String(decoded));
-      }
-      if (!pick) pick = studentsData[0];
-      if (pick) {
-        const selector = Array.from(studentsHost.querySelectorAll('.student-pill')).find(el => {
-          const su = decodeURIComponent(el.getAttribute('data-suuid')||'');
-          const si = decodeURIComponent(el.getAttribute('data-sid')||'');
-          return (pick.student_uuid && String(pick.student_uuid) === String(su)) || (String(pick.student_id) === String(si));
-        });
-        if (selector) { selector.classList.add('active'); loadStudentDocuments(pick); }
       }
     }
+  }
 
-    /* ---------- load student documents ---------- */
-    async function loadStudentDocuments(student){
-      selectedStudent = student;
-      document.getElementById('student_name').textContent = student.name || 'Student';
-      document.getElementById('student_email').textContent = student.email || '';
-      submissionCountEl.textContent = student.submission_count || 0;
-      updateGiveMarksButton();
-
-      if (currentAssignment.uuid && student.student_uuid) {
-        openInUiBtn.style.display = 'inline-flex';
-        openInUiBtn.onclick = () => {
-          const uiPath = `/assignments/${encodeURIComponent(currentAssignment.uuid)}/students/${encodeURIComponent(student.student_uuid)}/documents`;
-          window.open(uiPath, '_blank');
-        };
-      } else {
-        openInUiBtn.style.display = 'none';
-        openInUiBtn.onclick = null;
+  if (!resJson) {
+    try {
+      const alt = `/${window.__ASSIGNMENT_KEY__}/submissions`;
+      const r2 = await apiFetch(alt);
+      if (r2.ok) {
+        const j2 = await r2.json().catch(()=>null);
+        const items = (j2 && j2.data && j2.data.submissions) ? j2.data.submissions : (j2 && j2.submissions) ? j2.submissions : (Array.isArray(j2)? j2 : []);
+        const filtered = items.filter(it => {
+          if (!it) return false;
+          if (student.student_uuid && (it.student_uuid === student.student_uuid || it.uuid === student.student_uuid)) return true;
+          if (student.student_id && (String(it.student_id) === String(student.student_id) || String(it.user_id) === String(student.student_id))) return true;
+          return false;
+        });
+        if (filtered.length) resJson = { data: { submissions: filtered } };
       }
-
-      const docsHost = document.getElementById('documents_host');
-      docsHost.innerHTML = '<div class="as-loader"><i class="fa fa-spinner fa-spin"></i> Loading documents...</div>';
-
-      const aKey = currentAssignment.uuid || window.__ASSIGNMENT_KEY__;
-      const candidates = [];
-      if (aKey && student.student_uuid) candidates.push(`/${aKey}/students/${student.student_uuid}/documents`);
-      if (window.__ASSIGNMENT_KEY__ && student.student_uuid) candidates.push(`/${window.__ASSIGNMENT_KEY__}/students/${student.student_uuid}/documents`);
-      if (window.__ASSIGNMENT_KEY__ && student.student_id) {
-        candidates.push(`/${window.__ASSIGNMENT_KEY__}/students/${student.student_id}/documents`);
-        candidates.push(`/${window.__ASSIGNMENT_KEY__}/student/${student.student_id}/documents`);
-      }
-      if (student.email) candidates.push(`/${window.__ASSIGNMENT_KEY__}/students/${encodeURIComponent(student.email)}/documents`);
-
-      let resJson = null;
-      for (const u of candidates){
-        try{
-          const resp = await apiFetch(u);
-          if (!resp.ok) continue;
-          const parsed = await resp.json().catch(()=>null);
-          if (!parsed) continue;
-          if ((parsed.data && (parsed.data.submissions || Array.isArray(parsed.data))) || Array.isArray(parsed.submissions) || (parsed.data && parsed.data.assignment)) {
-            resJson = parsed;
-            break;
-          }
-        } catch(e){
-          if (e && e.status && (e.status === 401 || e.status === 403)) {
-            docsHost.innerHTML = '<div class="as-empty">Access denied. You are not authorized to view these documents.</div>';
-            console.warn('Auth error loading student documents', e);
-            return;
-          }
-        }
-      }
-
-      if (!resJson) {
-        try {
-          const alt = `/${window.__ASSIGNMENT_KEY__}/submissions`;
-          const r2 = await apiFetch(alt);
-          if (r2.ok) {
-            const j2 = await r2.json().catch(()=>null);
-            const items = (j2 && j2.data && j2.data.submissions) ? j2.data.submissions : (j2 && j2.submissions) ? j2.submissions : (Array.isArray(j2)? j2 : []);
-            const filtered = items.filter(it => {
-              if (!it) return false;
-              if (student.student_uuid && (it.student_uuid === student.student_uuid || it.uuid === student.student_uuid)) return true;
-              if (student.student_id && (String(it.student_id) === String(student.student_id) || String(it.user_id) === String(student.student_id))) return true;
-              return false;
-            });
-            if (filtered.length) resJson = { data: { submissions: filtered } };
-          }
-        } catch(e){
-          if (e && e.status && (e.status === 401 || e.status === 403)) {
-            docsHost.innerHTML = '<div class="as-empty">Access denied. You are not authorized to view these documents.</div>';
-            return;
-          }
-        }
-      }
-
-      if (!resJson || !resJson.data) {
-        docsHost.innerHTML = '<div class="as-empty"><i class="fas fa-file" style="font-size: 2rem; margin-bottom: 12px; opacity: 0.5;"></i><p>No documents found for this student.</p></div>';
+    } catch(e){
+      if (e && e.status && (e.status === 401 || e.status === 403)) {
+        docsHost.innerHTML = '<div class="as-empty">Access denied. You are not authorized to view these documents.</div>';
         return;
       }
+    }
+  }
 
-      const submissions = resJson.data.submissions || (Array.isArray(resJson.data) ? resJson.data : []);
-      if (!Array.isArray(submissions) || submissions.length === 0){
-        docsHost.innerHTML = '<div class="as-empty"><i class="fas fa-file" style="font-size: 2rem; margin-bottom: 12px; opacity: 0.5;"></i><p>No documents found for this student.</p></div>';
-        return;
-      }
+  if (!resJson || !resJson.data) {
+    docsHost.innerHTML = '<div class="as-empty"><i class="fas fa-file" style="font-size: 2rem; margin-bottom: 12px; opacity: 0.5;"></i><p>No documents found for this student.</p></div>';
+    return;
+  }
 
-      if (resJson.data.assignment) setAssignmentInfo(resJson.data.assignment);
+  const submissions = resJson.data.submissions || (Array.isArray(resJson.data) ? resJson.data : []);
+  if (!Array.isArray(submissions) || submissions.length === 0){
+    docsHost.innerHTML = '<div class="as-empty"><i class="fas fa-file" style="font-size: 2rem; margin-bottom: 12px; opacity: 0.5;"></i><p>No documents found for this student.</p></div>';
+    return;
+  }
 
-      const submissionsHtml = submissions.map(sub => {
-        const attach = sub.all_attachments || sub.attachments || sub.attachments_json || sub.attachmentsJson || [];
-        let attachments = [];
-        if (Array.isArray(attach)) attachments = attach;
-        else if (typeof attach === 'string' && attach.trim()) {
-          try { attachments = JSON.parse(attach); } catch(e){ attachments = []; }
-        }
+  if (resJson.data.assignment) setAssignmentInfo(resJson.data.assignment);
 
-        const attachmentsHtml = attachments.map(a => {
-          const url = a.url || a.path || '#';
-          const safeName = a.name || (url.split('/').pop() || 'file');
-          const ext = (safeName.split('.').pop()||'').toLowerCase();
-          let iconClass = 'icon-default';
-          let iconType = 'fa-file';
-          if (ext === 'pdf') { iconClass = 'icon-pdf'; iconType = 'fa-file-pdf'; }
-          else if (['jpg','jpeg','png','gif','svg','bmp'].includes(ext)) { iconClass = 'icon-image'; iconType = 'fa-file-image'; }
-          else if (['doc','docx'].includes(ext)) { iconClass = 'icon-doc'; iconType = 'fa-file-word'; }
-          else if (['xls','xlsx'].includes(ext)) { iconType = 'fa-file-excel'; }
-          else if (['ppt','pptx'].includes(ext)) { iconType = 'fa-file-powerpoint'; }
-          else if (['zip','rar','7z'].includes(ext)) { iconType = 'fa-file-archive'; }
+  const submissionsHtml = submissions.map(sub => {
+    const attach = sub.all_attachments || sub.attachments || sub.attachments_json || sub.attachmentsJson || [];
+    let attachments = [];
+    if (Array.isArray(attach)) attachments = attach;
+    else if (typeof attach === 'string' && attach.trim()) {
+      try { attachments = JSON.parse(attach); } catch(e){ attachments = []; }
+    }
 
-          return `
-            <div class="doc-card">
-              <div class="doc-card-inner">
-                <div class="doc-info">
-                  <div class="doc-icon ${iconClass}"><i class="fas ${iconType}"></i></div>
-                  <div class="doc-content">
-                    <div class="doc-name">${escapeHtml(safeName)}</div>
-                    <div class="doc-meta">${escapeHtml(a.mime||'')} • ${formatBytes(a.size||0)}</div>
-                  </div>
-                </div>
-                <div class="doc-actions">
-                  <button class="btn-icon btn-icon-primary" data-url="${escapeHtml(url)}" data-name="${escapeHtml(safeName)}" title="View"><i class="fa fa-eye"></i></button>
-                  <a class="btn-icon btn-icon-outline" href="${escapeHtml(url)}" target="_blank" rel="noopener" title="Download"><i class="fa fa-download"></i></a>
-                </div>
+    const attachmentsHtml = attachments.map(a => {
+      const url = a.url || a.path || '#';
+      const safeName = a.name || (url.split('/').pop() || 'file');
+      const ext = (safeName.split('.').pop()||'').toLowerCase();
+      let iconClass = 'icon-default';
+      let iconType = 'fa-file';
+      if (ext === 'pdf') { iconClass = 'icon-pdf'; iconType = 'fa-file-pdf'; }
+      else if (['jpg','jpeg','png','gif','svg','bmp'].includes(ext)) { iconClass = 'icon-image'; iconType = 'fa-file-image'; }
+      else if (['doc','docx'].includes(ext)) { iconClass = 'icon-doc'; iconType = 'fa-file-word'; }
+      else if (['xls','xlsx'].includes(ext)) { iconType = 'fa-file-excel'; }
+      else if (['ppt','pptx'].includes(ext)) { iconType = 'fa-file-powerpoint'; }
+      else if (['zip','rar','7z'].includes(ext)) { iconType = 'fa-file-archive'; }
+
+      return `
+        <div class="doc-card">
+          <div class="doc-card-inner">
+            <div class="doc-info">
+              <div class="doc-icon ${iconClass}"><i class="fas ${iconType}"></i></div>
+              <div class="doc-content">
+                <div class="doc-name">${escapeHtml(safeName)}</div>
+                <div class="doc-meta">${escapeHtml(a.mime||'')} • ${formatBytes(a.size||0)}</div>
               </div>
             </div>
-          `;
-        }).join('');
-
-        return `
-          <div class="attempt-section">
-            <div class="attempt-header">
-              <div class="attempt-title">Attempt ${escapeHtml(String(sub.attempt_no || sub.attempt || sub.attemptNo || '—'))} <small style="color: var(--muted-color); font-weight: 600;">${escapeHtml(sub.status||'')}</small></div>
-              <div class="attempt-meta">Submitted: ${escapeHtml(sub.submitted_at||sub.submittedAt||'')}</div>
+            <div class="doc-actions">
+              <button class="btn-icon btn-icon-primary" data-url="${escapeHtml(url)}" data-name="${escapeHtml(safeName)}" title="View"><i class="fa fa-eye"></i></button>
+              <a class="btn-icon btn-icon-outline" href="${escapeHtml(url)}" target="_blank" rel="noopener" title="Download" style="display:none"><i class="fa fa-download"></i></a>
             </div>
-            <div class="doc-grid">${attachmentsHtml}</div>
           </div>
-        `;
-      }).join('');
+        </div>
+      `;
+    }).join('');
 
-      docsHost.innerHTML = submissionsHtml;
+    return `
+      <div class="attempt-section">
+        <div class="attempt-header">
+          <div class="attempt-title">Attempt ${escapeHtml(String(sub.attempt_no || sub.attempt || sub.attemptNo || '—'))} <small style="color: var(--muted-color); font-weight: 600;">${escapeHtml(sub.status||'')}</small></div>
+          <div class="attempt-meta">Submitted: ${escapeHtml(sub.submitted_at||sub.submittedAt||'')}</div>
+        </div>
+        <div class="doc-grid">${attachmentsHtml}</div>
+      </div>
+    `;
+  }).join('');
 
-      // wire view
-      docsHost.querySelectorAll('.btn-primary[data-url]').forEach(btn => {
-        btn.addEventListener('click', (ev) => {
-          const u = btn.getAttribute('data-url');
-          const name = btn.getAttribute('data-name') || 'Document';
-          openViewer(u, name);
-        });
+  docsHost.innerHTML = submissionsHtml;
+
+  // Attach view handlers to the view buttons we render above
+docsHost.querySelectorAll('.btn-icon[data-url]').forEach(btn => {
+  btn.addEventListener('click', (ev) => {
+    ev.preventDefault();
+    const u = btn.getAttribute('data-url');
+    if (!u) { console.warn('View button has no data-url'); return; }
+    const name = btn.getAttribute('data-name') || 'Document';
+    openViewer(u, name);
+  });
+});
+
+}
+
+/* ---------- Grade modal (unchanged) ---------- */
+function updateGiveMarksButton() {
+  if (selectedStudent && (selectedStudent.student_id || selectedStudent.student_uuid)) giveMarksBtn.style.display = 'flex';
+  else giveMarksBtn.style.display = 'none';
+}
+
+async function openGradeModal() {
+  if (!selectedStudent) { showAlert('Please select a student first.', 'error'); return; }
+  const modal = document.getElementById('grade_modal');
+  const title = document.getElementById('grade_modal_title');
+  const loading = document.getElementById('grade_loading');
+  const content = document.getElementById('grade_content');
+  const empty = document.getElementById('grade_empty');
+  const alertBox = document.getElementById('grade_alert');
+  const submitBtn = document.getElementById('grade_submit_btn');
+
+  alertBox.style.display = 'none';
+  content.style.display = 'none';
+  empty.style.display = 'none';
+  loading.style.display = 'flex';
+  if (submitBtn) submitBtn.disabled = true;
+
+  title.textContent = `Grade: ${selectedStudent.name || 'Student'}`;
+  modal.style.display = 'flex';
+
+  try {
+    const submissions = await fetchSubmissionsForGrading();
+    loading.style.display = 'none';
+    if (!submissions || submissions.length === 0) { empty.style.display = 'block'; return; }
+    renderSubmissionsList(submissions);
+    content.style.display = 'block';
+  } catch (error) {
+    loading.style.display = 'none';
+    showAlertInModal('Failed to load submissions: ' + (error.message || error), 'error');
+  }
+}
+
+async function fetchSubmissionsForGrading() {
+  const assignmentKey = currentAssignment.uuid || window.__ASSIGNMENT_KEY__;
+  const studentKey = selectedStudent.student_uuid || selectedStudent.student_id;
+  if (!assignmentKey || !studentKey) throw new Error('Missing assignment or student information');
+
+  const candidates = [];
+  if (currentAssignment.uuid && selectedStudent.student_uuid) candidates.push(`/${currentAssignment.uuid}/students/${selectedStudent.student_uuid}/documents`);
+  candidates.push(`/${assignmentKey}/students/${studentKey}/documents`);
+  candidates.push(`/${assignmentKey}/student/${studentKey}/documents`);
+
+  for (const endpoint of candidates) {
+    try {
+      const response = await apiFetch(endpoint);
+      if (!response.ok) continue;
+      const data = await response.json();
+      const submissions = data?.data?.submissions || data?.submissions || [];
+      if (submissions.length > 0) return submissions;
+    } catch (error) {
+      console.warn(`Failed to fetch from ${endpoint}:`, error);
+    }
+  }
+
+  throw new Error('No submissions found');
+}
+
+function renderSubmissionsList(submissions) {
+  const container = document.getElementById('submissions_list');
+  const form = document.getElementById('grade_form');
+  const submitBtn = document.getElementById('grade_submit_btn');
+
+  submissions.sort((a, b) => (b.attempt_no || 0) - (a.attempt_no || 0));
+
+  const submissionsHtml = submissions.map((submission, index) => {
+    const attempt = submission.attempt_no || submission.attempt || index + 1;
+    const submittedAt = submission.submitted_at || submission.created_at || 'Unknown date';
+    const isLate = submission.is_late || submission.late || false;
+    const currentMarks = submission.total_marks || submission.marks || 'Not graded';
+    const submissionId = submission.id || submission.submission_id || '';
+    const submissionUuid = submission.submission_uuid || submission.uuid || '';
+
+    return `
+      <div class="submission-item ${index === 0 ? 'selected' : ''}" data-submission-id="${escapeHtml(submissionId)}" data-submission-uuid="${escapeHtml(submissionUuid)}">
+        <div class="submission-header">
+          <div class="submission-attempt">Attempt ${escapeHtml(String(attempt))}</div>
+          <div class="submission-date">${new Date(submittedAt).toLocaleString()}</div>
+        </div>
+        <div class="submission-meta">
+          <span><i class="fas ${isLate ? 'fa-clock' : 'fa-check'}"></i> ${isLate ? 'Late' : 'On Time'}</span>
+          <span><i class="fas fa-file"></i> ${submission.all_attachments?.length || 0} files</span>
+          <span><i class="fas fa-star"></i> ${escapeHtml(String(currentMarks))}</span>
+        </div>
+        <div style="margin-top: 8px;">
+          <button type="button" class="submission-select-btn ${index === 0 ? 'selected' : ''}" onclick="selectSubmission(this, '${escapeHtml(submissionId)}', '${escapeHtml(submissionUuid)}')">${index === 0 ? 'Selected' : 'Select for Grading'}</button>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  container.innerHTML = submissionsHtml;
+
+  if (submissions.length > 0) {
+    const firstSubmission = submissions[0];
+    const submissionId = firstSubmission.id || firstSubmission.submission_id || '';
+    const submissionUuid = firstSubmission.submission_uuid || firstSubmission.uuid || '';
+    const sidField = form.querySelector('input[name="submission_id"]');
+    const suuidField = form.querySelector('input[name="submission_uuid"]');
+    if (sidField) sidField.value = submissionId;
+    if (suuidField) suuidField.value = submissionUuid;
+    if (submitBtn) submitBtn.disabled = false;
+  } else {
+    if (submitBtn) submitBtn.disabled = true;
+  }
+}
+
+function selectSubmission(button, submissionId, submissionUuid) {
+  document.querySelectorAll('.submission-item').forEach(item => item.classList.remove('selected'));
+  document.querySelectorAll('.submission-select-btn').forEach(btn => { btn.classList.remove('selected'); btn.textContent = 'Select for Grading'; });
+
+  button.classList.add('selected');
+  button.textContent = 'Selected';
+  button.closest('.submission-item').classList.add('selected');
+
+  const form = document.getElementById('grade_form');
+  form.querySelector('input[name="submission_id"]').value = submissionId;
+  form.querySelector('input[name="submission_uuid"]').value = submissionUuid;
+  const submitBtn = document.getElementById('grade_submit_btn');
+  if (submitBtn) submitBtn.disabled = false;
+}
+
+/* ---------- submitGrade (unchanged) ---------- */
+window.submitGrade = async function submitGrade(e) {
+  if (e && e.preventDefault) e.preventDefault();
+  const submitBtn = document.getElementById('grade_submit_btn');
+  const form = document.getElementById('grade_form');
+  if (!form) { console.error('grade_form not found'); return; }
+
+  const marksVal = form.querySelector('input[name="marks"]')?.value;
+  const gradeLetter = form.querySelector('input[name="grade_letter"]')?.value;
+  const applyLatePenalty = form.querySelector('select[name="apply_late_penalty"]')?.value;
+  const grader_note = form.querySelector('textarea[name="grader_note"]')?.value;
+  const submission_id = form.querySelector('input[name="submission_id"]')?.value;
+  const submission_uuid = form.querySelector('input[name="submission_uuid"]')?.value;
+
+  if (!submission_id && !submission_uuid) {
+    showAlertInModal('No submission selected for grading.', 'error'); return;
+  }
+  if (!marksVal || isNaN(Number(marksVal))) {
+    showAlertInModal('Please enter valid marks.', 'error'); return;
+  }
+
+  const origHtml = submitBtn ? submitBtn.innerHTML : null;
+  if (submitBtn) { submitBtn.disabled = true; submitBtn.innerHTML = '<i class="fa fa-spinner fa-spin"></i> Saving...'; }
+
+  try {
+    const payload = {
+      marks: Number(marksVal),
+      grade: gradeLetter || null,
+      apply_late_penalty: String(applyLatePenalty) === 'true',
+      grader_note: grader_note || null
+    };
+
+    const subKey = submission_id || submission_uuid;
+    let gradeEndpoint = `/submissions/${encodeURIComponent(subKey)}/grade`;
+    let res;
+    try {
+      res = await apiFetch(gradeEndpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+    } catch (err) {
+      console.warn('Primary grade endpoint failed, trying fallback PATCH on submission resource', err);
+      gradeEndpoint = `/submissions/${encodeURIComponent(subKey)}`;
+      res = await apiFetch(gradeEndpoint, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ grader_note: payload.grader_note, marks: payload.marks, grade: payload.grade })
       });
     }
 
-    /* ---------- Grade modal ---------- */
-    function updateGiveMarksButton() {
-      if (selectedStudent && (selectedStudent.student_id || selectedStudent.student_uuid)) giveMarksBtn.style.display = 'flex';
-      else giveMarksBtn.style.display = 'none';
+    if (!res.ok) {
+      const txt = await res.text().catch(()=>null);
+      throw new Error(txt || `Server returned ${res.status}`);
     }
 
-    async function openGradeModal() {
-      if (!selectedStudent) { showAlert('Please select a student first.', 'error'); return; }
-      const modal = document.getElementById('grade_modal');
-      const title = document.getElementById('grade_modal_title');
-      const loading = document.getElementById('grade_loading');
-      const content = document.getElementById('grade_content');
-      const empty = document.getElementById('grade_empty');
-      const alertBox = document.getElementById('grade_alert');
-      const submitBtn = document.getElementById('grade_submit_btn');
+    showAlertInModal('Marks saved successfully.', 'success');
 
-      alertBox.style.display = 'none';
-      content.style.display = 'none';
-      empty.style.display = 'none';
-      loading.style.display = 'flex';
-      if (submitBtn) submitBtn.disabled = true;
+    setTimeout(() => {
+      closeGradeModal();
+      if (selectedStudent) loadStudentDocuments(selectedStudent).catch(()=>{});
+      else fetchStudentStatus().catch(()=>{});
+    }, 700);
 
-      title.textContent = `Grade: ${selectedStudent.name || 'Student'}`;
-      modal.style.display = 'flex';
-
-      try {
-        const submissions = await fetchSubmissionsForGrading();
-        loading.style.display = 'none';
-        if (!submissions || submissions.length === 0) { empty.style.display = 'block'; return; }
-        renderSubmissionsList(submissions);
-        content.style.display = 'block';
-      } catch (error) {
-        loading.style.display = 'none';
-        showAlertInModal('Failed to load submissions: ' + (error.message || error), 'error');
-      }
+  } catch (err) {
+    console.error('submitGrade error', err);
+    showAlertInModal('Failed to save marks: ' + (err.message || err), 'error');
+  } finally {
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      if (origHtml) submitBtn.innerHTML = origHtml;
     }
+  }
+};
 
-    async function fetchSubmissionsForGrading() {
-      const assignmentKey = currentAssignment.uuid || window.__ASSIGNMENT_KEY__;
-      const studentKey = selectedStudent.student_uuid || selectedStudent.student_id;
-      if (!assignmentKey || !studentKey) throw new Error('Missing assignment or student information');
+function closeGradeModal() {
+  const modal = document.getElementById('grade_modal');
+  modal.style.display = 'none';
+  const form = document.getElementById('grade_form');
+  if (form) form.reset();
+  try {
+    form.querySelector('input[name="submission_id"]').value = '';
+    form.querySelector('input[name="submission_uuid"]').value = '';
+  } catch (e) {}
+  const alertBox = document.getElementById('grade_alert');
+  if (alertBox) alertBox.style.display = 'none';
+}
 
-      const candidates = [];
-      if (currentAssignment.uuid && selectedStudent.student_uuid) candidates.push(`/${currentAssignment.uuid}/students/${selectedStudent.student_uuid}/documents`);
-      candidates.push(`/${assignmentKey}/students/${studentKey}/documents`);
-      candidates.push(`/${assignmentKey}/student/${studentKey}/documents`);
+/* ---------- viewer ---------- */
+function openViewer(url, name){
+  const fs = document.getElementById('fs_viewer');
+  const title = document.getElementById('fs_title');
+  const body = document.getElementById('fs_body');
+  title.textContent = name || 'Document';
+  const ext = (url.split('.').pop().split('?')[0]||'').toLowerCase();
+  if (['jpg','jpeg','png','gif','svg','bmp'].includes(ext)){
+    body.innerHTML = `<img src="${escapeHtml(url)}" alt="${escapeHtml(name)}"/>`;
+  } else if (ext === 'pdf'){
+    body.innerHTML = `<iframe src="${escapeHtml(url)}" style="width:100%;height:100%;border:0"></iframe>`;
+  } else if (['mp4','webm','ogg'].includes(ext)){
+    body.innerHTML = `<video controls src="${escapeHtml(url)}" style="width:100%;height:100%"></video>`;
+  } else {
+    body.innerHTML = `<iframe src="${escapeHtml(url)}" style="width:100%;height:100%;border:0"></iframe>`;
+  }
+  fs.style.display = 'flex';
+}
 
-      for (const endpoint of candidates) {
-        try {
-          const response = await apiFetch(endpoint);
-          if (!response.ok) continue;
-          const data = await response.json();
-          const submissions = data?.data?.submissions || data?.submissions || [];
-          if (submissions.length > 0) return submissions;
-        } catch (error) {
-          console.warn(`Failed to fetch from ${endpoint}:`, error);
-        }
+/* ---------- initial load ---------- */
+(async ()=>{
+  if (looksLikeUuid(window.__ASSIGNMENT_KEY__)) currentAssignment.uuid = window.__ASSIGNMENT_KEY__;
+  await fetchStudentStatus();
+  try {
+    await fetchAssignmentDetails(currentAssignment.uuid || window.__ASSIGNMENT_KEY__);
+  } catch (e) { console.warn('fetchAssignmentDetails failed', e); }
+
+  if (!currentAssignment.uuid && studentsData.length) {
+    try { await loadStudentDocuments(studentsData[0]); } catch(e){ /* ignore */ }
+  }
+})();
+
+/* ---------- event listeners ---------- */
+document.getElementById('fs_close').addEventListener('click', () => {
+  const fs = document.getElementById('fs_viewer');
+  fs.style.display = 'none';
+  document.getElementById('fs_body').innerHTML = '';
+});
+
+document.getElementById('give_marks_btn').addEventListener('click', openGradeModal);
+document.getElementById('grade_modal_close').addEventListener('click', closeGradeModal);
+document.getElementById('grade_cancel_btn').addEventListener('click', closeGradeModal);
+document.getElementById('grade_submit_btn').addEventListener('click', window.submitGrade);
+
+document.getElementById('grade_modal').addEventListener('click', (e) => { if (e.target.id === 'grade_modal') closeGradeModal(); });
+(function(){
+  const backBtn = document.getElementById('back_btn');
+  if (!backBtn) return;
+
+  backBtn.addEventListener('click', (ev) => {
+    ev.preventDefault();
+    const backUrl = window.__BACK_URL__ || document.referrer || '/assignments';
+    try {
+      if (window.history && window.history.length > 1) {
+        window.history.back();
+        return;
       }
+    } catch (e) {}
+    window.location.href = backUrl;
+  });
+})();
+</script>
 
-      throw new Error('No submissions found');
-    }
-
-    function renderSubmissionsList(submissions) {
-      const container = document.getElementById('submissions_list');
-      const form = document.getElementById('grade_form');
-      const submitBtn = document.getElementById('grade_submit_btn');
-
-      submissions.sort((a, b) => (b.attempt_no || 0) - (a.attempt_no || 0));
-
-      const submissionsHtml = submissions.map((submission, index) => {
-        const attempt = submission.attempt_no || submission.attempt || index + 1;
-        const submittedAt = submission.submitted_at || submission.created_at || 'Unknown date';
-        const isLate = submission.is_late || submission.late || false;
-        const currentMarks = submission.total_marks || submission.marks || 'Not graded';
-        const submissionId = submission.id || submission.submission_id || '';
-        const submissionUuid = submission.submission_uuid || submission.uuid || '';
-
-        return `
-          <div class="submission-item ${index === 0 ? 'selected' : ''}" data-submission-id="${escapeHtml(submissionId)}" data-submission-uuid="${escapeHtml(submissionUuid)}">
-            <div class="submission-header">
-              <div class="submission-attempt">Attempt ${escapeHtml(String(attempt))}</div>
-              <div class="submission-date">${new Date(submittedAt).toLocaleString()}</div>
-            </div>
-            <div class="submission-meta">
-              <span><i class="fas ${isLate ? 'fa-clock' : 'fa-check'}"></i> ${isLate ? 'Late' : 'On Time'}</span>
-              <span><i class="fas fa-file"></i> ${submission.all_attachments?.length || 0} files</span>
-              <span><i class="fas fa-star"></i> ${escapeHtml(String(currentMarks))}</span>
-            </div>
-            <div style="margin-top: 8px;">
-              <button type="button" class="submission-select-btn ${index === 0 ? 'selected' : ''}" onclick="selectSubmission(this, '${escapeHtml(submissionId)}', '${escapeHtml(submissionUuid)}')">${index === 0 ? 'Selected' : 'Select for Grading'}</button>
-            </div>
-          </div>
-        `;
-      }).join('');
-
-      container.innerHTML = submissionsHtml;
-
-      if (submissions.length > 0) {
-        const firstSubmission = submissions[0];
-        const submissionId = firstSubmission.id || firstSubmission.submission_id || '';
-        const submissionUuid = firstSubmission.submission_uuid || firstSubmission.uuid || '';
-        const sidField = form.querySelector('input[name="submission_id"]');
-        const suuidField = form.querySelector('input[name="submission_uuid"]');
-        if (sidField) sidField.value = submissionId;
-        if (suuidField) suuidField.value = submissionUuid;
-        if (submitBtn) submitBtn.disabled = false;
-      } else {
-        if (submitBtn) submitBtn.disabled = true;
-      }
-    }
-
-    function selectSubmission(button, submissionId, submissionUuid) {
-      document.querySelectorAll('.submission-item').forEach(item => item.classList.remove('selected'));
-      document.querySelectorAll('.submission-select-btn').forEach(btn => { btn.classList.remove('selected'); btn.textContent = 'Select for Grading'; });
-
-      button.classList.add('selected');
-      button.textContent = 'Selected';
-      button.closest('.submission-item').classList.add('selected');
-
-      const form = document.getElementById('grade_form');
-      form.querySelector('input[name="submission_id"]').value = submissionId;
-      form.querySelector('input[name="submission_uuid"]').value = submissionUuid;
-      const submitBtn = document.getElementById('grade_submit_btn');
-      if (submitBtn) submitBtn.disabled = false;
-    }
-
-    /* ---------- submitGrade (fixed endpoint) ---------- */
-    // Exposed on window so inline onclicks (if any) or listeners can call it
-    window.submitGrade = async function submitGrade(e) {
-      if (e && e.preventDefault) e.preventDefault();
-      const submitBtn = document.getElementById('grade_submit_btn');
-      const form = document.getElementById('grade_form');
-      if (!form) { console.error('grade_form not found'); return; }
-
-      const marksVal = form.querySelector('input[name="marks"]')?.value;
-      const gradeLetter = form.querySelector('input[name="grade_letter"]')?.value;
-      const applyLatePenalty = form.querySelector('select[name="apply_late_penalty"]')?.value;
-      const grader_note = form.querySelector('textarea[name="grader_note"]')?.value;
-      const submission_id = form.querySelector('input[name="submission_id"]')?.value;
-      const submission_uuid = form.querySelector('input[name="submission_uuid"]')?.value;
-
-      if (!submission_id && !submission_uuid) {
-        showAlertInModal('No submission selected for grading.', 'error'); return;
-      }
-      if (!marksVal || isNaN(Number(marksVal))) {
-        showAlertInModal('Please enter valid marks.', 'error'); return;
-      }
-
-      const origHtml = submitBtn ? submitBtn.innerHTML : null;
-      if (submitBtn) { submitBtn.disabled = true; submitBtn.innerHTML = '<i class="fa fa-spinner fa-spin"></i> Saving...'; }
-
-      try {
-        const payload = {
-          marks: Number(marksVal),
-          grade: gradeLetter || null,
-          apply_late_penalty: String(applyLatePenalty) === 'true',
-          grader_note: grader_note || null
-        };
-
-        // IMPORTANT: call the route that exists in your Laravel routes file:
-        const subKey = submission_id || submission_uuid;
-
-        // Primary: /submissions/{submission}/grade  (this becomes /api/assignments/submissions/{submission}/grade via apiFetch)
-        let gradeEndpoint = `/submissions/${encodeURIComponent(subKey)}/grade`;
-        let res;
-        try {
-          res = await apiFetch(gradeEndpoint, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-          });
-        } catch (err) {
-          // if POST /submissions/{id}/grade doesn't exist or fails to connect,
-          // fallback to updating the submission resource via PATCH (common alternative)
-          console.warn('Primary grade endpoint failed, trying fallback PATCH on submission resource', err);
-          gradeEndpoint = `/submissions/${encodeURIComponent(subKey)}`;
-          res = await apiFetch(gradeEndpoint, {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ grader_note: payload.grader_note, marks: payload.marks, grade: payload.grade })
-          });
-        }
-
-        if (!res.ok) {
-          const txt = await res.text().catch(()=>null);
-          throw new Error(txt || `Server returned ${res.status}`);
-        }
-
-        showAlertInModal('Marks saved successfully.', 'success');
-
-        setTimeout(() => {
-          closeGradeModal();
-          if (selectedStudent) loadStudentDocuments(selectedStudent).catch(()=>{});
-          else fetchStudentStatus().catch(()=>{});
-        }, 700);
-
-      } catch (err) {
-        console.error('submitGrade error', err);
-        showAlertInModal('Failed to save marks: ' + (err.message || err), 'error');
-      } finally {
-        if (submitBtn) {
-          submitBtn.disabled = false;
-          if (origHtml) submitBtn.innerHTML = origHtml;
-        }
-      }
-    };
-
-    function closeGradeModal() {
-      const modal = document.getElementById('grade_modal');
-      modal.style.display = 'none';
-      const form = document.getElementById('grade_form');
-      if (form) form.reset();
-      try {
-        form.querySelector('input[name="submission_id"]').value = '';
-        form.querySelector('input[name="submission_uuid"]').value = '';
-      } catch (e) {}
-      const alertBox = document.getElementById('grade_alert');
-      if (alertBox) alertBox.style.display = 'none';
-    }
-
-    /* ---------- viewer ---------- */
-    function openViewer(url, name){
-      const fs = document.getElementById('fs_viewer');
-      const title = document.getElementById('fs_title');
-      const body = document.getElementById('fs_body');
-      title.textContent = name || 'Document';
-      const ext = (url.split('.').pop().split('?')[0]||'').toLowerCase();
-      if (['jpg','jpeg','png','gif','svg','bmp'].includes(ext)){
-        body.innerHTML = `<img src="${escapeHtml(url)}" alt="${escapeHtml(name)}"/>`;
-      } else if (ext === 'pdf'){
-        body.innerHTML = `<iframe src="${escapeHtml(url)}" style="width:100%;height:100%;border:0"></iframe>`;
-      } else if (['mp4','webm','ogg'].includes(ext)){
-        body.innerHTML = `<video controls src="${escapeHtml(url)}" style="width:100%;height:100%"></video>`;
-      } else {
-        body.innerHTML = `<iframe src="${escapeHtml(url)}" style="width:100%;height:100%;border:0"></iframe>`;
-      }
-      fs.style.display = 'flex';
-    }
-
-    /* ---------- initial load ---------- */
-    (async ()=>{
-      if (looksLikeUuid(window.__ASSIGNMENT_KEY__)) currentAssignment.uuid = window.__ASSIGNMENT_KEY__;
-      await fetchStudentStatus();
-      if (!currentAssignment.uuid && studentsData.length) {
-        try { await loadStudentDocuments(studentsData[0]); } catch(e){ /* ignore */ }
-      }
-    })();
-
-    /* ---------- event listeners ---------- */
-    document.getElementById('fs_close').addEventListener('click', () => {
-      const fs = document.getElementById('fs_viewer');
-      fs.style.display = 'none';
-      document.getElementById('fs_body').innerHTML = '';
-    });
-
-    document.getElementById('give_marks_btn').addEventListener('click', openGradeModal);
-    document.getElementById('grade_modal_close').addEventListener('click', closeGradeModal);
-    document.getElementById('grade_cancel_btn').addEventListener('click', closeGradeModal);
-    document.getElementById('grade_submit_btn').addEventListener('click', window.submitGrade);
-
-    document.getElementById('grade_modal').addEventListener('click', (e) => { if (e.target.id === 'grade_modal') closeGradeModal(); });
-  </script>
 </body>
 </html>

@@ -14,6 +14,7 @@ use App\Http\Controllers\API\StudyMaterialController;
 use App\Http\Controllers\API\MediaController;
 use App\Http\Controllers\API\AssignmentController;
 use App\Http\Controllers\API\AssignmentSubmissionController;
+use App\Http\Controllers\API\NoticeController;
 
 Route::get('/user', function (Request $request) {
     return $request->user();
@@ -203,6 +204,7 @@ Route::middleware('checkRole:admin,super_admin,instructor,student')->prefix('ass
     Route::post('submission/key/{submissionKey}/restore', [AssignmentSubmissionController::class,'restoreSubmission'])->name('assignments.submission.restore')->where('submissionKey','[A-Za-z0-9\-_]+');
 
     Route::delete('submission/key/{submissionKey}/force', [AssignmentSubmissionController::class,'forceDeleteSubmission'])->name('assignments.submission.force_delete')->where('submissionKey','[A-Za-z0-9\-_]+');
+    Route::get('/{assignmentKey}/student/marks', [AssignmentSubmissionController::class, 'getMyAssignmentMarks']);
 
 });
 
@@ -261,10 +263,27 @@ Route::middleware('checkRole:admin,super_admin,instructor,student')->group(funct
 
 
 // All Media Routes 
-
-
 Route::middleware(['checkRole:admin,super_admin,instructor,author'])->group(function () {
     Route::get('/media',  [MediaController::class, 'index']);
     Route::post('/media', [MediaController::class, 'store']);
     Route::delete('/media/{idOrUuid}', [MediaController::class, 'destroy']);
+});
+
+// Notice Routes
+Route::middleware('checkRole:admin,super_admin,instructor,student')->group(function () {
+    Route::get('/notices', [NoticeController::class, 'index']);
+    Route::get('/notices/batch/{batchKey}', [NoticeController::class, 'viewByBatch']);
+    Route::post('/notices/batch/{batchKey}', [NoticeController::class, 'storeByBatch']);
+    
+    Route::post('/notices', [NoticeController::class, 'store']);
+    Route::patch('/notices/{id}', [NoticeController::class, 'update']);
+    Route::delete('/notices/{id}', [NoticeController::class, 'destroy']);
+    Route::post('/notices/{id}/restore', [NoticeController::class, 'restore']);
+    Route::delete('/notices/{id}/force', [NoticeController::class, 'forceDelete']);
+    Route::get('/notices/deleted', [NoticeController::class, 'indexDeleted']);
+    Route::get('/notices/bin/batch/{batchKey}', [NoticeController::class, 'binByBatch']);
+    
+    // View endpoints
+    Route::get('/notices/show/{uuid}', [NoticeController::class, 'showByUuid']);
+    Route::get('/notices/stream/{uuid}/{fileId}', [NoticeController::class, 'streamInline']);
 });

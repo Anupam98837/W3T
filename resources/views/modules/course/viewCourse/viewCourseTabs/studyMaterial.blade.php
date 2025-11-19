@@ -8,7 +8,7 @@
 /* ... (your CSS unchanged) ... */
 .sm-list{max-width:1100px;margin:18px auto}
 .sm-card{border-radius:12px;padding:18px}
-.sm-item{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px;border-radius:10px;border:1px solid var(--line-strong);background:var(--surface-2,#fff)}
+.sm-item{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px;border-radius:10px;border:1px solid var(--line-strong);}
 .sm-item+.sm-item{margin-top:10px}
 .sm-item .left{display:flex;gap:12px;align-items:center}
 .sm-item .meta{display:flex;flex-direction:column;gap:4px}
@@ -78,14 +78,14 @@
       <div class="container-fluid px-0">
 
         <!-- Border Box -->
-        <div class="p-3 border rounded-3" style="background:white;">
+        <div class="p-3 border rounded-3" >
 
           <div class="row g-3 align-items-center">
 
             <!-- Search -->
             <div class="col-md-5 col-lg-4">
               <div class="input-group">
-                <span class="input-group-text bg-white">
+                <span class="input-group-text">
                   <i class="fa fa-search text-muted"></i>
                 </span>
                 <input id="sm-search" type="text" class="form-control" placeholder="Search study materials...">
@@ -189,7 +189,7 @@
             <!-- existing attachments placeholder (for edit mode) -->
             <div class="col-12" id="sm_existing_attachments_wrap" style="display:none;">
               <label class="form-label">Existing attachments</label>
-              <div id="sm_existing_attachments" class="small text-muted" style="padding:8px; border:1px dashed var(--line-strong); border-radius:6px; background: #fbfbfb;"></div>
+              <div id="sm_existing_attachments" class="small text-muted" style="padding:8px; border:1px dashed var(--line-strong); border-radius:6px; "></div>
               <div class="small text-muted mt-1">Select files to remove before updating (server-side removal).</div>
             </div>
 
