@@ -179,6 +179,101 @@
     html.theme-dark .dropdown-menu .dropdown-header{ color:var(--text-color); }
     html.theme-dark .dropdown-menu .dropdown-item{ color:var(--text-color); }
     html.theme-dark .dropdown-menu .dropdown-item:hover{ background:#13203a; color:var(--accent-color); }
+    /* RTE (same as assignment instructions) */
+  .toolbar{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px}
+  .tool{border:1px solid var(--line-strong);border-radius:10px;background:#fff;padding:6px 9px;cursor:pointer}
+  .tool:hover{background:var(--page-hover)}
+  .rte-wrap{position:relative}
+  .rte{
+    min-height:200px;max-height:600px;overflow:auto;
+    border:1px solid var(--line-strong);border-radius:12px;background:#fff;padding:12px;line-height:1.6;outline:none
+  }
+  .rte:focus{box-shadow:var(--ring);border-color:var(--accent-color)}
+  .rte-ph{position:absolute;top:12px;left:12px;color:#9aa3b2;pointer-events:none;font-size:var(--fs-14)}
+  .rte.has-content + .rte-ph{display:none}
+  /* ===== Force RTE styles (high specificity + important) ===== */
+#rte, .rte, .notice-editor #rte {
+  display:block !important;
+  min-height:160px !important;
+  max-height:600px !important;
+  overflow:auto !important;
+  padding:12px 14px !important;
+  border-radius:12px !important;
+  border:1px solid var(--line-strong,#d1d5db) !important;
+  background:var(--surface,#ffffff) !important;
+  color:var(--ink,#111827) !important;
+  line-height:1.6 !important;
+  font-size:15px !important;
+  box-sizing:border-box !important;
+  -webkit-font-smoothing:antialiased !important;
+}
+
+/* Focus ring */
+#rte:focus, .rte:focus {
+  outline: none !important;
+  box-shadow: 0 0 0 4px color-mix(in oklab, var(--accent-color,#2563eb) 12%, transparent) !important;
+  border-color: var(--accent-color,#2563eb) !important;
+}
+
+/* Placeholder — must be the immediate sibling */
+#rte.has-content + .rte-ph,
+.rte.has-content + .rte-ph { display: none !important; }
+.rte-ph { position:absolute; top:12px; left:12px; pointer-events:none; color:var(--muted-color,#9aa3b2) !important; font-size:0.95rem; }
+
+/* toolbar buttons */
+#rte_toolbar, .rte-toolbar, .notice-editor #rte_toolbar {
+  display:flex !important;
+  gap:6px !important;
+  flex-wrap:wrap !important;
+  margin-bottom:8px !important;
+  align-items:center !important;
+}
+#rte_toolbar [data-cmd], #rte_toolbar .tool {
+  border:1px solid var(--line-strong,#e6e9ef) !important;
+  background:var(--surface-2,#fff) !important;
+  padding:6px 9px !important;
+  border-radius:10px !important;
+  cursor:pointer !important;
+  font-size:14px !important;
+  color:var(--ink,#111827) !important;
+}
+#rte_toolbar [data-cmd]:hover { background: var(--page-hover,#f3f4f6) !important; }
+
+/* active/pressed visual */
+#rte_toolbar [data-cmd].active, #rte_toolbar [data-cmd][aria-pressed="true"] {
+  background: var(--accent-color,#2563eb) !important;
+  color: #fff !important;
+  border-color: transparent !important;
+}
+
+/* ensure inner tags keep spacing */
+#rte p, #rte div { margin: 0 0 0.75rem !important; }
+
+/* dark mode support */
+html.theme-dark #rte, html.theme-dark .rte {
+  background:#0f172a !important;
+  color:#e5e7eb !important;
+  border-color:var(--line-strong,#1f2937) !important;
+}
+html.theme-dark #rte_toolbar [data-cmd], html.theme-dark .tool {
+  background:#0b1220 !important;
+  color:#e5e7eb !important;
+  border-color:var(--line-strong,#1f2937) !important;
+}
+
+/* Force precedence as last resort */
+body #rte, body .rte { /* keeps selector specific */ }
+
+/* small helper for preventing contenteditable from collapsing */
+#rte:empty:before, .rte:empty:before {
+  content: "" !important; display:block;
+}
+
+/* prevent accidental user-select styling conflicts */
+#rte, .rte { user-select: text !important; -moz-user-select: text !important; -webkit-user-select: text !important; }
+
+
+  html.theme-dark .rte{background:#0f172a;border-color:var(--line-strong);color:#e5e7eb}
   </style>
   <style>
 /* Force dark mode scrollbar styles */
@@ -342,6 +437,18 @@ html.theme-dark .w3-sidebar-scroll::-webkit-scrollbar-thumb {
           <a href="/admin/finance/scholarships" class="w3-link">Scholarships</a>
         </div>
       </div>
+      <!-- Notices Group Menu -->
+<div class="w3-group">
+  <a href="#" class="w3-link w3-toggle" data-target="sm-notices" aria-expanded="false">
+    <i class="fa-solid fa-bullhorn"></i><span>Notices</span>
+    <i class="fa fa-chevron-down w3-chev"></i>
+  </a>
+  <div id="sm-notices" class="w3-submenu" role="group" aria-label="Notices submenu">
+    <a href="/admin/notice/manage" class="w3-link">All Notices</a>
+    <a href="/admin/notice/create" class="w3-link">Create Notice</a>
+  </div>
+</div>
+
  
       <a href="/admin/mailers/manage" class="w3-link"><i class="fa-solid fa-gear"></i><span>Mailer</span></a>
     </nav>
