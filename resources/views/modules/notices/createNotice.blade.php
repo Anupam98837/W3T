@@ -124,7 +124,7 @@
           <button class="tool" type="button" data-cmd="insertOrderedList" title="Numbered list"><i class="fa fa-list-ol"></i></button>
           <button class="tool" type="button" data-cmd="createLink" title="Insert link"><i class="fa fa-link"></i></button>
           <button class="tool" type="button" data-cmd="removeFormat" title="Remove formatting"><i class="fa fa-eraser"></i></button>
-          <select id="insertHeading" class="tool" title="Insert heading" style="padding:6px 8px;border-radius:8px;">
+          <select id="insertHeading" class="tool" title="Insert heading" style="padding:6px 8px;border-radius:8px; display:none;">
             <option value="">Insert…</option>
             <option value="h2">Heading</option>
             <option value="p">Paragraph</option>

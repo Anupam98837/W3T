@@ -14,6 +14,7 @@ use App\Http\Controllers\API\StudyMaterialController;
 use App\Http\Controllers\API\MediaController;
 use App\Http\Controllers\API\AssignmentController;
 use App\Http\Controllers\API\AssignmentSubmissionController;
+use App\Http\Controllers\API\ExamController;
 use App\Http\Controllers\API\NoticeController;
 
 Route::get('/user', function (Request $request) {
@@ -269,12 +270,13 @@ Route::middleware(['checkRole:admin,super_admin,instructor,author'])->group(func
     Route::delete('/media/{idOrUuid}', [MediaController::class, 'destroy']);
 });
 
+
 // Notice Routes
 Route::middleware('checkRole:admin,super_admin,instructor,student')->group(function () {
     Route::get('/notices', [NoticeController::class, 'index']);
     Route::get('/notices/batch/{batchKey}', [NoticeController::class, 'viewByBatch']);
     Route::post('/notices/batch/{batchKey}', [NoticeController::class, 'storeByBatch']);
-    
+   
     Route::post('/notices', [NoticeController::class, 'store']);
     Route::patch('/notices/{id}', [NoticeController::class, 'update']);
     Route::delete('/notices/{id}', [NoticeController::class, 'destroy']);
@@ -282,8 +284,24 @@ Route::middleware('checkRole:admin,super_admin,instructor,student')->group(funct
     Route::delete('/notices/{id}/force', [NoticeController::class, 'forceDelete']);
     Route::get('/notices/deleted', [NoticeController::class, 'indexDeleted']);
     Route::get('/notices/bin/batch/{batchKey}', [NoticeController::class, 'binByBatch']);
-    
+   
     // View endpoints
     Route::get('/notices/show/{uuid}', [NoticeController::class, 'showByUuid']);
     Route::get('/notices/stream/{uuid}/{fileId}', [NoticeController::class, 'streamInline']);
 });
+
+// Exam Routes
+
+Route::middleware(['checkRole:student,admin'])->prefix('exam')->group(function () {
+    Route::post('/start',                           [ExamController::class, 'start']);
+    Route::get ('/attempts/{attempt}/questions',    [ExamController::class, 'questions']);
+    Route::post('/attempts/{attempt}/answer',       [ExamController::class, 'saveAnswer']);
+    Route::post('/attempts/{attempt}/submit',       [ExamController::class, 'submit']);
+    Route::get ('/attempts/{attempt}/status',       [ExamController::class, 'status']);
+});
+
+// printable answer sheet (usually admin/instructor; expose as needed)
+Route::middleware(['checkRole:admin,instructor,super_admin'])->get(
+    '/exam/results/{id}/answer-sheet',
+    [ExamController::class, 'answerSheet']
+);

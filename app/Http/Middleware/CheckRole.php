@@ -12,12 +12,7 @@ class CheckRole
     /** tokenable_type stored in personal_access_tokens */
     private const USER_TYPE = 'App\\Models\\User';
 
-    /**
-     * Usage:
-     *   ->middleware('check.role')                           // any authenticated user
-     *   ->middleware('check.role:admin,super_admin')         // only admin or super admin
-     *   ->middleware('check.role:instructor,author')         // only instructor/author
-     */
+
     public function handle(Request $request, Closure $next, ...$roles): Response
     {
         // 1) Extract Bearer token

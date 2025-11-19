@@ -20,6 +20,13 @@ Route::get('/', function () {
     return view('pages.auth.login');
 });
 
+
+
+
+Route::get('/exam/{quiz}', function (\Illuminate\Http\Request $r, $quiz) {
+    // Pass the quiz key (uuid or id) to the view
+    return view('modules.exam.exam', ['quizKey' => $quiz]);
+})->name('exam.take');
 // Super Admin Routes
 
 Route::get('super_admin/dashboard', function () {
@@ -123,6 +130,13 @@ Route::get('/admin/courses/{uuid}/view', function (string $uuid) {
 
 Route::get('/admin/courses', function () {
     return view('pages.users.admin.pages.course.courses');
+});
+
+Route::get('/admin/notice/manage', function () {
+    return view('pages.users.admin.pages.notices.manageNotice');
+});
+Route::get('/admin/notice/create', function () {
+    return view('pages.users.admin.pages.notices.createNotice');
 });
 
 
