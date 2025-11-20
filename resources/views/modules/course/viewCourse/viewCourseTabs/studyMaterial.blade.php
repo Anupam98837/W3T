@@ -56,6 +56,34 @@
 
 #sm_existing_attachments .btn { padding: 6px 8px; font-size: 13px; }
 #sm_existing_attachments .small.text-primary { text-decoration: underline; cursor: pointer; }
+/* StudyMaterial dropzone */
+.sm-dropzone{
+  border:2px dashed rgba(0,0,0,0.08);
+  border-radius:12px;
+  background: rgba(0,0,0,0.01);
+  padding:18px;
+  text-align:center;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  gap:8px;
+  transition:border-color .12s ease, box-shadow .12s ease, background .12s ease;
+  min-height:110px;
+}
+.sm-dropzone.dragover{ border-color: rgba(111,66,193,0.9); box-shadow:0 8px 20px rgba(111,66,193,0.06); background: rgba(111,66,193,0.03); }
+.sm-drop-icon{ width:48px; height:48px; border-radius:50%; border:1px dotted rgba(111,66,193,0.25); display:flex; align-items:center; justify-content:center; font-size:18px; color:#6f42c1; background: rgba(255,255,255,0.6); }
+.sm-drop-lead{ font-size:16px; color:var(--ink); margin-top:4px;}
+.sm-drop-tiny{ font-size:13px; color:var(--muted-color); }
+.sm-drop-actions{ display:flex; gap:10px; align-items:center; justify-content:center; margin-top:6px; }
+.sm-choose-btn{ background:#6f42c1; color:#fff; padding:8px 12px; border-radius:8px; font-weight:600; }
+.sm-clear-btn{ background:transparent; border:1px solid rgba(0,0,0,0.04); color:var(--muted-color); padding:8px 12px; border-radius:8px; }
+
+.sm-file-list{ width:100%; max-width:880px; display:flex; flex-direction:column; gap:8px; align-items:center; }
+.sm-file-item{ width:100%; display:flex; align-items:center; justify-content:space-between; gap:10px; padding:10px 12px; border-radius:8px; background:#fff; border:1px solid rgba(0,0,0,0.04); font-size:14px; color:#222; }
+.sm-file-item .meta{ display:flex; gap:12px; align-items:center; min-width:0; }
+.sm-file-item .name{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0; font-weight:600;}
+.sm-file-item .size{ color:#777; font-size:13px; white-space:nowrap; }
+.sm-file-remove{ color:#c5308d; cursor:pointer; padding:6px; border-radius:6px; background:transparent; border:0; }
 
 </style>
 
@@ -195,8 +223,29 @@
 
             <div class="col-12">
               <label class="form-label">Attachments <span class="text-danger">*</span> <small class="text-muted">(multiple allowed, max 50MB each)</small></label>
-              <input id="sm_attachments" name="attachments[]" type="file" class="form-control" multiple required >
-              <div class="small text-muted mt-1">Supported: images, pdf, video, etc. (You cannot prefill file inputs due to browser security.)</div>
+              <div id="sm_dropzone" class="sm-dropzone" aria-label="Attachments dropzone">
+  <div class="sm-drop-icon"><i class="fa fa-upload"></i></div>
+  <div class="sm-drop-lead" style="font-weight:600">Drag &amp; drop files here or click to upload</div>
+  <div class="sm-drop-tiny">Any format • up to 50 MB per file</div>
+
+  <div class="sm-drop-actions" style="margin-top:8px;">
+    <label for="sm_attachments" id="sm_choose_label" class="sm-choose-btn" style="cursor:pointer; display:inline-flex; align-items:center; gap:8px; padding:8px 12px; border-radius:8px;">
+      <i class="fa fa-file-upload"></i>
+      <span>Choose Files</span>
+    </label>
+
+    <button type="button" id="sm_clear_files" class="sm-clear-btn btn btn-light">Clear All</button>
+  </div>
+
+  <!-- native input kept but hidden (server wiring intact) -->
+  <input id="sm_attachments" name="attachments[]" type="file" multiple style="display:none;" />
+
+  <!-- file list rendered here (scoped to modal) -->
+ 
+</div>
+ <div id="sm_fileList" class="sm-file-list" aria-live="polite" style="margin-top:12px;"></div>
+<div class="small text-muted mt-1">Supported: images, pdf, video, etc.</div>
+
             </div>
           </div>
         </div>
@@ -887,16 +936,43 @@ async function loadMaterials(){
       createModalEl._fallbackHooksAdded = true;
     }
   }
+    // ---------- Modal cleanup helper ----------
+  function cleanupModalBackdrops() {
+    // remove any stray backdrops
+    document.querySelectorAll('.modal-backdrop').forEach(b => {
+      try { b.remove(); } catch(e){}
+    });
+    // remove modal-open class and restore overflow
+    document.body.classList.remove('modal-open');
+    try { document.documentElement.style.overflow = ''; document.body.style.overflow = ''; } catch(e){}
+  }
 
-  function hideCreateModal() {
-    if (createModalInstance && typeof createModalInstance.hide === 'function') { try { createModalInstance.hide(); } catch(e){} return; }
+
+    function hideCreateModal() {
+    // prefer bootstrap instance hide if available
+    if (createModalInstance && typeof createModalInstance.hide === 'function') {
+      try {
+        createModalInstance.hide();
+      } catch(e) {
+        // fall back to manual cleanup below
+      }
+      // give bootstrap a moment then ensure no leftover backdrop
+      setTimeout(cleanupModalBackdrops, 50);
+      exitEditMode();
+      return;
+    }
+
+    // manual fallback removal (existing logic)
     if (!createModalEl) return;
-    createModalEl.classList.remove('show'); createModalEl.style.display = 'none'; createModalEl.setAttribute('aria-hidden','true');
-    document.body.classList.remove('modal-open'); document.documentElement.style.overflow = '';
+    createModalEl.classList.remove('show');
+    createModalEl.style.display = 'none';
+    createModalEl.setAttribute('aria-hidden','true');
+    cleanupModalBackdrops();
     if (_manualBackdrop && _manualBackdrop.parentNode) { _manualBackdrop.parentNode.removeChild(_manualBackdrop); _manualBackdrop = null; }
     try { document.removeEventListener('keydown', _fallbackEscHandler); } catch(e){}
     exitEditMode();
   }
+
   function _fallbackEscHandler(e){ if (e.key === 'Escape') hideCreateModal(); }
 
   function enterEditMode(row){
@@ -959,7 +1035,7 @@ async function loadMaterials(){
             previewLink.href = a.signed_url || a.url || a.path;
             previewLink.target = '_blank';
             previewLink.className = 'small text-primary';
-             previewLink.style.display = 'none';
+            previewLink.style.display = 'inline-block';
             previewLink.style.marginRight = '8px';
             previewLink.textContent = 'Preview';
             right.appendChild(previewLink);
@@ -1056,8 +1132,18 @@ fd.append('title', smTitleInput ? smTitleInput.value.trim() : '');
 fd.append('description', smDescInput ? smDescInput.value.trim() : '');
 fd.append('view_policy', smViewPolicy ? smViewPolicy.value : 'inline_only');
 
-const files = smAttachmentsInput && smAttachmentsInput.files ? smAttachmentsInput.files : [];
-for (let i = 0; i < files.length; i++) fd.append('attachments[]', files[i]);
+// Prefer files added via DnD (createModalEl._getSelectedSmFiles), fallback to native input files
+let files = [];
+if (createModalEl && typeof createModalEl._getSelectedSmFiles === 'function') {
+  files = createModalEl._getSelectedSmFiles() || [];
+}
+if ((!files || files.length === 0) && smAttachmentsInput && smAttachmentsInput.files) {
+  files = Array.from(smAttachmentsInput.files);
+}
+for (let i = 0; i < (files || []).length; i++) {
+  fd.append('attachments[]', files[i]);
+}
+
 
 const toRemove = Array.from(smForm.querySelectorAll('input[name="remove_attachments[]"]:checked')).map(n => n.value);
 toRemove.forEach(v => fd.append('remove_attachments[]', v));
@@ -1106,6 +1192,9 @@ toRemove.forEach(v => fd.append('remove_attachments[]', v));
         }
 
         try { if (createModalInstance && typeof createModalInstance.hide === 'function') createModalInstance.hide(); else hideCreateModal(); } catch(e){ hideCreateModal(); }
+        // safety guard for race conditions: ensure backdrop removed
+setTimeout(cleanupModalBackdrops, 60);
+
         exitEditMode();
         showOk(json.message || (editingId ? 'Updated' : 'Created'));
         await loadMaterials();
@@ -1342,6 +1431,118 @@ async function fetchDeletedMaterials(params = '') {
 
     $btnBin.addEventListener('click', (ev) => { ev.preventDefault(); openBin(); });
   })();
+  /* ===== scoped drag & drop for Study Material modal =====
+   Paste this inside the same (function(){ ... })(); IIFE before updateContextDisplay()
+*/
+(function wireSmAttachments(){
+  if (!createModalEl) return;
+
+  // helpers to query inside modal only
+  const $in = (sel) => createModalEl.querySelector(sel);
+
+  const dropzone = $in('#sm_dropzone');
+  const fileInput = $in('#sm_attachments');
+  const fileListWrap = $in('#sm_fileList');
+  const chooseLabel = $in('#sm_choose_label');
+  const clearBtn = $in('#sm_clear_files');
+
+  let selectedFiles = [];
+
+  function escapeHtml(str){ return String(str||'').replace(/[&<>"'`=\/]/g, s=> ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;","/":"&#x2F;","`":"&#x60","=":"&#x3D;"}[s])); }
+  function formatFileSize(bytes){
+    if(bytes==null) return '';
+    if(bytes < 1024) return bytes + ' B';
+    if(bytes < 1024*1024) return (bytes/1024).toFixed(1) + ' KB';
+    return (bytes/(1024*1024)).toFixed(1) + ' MB';
+  }
+
+  function renderFileList(){
+    if(!fileListWrap) return;
+    fileListWrap.innerHTML = '';
+    if (selectedFiles.length === 0) return;
+    selectedFiles.forEach((f, idx) => {
+      const item = document.createElement('div');
+      item.className = 'sm-file-item';
+      item.innerHTML = `
+        <div class="meta">
+          <i class="fa fa-file fa-fw" style="opacity:.6"></i>
+          <div style="min-width:0">
+            <div class="name" title="${escapeHtml(f.name)}">${escapeHtml(f.name)}</div>
+            <div class="size">${formatFileSize(f.size)}</div>
+          </div>
+        </div>
+        <div style="display:flex; gap:8px; align-items:center">
+          <button type="button" class="sm-file-remove btn btn-sm" data-idx="${idx}" title="Remove"><i class="fa fa-xmark"></i></button>
+        </div>
+      `;
+      fileListWrap.appendChild(item);
+    });
+
+    fileListWrap.querySelectorAll('.sm-file-remove').forEach(btn => {
+      btn.addEventListener('click', ()=> {
+        const i = Number(btn.dataset.idx);
+        if (!Number.isNaN(i)) {
+          selectedFiles.splice(i, 1);
+          renderFileList();
+        }
+      });
+    });
+  }
+
+  function addFiles(files){
+    Array.from(files || []).forEach(f => {
+      if (!f) return;
+      if (f.size > 50 * 1024 * 1024) {
+        Swal.fire({ icon:'warning', title:'File too large', text: `File "${f.name}" exceeds 50MB.` });
+        return;
+      }
+      selectedFiles.push(f);
+    });
+    renderFileList();
+  }
+
+  // drag/drop handlers
+  if (dropzone) {
+    ['dragenter','dragover'].forEach(ev => dropzone.addEventListener(ev, (e) => { e.preventDefault(); e.stopPropagation(); dropzone.classList.add('dragover'); }));
+    ['dragleave','dragend','drop'].forEach(ev => dropzone.addEventListener(ev, (e) => { e.preventDefault(); e.stopPropagation(); dropzone.classList.remove('dragover'); }));
+    dropzone.addEventListener('drop', (e) => {
+      e.preventDefault(); e.stopPropagation();
+      const files = (e.dataTransfer && e.dataTransfer.files) ? e.dataTransfer.files : null;
+      if (files) addFiles(files);
+    });
+
+    // dropzone.addEventListener('click', ()=> { if (fileInput)
+    //    fileInput.click();
+    //    }
+    //   );
+  }
+
+  if (fileInput) {
+    fileInput.addEventListener('change', ()=> {
+      if (fileInput.files) addFiles(fileInput.files);
+      fileInput.value = '';
+    });
+  }
+
+  if (chooseLabel && fileInput) {
+    chooseLabel.addEventListener('keydown', (e)=> { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fileInput.click(); }});
+  }
+
+  if (clearBtn) clearBtn.addEventListener('click', ()=> { selectedFiles = []; renderFileList(); });
+
+  // expose getter so submit handler may read files appended by DnD
+  createModalEl._getSelectedSmFiles = ()=> selectedFiles.slice();
+
+  // reset on modal show/hidden
+  try {
+    createModalEl.addEventListener('show.bs.modal', ()=> {
+      // fresh create -> clear selected files; when editing you may want to keep state
+      const isEditing = (smIdInput && smIdInput.value && smIdInput.value.trim() !== '');
+      if (!isEditing) { selectedFiles = []; renderFileList(); }
+    });
+    createModalEl.addEventListener('hidden.bs.modal', ()=> { selectedFiles = []; renderFileList(); });
+  } catch(e){}
+})();
 
   // initial UI and data load
   updateContextDisplay();

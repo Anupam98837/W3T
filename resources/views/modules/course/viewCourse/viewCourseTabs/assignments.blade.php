@@ -2460,56 +2460,69 @@ function adminActionMenuHtml() {
     submitBtn.disabled = false;
     submitBtn.innerHTML = '<i class="fa fa-paper-plane me-1"></i> Submit';
 
+    // Show modal immediately (lazy-loading will handle data fetches in background)
+    if(bsModal) bsModal.show(); else { modalEl.classList.add('show'); modalEl.style.display='block'; document.body.classList.add('modal-open'); }
+
     // Branch: student view (unchanged) vs admin/instructor view
     try {
-      const [assignmentInfo, existingSubmissions] = await Promise.all([
-        fetchAssignmentInfo(key),
-        // for students we fetch personal previous submissions; for admin/instructor we'll fetch all submissions below
-        (isPrivileged ? Promise.resolve([]) : fetchExistingSubmissions(key))
-      ]);
+      // start fetches but do not block UI — handle results asynchronously
+      const infoPromise = fetchAssignmentInfo(key);
+      const existingPromise = isPrivileged ? Promise.resolve([]) : fetchExistingSubmissions(key);
 
-      // Render assignment meta/attempts note (same for both)
-      renderAssignmentInfo(assignmentInfo);
+      Promise.all([infoPromise, existingPromise]).then(async ([assignmentInfo, existingSubmissions]) => {
 
-      if (!isPrivileged) {
-        modalEl.classList.remove('privileged');
-       
+        // Render assignment meta/attempts note (same for both)
+        renderAssignmentInfo(assignmentInfo);
 
-        // Student view: show file input and personal previous submissions
-        setFileInputVisibility(true);
-        renderExistingSubmissions(existingSubmissions);
-      } else {
-        // Admin / Instructor view:
-        // Hide the choose file input field + personal previous submissions area
-         modalEl.classList.add('privileged');
-         document.querySelectorAll(
-    'label[for="submit_attachments"], #submit_attachments_label, .submit-attachments-label, .form-label'
-  ).forEach(el => {
-    if (el.dataset && Object.prototype.hasOwnProperty.call(el.dataset, '_wasDisplay')) {
-      el.style.display = el.dataset._wasDisplay || '';
-      delete el.dataset._wasDisplay;
-    }
-  });
-        setFileInputVisibility(false);
+        if (!isPrivileged) {
+          modalEl.classList.remove('privileged');
 
-        // Show a loading placeholder
-        if (existingSubmissionsEl) {
-          existingSubmissionsEl.innerHTML = '<div class="tiny text-muted">Loading submissions...</div>';
+          // Student view: show file input and personal previous submissions
+          setFileInputVisibility(true);
+          renderExistingSubmissions(existingSubmissions);
+        } else {
+          // Admin / Instructor view:
+          // Hide the choose file input field + personal previous submissions area
+           modalEl.classList.add('privileged');
+           document.querySelectorAll(
+      'label[for="submit_attachments"], #submit_attachments_label, .submit-attachments-label, .form-label'
+    ).forEach(el => {
+      if (el.dataset && Object.prototype.hasOwnProperty.call(el.dataset, '_wasDisplay')) {
+        el.style.display = el.dataset._wasDisplay || '';
+        delete el.dataset._wasDisplay;
+      }
+    });
+          setFileInputVisibility(false);
+
+          // Show a loading placeholder
+          if (existingSubmissionsEl) {
+            existingSubmissionsEl.innerHTML = '<div class="tiny text-muted">Loading submissions...</div>';
+          }
+
+          // Fetch all submissions for this assignment from server (done lazily after modal shown)
+          const allSubmissions = await fetchAssignmentSubmissionsForAdmin(key);
+
+          // NOTE: full listing removed. Only render the Submitted / Not submitted tabs.
+          await renderAdminTabsWithStatus(key, allSubmissions);
         }
 
-        // Fetch all submissions for this assignment from server
-        const allSubmissions = await fetchAssignmentSubmissionsForAdmin(key);
+      }).catch((error) => {
+        // handle async loading errors (assignmentInfo / existingSubmissions)
+        console.error('Error loading submission data (async):', error);
+        if (noteEl) { const c = noteEl.querySelector('#submit_note_content'); if(c) c.textContent = 'Error loading submission info'; }
+        if (attemptsEl) { const c = attemptsEl.querySelector('#submit_attempts_content'); if(c) c.textContent = 'Error loading attempts info'; }
+        if (existingSubmissionsEl) existingSubmissionsEl.innerHTML = '<div class="text-muted">Error loading submissions</div>';
+      });
 
-        // NOTE: full listing removed. Only render the Submitted / Not submitted tabs.
-        await renderAdminTabsWithStatus(key, allSubmissions);
-      }
     } catch (error) {
-      console.error('Error loading submission data:', error);
+      // fallback synchronous error handling (should be rare since main work is done async)
+      console.error('Error initiating submission data loads:', error);
       if (noteEl) { const c = noteEl.querySelector('#submit_note_content'); if(c) c.textContent = 'Error loading submission info'; }
       if (attemptsEl) { const c = attemptsEl.querySelector('#submit_attempts_content'); if(c) c.textContent = 'Error loading attempts info'; }
       if (existingSubmissionsEl) existingSubmissionsEl.innerHTML = '<div class="text-muted">Error loading submissions</div>';
     }
 
+    // keep original final show (harmless if modal already shown)
     if(bsModal) bsModal.show(); else { modalEl.classList.add('show'); modalEl.style.display='block'; document.body.classList.add('modal-open'); }
   };
 

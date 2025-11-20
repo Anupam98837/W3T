@@ -24,14 +24,25 @@ class AssignmentSubmissionController extends Controller
         'js','py','java','html','css'
     ];
 
-    private function actor(Request $r): array
+       private function actor(Request $r): array
     {
+        $actorId = (int) ($r->attributes->get('auth_tokenable_id') ?? 0);
+        $actorEmail = null;
+        
+        // Get actor email from users table
+        if ($actorId > 0) {
+            $user = DB::table('users')->where('id', $actorId)->first();
+            $actorEmail = $user->email ?? null;
+        }
+        
         return [
             'role' => $r->attributes->get('auth_role'),
             'type' => $r->attributes->get('auth_tokenable_type'),
-            'id'   => (int) ($r->attributes->get('auth_tokenable_id') ?? 0),
+            'id'   => $actorId,
+            'email' => $actorEmail, // Add email to actor info
         ];
     }
+
 
     private function requireRole(Request $r, array $allowed)
     {
@@ -2774,42 +2785,89 @@ public function bulkGradeSubmissions(Request $r)
     }
 }
 /**
- * Get student's marks for all attempts of a specific assignment
+ * Get detailed submission documents for a specific student in an assignment
  */
-public function getMyAssignmentMarks(Request $r, string $assignmentKey)
+public function getMyAssignmentMarks(Request $r, string $assignmentKey, string $studentKey)
 {
+    // Allow admin, superadmin, instructor, AND the student themselves
     $actor = $this->actor($r);
-    if (empty($actor['role']) || $actor['role'] !== 'student') {
-        return response()->json(['error' => 'Unauthorized'], 403);
-    }
-    $studentId = (int) $actor['id'];
-
-    // Resolve assignment by key (id, uuid, or slug)
+    $actorRole = $actor['role'];
+    $actorId = $actor['id'];
+    
+    // Resolve assignment
     $assignment = $this->resolveAssignment($assignmentKey);
     if (!$assignment) {
         return response()->json(['error' => 'Assignment not found'], 404);
     }
 
-    // Get all submissions for this student and assignment, ordered by attempt number
+    // Resolve student (by id, uuid, or email)
+    $studentQuery = DB::table('users')
+        ->where('users.role', 'student')
+        ->whereNull('users.deleted_at');
+
+    if (ctype_digit($studentKey)) {
+        $studentQuery->where('users.id', (int)$studentKey);
+    } elseif (Str::isUuid($studentKey)) {
+        $studentQuery->where('users.uuid', $studentKey);
+    } else {
+        $studentQuery->where('users.email', $studentKey);
+    }
+
+    $student = $studentQuery->first();
+    if (!$student) {
+        return response()->json(['error' => 'Student not found'], 404);
+    }
+
+    // Authorization: Students can only view their own data
+    if ($actorRole === 'student' && $actorId !== (int)$student->id) {
+        return response()->json(['error' => 'You can only view your own submissions'], 403);
+    }
+
+    // Check if student is in the assignment's batch
+    $batchStudent = DB::table('batch_students')
+        ->where('user_id', $student->id)
+        ->where('batch_id', $assignment->batch_id)
+        ->whereNull('deleted_at')
+        ->first();
+
+    if (!$batchStudent) {
+        return response()->json(['error' => 'Student is not enrolled in this assignment batch'], 403);
+    }
+
+    // Get all submissions for this student and assignment
     $submissions = DB::table('assignment_submissions')
         ->where('assignment_id', $assignment->id)
-        ->where('student_id', $studentId)
+        ->where('student_id', $student->id)
         ->whereNull('deleted_at')
-        ->orderBy('attempt_no', 'asc')
+        ->orderBy('attempt_no', 'desc')
         ->get();
 
-    // Process submissions to include marks and penalty details
-    $attempts = $submissions->map(function($submission) {
+    // Process submissions with detailed attachment info
+    $submissionDetails = $submissions->map(function($submission) {
+        // Decode attachments
+        $attachments = [];
+        if (!empty($submission->attachments_json)) {
+            try {
+                $decoded = json_decode($submission->attachments_json, true);
+                if (is_array($decoded)) {
+                    $attachments = $decoded;
+                }
+            } catch (\Throwable $e) {
+                $attachments = [];
+            }
+        }
+
         // Decode metadata for grading details
         $gradingDetails = [];
         $flags = [];
-        
+        $metadata = [];
+
         if (!empty($submission->metadata)) {
             try {
                 $metadata = json_decode($submission->metadata, true);
                 $gradingDetails = $metadata['grading_details'] ?? [];
             } catch (\Throwable $e) {
-                $gradingDetails = [];
+                $metadata = [];
             }
         }
 
@@ -2821,106 +2879,130 @@ public function getMyAssignmentMarks(Request $r, string $assignmentKey)
             }
         }
 
-        // Calculate late days if applicable
-        $lateDays = 0;
-        if ($submission->late_minutes > 0) {
-            $lateDays = ceil($submission->late_minutes / (24 * 60)); // Convert minutes to days (rounded up)
+        // Categorize attachments by type
+        $documentAttachments = [];
+        $imageAttachments = [];
+        $codeAttachments = [];
+        $archiveAttachments = [];
+        $videoAttachments = [];
+
+        foreach ($attachments as $attachment) {
+            $ext = pathinfo($attachment['name'], PATHINFO_EXTENSION);
+            $mime = $attachment['mime'] ?? '';
+            
+            if (in_array(strtolower($ext), ['pdf', 'doc', 'docx', 'txt', 'pptx', 'xlsx'])) {
+                $documentAttachments[] = $attachment;
+            } elseif (in_array(strtolower($ext), ['jpg', 'jpeg', 'png', 'gif', 'svg', 'bmp'])) {
+                $imageAttachments[] = $attachment;
+            } elseif (in_array(strtolower($ext), ['js', 'py', 'java', 'html', 'css', 'cpp', 'c', 'php', 'rb'])) {
+                $codeAttachments[] = $attachment;
+            } elseif (in_array(strtolower($ext), ['zip', 'rar', '7z', 'tar', 'gz'])) {
+                $archiveAttachments[] = $attachment;
+            } elseif (in_array(strtolower($ext), ['mp4', 'avi', 'mov', 'wmv', 'flv'])) {
+                $videoAttachments[] = $attachment;
+            } else {
+                $documentAttachments[] = $attachment; // default to documents
+            }
         }
 
         return [
-            'attempt_no' => $submission->attempt_no,
             'submission_id' => $submission->id,
             'submission_uuid' => $submission->uuid,
+            'attempt_no' => $submission->attempt_no,
             'status' => $submission->status,
             'submitted_at' => $submission->submitted_at,
             'submitted_at_formatted' => $submission->submitted_at ? 
                 Carbon::parse($submission->submitted_at)->format('M j, Y g:i A') : null,
+            'is_late' => (bool)$submission->is_late,
+            'late_minutes' => $submission->late_minutes,
+            'late_days' => $submission->late_minutes ? ceil($submission->late_minutes / (24 * 60)) : 0,
+            'content_text' => $submission->content_text,
+            'content_html' => $submission->content_html,
+            'link_url' => $submission->link_url,
+            'repo_url' => $submission->repo_url,
             
-            // Marks information
+            // Attachments organized by type
+            'all_attachments' => $attachments,
+            'document_attachments' => $documentAttachments,
+            'image_attachments' => $imageAttachments,
+            'code_attachments' => $codeAttachments,
+            'archive_attachments' => $archiveAttachments,
+            'video_attachments' => $videoAttachments,
+            
+            // Attachment counts
+            'total_attachments' => count($attachments),
+            'document_count' => count($documentAttachments),
+            'image_count' => count($imageAttachments),
+            'code_count' => count($codeAttachments),
+            'archive_count' => count($archiveAttachments),
+            'video_count' => count($videoAttachments),
+            
+            // Grading information
             'total_marks' => $submission->total_marks,
             'grade_letter' => $submission->grade_letter,
             'graded_at' => $submission->graded_at,
             'graded_at_formatted' => $submission->graded_at ? 
                 Carbon::parse($submission->graded_at)->format('M j, Y g:i A') : null,
+            'graded_by' => $submission->graded_by,
             'grader_note' => $submission->grader_note,
             'feedback_html' => $submission->feedback_html,
             'feedback_visible' => (bool)$submission->feedback_visible,
             
-            // Late submission details
-            'is_late' => (bool)$submission->is_late,
-            'late_minutes' => $submission->late_minutes,
-            'late_days' => $lateDays,
-            
-            // Penalty information
-            'penalty_details' => [
-                'penalty_applied' => !empty($gradingDetails['late_penalty_applied']) && $gradingDetails['late_penalty_applied'],
-                'penalty_amount' => $gradingDetails['late_penalty_amount'] ?? 0,
-                'penalty_percentage' => $gradingDetails['late_penalty_percentage'] ?? 0,
-                'given_marks' => $gradingDetails['given_marks'] ?? $submission->total_marks,
-                'final_marks_after_penalty' => $gradingDetails['final_marks_after_penalty'] ?? $submission->total_marks,
-            ],
-            
-            // Submission content (optional - you might want to exclude large fields)
-            'has_content_text' => !empty($submission->content_text),
-            'has_content_html' => !empty($submission->content_html),
-            'link_url' => $submission->link_url,
-            'repo_url' => $submission->repo_url,
-            
-            // Attachments info (without full details to keep response small)
-            'attachments_count' => 0, // We'll calculate this below
+            // Additional details
+            'grading_details' => $gradingDetails,
+            'flags' => $flags,
+            'metadata' => $metadata,
+            'submitted_ip' => $submission->submitted_ip,
+            'version_no' => $submission->version_no,
         ];
     });
 
-    // Count attachments for each submission
-    foreach ($submissions as $index => $submission) {
-        if (!empty($submission->attachments_json)) {
-            try {
-                $attachments = json_decode($submission->attachments_json, true);
-                if (is_array($attachments)) {
-                    $attempts[$index]['attachments_count'] = count($attachments);
-                }
-            } catch (\Throwable $e) {
-                // Keep count as 0
-            }
-        }
-    }
-
-    // Get assignment details
-    $assignmentDetails = [
-        'id' => $assignment->id,
-        'uuid' => $assignment->uuid ?? null,
-        'title' => $assignment->title ?? 'Unknown Assignment',
-        'description' => $assignment->description ?? null,
-        'due_at' => $assignment->due_at,
-        'due_at_formatted' => $assignment->due_at ? 
-            Carbon::parse($assignment->due_at)->format('M j, Y g:i A') : null,
-        'max_marks' => $assignment->max_marks ?? $assignment->total_marks ?? null,
-        'attempts_allowed' => $assignment->attempts_allowed ?? $assignment->max_attempts ?? null,
-    ];
-
-    // Calculate statistics
-    $totalAttempts = $attempts->count();
-    $gradedAttempts = $attempts->where('total_marks', '!==', null)->count();
-    $latestAttempt = $attempts->last();
-    $bestAttempt = $attempts->where('total_marks', '!==', null)
-        ->sortByDesc('total_marks')
-        ->first();
-
-    $statistics = [
-        'total_attempts' => $totalAttempts,
-        'graded_attempts' => $gradedAttempts,
-        'latest_attempt_no' => $latestAttempt['attempt_no'] ?? null,
-        'best_marks' => $bestAttempt['total_marks'] ?? null,
-        'best_attempt_no' => $bestAttempt['attempt_no'] ?? null,
-        'has_late_submissions' => $attempts->where('is_late', true)->isNotEmpty(),
-    ];
+    // Compute statistics safely
+    $total_submissions = $submissionDetails->count();
+    $total_attachments = $submissionDetails->sum('total_attachments');
+    $total_documents = $submissionDetails->sum('document_count');
+    $total_images = $submissionDetails->sum('image_count');
+    $total_code_files = $submissionDetails->sum('code_count');
+    $total_archives = $submissionDetails->sum('archive_count');
+    $total_videos = $submissionDetails->sum('video_count');
+    $latest_attempt = $submissionDetails->max('attempt_no');
+    $graded_submissions = $submissionDetails->filter(function($s){
+        return isset($s['total_marks']) && $s['total_marks'] !== null;
+    })->count();
 
     return response()->json([
-        'message' => 'Assignment marks fetched successfully',
+        'message' => 'Student assignment documents fetched successfully',
         'data' => [
-            'assignment' => $assignmentDetails,
-            'statistics' => $statistics,
-            'attempts' => $attempts->values(), // Ensure sequential indexing
+            'assignment' => [
+                'id' => $assignment->id,
+                'uuid' => $assignment->uuid ?? null,
+                'title' => $assignment->title ?? 'Unknown Title',
+                'due_at' => $assignment->due_at ?? null,
+                'total_marks' => $assignment->total_marks ?? null,
+            ],
+            'student' => [
+                'id' => $student->id,
+                'uuid' => $student->uuid ?? null,
+                'name' => $student->name ?? 'Unknown Student',
+                'email' => $student->email ?? null,
+            ],
+            'actor' => [ // Add actor info for frontend verification
+                'id' => $actorId,
+                'email' => $actor['email'] ?? null,
+                'role' => $actorRole,
+            ],
+            'submissions' => $submissionDetails,
+            'statistics' => [
+                'total_submissions' => $total_submissions,
+                'total_attachments' => $total_attachments,
+                'total_documents' => $total_documents,
+                'total_images' => $total_images,
+                'total_code_files' => $total_code_files,
+                'total_archives' => $total_archives,
+                'total_videos' => $total_videos,
+                'latest_attempt' => $latest_attempt,
+                'graded_submissions' => $graded_submissions,
+            ],
         ],
     ], 200);
 }

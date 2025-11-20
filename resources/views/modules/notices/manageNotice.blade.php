@@ -159,7 +159,7 @@ html.theme-dark .dropdown-menu{background:#0f172a;border-color:var(--line-strong
             <tr id="ask">
               <td colspan="6" class="p-4 text-center text-muted">
                 <i class="fa fa-bullhorn mb-2" style="font-size:28px;opacity:.6"></i>
-                <div>Please select Course → Module → Batch to load notices.</div>
+<div>Please select a course to load notices.</div>
               </td>
             </tr>
           </tbody>
@@ -276,7 +276,7 @@ html.theme-dark .dropdown-menu{background:#0f172a;border-color:var(--line-strong
               </div>
 
               <div id="rte" class="rte" contenteditable="true" aria-label="Notice message editor" role="textbox" spellcheck="true"></div>
-              <div class="rte-ph">Write your notice here…</div>
+              <div class="rte-ph" style="display:none">Write your notice here…</div>
             </div>
             <textarea id="message_html" name="message_html" hidden></textarea>
           </div>
@@ -426,26 +426,43 @@ function wire(){
     batchSel.innerHTML  = '<option value="">Select a batch…</option>';
     enableFilters(false);
     rowsEl.querySelectorAll('tr:not(#loaderRow):not(#ask)').forEach(n=>n.remove());
-    emptyEl.style.display='none'; askEl.style.display='';
+    emptyEl.style.display='none';
+    //  askEl.style.display='';
     pager.innerHTML=''; metaTxt.textContent='—';
     if(!courseSel.value) return;
     await loadModules(courseSel.value);
     await loadBatches(courseSel.value);
-    enableFilters(true);
+moduleSel.disabled = false;
+batchSel.disabled = false;
+q.disabled = false;
+btnCreate.disabled = binMode ? true : false;
+  page = 1;
+    loadList();  // 🔥 THIS LOADS THE NOTICE LIST IMMEDIATELY
   });
 
   moduleSel.addEventListener('change', async ()=>{
     await loadBatches(courseSel.value, moduleSel.value||'');
-    askEl.style.display=''; // wait for batch selection
-    rowsEl.querySelectorAll('tr:not(#loaderRow):not(#ask)').forEach(n=>n.remove());
-    emptyEl.style.display='none'; pager.innerHTML=''; metaTxt.textContent='—';
-  });
+    page = 1;
+    loadList(); // IMMEDIATELY LOAD LIST EVEN WITHOUT BATCH
+});
+
 
   batchSel.addEventListener('change', ()=>{ if(batchSel.value){ page=1; loadList(); } });
 
-  let t; q.addEventListener('input', ()=>{ clearTimeout(t); t=setTimeout(()=>{ page=1; if(batchSel.value) loadList(); }, 350); });
+let t; q.addEventListener('input', ()=>{
+    clearTimeout(t);
+    t = setTimeout(()=>{
+        page = 1;
+        loadList();  // ALWAYS allow searching
+    }, 350);
+});
 
-  binToggle.addEventListener('change', ()=>{ binMode = !!binToggle.checked; btnCreate.disabled = binMode || !batchSel.value; page = 1; if(batchSel.value) loadList(); });
+binToggle.addEventListener('change', ()=>{
+  binMode = !!binToggle.checked;
+  btnCreate.disabled = binMode || !courseSel.value;
+  page = 1;
+  loadList(); // ALLOW COURSE-LEVEL BIN LISTING TOO
+});
 
   btnCreate.addEventListener('click', openCreateModal);
 
@@ -542,17 +559,24 @@ function rowHTML(r){
 }
 
 async function loadList(){
-  if(!batchSel.value){ showAsk(true); return; }
+// do not require batch; show ask only if NO course is chosen
+if(!courseSel.value){
+    showAsk(true);
+    return;
+}
+showAsk(false);
   showAsk(false); showLoader(true); emptyEl.style.display='none'; pager.innerHTML=''; metaTxt.textContent='—';
   rowsEl.querySelectorAll('tr:not(#loaderRow):not(#ask)').forEach(n=>n.remove());
   try{
-    const usp=new URLSearchParams({
-      course_id: courseSel.value,
-      course_module_id: moduleSel.value||'',
-      batch_id: batchSel.value,
-      per_page: perPage, page, sort
-    });
-    if(q.value.trim()) usp.set('search', q.value.trim());
+    const usp = new URLSearchParams({
+    course_id: courseSel.value,
+    per_page: perPage,
+    page,
+    sort
+});
+if(moduleSel.value) usp.set('course_module_id', moduleSel.value);
+if(batchSel.value) usp.set('batch_id', batchSel.value);
+if(q.value.trim()) usp.set('search', q.value.trim());
 
     let endpoint = API.index(usp);
     if(binMode){
@@ -617,7 +641,9 @@ function resetEditor(){
 }
 
 function openCreateModal(){
-  if(!courseSel.value || !batchSel.value) return Swal.fire('Select filters','Pick Course → Module → Batch first.','info');
+if(!courseSel.value)
+  return Swal.fire('Select a course','Please pick a course first.','info');
+
   if(binMode) return Swal.fire('Bin view active','Switch off Bin to create.','info');
   const m=new bootstrap.Modal(document.getElementById('editModal'));
   em_mode.value='create'; em_id.value=''; em_title.textContent='Create Notice'; resetEditor(); m.show();
@@ -672,7 +698,7 @@ em_save.addEventListener('click', async ()=>{
   const fd = new FormData();
   fd.append('course_id', em_course_id.value);
   if(em_module_id.value) fd.append('course_module_id', em_module_id.value);
-  fd.append('batch_id', em_batch_id.value);
+if (em_batch_id.value) fd.append('batch_id', em_batch_id.value);
   fd.append('title', em_title_input.value.trim());
   if(hiddenMessage.value) fd.append('message_html', hiddenMessage.value);
   if(em_visibility.value) fd.append('visibility_scope', em_visibility.value);

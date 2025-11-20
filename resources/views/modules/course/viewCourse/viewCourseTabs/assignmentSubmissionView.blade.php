@@ -204,6 +204,26 @@
       font-size: var(--fs-13);
       flex-shrink: 0;
     }
+    /* Attempt marks badge */
+.attempt-marks {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  font-weight: 700;
+  font-size: 0.82rem;
+  background: color-mix(in oklab, var(--primary-color) 10%, transparent);
+  color: var(--primary-color);
+  border: 1px solid color-mix(in oklab, var(--primary-color) 12%, transparent);
+  margin-left: 10px;
+}
+html.theme-dark .attempt-marks {
+  background: color-mix(in oklab, var(--primary-color) 10%, var(--surface));
+  color: var(--surface);
+  border-color: color-mix(in oklab, var(--primary-color) 20%, var(--line-strong));
+}
+
 
     .content {
       background: var(--surface);
@@ -308,14 +328,49 @@
       margin-bottom: 24px;
     }
 
-    .attempt-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 12px;
-      padding-bottom: 8px;
-      border-bottom: 1px solid var(--line-soft);
-    }
+   /* tighten attempt header spacing and group actions on the right */
+.attempt-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;           /* small gap between left and right groups */
+}
+
+/* left title should not take unnecessary space (keeps it compact) */
+.attempt-title {
+  font-weight: 600;
+  color: var(--ink);
+   display: flex;
+  align-items: center;
+  gap: 12px;          /* space between Attempt text and View Marks */
+  margin-bottom: 12px; /* bottom spacing you wanted */
+  margin: 0;
+  margin-right: 8px;
+  white-space: nowrap;
+}
+
+
+
+/* right-side action group (View Marks + submitted date) */
+.attempt-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;           /* gap between View Marks and submitted date */
+  white-space: nowrap;
+}
+
+/* smaller/more compact submitted text */
+.attempt-submitted {
+  color: var(--muted-color);
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+/* make View Marks button sit tightly next to Attempt */
+.view-marks-btn {
+  margin: 0;            /* remove default margin that can push things apart */
+  padding: 6px 10px;
+}
 
     .attempt-title {
       font-weight: 600;
@@ -336,6 +391,7 @@
 
     .doc-card {
       border-radius: var(--radius-1);
+      margin-top:12px;
       padding: 16px;
       border: 1px solid var(--line-strong);
       background: var(--surface);
@@ -1363,6 +1419,128 @@ html.theme-dark .rte-ph { color: color-mix(in oklab, var(--muted-color) 110%, va
 
 /* Keep overlay darkness strong in dark-mode */
 html.theme-dark .as-fullscreen { background: rgba(0,0,0,0.9); }
+/* ---------- Marks Modal + View Marks button ---------- */
+.view-marks-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 0.82rem;
+  cursor: pointer;
+  border: 1px solid color-mix(in oklab, var(--primary-color) 14%, transparent);
+  background: color-mix(in oklab, var(--primary-color) 6%, transparent);
+  color: var(--primary-color);
+  transition: transform 120ms ease, box-shadow 120ms ease, filter 120ms ease;
+}
+.view-marks-btn:hover { transform: translateY(-2px); filter: brightness(1.03); box-shadow: 0 8px 24px color-mix(in oklab, var(--primary-color) 8%, transparent); }
+.view-marks-btn:active { transform: translateY(0); }
+
+.marks-modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.55);
+  z-index: 2147483650;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+}
+.marks-modal-inner {
+  width: 100%;
+  max-width: 680px;
+  border-radius: 14px;
+  overflow: hidden;
+  background: var(--surface);
+  box-shadow: 0 20px 50px rgba(2,6,23,0.45);
+  border: 1px solid var(--line-strong);
+  display: flex;
+  flex-direction: column;
+}
+.marks-modal-header {
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  padding:18px 20px;
+  background: linear-gradient(90deg, color-mix(in oklab, var(--primary-color) 6%, transparent), transparent);
+  border-bottom: 1px solid var(--line-strong);
+}
+.marks-modal-title {
+  font-weight:700;
+  font-size:1.05rem;
+  margin:0;
+  color:var(--ink);
+}
+.marks-modal-close {
+  background:transparent;
+  border:0;
+  font-size:18px;
+  cursor:pointer;
+  color:var(--muted-color);
+  padding:8px;
+  border-radius:8px;
+}
+.marks-modal-close:hover { background: var(--line-soft); color:var(--ink); }
+
+.marks-modal-body {
+  padding: 18px 20px;
+  display:grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+  color: var(--text-color);
+}
+
+.marks-grid {
+  display:grid;
+  grid-template-columns: 1fr 1fr;
+  gap:12px;
+}
+.marks-row {
+  background: color-mix(in oklab, var(--surface) 100%, var(--surface));
+  border-radius:10px;
+  padding:12px;
+  border:1px solid var(--line-strong);
+}
+.marks-label {
+  font-size:0.82rem;
+  color:var(--muted-color);
+  font-weight:600;
+  margin-bottom:6px;
+}
+.marks-value {
+  font-size:1.05rem;
+  font-weight:800;
+  color:var(--ink);
+  word-break:break-word;
+}
+
+.marks-note {
+  margin-top:6px;
+  font-size:0.95rem;
+  color:var(--text-color);
+  line-height:1.4;
+  white-space:pre-wrap;
+  background: transparent;
+}
+
+/* footer */
+.marks-modal-footer {
+  display:flex;
+  justify-content:flex-end;
+  gap:12px;
+  padding:14px 20px;
+  border-top:1px solid var(--line-strong);
+  background: var(--bg-body);
+}
+
+/* responsive */
+@media (max-width:600px) {
+  .marks-grid { grid-template-columns: 1fr; }
+  .marks-modal { padding: 12px; }
+  .marks-modal-inner { max-width: 100%; border-radius: 12px; }
+}
 
 /* end dark-mode tweaks */
 
@@ -1478,6 +1656,43 @@ html.theme-dark .as-fullscreen { background: rgba(0,0,0,0.9); }
       <div class="fs-body" id="fs_body"></div>
     </div>
   </div>
+  <!-- Marks Modal -->
+<div id="marks_modal" class="marks-modal" style="display:none" aria-hidden="true">
+  <div class="marks-modal-inner" role="dialog" aria-modal="true" aria-labelledby="marks_modal_title">
+    <div class="marks-modal-header">
+      <h3 class="marks-modal-title" id="marks_modal_title">View Marks</h3>
+      <button class="marks-modal-close" id="marks_modal_close" aria-label="Close"><i class="fa fa-times"></i></button>
+    </div>
+
+    <div class="marks-modal-body">
+      <div class="marks-grid">
+        <div class="marks-row">
+          <div class="marks-label">Marks</div>
+          <div class="marks-value" id="mm_marks">—</div>
+        </div>
+
+        <div class="marks-row">
+          <div class="marks-label">Grade</div>
+          <div class="marks-value" id="mm_grade">—</div>
+        </div>
+
+        <div class="marks-row" style="grid-column: 1 / -1;">
+          <div class="marks-label">Grade note</div>
+          <div class="marks-note" id="mm_note">—</div>
+        </div>
+
+        <div class="marks-row" style="grid-column: 1 / -1;display:none;">
+          <div class="marks-label">Graded by</div>
+          <div class="marks-value" id="mm_graded_by">—</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="marks-modal-footer">
+      <button class="btn btn-secondary" id="mm_close_btn">Close</button>
+    </div>
+  </div>
+</div>
 
   <!-- Grade Modal -->
   <div id="grade_modal" class="grade-modal" style="display:none">
@@ -2045,60 +2260,131 @@ async function loadStudentDocuments(student){
 
   if (resJson.data.assignment) setAssignmentInfo(resJson.data.assignment);
 
-  const submissionsHtml = submissions.map(sub => {
-    const attach = sub.all_attachments || sub.attachments || sub.attachments_json || sub.attachmentsJson || [];
-    let attachments = [];
-    if (Array.isArray(attach)) attachments = attach;
-    else if (typeof attach === 'string' && attach.trim()) {
-      try { attachments = JSON.parse(attach); } catch(e){ attachments = []; }
+  const submissionsHtml = submissions.map((sub, subIndex) => {
+  const attach = sub.all_attachments || sub.attachments || sub.attachments_json || sub.attachmentsJson || [];
+  let attachments = [];
+  if (Array.isArray(attach)) attachments = attach;
+  else if (typeof attach === 'string' && attach.trim()) {
+    try { attachments = JSON.parse(attach); } catch(e){ attachments = []; }
+  }
+
+  // Marks detection (show best candidates)
+  const marksCandidates = ['total_marks','marks','score','obtained_marks','obtainedMarks','grade_value','points'];
+  let marksRaw = null;
+  for (const k of marksCandidates) {
+    if (typeof sub[k] !== 'undefined' && sub[k] !== null && sub[k] !== '') { marksRaw = sub[k]; break; }
+  }
+  if (marksRaw === null && sub.grade && typeof sub.grade === 'object') {
+    marksRaw = sub.grade.marks ?? sub.grade.value ?? sub.grade.score ?? null;
+  }
+  let marksText = 'Not graded';
+  if (marksRaw !== null && typeof marksRaw !== 'undefined' && marksRaw !== '') {
+    if (typeof marksRaw === 'object') {
+      if (typeof marksRaw.obtained !== 'undefined' && typeof marksRaw.out_of !== 'undefined') {
+        marksText = `${marksRaw.obtained}/${marksRaw.out_of}`;
+      } else if (typeof marksRaw.value !== 'undefined') {
+        marksText = String(marksRaw.value);
+      } else {
+        marksText = JSON.stringify(marksRaw);
+      }
+    } else {
+      marksText = String(marksRaw);
     }
+  }
 
-    const attachmentsHtml = attachments.map(a => {
-      const url = a.url || a.path || '#';
-      const safeName = a.name || (url.split('/').pop() || 'file');
-      const ext = (safeName.split('.').pop()||'').toLowerCase();
-      let iconClass = 'icon-default';
-      let iconType = 'fa-file';
-      if (ext === 'pdf') { iconClass = 'icon-pdf'; iconType = 'fa-file-pdf'; }
-      else if (['jpg','jpeg','png','gif','svg','bmp'].includes(ext)) { iconClass = 'icon-image'; iconType = 'fa-file-image'; }
-      else if (['doc','docx'].includes(ext)) { iconClass = 'icon-doc'; iconType = 'fa-file-word'; }
-      else if (['xls','xlsx'].includes(ext)) { iconType = 'fa-file-excel'; }
-      else if (['ppt','pptx'].includes(ext)) { iconType = 'fa-file-powerpoint'; }
-      else if (['zip','rar','7z'].includes(ext)) { iconType = 'fa-file-archive'; }
+  // grade / note / graded_by candidates
+  const gradeCandidates = ['grade','grade_letter','gradeLetter','grade_value','letter'];
+  let gradeRaw = null;
+  for (const k of gradeCandidates) {
+    if (typeof sub[k] !== 'undefined' && sub[k] !== null && sub[k] !== '') { gradeRaw = sub[k]; break; }
+  }
+  if (!gradeRaw && sub.grade && typeof sub.grade === 'object') gradeRaw = sub.grade.letter ?? sub.grade.value ?? null;
+  const gradeText = gradeRaw !== null && gradeRaw !== undefined && gradeRaw !== '' ? String(gradeRaw) : '—';
 
-      return `
-        <div class="doc-card">
-          <div class="doc-card-inner">
-            <div class="doc-info">
-              <div class="doc-icon ${iconClass}"><i class="fas ${iconType}"></i></div>
-              <div class="doc-content">
-                <div class="doc-name">${escapeHtml(safeName)}</div>
-                <div class="doc-meta">${escapeHtml(a.mime||'')} • ${formatBytes(a.size||0)}</div>
-              </div>
-            </div>
-            <div class="doc-actions">
-              <button class="btn-icon btn-icon-primary" data-url="${escapeHtml(url)}" data-name="${escapeHtml(safeName)}" title="View"><i class="fa fa-eye"></i></button>
-              <a class="btn-icon btn-icon-outline" href="${escapeHtml(url)}" target="_blank" rel="noopener" title="Download" style="display:none"><i class="fa fa-download"></i></a>
-            </div>
-          </div>
-        </div>
-      `;
-    }).join('');
+  const noteCandidates = ['grader_note','grade_note','note','feedback','comments'];
+  let noteRaw = null;
+  for (const k of noteCandidates) {
+    if (typeof sub[k] !== 'undefined' && sub[k] !== null && sub[k] !== '') { noteRaw = sub[k]; break; }
+  }
+  if (!noteRaw && sub.grade && typeof sub.grade === 'object') noteRaw = sub.grade.note ?? sub.grade.feedback ?? null;
+  const noteText = noteRaw ? String(noteRaw) : 'No notes';
+
+  const gradedByCandidates = ['graded_by','graded_by_name','gradedBy','grader','grader_name','graded_by_user'];
+  let gradedByRaw = null;
+  for (const k of gradedByCandidates) {
+    if (typeof sub[k] !== 'undefined' && sub[k] !== null && sub[k] !== '') { gradedByRaw = sub[k]; break; }
+  }
+  if (!gradedByRaw && sub.grade && typeof sub.grade === 'object') gradedByRaw = sub.grade.by ?? sub.grade.graded_by ?? null;
+  const gradedByText = gradedByRaw ? String(gradedByRaw) : '—';
+
+  const attachmentsHtml = attachments.map(a => {
+    const url = a.url || a.path || '#';
+    const safeName = a.name || (url.split('/').pop() || 'file');
+    const ext = (safeName.split('.').pop()||'').toLowerCase();
+    let iconClass = 'icon-default';
+    let iconType = 'fa-file';
+    if (ext === 'pdf') { iconClass = 'icon-pdf'; iconType = 'fa-file-pdf'; }
+    else if (['jpg','jpeg','png','gif','svg','bmp'].includes(ext)) { iconClass = 'icon-image'; iconType = 'fa-file-image'; }
+    else if (['doc','docx'].includes(ext)) { iconClass = 'icon-doc'; iconType = 'fa-file-word'; }
+    else if (['xls','xlsx'].includes(ext)) { iconType = 'fa-file-excel'; }
+    else if (['ppt','pptx'].includes(ext)) { iconType = 'fa-file-powerpoint'; }
+    else if (['zip','rar','7z'].includes(ext)) { iconType = 'fa-file-archive'; }
 
     return `
-      <div class="attempt-section">
-        <div class="attempt-header">
-          <div class="attempt-title">Attempt ${escapeHtml(String(sub.attempt_no || sub.attempt || sub.attemptNo || '—'))} <small style="color: var(--muted-color); font-weight: 600;">${escapeHtml(sub.status||'')}</small></div>
-          <div class="attempt-meta">Submitted: ${escapeHtml(sub.submitted_at||sub.submittedAt||'')}</div>
+      <div class="doc-card">
+        <div class="doc-card-inner">
+          <div class="doc-info">
+            <div class="doc-icon ${iconClass}"><i class="fas ${iconType}"></i></div>
+            <div class="doc-content">
+              <div class="doc-name">${escapeHtml(safeName)}</div>
+              <div class="doc-meta">${escapeHtml(a.mime||'')} • ${formatBytes(a.size||0)}</div>
+            </div>
+          </div>
+          <div class="doc-actions">
+            <button class="btn-icon btn-icon-primary" data-url="${escapeHtml(a.url||a.path||'#')}" data-name="${escapeHtml(safeName)}" title="View"><i class="fa fa-eye"></i></button>
+            <a class="btn-icon btn-icon-outline" href="${escapeHtml(a.url||a.path||'#')}" target="_blank" rel="noopener" title="Download" style="display:none"><i class="fa fa-download"></i></a>
+          </div>
         </div>
-        <div class="doc-grid">${attachmentsHtml}</div>
       </div>
     `;
   }).join('');
 
+  const attemptNo = escapeHtml(String(sub.attempt_no || sub.attempt || sub.attemptNo || (subIndex+1) || '—'));
+  const attemptStatus = escapeHtml(sub.status || '');
+  const submittedAt = escapeHtml(sub.submitted_at || sub.submittedAt || sub.created_at || '');
+
+  // add View Marks button with data attributes
+const viewMarksBtnHtml = `
+  <button class="view-marks-btn"
+    data-marks="${escapeHtml(marksText)}"
+    data-grade="${escapeHtml(gradeText)}"
+    data-note="${escapeHtml(noteText)}"
+    data-graded-by="${escapeHtml(gradedByText)}"
+    data-submission-id="${escapeHtml(String(sub.id||sub.submission_id||sub.uuid||''))}">
+    View Marks
+  </button>`;
+
+    return `
+    <div class="attempt-section">
+      <div class="attempt-header">
+        <div class="attempt-title">Attempt ${attemptNo}  ${viewMarksBtnHtml}</div>
+
+        <div class="attempt-right">
+         
+          <div class="attempt-submitted">Submitted: ${submittedAt}</div>
+        </div>
+      </div>
+
+      <div class="doc-grid">${attachmentsHtml}</div>
+    </div>
+  `;
+}).join('');
+
+
   docsHost.innerHTML = submissionsHtml;
 
   // Attach view handlers to the view buttons we render above
+// attach view handlers to doc view buttons (existing)
 docsHost.querySelectorAll('.btn-icon[data-url]').forEach(btn => {
   btn.addEventListener('click', (ev) => {
     ev.preventDefault();
@@ -2109,12 +2395,33 @@ docsHost.querySelectorAll('.btn-icon[data-url]').forEach(btn => {
   });
 });
 
+// NEW: attach View Marks buttons
+docsHost.querySelectorAll('.view-marks-btn').forEach(btn => {
+  btn.addEventListener('click', (ev) => {
+    ev.preventDefault();
+    const m = btn.getAttribute('data-marks') || 'Not graded';
+    const g = btn.getAttribute('data-grade') || '—';
+    const n = btn.getAttribute('data-note') || 'No notes';
+    const by = btn.getAttribute('data-graded-by') || '—';
+    const sid = btn.getAttribute('data-submission-id') || '';
+
+    // prefer showing exact values stored, but if these are placeholders and we have an API, try to fetch detailed submission
+    openMarksModal({ marks: m, grade: g, note: n, graded_by: by, submission_id: sid });
+  });
+});
+
+
 }
 
 /* ---------- Grade modal (unchanged) ---------- */
 function updateGiveMarksButton() {
-  if (selectedStudent && (selectedStudent.student_id || selectedStudent.student_uuid)) giveMarksBtn.style.display = 'flex';
-  else giveMarksBtn.style.display = 'none';
+  const allowed = ['admin', 'instructor', 'super_admin', 'superadmin'].includes(role);
+
+  if (allowed && selectedStudent && (selectedStudent.student_id || selectedStudent.student_uuid)) {
+    giveMarksBtn.style.display = 'flex';
+  } else {
+    giveMarksBtn.style.display = 'none';
+  }
 }
 
 async function openGradeModal() {
@@ -2172,35 +2479,77 @@ async function fetchSubmissionsForGrading() {
 
   throw new Error('No submissions found');
 }
-
+// Replace your existing renderSubmissionsList with this function
 function renderSubmissionsList(submissions) {
   const container = document.getElementById('submissions_list');
   const form = document.getElementById('grade_form');
   const submitBtn = document.getElementById('grade_submit_btn');
 
+  // Sort newest first
   submissions.sort((a, b) => (b.attempt_no || 0) - (a.attempt_no || 0));
 
   const submissionsHtml = submissions.map((submission, index) => {
     const attempt = submission.attempt_no || submission.attempt || index + 1;
-    const submittedAt = submission.submitted_at || submission.created_at || 'Unknown date';
+    const submittedAt = submission.submitted_at || submission.created_at || '';
     const isLate = submission.is_late || submission.late || false;
     const currentMarks = submission.total_marks || submission.marks || 'Not graded';
     const submissionId = submission.id || submission.submission_id || '';
     const submissionUuid = submission.submission_uuid || submission.uuid || '';
 
+    // attachments resolution
+    const attach = submission.all_attachments || submission.attachments || submission.attachments_json || submission.attachmentsJson || [];
+    let attachments = [];
+    if (Array.isArray(attach)) attachments = attach;
+    else if (typeof attach === 'string' && attach.trim()) {
+      try { attachments = JSON.parse(attach); } catch(e){ attachments = []; }
+    }
+    const filesCount = attachments.length || 0;
+
+    // create a unique id for the select so we can wire handlers reliably
+    const selectId = `attachments_select_${index}`;
+
+    // If multiple files we will render a compact select, else show simple preview text.
+    let fileControlHtml = '';
+    if (filesCount === 0) {
+      fileControlHtml = `<div style="color:var(--muted-color)">No files</div>`;
+    } else if (filesCount === 1) {
+      fileControlHtml = `<div style="color:var(--muted-color)">1 file</div>`;
+    } else {
+      // build <select> options
+      const opts = attachments.map((a, i) => {
+        const url = a.url || a.path || a.file || a.link || '';
+        const name = a.name || (url.split('/').pop()||`file-${i+1}`);
+        return `<option value="${escapeHtml(url)}">${escapeHtml(name)}</option>`;
+      }).join('');
+      fileControlHtml = `<select id="${escapeHtml(selectId)}" class="grade-form-input" style="min-width:220px">${opts}</select>`;
+    }
+
     return `
-      <div class="submission-item ${index === 0 ? 'selected' : ''}" data-submission-id="${escapeHtml(submissionId)}" data-submission-uuid="${escapeHtml(submissionUuid)}">
+      <div class="submission-item ${index === 0 ? 'selected' : ''}" data-index="${index}" data-submission-id="${escapeHtml(submissionId)}" data-submission-uuid="${escapeHtml(submissionUuid)}">
         <div class="submission-header">
           <div class="submission-attempt">Attempt ${escapeHtml(String(attempt))}</div>
-          <div class="submission-date">${new Date(submittedAt).toLocaleString()}</div>
+          <div class="submission-date">${submittedAt ? new Date(submittedAt).toLocaleString() : ''}</div>
         </div>
+
         <div class="submission-meta">
           <span><i class="fas ${isLate ? 'fa-clock' : 'fa-check'}"></i> ${isLate ? 'Late' : 'On Time'}</span>
-          <span><i class="fas fa-file"></i> ${submission.all_attachments?.length || 0} files</span>
+          <span><i class="fas fa-file"></i> ${filesCount} files</span>
           <span><i class="fas fa-star"></i> ${escapeHtml(String(currentMarks))}</span>
         </div>
-        <div style="margin-top: 8px;">
+
+        <div style="margin-top: 8px; display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
           <button type="button" class="submission-select-btn ${index === 0 ? 'selected' : ''}" onclick="selectSubmission(this, '${escapeHtml(submissionId)}', '${escapeHtml(submissionUuid)}')">${index === 0 ? 'Selected' : 'Select for Grading'}</button>
+
+          <!-- compact file control (select for multiple files) -->
+          <div style="display:flex;align-items:center;gap:8px;">
+            ${fileControlHtml}
+            <!-- Preview (opens fullscreen) -->
+            <button type="button" class="submission-preview-btn btn btn-outline-primary" style="display:none;"data-index="${index}" ${filesCount===0 ? 'disabled' : ''}>Preview</button>
+            <!-- Open in new tab -->
+            <button type="button" class="submission-open-tab btn btn-secondary" data-index="${index}" ${filesCount===0 ? 'disabled' : ''}><i class="fas fa-external-link-alt"></i></button>
+          </div>
+
+          <div style="display:none;margin-left:auto;color:var(--muted-color);font-size:0.95rem;">${submittedAt ? new Date(submittedAt).toLocaleString() : ''}</div>
         </div>
       </div>
     `;
@@ -2208,6 +2557,7 @@ function renderSubmissionsList(submissions) {
 
   container.innerHTML = submissionsHtml;
 
+  // pre-fill form with first submission (existing behaviour)
   if (submissions.length > 0) {
     const firstSubmission = submissions[0];
     const submissionId = firstSubmission.id || firstSubmission.submission_id || '';
@@ -2220,7 +2570,89 @@ function renderSubmissionsList(submissions) {
   } else {
     if (submitBtn) submitBtn.disabled = true;
   }
+
+  // Helper: resolve attachments array for a given submission
+  function resolveAttachmentsFor(sub) {
+    const attach = sub.all_attachments || sub.attachments || sub.attachments_json || sub.attachmentsJson || [];
+    let attachments = [];
+    if (Array.isArray(attach)) attachments = attach;
+    else if (typeof attach === 'string' && attach.trim()) {
+      try { attachments = JSON.parse(attach); } catch(e){ attachments = []; }
+    }
+    return attachments || [];
+  }
+
+  // Ensure the viewer is appended to body and has a high z-index
+  function ensureViewerOnTop() {
+    const fs = document.getElementById('fs_viewer');
+    if (!fs) return;
+    if (fs.parentNode !== document.body) document.body.appendChild(fs);
+    // higher than other overlays; adjust if you use different values
+    fs.style.zIndex = '2147483680';
+  }
+
+  // wire Preview buttons (opens selected file in fullscreen viewer)
+  container.querySelectorAll('.submission-preview-btn').forEach(btn => {
+    btn.addEventListener('click', (ev) => {
+      ev.preventDefault();
+      const idx = Number(btn.getAttribute('data-index'));
+      const sub = submissions[idx];
+      if (!sub) { showAlertInModal('Submission not found', 'error'); return; }
+
+      const attachments = resolveAttachmentsFor(sub);
+      if (!attachments || attachments.length === 0) {
+        showAlertInModal('No attachments for this attempt.', 'error');
+        return;
+      }
+
+      // determine selected url:
+      let selectedUrl = '';
+      if (attachments.length === 1) {
+        selectedUrl = attachments[0].url || attachments[0].path || attachments[0].file || attachments[0].link || '';
+      } else {
+        // multiple -> find the select that was rendered for this index
+        const sel = document.getElementById(`attachments_select_${idx}`);
+        if (sel && sel.value) selectedUrl = sel.value;
+        else selectedUrl = attachments[0].url || attachments[0].path || attachments[0].file || attachments[0].link || '';
+      }
+
+      if (!selectedUrl) { showAlertInModal('Selected file URL missing', 'error'); return; }
+
+      // Ensure viewer on top, then open using your openViewer helper
+      ensureViewerOnTop();
+      openViewer(selectedUrl, (attachments.length === 1 ? (attachments[0].name || '') : (document.getElementById(`attachments_select_${idx}`)?.selectedOptions?.[0]?.text || 'Document')));
+    });
+  });
+
+  // wire "Open in new tab" buttons
+  container.querySelectorAll('.submission-open-tab').forEach(btn => {
+    btn.addEventListener('click', (ev) => {
+      ev.preventDefault();
+      const idx = Number(btn.getAttribute('data-index'));
+      const sub = submissions[idx];
+      if (!sub) { showAlertInModal('Submission not found', 'error'); return; }
+
+      const attachments = resolveAttachmentsFor(sub);
+      if (!attachments || attachments.length === 0) {
+        showAlertInModal('No attachments for this attempt.', 'error');
+        return;
+      }
+
+      let selectedUrl = '';
+      if (attachments.length === 1) {
+        selectedUrl = attachments[0].url || attachments[0].path || attachments[0].file || attachments[0].link || '';
+      } else {
+        const sel = document.getElementById(`attachments_select_${idx}`);
+        if (sel && sel.value) selectedUrl = sel.value;
+        else selectedUrl = attachments[0].url || attachments[0].path || attachments[0].file || attachments[0].link || '';
+      }
+
+      if (!selectedUrl) { showAlertInModal('Selected file URL missing', 'error'); return; }
+      window.open(selectedUrl, '_blank', 'noopener');
+    });
+  });
 }
+
 
 function selectSubmission(button, submissionId, submissionUuid) {
   document.querySelectorAll('.submission-item').forEach(item => item.classList.remove('selected'));
@@ -2385,7 +2817,40 @@ document.getElementById('grade_modal').addEventListener('click', (e) => { if (e.
     } catch (e) {}
     window.location.href = backUrl;
   });
+  
 })();
+// Opens marks modal and populates fields. If submission_id given and data seems missing, you could optionally fetch details here.
+function openMarksModal(payload) {
+  const modal = document.getElementById('marks_modal');
+  const mm_marks = document.getElementById('mm_marks');
+  const mm_grade = document.getElementById('mm_grade');
+  const mm_note = document.getElementById('mm_note');
+  const mm_graded_by = document.getElementById('mm_graded_by');
+
+  mm_marks.textContent = payload.marks ?? 'Not graded';
+  mm_grade.textContent = payload.grade ?? '—';
+  mm_note.textContent = payload.note ?? 'No notes';
+  mm_graded_by.textContent = payload.graded_by ?? '—';
+
+  modal.style.display = 'flex';
+  modal.setAttribute('aria-hidden', 'false');
+
+  // trap focus optionally or set focus to close button
+  setTimeout(()=>{ document.getElementById('marks_modal_close')?.focus(); }, 50);
+}
+
+function closeMarksModal() {
+  const modal = document.getElementById('marks_modal');
+  modal.style.display = 'none';
+  modal.setAttribute('aria-hidden', 'true');
+}
+
+// wire modal close buttons
+document.getElementById('marks_modal_close')?.addEventListener('click', closeMarksModal);
+document.getElementById('mm_close_btn')?.addEventListener('click', closeMarksModal);
+// clicking on overlay closes modal
+document.getElementById('marks_modal')?.addEventListener('click', (e) => { if (e.target && e.target.id === 'marks_modal') closeMarksModal(); });
+
 </script>
 
 </body>

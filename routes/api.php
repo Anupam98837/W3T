@@ -211,37 +211,43 @@ Route::middleware('checkRole:admin,super_admin,instructor,student')->prefix('ass
 
 // Instructor-only routes
 Route::middleware('checkRole:admin,super_admin,instructor')
-     ->prefix('assignments')
-     ->group(function () {
+    ->prefix('assignments')
+    ->group(function () {
 
-    // Get all submissions for a specific assignment
-    Route::get('{assignmentKey}/submissions', [AssignmentSubmissionController::class, 'assignmentSubmissions'])
-         ->name('assignments.submissions.all')
-         ->where('assignmentKey','[A-Za-z0-9\-_]+');
+        // Get all submissions for a specific assignment
+        Route::get('{assignmentKey}/submissions', [AssignmentSubmissionController::class, 'assignmentSubmissions'])
+            ->name('assignments.submissions.all')
+            ->where('assignmentKey', '[A-Za-z0-9\-_]+');
 
-    // Get student submission status (submitted/not submitted)
-    Route::get('{assignmentKey}/student-status', [AssignmentSubmissionController::class, 'studentSubmissionStatus'])
-         ->name('assignments.submissions.status')
-         ->where('assignmentKey','[A-Za-z0-9\-_]+');
+        // Get student submission status
+        Route::get('{assignmentKey}/student-status', [AssignmentSubmissionController::class, 'studentSubmissionStatus'])
+            ->name('assignments.submissions.status')
+            ->where('assignmentKey', '[A-Za-z0-9\-_]+');
 
-    // Get submission statistics
-    Route::get('{assignmentKey}/submission-stats', [AssignmentSubmissionController::class, 'submissionStats'])
-         ->name('assignments.submissions.stats')
-         ->where('assignmentKey','[A-Za-z0-9\-_]+');
-    Route::get('/assignments/{assignmentKey}/export/submitted', [AssignmentSubmissionController::class, 'exportSubmittedStudentsCSV']);
-Route::get('/assignments/{assignmentKey}/export/unsubmitted', [AssignmentSubmissionController::class, 'exportUnsubmittedStudentsCSV']);
-Route::get('/assignments/{assignmentKey}/export/all', [AssignmentSubmissionController::class, 'exportAllStudentsStatusCSV']);
-// Grading routes
-Route::post('/submissions/{submission}/grade', [AssignmentSubmissionController::class, 'gradeSubmission']);
-Route::get('/submissions/{submission}/marks', [AssignmentSubmissionController::class, 'getSubmissionMarks']);
-Route::get('{assignmentKey}/marks', [AssignmentSubmissionController::class, 'getAssignmentMarks']);
-// Route::put('/assignments/{assignment}/penalty-settings', [AssignmentSubmissionController::class, 'updatePenaltySettings']);
-Route::post('/submissions/bulk-grade', [AssignmentSubmissionController::class, 'bulkGradeSubmissions']);
-// Document viewing routes
-Route::get('/assignments/{assignment}/submissions-documents', [AssignmentSubmissionController::class, 'getAssignmentSubmissionsWithDocuments']);
-Route::get('/{assignment}/students/{student}/documents', [AssignmentSubmissionController::class, 'getStudentAssignmentDocuments']);
-Route::get('/submissions/{submission}/download-documents', [AssignmentSubmissionController::class, 'downloadSubmissionDocuments']);
-});
+        // Get submission statistics
+        Route::get('{assignmentKey}/submission-stats', [AssignmentSubmissionController::class, 'submissionStats'])
+            ->name('assignments.submissions.stats')
+            ->where('assignmentKey', '[A-Za-z0-9\-_]+');
+
+        // CSV Export Routes
+        Route::get('{assignmentKey}/export/submitted', [AssignmentSubmissionController::class, 'exportSubmittedStudentsCSV']);
+        Route::get('{assignmentKey}/export/unsubmitted', [AssignmentSubmissionController::class, 'exportUnsubmittedStudentsCSV']);
+        Route::get('{assignmentKey}/export/all', [AssignmentSubmissionController::class, 'exportAllStudentsStatusCSV']);
+
+        // Grading routes
+        Route::post('submissions/{submission}/grade', [AssignmentSubmissionController::class, 'gradeSubmission']);
+        Route::get('submissions/{submission}/marks', [AssignmentSubmissionController::class, 'getSubmissionMarks']);
+        Route::get('{assignmentKey}/marks', [AssignmentSubmissionController::class, 'getAssignmentMarks']);
+
+        // Bulk grade
+        Route::post('submissions/bulk-grade', [AssignmentSubmissionController::class, 'bulkGradeSubmissions']);
+
+        // Document viewing routes
+        Route::get('{assignment}/submissions-documents', [AssignmentSubmissionController::class, 'getAssignmentSubmissionsWithDocuments']);
+        Route::get('{assignment}/students/{student}/documents', [AssignmentSubmissionController::class, 'getStudentAssignmentDocuments']);
+        Route::get('submissions/{submission}/download-documents', [AssignmentSubmissionController::class, 'downloadSubmissionDocuments']);
+    });
+
 // Study Material Routes 
 Route::middleware('checkRole:admin,super_admin,instructor,student')->group(function () {
     Route::get   ('/study-materials',                 [StudyMaterialController::class, 'index']);
