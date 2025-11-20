@@ -304,6 +304,8 @@ Route::middleware(['checkRole:student,admin'])->prefix('exam')->group(function (
     Route::post('/attempts/{attempt}/answer',       [ExamController::class, 'saveAnswer']);
     Route::post('/attempts/{attempt}/submit',       [ExamController::class, 'submit']);
     Route::get ('/attempts/{attempt}/status',       [ExamController::class, 'status']);
+    Route::post('/attempts/{attempt}/focus', [ExamController::class, 'focus']);
+
 });
 
 // printable answer sheet (usually admin/instructor; expose as needed)
