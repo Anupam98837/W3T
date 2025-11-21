@@ -1762,9 +1762,6 @@ const defaultHeaders = {
   'Authorization': TOKEN ? ('Bearer ' + TOKEN) : '',
   'Accept': 'application/json'
 };
-document.documentElement.classList.add('theme-dark'); // enable
-document.documentElement.classList.remove('theme-dark'); // disable
-
 async function apiFetch(url, opts = {}) {
   let finalUrl = url;
   if (!String(url).startsWith('/api')) {
@@ -1803,8 +1800,24 @@ const submissionCountEl = document.getElementById('submission_count');
 let studentsData = [];
 let selectedStudent = null;
 let currentAssignment = { id: null, uuid: null, title: null, due_at: null, course_name: null };
-window.__ASSIGNMENT_KEY__ = window.__ASSIGNMENT_KEY__ || (location.pathname.split('/').filter(Boolean).includes('assignments') ? location.pathname.split('/').filter(Boolean)[location.pathname.split('/').filter(Boolean).indexOf('assignments')+1] : '13');
-window.__PRESELECT_STUDENT__ = window.__PRESELECT_STUDENT__ || null;
+// parse path segments to extract assignment and optional student keys
+(function(){
+  const parts = location.pathname.split('/').filter(Boolean);
+  let aKey = null;
+  let sKey = null;
+  const ai = parts.indexOf('assignments');
+  if (ai !== -1 && parts.length > ai + 1) {
+    aKey = parts[ai + 1];
+    // check if '/assignments/:a/students/:s' pattern exists
+    if (parts.length > ai + 3 && parts[ai + 2] === 'students') {
+      sKey = parts[ai + 3];
+    }
+  }
+  // fallback: existing behaviour uses '13'
+  window.__ASSIGNMENT_KEY__ = window.__ASSIGNMENT_KEY__ || aKey || null;
+  window.__PRESELECT_STUDENT__ = window.__PRESELECT_STUDENT__ || sKey || null;
+})();
+
 
 /* ---------- UI alert helpers ---------- */
 function showAlertInModal(message, type) {
@@ -1860,15 +1873,34 @@ async function fetchStudentStatus(){
     else if (j.assignment) setAssignmentInfo(j.assignment);
 
     studentsData = arr.map(s => ({
-      student_id: s.student_id ?? s.id ?? s.studentId ?? s.user_id ?? null,
-      student_uuid: s.student_uuid ?? s.uuid ?? s.user_uuid ?? s.userUuid ?? null,
-      name: s.student_name ?? s.name ?? s.full_name ?? '',
-      email: s.student_email ?? s.email ?? '',
-      submission_count: s.submission_count ?? s.total_submissions ?? s.documents_count ?? 1,
-      raw: s
-    }));
+  student_id: s.student_id ?? s.id ?? s.studentId ?? s.user_id ?? null,
+  student_uuid: s.student_uuid ?? s.uuid ?? s.user_uuid ?? s.userUuid ?? null,
+  name: s.student_name ?? s.name ?? s.full_name ?? '',
+  email: s.student_email ?? s.email ?? '',
+  submission_count: s.submission_count ?? s.total_submissions ?? s.documents_count ?? 1,
+  raw: s
+}));
 
-    renderStudents();
+// If a student key is present in the URL, filter to that student only (but don't discard if not found)
+if (window.__PRESELECT_STUDENT__) {
+  const key = decodeURIComponent(window.__PRESELECT_STUDENT__);
+  const filtered = studentsData.filter(s =>
+    (s.student_uuid && String(s.student_uuid) === String(key)) ||
+    (s.student_id && String(s.student_id) === String(key)) ||
+    (s.email && String(s.email) === String(key))
+  );
+  if (filtered.length) {
+    studentsData = filtered;
+    // Optional: hide the full student list UI when preselecting a single student
+    // document.getElementById('students_host').classList.add('single-student-mode');
+  } else {
+    // keep original studentsData (useful if the student lives outside the submitted list)
+    console.warn('preselected student not found in API list; page will attempt to load by key');
+  }
+}
+
+renderStudents();
+
   }catch(err){
     if (err && err.status && (err.status === 401 || err.status === 403)) {
       studentsHost.innerHTML = '<div class="as-empty">Access denied. You are not authorized to view submissions.</div>';
@@ -2779,10 +2811,10 @@ function openViewer(url, name){
 /* ---------- initial load ---------- */
 (async ()=>{
   if (looksLikeUuid(window.__ASSIGNMENT_KEY__)) currentAssignment.uuid = window.__ASSIGNMENT_KEY__;
-  await fetchStudentStatus();
-  try {
-    await fetchAssignmentDetails(currentAssignment.uuid || window.__ASSIGNMENT_KEY__);
-  } catch (e) { console.warn('fetchAssignmentDetails failed', e); }
+await fetchStudentStatus();
+try {
+  await fetchAssignmentDetails(currentAssignment.uuid || window.__ASSIGNMENT_KEY__);
+} catch (e) { console.warn('fetchAssignmentDetails failed', e); }
 
   if (!currentAssignment.uuid && studentsData.length) {
     try { await loadStudentDocuments(studentsData[0]); } catch(e){ /* ignore */ }

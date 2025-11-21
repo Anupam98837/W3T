@@ -69,6 +69,16 @@ Route::middleware('checkRole:admin,super_admin,student,instructor')->group(funct
     Route::post  ('/courses/{course}/media',           [CourseController::class, 'mediaUpload']);   // multipart OR JSON {url}
     Route::post  ('/courses/{course}/media/reorder',   [CourseController::class, 'mediaReorder']);  // {ids:[...]} or {orders:{id:pos}}
     Route::delete('/courses/{course}/media/{media}',   [CourseController::class, 'mediaDestroy']);  // {id|uuid}
+    // list deleted
+    Route::get('/courses/deleted', [CourseController::class, 'indexDeleted']);
+    
+    // restore soft-deleted course
+    Route::post('/courses/{course}/restore', [CourseController::class, 'restore']);
+    Route::patch('/courses/{course}/restore', [CourseController::class, 'restore']); // allow PATCH
+
+    // permanently delete
+    Route::delete('/courses/{course}/force', [CourseController::class, 'forceDestroy']);
+
 });
 
 
@@ -102,8 +112,8 @@ Route::middleware(['checkRole:admin,super_admin'])->group(function () {
     Route::post  ('/course-modules/reorder',              [CourseModuleController::class, 'reorder']);
 });
 
-
 Route::middleware('checkRole:admin,super_admin')->group(function () {
+
     // Batches
     Route::get   ('/batches',                    [BatchController::class, 'index']);
     Route::get   ('/batches/{idOrUuid}',         [BatchController::class, 'show']);
@@ -113,18 +123,37 @@ Route::middleware('checkRole:admin,super_admin')->group(function () {
     Route::post  ('/batches/{idOrUuid}/restore', [BatchController::class, 'restore']);
     Route::patch ('/batches/{idOrUuid}/archive', [BatchController::class, 'archive']);
 
-    // Existing students (for the toggle modal)
+
+    /* ---------------------------
+     *   STUDENT ROUTES
+     * --------------------------- */
     Route::get   ('/batches/{idOrUuid}/students',          [BatchController::class, 'studentsIndex']);
     Route::post  ('/batches/{idOrUuid}/students/toggle',   [BatchController::class, 'studentsToggle']);
-
-    //Instructor Routes 
-    Route::get   ('/batches/{batch}/instructors',            [BatchController::class,'instructorsIndex']);
-    Route::post  ('/batches/{batch}/instructors/toggle',     [BatchController::class,'instructorsToggle']);
-    Route::patch ('/batches/{batch}/instructors/update',     [BatchController::class,'instructorsUpdate']);
-
-    // CSV upload
     Route::post  ('/batches/{idOrUuid}/students/upload-csv', [BatchController::class, 'studentsUploadCsv']);
+
+
+    /* ---------------------------
+     *   INSTRUCTOR ROUTES
+     * --------------------------- */
+    Route::get   ('/batches/{batch}/instructors',          [BatchController::class,'instructorsIndex']);
+    Route::post  ('/batches/{batch}/instructors/toggle',   [BatchController::class,'instructorsToggle']);
+    Route::patch ('/batches/{batch}/instructors/update',   [BatchController::class,'instructorsUpdate']);
+
+
+    /* ---------------------------
+     *   QUIZ ROUTES (NEW)
+     * --------------------------- */
+
+    // List all quizzes + search + filter (assigned/unassigned)
+    Route::get   ('/batches/{idOrUuid}/quizzes',           [BatchController::class, 'quizzIndex']);
+
+    // Assign / Unassign a quiz to batch
+    Route::post  ('/batches/{idOrUuid}/quizzes/toggle',    [BatchController::class, 'quizzToggle']);
+
+    // Update quiz link info (display_order, status, publish_to_students)
+    Route::patch ('/batches/{idOrUuid}/quizzes/update',    [BatchController::class, 'quizzUpdate']);
 });
+
 
 
 // Quiz & Question Routes 
@@ -159,6 +188,10 @@ Route::middleware('checkRole:admin,super_admin')
     // ===== Show/Update generic (MUST be last) =====
     Route::get ('/{key}',           [QuizzController::class, 'show'])->name('show');
     Route::match(['put','patch'],'/{key}', [QuizzController::class, 'update'])->name('update');
+});
+//students UUID
+Route::middleware('checkRole:admin,super_admin,instructor,student')->group(function () {
+    Route::get('/student/uuid', [AssignmentSubmissionController::class, 'getStudentUuid']);
 });
 
 
@@ -210,7 +243,7 @@ Route::middleware('checkRole:admin,super_admin,instructor,student')->prefix('ass
 });
 
 // Instructor-only routes
-Route::middleware('checkRole:admin,super_admin,instructor')
+Route::middleware('checkRole:admin,super_admin,instructor,student')
     ->prefix('assignments')
     ->group(function () {
 

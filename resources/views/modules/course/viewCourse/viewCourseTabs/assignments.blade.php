@@ -41,7 +41,7 @@
 @media(max-width:720px){.as-item{flex-direction:column;align-items:flex-start}.as-item .right{width:100%;display:flex;justify-content:flex-end;gap:8px}.as-more .as-dd{right:6px;left:auto;min-width:160px}}
 /* Make modal body scrollable and fit inside viewport (kept for details modal) */
 .modal.show .modal-dialog { max-height: calc(100vh - 48px); }
-.modal.show .modal-content { height: 100%; display: flex; flex-direction: column; }
+.modal.show .modal-content { display: flex; flex-direction: column; }
 .modal.show .modal-body { overflow: auto; max-height: calc(100vh - 200px); -webkit-overflow-scrolling: touch; }
 
 #as_existing_attachments .btn { padding: 6px 8px; font-size: 13px; }
@@ -760,267 +760,66 @@ if (typeof role !== 'undefined') {
       if (divider2) divider2.insertAdjacentElement('beforebegin', vm);
       else dd.appendChild(vm);
 
-      vm.addEventListener('click', async (ev) => {
-        ev.preventDefault();
-        ev.stopPropagation();
-        closeAllDropdowns();
+ vm.addEventListener('click', async (ev) => {
+  ev.preventDefault();
+  ev.stopPropagation();
+  closeAllDropdowns();
 
-        // Helper function to format marks data
-        const formatMarksData = (marksData) => {
-          if (!marksData) return '<p>No marks data available.</p>';
-          
-          // Handle array of attempts
-          if (Array.isArray(marksData)) {
-            return `
-              <div class="marks-container" style="max-height: 400px; overflow-y: auto;">
-                ${marksData.map((attempt, index) => `
-                  <div class="attempt-card" style="border: 1px solid #ddd; border-radius: 8px; padding: 15px; margin-bottom: 15px; background: #f9f9f9;">
-                    <h4 style="margin: 0 0 10px 0; color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 5px;">
-                      Attempt ${index + 1}
-                    </h4>
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
-                      ${attempt.score !== undefined ? `
-                        <div><strong>Score:</strong></div>
-                        <div style="font-weight: bold; color: #27ae60;">${attempt.score}</div>
-                      ` : ''}
-                      ${attempt.total_marks !== undefined ? `
-                        <div><strong>Total Marks:</strong></div>
-                        <div>${attempt.total_marks}</div>
-                      ` : ''}
-                      ${attempt.percentage !== undefined ? `
-                        <div><strong>Percentage:</strong></div>
-                        <div style="font-weight: bold; color: #e67e22;">${attempt.percentage}%</div>
-                      ` : ''}
-                      ${attempt.grade ? `
-                        <div><strong>Grade:</strong></div>
-                        <div style="font-weight: bold; color: #9b59b6;">${attempt.grade}</div>
-                      ` : ''}
-                      ${attempt.feedback ? `
-                        <div><strong>Feedback:</strong></div>
-                        <div style="font-style: italic; color: #7f8c8d;">${attempt.feedback}</div>
-                      ` : ''}
-                      ${attempt.graded_by ? `
-                        <div><strong>Graded By:</strong></div>
-                        <div>${attempt.graded_by}</div>
-                      ` : ''}
-                      ${attempt.graded_at ? `
-                        <div><strong>Graded At:</strong></div>
-                        <div>${new Date(attempt.graded_at).toLocaleString()}</div>
-                      ` : ''}
-                      ${attempt.submitted_at ? `
-                        <div><strong>Submitted At:</strong></div>
-                        <div>${new Date(attempt.submitted_at).toLocaleString()}</div>
-                      ` : ''}
-                    </div>
-                  </div>
-                `).join('')}
-              </div>
-            `;
-          }
-          
-          // Handle single attempt object
-          else if (typeof marksData === 'object') {
-            return `
-              <div class="marks-container" style="max-width: 500px;">
-                <div class="attempt-card" style="border: 1px solid #ddd; border-radius: 8px; padding: 15px; background: #f9f9f9;">
-                  <h4 style="margin: 0 0 15px 0; color: #2c3e50; text-align: center;">Marks Details</h4>
-                  <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-                    ${marksData.score !== undefined ? `
-                      <div><strong>Score:</strong></div>
-                      <div style="font-weight: bold; color: #27ae60; font-size: 1.1em;">${marksData.score}</div>
-                    ` : ''}
-                    ${marksData.total_marks !== undefined ? `
-                      <div><strong>Total Marks:</strong></div>
-                      <div>${marksData.total_marks}</div>
-                    ` : ''}
-                    ${marksData.percentage !== undefined ? `
-                      <div><strong>Percentage:</strong></div>
-                      <div style="font-weight: bold; color: #e67e22; font-size: 1.1em;">${marksData.percentage}%</div>
-                    ` : ''}
-                    ${marksData.grade ? `
-                      <div><strong>Grade:</strong></div>
-                      <div style="font-weight: bold; color: #9b59b6; font-size: 1.1em;">${marksData.grade}</div>
-                    ` : ''}
-                    ${marksData.feedback ? `
-                      <div><strong>Feedback:</strong></div>
-                      <div style="grid-column: 1 / -1; font-style: italic; color: #7f8c8d; padding: 8px; background: white; border-radius: 4px; margin-top: 5px;">
-                        ${marksData.feedback}
-                      </div>
-                    ` : ''}
-                    ${marksData.graded_by ? `
-                      <div><strong>Graded By:</strong></div>
-                      <div>${marksData.graded_by}</div>
-                    ` : ''}
-                    ${marksData.graded_at ? `
-                      <div><strong>Graded At:</strong></div>
-                      <div>${new Date(marksData.graded_at).toLocaleString()}</div>
-                    ` : ''}
-                  </div>
-                </div>
-              </div>
-            `;
-          }
-          
-          // Fallback for unexpected format
-          return `<pre style="text-align:left; white-space: pre-wrap;">${JSON.stringify(marksData, null, 2)}</pre>`;
-        };
+  // Determine assignment identifier (prefer assignmentKey if present on the row)
+  const assignKey = row.uuid || row.assignment_uuid || row.assignmentUuid || '';
 
-        // Helper: present marks in formatted way
-        function presentMarks(marksData) {
-          if (typeof openMarksModal === 'function') {
-            return openMarksModal(marksData, { assignment: row });
-          }
-          
-          return Swal.fire({
-            title: 'Submission Marks',
-            html: formatMarksData(marksData),
-            width: 600,
-            showCloseButton: true,
-            showConfirmButton: true,
-            confirmButtonText: 'OK',
-            customClass: {
-              container: 'marks-swal-container'
-            }
-          });
-        }
-        
-        // 1) If marks embedded on row already — show immediately
-        const embeddedMarks =
-          row.marks ||
-          row.my_marks ||
-          row.student_marks ||
-          (row.my_submission && row.my_submission.marks) ||
-          (row.submission && row.submission.marks) ||
-          null;
+  if (!assignKey) {
+    if (typeof showErr === 'function') showErr('Cannot determine assignment.');
+    else alert('Cannot determine assignment.');
+    return;
+  }
 
-        if (embeddedMarks) {
-          if (typeof openMarksModal === 'function') {
-            return openMarksModal(embeddedMarks, { assignment: row });
-          }
-          return presentMarks(embeddedMarks);
-        }
+  // 🔹 Always fetch current student (id + uuid) from API for logged-in student
+  let studentUuid = '';
+  let studentId   = '';
 
-        // 2) Try assignment-scoped route first: /api/assignments/{id}/student/marks
-        const assignId = row.id || row.uuid || row.assignment_id || row.key || row.slug || null;
-        if (assignId) {
-          try {
-            const url = `/api/assignments/${encodeURIComponent(assignId)}/student/marks`;
-            const res = await apiFetch(url, { method: 'GET' });
-            if (res && res.ok) {
-              const j = await res.json().catch(() => null);
-              const marksData = j && (j.data || j.marks) ? (j.data || j.marks) : j;
-              if (marksData) {
-                return presentMarks(marksData);
-              }
-              // if OK but empty, fall through to discovery
-            }
-          } catch (e) {
-            console.warn('assignment-scoped marks route failed', e);
-            // fall through
-          }
-        }
+  try {
+    const res = await fetch('/api/student/uuid', {
+      method: 'GET',
+      headers: {
+        'Accept': 'application/json',
+        'Authorization': `Bearer ${TOKEN}`, // or your custom header if you use one
+      },
+    });
 
-        // 3) Try to find a submission id on the row
-        let submissionId =
-          row.submission_id ||
-          (row.submission && (row.submission.id || row.submission.uuid)) ||
-          (row.my_submission && (row.my_submission.id || row.my_submission.uuid)) ||
-          (row.latest_submission && (row.latest_submission.id || row.latest_submission.uuid)) ||
-          (row.user_submission && (row.user_submission.id || row.user_submission.uuid)) ||
-          (row.submissions && Array.isArray(row.submissions) && row.submissions[0] && (row.submissions[0].id || row.submissions[0].uuid)) ||
-          null;
+    if (!res.ok) {
+      const errText = await res.text();
+      console.warn('getStudentUuid failed', res.status, errText);
+      if (typeof showErr === 'function') showErr('Failed to fetch your student identity.');
+      else alert('Failed to fetch your student identity.');
+      return;
+    }
 
-        // helper: discover student's submission via likely endpoints
-        async function discoverSubmissionFromApi(assignIdOrKey) {
-          if (!assignIdOrKey) return null;
-          const candidates = [
-            `/api/assignments/${encodeURIComponent(assignIdOrKey)}/my-submission`,
-            `/assignments/${encodeURIComponent(assignIdOrKey)}/my-submission`,
-            `/api/assignments/${encodeURIComponent(assignIdOrKey)}/submissions?mine=1`,
-            `/api/assignments/${encodeURIComponent(assignIdOrKey)}/submissions?me=1`,
-            `/api/submissions?assignment_id=${encodeURIComponent(assignIdOrKey)}&me=1`,
-            `/api/submissions?assignment_key=${encodeURIComponent(assignIdOrKey)}&me=1`,
-            `/api/submissions?assignment_id=${encodeURIComponent(assignIdOrKey)}`
-          ];
-          for (const p of candidates) {
-            try {
-              const r = await apiFetch(p, { method: 'GET' });
-              if (!r || !r.ok) continue;
-              const j = await r.json().catch(() => null);
-              if (!j) continue;
-              const candidate = j && (j.data || j.submission || j.submissions || j.items) ? (j.data || j.submission || j.submissions || j.items) : j;
-              if (!candidate) continue;
-              if (Array.isArray(candidate) && candidate.length) {
-                const s = candidate[0];
-                const id = s && (s.id || s.uuid);
-                if (id) return id;
-              } else if (typeof candidate === 'object') {
-                const id = candidate.id || candidate.uuid || (candidate.submission && (candidate.submission.id || candidate.submission.uuid));
-                if (id) return id;
-              }
-            } catch (e) {
-              // ignore and continue
-              continue;
-            }
-          }
-          return null;
-        }
+    const data = await res.json();
+    studentUuid = data.student_uuid || data.studentUuid || '';
+    studentId   = data.student_id   || data.studentId   || '';
 
-        // 4) If no submissionId found, try discovery using assignment id/title
-        if (!submissionId) {
-          const assignGuess = row.id || row.uuid || row.assignment_id || row.key || row.slug || row.title || null;
-          if (assignGuess) {
-            try {
-              submissionId = await discoverSubmissionFromApi(assignGuess);
-            } catch (e) {
-              console.warn('submission discovery failed', e);
-            }
-          }
-        }
+  } catch (e) {
+    console.warn('Error calling /api/student/uuid', e);
+    if (typeof showErr === 'function') showErr('Error while fetching your student identity.');
+    else alert('Error while fetching your student identity.');
+    return;
+  }
 
-        if (!submissionId) {
-          showErr('No submission found for this assignment. Submit first to view marks.');
-          return;
-        }
+  // 🔹 Use UUID if available, otherwise fall back to ID
+  const a = encodeURIComponent(String(assignKey));
+  const s = encodeURIComponent(String(studentUuid || studentId || ''));
 
-        // 5) Fetch marks from submission-scoped endpoints as a final fallback
-        const markPaths = [
-          `/api/submissions/${encodeURIComponent(submissionId)}/marks`,
-          `/submissions/${encodeURIComponent(submissionId)}/marks`
-        ];
-        try {
-          let res = null;
-          let json = null;
-          for (const p of markPaths) {
-            try {
-              res = await apiFetch(p, { method: 'GET' });
-              if (res && res.ok) {
-                json = await res.json().catch(() => null);
-                break;
-              }
-            } catch (e) {
-              // try next
-              continue;
-            }
-          }
+  if (!s) {
+    if (typeof showErr === 'function') showErr('Could not resolve your student identifier.');
+    else alert('Could not resolve your student identifier.');
+    return;
+  }
 
-          if (!res || !res.ok || !json) {
-            showErr('Could not fetch marks (server error).');
-            return;
-          }
+  // Final redirect: backend accepts id/uuid/email for {student}
+  window.location.href = `/assignments/${a}/students/${s}/documents`;
+});
 
-          const marksData = (json && (json.data || json.marks)) ? (json.data || json.marks) : json;
-          if (!marksData) {
-            showErr('No marks data returned.');
-            return;
-          }
-
-          presentMarks(marksData);
-        } catch (err) {
-          console.error('View marks failed', err);
-          showErr('Failed to load marks.');
-        }
-      });
     } // end if student
   } catch (ex) {
     console.warn('attach submit/view-marks action failed', ex);
@@ -1368,7 +1167,7 @@ wrap.addEventListener('contextmenu', (e) => {
 
   let bsModal = null;
   if(window.bootstrap && typeof bootstrap.Modal === 'function') bsModal = bootstrap.Modal.getOrCreateInstance(modalEl,{backdrop:'static'});
-  
+
   // Role detection (from local/session storage) - used to branch UI
   const _rawRole = (sessionStorage.getItem('role')||localStorage.getItem('role')||'').toLowerCase();
   const role = String(_rawRole || '').toLowerCase();
@@ -1800,21 +1599,20 @@ function renderAssignmentInfo(info) {
     try { URL.revokeObjectURL(url); } catch(e){}
   }
   // small helper that returns the action menu HTML (three dots dropdown)
-function adminActionMenuHtml() {
-  return `
-    <div class="admin-action-host" style="margin-left:8px;">
-      <div class="dropdown admin-action-dropdown">
-        <button class="btn btn-sm btn-light dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" title="Actions">
-          <i class="fa fa-ellipsis-vertical"></i>
-        </button>
-        <ul class="dropdown-menu dropdown-menu-end">
-          <li><a class="dropdown-item admin-action-view" href="#" data-action="view">View Submissions</a></li>
-          <li><a class="dropdown-item admin-action-grade" href="#" data-action="grade">Give marks</a></li>
-        </ul>
+  function adminActionMenuHtml() {
+    return `
+      <div class="admin-action-host" style="margin-left:8px;">
+        <div class="dropdown admin-action-dropdown">
+          <button class="btn btn-sm btn-light dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" title="Actions">
+            <i class="fa fa-ellipsis-vertical"></i>
+          </button>
+          <ul class="dropdown-menu dropdown-menu-end">
+            <li><a class="dropdown-item admin-action-view" href="#" data-action="view">View Submissions</a></li>
+          </ul>
+        </div>
       </div>
-    </div>
-  `;
-}
+    `;
+  }
 
   // NEW: Render submitted / not-submitted tabs for admin/instructor (NO full listing)
   async function renderAdminTabsWithStatus(assignmentKey, allSubmissions) {
@@ -1859,23 +1657,6 @@ function adminActionMenuHtml() {
       });
     });
   });
-
-  // --- Helper: action menu HTML ---
-  function adminActionMenuHtml() {
-    return `
-      <div class="admin-action-host" style="margin-left:8px;">
-        <div class="dropdown admin-action-dropdown">
-          <button class="btn btn-sm btn-light dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" title="Actions">
-            <i class="fa fa-ellipsis-vertical"></i>
-          </button>
-          <ul class="dropdown-menu dropdown-menu-end">
-            <li><a class="dropdown-item admin-action-view" href="#" data-action="view">View Submissions</a></li>
-            <li><a class="dropdown-item admin-action-grade" href="#" data-action="grade">Give marks</a></li>
-          </ul>
-        </div>
-      </div>
-    `;
-  }
 
   // --- Helper: fetch uuids from server for an assignment+student, return {assignment_uuid, student_uuid} or null ---
   async function fetchAssignmentAndStudentUuids(assignmentKeyOrUuidOrId, studentKeyOrId) {
@@ -1945,248 +1726,6 @@ function adminActionMenuHtml() {
     return fallbackUrl;
   }
 
-  // --- Helper: grade modal (renders DOM modal, fetches submissions, posts grade) ---
-  async function openGradeModal(assignmentKey, student, allSubmissionsMap) {
-    // remove existing modal if any
-    const prev = document.getElementById('adminGradeModal');
-    if (prev) prev.remove();
-
-    const modalHtml = `
-      <div class="modal fade" id="adminGradeModal" tabindex="-1" aria-hidden="true">
-        <div class="modal-dialog modal-lg modal-dialog-centered">
-          <div class="modal-content">
-            <div class="modal-header">
-              <h5 class="modal-title">Grade: ${escapeHtml(student.student_name || student.name || ('#' + (student.student_id||student.id||'')))}</h5>
-              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-              <div id="grade_alert" style="display:none" class="alert alert-danger"></div>
-              <div class="mb-2"><small class="text-muted">Fetching submissions...</small></div>
-              <div id="grade_submissions_list" style="max-height:320px;overflow:auto;"></div>
-              <hr/>
-              <form id="gradeForm">
-                <div class="row g-2">
-                  <div class="col-md-4">
-                    <label class="form-label">Marks</label>
-                    <input type="number" step="0.01" min="0" class="form-control" name="marks" required />
-                  </div>
-                  <div class="col-md-4">
-                    <label class="form-label">Grade letter (optional)</label>
-                    <input type="text" class="form-control" name="grade_letter" />
-                  </div>
-                  <div class="col-md-4">
-                    <label class="form-label">Apply late penalty</label>
-                    <select class="form-select" name="apply_late_penalty">
-                      <option value="true" selected>Yes (default)</option>
-                      <option value="false">No</option>
-                    </select>
-                  </div>
-                </div>
-                <div class="mt-2">
-                  <label class="form-label">Grader note / Feedback (optional)</label>
-                  <textarea class="form-control" name="grader_note" rows="3"></textarea>
-                </div>
-                <input type="hidden" name="submission_id" value="" />
-                <input type="hidden" name="submission_uuid" value="" />
-              </form>
-            </div>
-            <div class="modal-footer">
-              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-              <button id="gradeSubmitBtn" type="button" class="btn btn-primary"><i class="fa fa-check me-1"></i> Save marks</button>
-            </div>
-          </div>
-        </div>
-      </div>
-    `;
-    document.body.insertAdjacentHTML('beforeend', modalHtml);
-    const modalEl = document.getElementById('adminGradeModal');
-    const bsModal = (window.bootstrap && bootstrap.Modal) ? bootstrap.Modal.getOrCreateInstance(modalEl) : null;
-
-    // Try to get submissions: prefer local allSubmissionsMap, fallback to API
-    let submissions = [];
-    try {
-      const sidKey = String(student.student_id || student.id || '');
-      if (allSubmissionsMap && allSubmissionsMap[sidKey]) {
-        submissions = allSubmissionsMap[sidKey];
-      } else {
-        const token = localStorage.getItem('token')||sessionStorage.getItem('token')||'';
-
-        // Attempt to get UUIDs first so we can call the UUID-based API
-        let assignmentUuid = null;
-        let studentUuid = null;
-        if (student.student_uuid || student.uuid) {
-          studentUuid = student.student_uuid || student.uuid;
-        }
-
-        // Try to fetch uuids via the documents API if not present locally
-        if (!studentUuid || !assignmentUuid) {
-          const lookup = await fetchAssignmentAndStudentUuids(assignmentKey, sidKey);
-          if (lookup) {
-            assignmentUuid = lookup.assignment_uuid || null;
-            studentUuid = lookup.student_uuid || studentUuid || null;
-          }
-        }
-
-        // Prefer UUID API route if we have them
-        const urlCandidates = [];
-        if (assignmentUuid && studentUuid) {
-          urlCandidates.push(`/api/assignments/${encodeURIComponent(assignmentUuid)}/students/${encodeURIComponent(studentUuid)}/documents`);
-          urlCandidates.push(`/api/assignments/${encodeURIComponent(assignmentUuid)}/students/${encodeURIComponent(studentUuid)}/documents`); // duplicate safe
-        }
-        // fallback numeric/legacy routes
-        urlCandidates.push(`/api/assignments/${encodeURIComponent(assignmentKey)}/students/${encodeURIComponent(sidKey)}/documents`);
-        urlCandidates.push(`/api/submissions/student/${encodeURIComponent(sidKey)}?assignment=${encodeURIComponent(assignmentKey)}`);
-        urlCandidates.push(`/api/assignments/${encodeURIComponent(assignmentKey)}/student/${encodeURIComponent(sidKey)}/documents`);
-
-        for (const u of urlCandidates) {
-          try {
-            const resp = await fetch(u, { headers: { 'Authorization': token ? 'Bearer ' + token : '', 'Accept': 'application/json' }});
-            if (!resp.ok) continue;
-            const j = await resp.json().catch(()=>({}));
-            submissions = (j && j.data && j.data.submissions) ? j.data.submissions : (j && j.submissions) ? j.submissions : [];
-            // Normalize array of attempts if returned as object or nested -> keep as-is if empty
-            if (Array.isArray(submissions) && submissions.length) {
-              break;
-            }
-          } catch (e) { /* ignore & try next */ }
-        }
-      }
-    } catch (err) {
-      console.warn('Failed to fetch submissions for grading', err);
-      submissions = [];
-    }
-
-    const listHost = modalEl.querySelector('#grade_submissions_list');
-    if (!listHost) return;
-    if (!submissions || submissions.length === 0) {
-      listHost.innerHTML = '<div class="tiny text-muted">No submissions found for this student.</div>';
-    } else {
-      submissions.sort((a,b) => (b.attempt_no||b.attemptNo||0) - (a.attempt_no||a.attemptNo||0));
-      const itemsHtml = submissions.map(s => {
-        const sid = s.id || s.submission_id || s.submissionId || '';
-        const subUuid = s.submission_uuid || s.uuid || s.submissionUuid || '';
-        const attempt = s.attempt_no ?? s.attemptNo ?? s.attempt ?? '-';
-        const when = s.submitted_at || s.submittedAt || s.created_at || s.createdAt || '';
-        const totalMarks = s.total_marks ?? s.totalMarks ?? (s.metadata && s.metadata.grading_details && s.metadata.grading_details.final_marks_after_penalty) ?? '';
-        const isLate = !!(s.is_late || s.isLate);
-        return `<div class="p-2" style="border-bottom:1px solid rgba(0,0,0,0.04)">
-          <div style="display:flex;justify-content:space-between">
-            <div><strong>Attempt ${escapeHtml(String(attempt))}</strong> ${when ? `<small class="text-muted ms-2">${new Date(when).toLocaleString()}</small>` : ''}</div>
-            <div><small class="tiny text-muted">${isLate? 'Late':''} ${totalMarks!==''? ' • Marks: ' + escapeHtml(String(totalMarks)) : ''}</small></div>
-          </div>
-          <div class="tiny text-muted mt-1">Files: ${(Array.isArray(s.attachments) ? s.attachments.length : (Array.isArray(s.all_attachments)?s.all_attachments.length:0))}</div>
-          <div class="mt-1"><button class="btn btn-sm btn-outline-secondary select-submission" data-id="${escapeHtml(String(sid))}" data-uuid="${escapeHtml(String(subUuid))}">Select this attempt to grade</button></div>
-        </div>`;
-      }).join('');
-      listHost.innerHTML = itemsHtml;
-
-      // default select first
-      const first = submissions[0];
-      if (first) {
-        const input = modalEl.querySelector('input[name="submission_id"]');
-        const inputUuid = modalEl.querySelector('input[name="submission_uuid"]');
-        if (input) input.value = first.id || first.submission_id || first.submissionId || '';
-        if (inputUuid) inputUuid.value = first.submission_uuid || first.uuid || first.submissionUuid || '';
-      }
-
-      listHost.querySelectorAll('.select-submission').forEach(btn => {
-        btn.addEventListener('click', (ev) => {
-          ev.preventDefault();
-          const sid = btn.getAttribute('data-id');
-          const suuid = btn.getAttribute('data-uuid');
-          const inpt = modalEl.querySelector('input[name="submission_id"]');
-          const inptUuid = modalEl.querySelector('input[name="submission_uuid"]');
-          if (inpt) inpt.value = sid;
-          if (inptUuid) inptUuid.value = suuid || '';
-          listHost.querySelectorAll('.select-submission').forEach(b => b.classList.remove('btn-primary'));
-          btn.classList.add('btn-primary');
-        });
-      });
-    }
-
-    if (bsModal) bsModal.show();
-    else { modalEl.style.display = 'block'; modalEl.classList.add('show'); document.body.classList.add('modal-open'); }
-
-    // grade submit handler
-    const gradeBtn = modalEl.querySelector('#gradeSubmitBtn');
-    gradeBtn.addEventListener('click', async (ev) => {
-      ev.preventDefault();
-      gradeBtn.disabled = true;
-      gradeBtn.innerHTML = '<i class="fa fa-spinner fa-spin me-1"></i> Saving...';
-      const alertBox = modalEl.querySelector('#grade_alert');
-
-      try {
-        const form = modalEl.querySelector('#gradeForm');
-        const fd = new FormData(form);
-        const submissionId = fd.get('submission_id');
-        const submissionUuid = fd.get('submission_uuid');
-        if (!submissionId && !submissionUuid) {
-          if (alertBox) { alertBox.style.display='block'; alertBox.textContent = 'No submission selected to grade.'; }
-          throw new Error('No submission chosen');
-        }
-        const payload = {
-          marks: parseFloat(fd.get('marks')),
-          grade_letter: fd.get('grade_letter') || null,
-          grader_note: fd.get('grader_note') || null,
-          feedback_html: null,
-          feedback_visible: true,
-          apply_late_penalty: fd.get('apply_late_penalty') !== 'false'
-        };
-
-        const token = localStorage.getItem('token')||sessionStorage.getItem('token')||'';
-        // Prefer submission-uuid-based endpoints if we have uuid, else try numeric id endpoints
-        const gradeCandidates = [];
-        if (submissionUuid) {
-          gradeCandidates.push(`/api/submissions/${encodeURIComponent(submissionUuid)}/grade`);
-          gradeCandidates.push(`/api/assignments/submissions/${encodeURIComponent(submissionUuid)}/grade`);
-        }
-        if (submissionId) {
-          gradeCandidates.push(`/api/assignments/submissions/${encodeURIComponent(submissionId)}/grade`);
-          gradeCandidates.push(`/api/submission/${encodeURIComponent(submissionId)}/grade`);
-          gradeCandidates.push(`/api/assignments/${encodeURIComponent(assignmentKey)}/grade/${encodeURIComponent(submissionId)}`);
-        }
-
-        let gradeResp = null;
-        for (const url of gradeCandidates) {
-          try {
-            const resp = await fetch(url, {
-              method: 'POST',
-              headers: {
-                'Authorization': token ? 'Bearer ' + token : '',
-                'Content-Type': 'application/json',
-                'Accept': 'application/json'
-              },
-              body: JSON.stringify(payload)
-            });
-            const j = await resp.json().catch(()=>({}));
-            if (resp.ok) { gradeResp = { ok: true, data: j }; break; }
-            // if unauthorized, break and surface error
-            if (resp.status === 401 || resp.status === 403) { gradeResp = { ok: false, status: resp.status, json: j, url }; break; }
-          } catch (err) { /* try next */ }
-        }
-
-        if (!gradeResp || gradeResp.ok === false) {
-          const msg = (gradeResp && gradeResp.json && (gradeResp.json.error || gradeResp.json.message)) ? (gradeResp.json.error || gradeResp.json.message) : 'Failed to grade submission';
-          if (alertBox) { alertBox.style.display='block'; alertBox.textContent = msg; }
-          if (typeof showErr === 'function') showErr(msg);
-          throw new Error(msg);
-        }
-
-        if (typeof showOk === 'function') showOk((gradeResp.data && (gradeResp.data.message || gradeResp.data.msg)) ? (gradeResp.data.message || gradeResp.data.msg) : 'Graded successfully');
-        if (bsModal) bsModal.hide(); else { modalEl.classList.remove('show'); modalEl.style.display = 'none'; document.body.classList.remove('modal-open'); }
-        // optionally refresh admin view; caller can re-run renderAdminTabsWithStatus if desired
-      } catch (err) {
-        console.error('Grade submit error', err);
-      } finally {
-        gradeBtn.disabled = false;
-        gradeBtn.innerHTML = '<i class="fa fa-check me-1"></i> Save marks';
-      }
-    });
-
-    // cleanup after hide
-    modalEl.addEventListener('hidden.bs.modal', () => { modalEl.remove(); });
-  }
-
   // --- attach handlers for action menus ---
   function attachAdminActionHandlers(containerEl, assignmentKey, allSubmissionsArray) {
     if (!containerEl) return;
@@ -2232,10 +1771,8 @@ function adminActionMenuHtml() {
         if (!student || !student.student_id) { if (typeof showErr === 'function') showErr('Cannot determine student'); return; }
         // open page using UUIDs when possible (async)
         openStudentSubmissionsPage(assignmentKey, student);
-      } else if (action === 'grade') {
-        if (!student || !student.student_id) { if (typeof showErr === 'function') showErr('Cannot determine student'); return; }
-        openGradeModal(assignmentKey, student, allMap);
       }
+      // NOTE: 'grade' action removed from menu and handler.
     }, { capture: true });
   }
 
@@ -2525,7 +2062,6 @@ function adminActionMenuHtml() {
     // keep original final show (harmless if modal already shown)
     if(bsModal) bsModal.show(); else { modalEl.classList.add('show'); modalEl.style.display='block'; document.body.classList.add('modal-open'); }
   };
-
   // Event listeners for drag/drop & file input
   ['dragenter','dragover'].forEach(e => dropzone && dropzone.addEventListener(e, ev => { ev.preventDefault(); dropzone.classList.add('dragover'); }));
   ['dragleave','drop','dragend'].forEach(e => dropzone && dropzone.addEventListener(e, ev => { ev.preventDefault(); dropzone.classList.remove('dragover'); }));
