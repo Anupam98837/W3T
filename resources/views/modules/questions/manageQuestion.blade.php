@@ -726,6 +726,20 @@
 
  .swal2-container { z-index: 99999 !important; }
 
+ .content-header .heading{ display:flex; align-items:center; gap:8px; }
+.content-header .actions{ display:flex; align-items:center; gap:8px; }
+.back-btn{
+  width:32px;height:32px;border:1px solid var(--border);background:var(--surface);
+  border-radius:8px;color:var(--ink);cursor:pointer
+}
+.back-btn:hover{ border-color:var(--primary); color:var(--primary); }
+
+.question-item .q-badge.easy   { background:#dcfce7; color:#166534; }
+.question-item .q-badge.medium { background:#fef3c7; color:#92400e; } /* existing ok */
+.question-item .q-badge.hard   { background:#fee2e2; color:#991b1b; }
+
+
+
     </style>
 </head>
 <body>
@@ -756,11 +770,22 @@
                 </div>
                 
                 <div class="content-header">
-                    <h5>Edit Question</h5>
-                    <button id="btnNew" class="btn btn-primary btn-sm">
-                        <i class="fa fa-plus"></i> New
-                    </button>
-                </div>
+  <div class="heading">
+    <button id="btnBack" class="back-btn" title="Back">
+      <i class="fa fa-arrow-left"></i>
+    </button>
+    <h5 class="m-0">Edit Question</h5>
+  </div>
+  <div class="actions">
+    <button id="btnHelp" class="btn btn-light btn-sm" title="How to add questions">
+      <i class="fa fa-circle-question"></i>
+    </button>
+    <button id="btnNew" class="btn btn-primary btn-sm">
+      <i class="fa fa-plus"></i> New
+    </button>
+  </div>
+</div>
+
 
                 <div class="content-body">
                     <form id="qForm" novalidate>
@@ -789,6 +814,17 @@
                                     <input id="qMarks" type="number" min="1" class="form-control" value="1">
                                 </div>
                             </div>
+                            <div class="col">
+  <div class="form-group">
+    <label class="form-label">Difficulty</label>
+    <select id="qDifficulty" class="form-select">
+      <option value="easy">Easy</option>
+      <option value="medium" selected>Medium</option>
+      <option value="hard">Hard</option>
+    </select>
+  </div>
+</div>
+
                             <div class="col">
                                 <div class="form-group">
                                     <label class="form-label">Display Order</label>
@@ -1012,6 +1048,45 @@
     <script>
     document.addEventListener('DOMContentLoaded', function() {
         var TOKEN = localStorage.getItem('token') || sessionStorage.getItem('token') || '';
+        var ROLE = (localStorage.getItem('role') || 'admin');
+
+document.getElementById('btnBack')?.addEventListener('click', function(){
+  location.href = `/${ROLE}/quizz/manage`;
+});
+
+document.getElementById('btnHelp')?.addEventListener('click', function(){
+  Swal.fire({
+    title: 'How to add questions',
+    width: 800,
+    html: `
+      <div style="text-align:left;font-size:13px;line-height:1.55">
+        <h6>1) Multiple Choice</h6>
+        <p>Use <b>Multiple Choice</b> when more than one answer can be correct. Mark all correct options using the checkboxes.</p>
+
+        <h6>2) Single Choice</h6>
+        <p>Use <b>Single Choice</b> when exactly one answer is correct. Only one option can be selected as correct.</p>
+
+        <h6>3) True / False</h6>
+        <p>Prebuilt with two options: True and False. Mark the correct one.</p>
+
+        <h6>4) Fill in the Blank</h6>
+        <p>Click <b>Add Dash</b> to insert <code>{dash}</code> placeholders inside the question text (each dash creates one blank). Then fill the answers below in the same order.</p>
+        <ul style="margin:6px 0 12px 18px">
+          <li>At least one <code>{dash}</code> is required for this type.</li>
+          <li>All blanks must have an answer.</li>
+        </ul>
+
+        <h6>Marks, Order & Difficulty</h6>
+        <p>Set <b>Marks</b>, display <b>Order</b>, and <b>Difficulty</b> (Easy/Medium/Hard) from Basic Information.</p>
+
+        <h6>Media</h6>
+        <p>Use the image button in editors to pick from the media library. Images are inserted at your cursor position and can be resized.</p>
+      </div>
+    `,
+    confirmButtonText: 'Got it'
+  });
+});
+
         
         function showToast(type, msg){
             var toast = document.getElementById(type === 'success' ? 'successToast' : 'errorToast');
@@ -1958,12 +2033,13 @@ async function deleteMedia(id){
 
             var titlePlain = stripHtml(q.question_title);
             var truncatedTitle = truncateText(titlePlain, 4);
-            var badge = 'Medium';
+            const diff = (q.question_difficulty || 'medium').toLowerCase();
+const badgeLabel = diff.charAt(0).toUpperCase() + diff.slice(1);
             
             li.innerHTML = `
                 <div class="q-number">${q.question_order || '-'}</div>
                 <div class="q-title">${esc(truncatedTitle) || 'Untitled'}</div>
-                <div class="q-badge medium">${badge}</div>
+                <div class="q-badge ${diff}">${badgeLabel}</div>
                 <div class="question-menu">
                     <button class="menu-btn">
                         <i class="fa fa-ellipsis-v"></i>
@@ -2118,6 +2194,11 @@ async function deleteMedia(id){
             
             var qType = document.getElementById('qType');
             if (qType) qType.value = 'multiple_choice';
+
+            if (qType) qType.disabled = false;
+var qDifficulty = document.getElementById('qDifficulty');
+if (qDifficulty) qDifficulty.value = 'medium';
+
             
             var qMarks = document.getElementById('qMarks');
             if (qMarks) qMarks.value = '1';
@@ -2241,12 +2322,19 @@ async function deleteMedia(id){
             if (qTypeEl){
               qTypeEl.value = uiType;
               resetAnswersForType();            // <-- forces the correct panel (answers vs blanks, radios vs checkboxes, Add Dash button, etc.)
+             
             }
+             if (qTypeEl) qTypeEl.disabled = true;
+
             var qType = document.getElementById('qType');
             if (qType) qType.value = uiType;
             
             var qMarks = document.getElementById('qMarks');
             if (qMarks) qMarks.value = (q.question_mark != null ? q.question_mark : 1);
+
+            var qDifficulty = document.getElementById('qDifficulty');
+if (qDifficulty) qDifficulty.value = (q.question_difficulty || 'medium');
+
             
             var qOrder = document.getElementById('qOrder');
             if (qOrder) qOrder.value = (q.question_order != null ? q.question_order : 1);
@@ -2401,15 +2489,17 @@ async function deleteMedia(id){
             var explHTML = edExplainArea ? (edExplainArea.innerHTML || '') : '';
 
             var body = {
-                quiz_id: quizId,
-                question_title: titleHTML,
-                question_description: descHTML,
-                answer_explanation: explHTML,
-                question_type: type,
-                question_mark: Number(document.getElementById('qMarks')?.value || 1),
-                question_order: Number(document.getElementById('qOrder')?.value || 1),
-                answers: answers
-            };
+  quiz_id: quizId,
+  question_title: titleHTML,
+  question_description: descHTML,
+  answer_explanation: explHTML,
+  question_type: type,
+  question_mark: Number(document.getElementById('qMarks')?.value || 1),
+  question_order: Number(document.getElementById('qOrder')?.value || 1),
+  question_difficulty: (document.getElementById('qDifficulty')?.value || 'medium'),
+  answers: answers
+};
+
 
             var btn = document.getElementById('btnSave');
             if (!btn) return;
