@@ -86,6 +86,51 @@ html.theme-dark .modal-content{background:#0f172a;border-color:var(--line-strong
 html.theme-dark .table thead th{background:#0f172a;border-color:var(--line-strong);color:#94a3b8}
 html.theme-dark .table tbody tr{border-color:var(--line-soft)}
 html.theme-dark .dropdown-menu{background:#0f172a;border-color:var(--line-strong)}
+
+/* Tab icons */
+.nav-tabs .nav-link i { font-size: 0.95rem; line-height: 1; vertical-align: middle; }
+.nav-tabs .nav-link { display: inline-flex; align-items: center; gap: .5rem; }
+
+/* Ensure common wrappers don't clip dropdowns */
+.table-responsive,
+.table-wrap,
+.card,
+.panel,
+.cm-wrap {
+  overflow: visible !important;
+  transform: none !important;   /* transforms create new stacking contexts and break fixed/absolute positioning */
+}
+
+/* Make the regular dropdown escape parents when shown */
+.dropdown-menu.dropdown-menu-end.show {
+  position: fixed !important;       /* fixed ensures it positions relative to viewport */
+  transform: none !important;
+  left: 0 !important;               /* will be overwritten by JS */
+  top: 0 !important;                /* will be overwritten by JS */
+  z-index: 9000 !important;         /* keep above table/footer */
+  min-width: 220px;
+  overflow: visible !important;
+  display: block !important;
+}
+
+/* Visual style for portal menus */
+.dropdown-menu.dd-portal {
+  position: fixed !important;
+  transform: none !important;
+  z-index: 9000 !important;
+  min-width: 220px;
+  border-radius: 12px;
+  border: 1px solid var(--line-strong);
+  box-shadow: var(--shadow-2);
+  background: var(--surface);
+}
+
+/* keep dropdown toggle above table row so it remains clickable */
+.table-wrap .dd-toggle { z-index: 7; position: relative; }
+
+/* small: ensure dropdown caret/contents not clipped visually */
+.dropdown-menu { overflow: visible; }
+
 </style>
 @endpush
 
@@ -107,7 +152,7 @@ html.theme-dark .dropdown-menu{background:#0f172a;border-color:var(--line-strong
     </div>
 
     <div class="col-12 col-xxl-auto ms-xxl-auto d-flex justify-content-xxl-end gap-2">
-      <button id="btnReorder" class="btn btn-primary" disabled>
+            <button id="btnReorder" class="btn btn-primary" disabled>
         <i class="fa fa-up-down-left-right me-1"></i>Reorder
       </button>
       <button id="btnCreate" class="btn btn-primary" disabled>
@@ -118,16 +163,28 @@ html.theme-dark .dropdown-menu{background:#0f172a;border-color:var(--line-strong
 
   {{-- ===== Tabs ===== --}}
   <ul class="nav nav-tabs mb-3" role="tablist">
-    <li class="nav-item">
-      <a class="nav-link active" data-bs-toggle="tab" href="#tab-active" role="tab" aria-selected="true">Modules</a>
-    </li>
-    <li class="nav-item">
-      <a class="nav-link" data-bs-toggle="tab" href="#tab-archived" role="tab" aria-selected="false">Archived</a>
-    </li>
-    <li class="nav-item">
-      <a class="nav-link" data-bs-toggle="tab" href="#tab-bin" role="tab" aria-selected="false">Bin</a>
-    </li>
-  </ul>
+  <li class="nav-item">
+    <a class="nav-link active" data-bs-toggle="tab" href="#tab-active" role="tab" aria-selected="true">
+      <i class="fa-solid fa-layer-group me-2" aria-hidden="true"></i>
+      Modules
+    </a>
+  </li>
+
+  <li class="nav-item">
+    <a class="nav-link" data-bs-toggle="tab" href="#tab-archived" role="tab" aria-selected="false">
+      <i class="fa-solid fa-box-archive me-2" aria-hidden="true"></i>
+      Archived
+    </a>
+  </li>
+
+  <li class="nav-item">
+    <a class="nav-link" data-bs-toggle="tab" href="#tab-bin" role="tab" aria-selected="false">
+      <i class="fa-solid fa-trash-can me-2" aria-hidden="true"></i>
+      Bin
+    </a>
+  </li>
+</ul>
+
 
   <div class="tab-content mb-3">
 
@@ -137,28 +194,23 @@ html.theme-dark .dropdown-menu{background:#0f172a;border-color:var(--line-strong
       {{-- Toolbar (Active only) --}}
       <div class="row align-items-center g-2 mb-3 mfa-toolbar panel">
         <div class="col-12 col-xl d-flex align-items-center flex-wrap gap-2">
-          <div class="position-relative" style="min-width:280px;">
-            <input id="q" type="text" class="form-control ps-5" placeholder="Search title/description…" disabled>
-            <i class="fa fa-search position-absolute" style="left:12px;top:50%;transform:translateY(-50%);opacity:.6;"></i>
-          </div>
-
-          <div class="d-flex align-items-center gap-2">
-            <label class="text-muted small mb-0">Status</label>
-            <select id="status" class="form-select" style="width:160px;" disabled>
-              <option value="">All (non-archived)</option>
-              <option value="draft">Draft</option>
-              <option value="published">Published</option>
-            </select>
-          </div>
-
           <div class="d-flex align-items-center gap-2">
             <label class="text-muted small mb-0">Per page</label>
             <select id="per_page" class="form-select" style="width:96px;" disabled>
               <option>10</option><option selected>20</option><option>30</option><option>50</option><option>100</option>
             </select>
           </div>
+          <div class="position-relative" style="min-width:280px;">
+            <input id="q" type="text" class="form-control ps-5" placeholder="Search title/description…" disabled>
+            <i class="fa fa-search position-absolute" style="left:12px;top:50%;transform:translateY(-50%);opacity:.6;"></i>
+          </div>
+          <button id="btnFilterOpen" class="btn btn-light" disabled title="Filters">
+        <i class="fa fa-filter me-1"></i>Filters
+      </button>
 
-          <button id="btnApply" class="btn btn-primary ms-1" disabled><i class="fa fa-check me-1"></i>Apply</button>
+          <!-- Status & Apply moved to Filter Modal -->
+          
+
           <button id="btnReset" class="btn btn-primary" disabled><i class="fa fa-rotate-left me-1"></i>Reset</button>
         </div>
 
@@ -265,7 +317,7 @@ html.theme-dark .dropdown-menu{background:#0f172a;border-color:var(--line-strong
           </div>
 
           <div id="empty-archived" class="empty p-4 text-center" style="display:none;">
-            <i class="fa fa-box-archive mb-2" style="font-size:32px; opacity:.6;"></i>
+            <i class="fa fa-box-archive mb-2" style="font-size:32px; opacity:.6"></i>
             <div>No archived modules.</div>
           </div>
 
@@ -313,7 +365,7 @@ html.theme-dark .dropdown-menu{background:#0f172a;border-color:var(--line-strong
           </div>
 
           <div id="empty-bin" class="empty p-4 text-center" style="display:none;">
-            <i class="fa fa-trash mb-2" style="font-size:32px; opacity:.6;"></i>
+            <i class="fa fa-trash mb-2" style="font-size:32px; opacity:.6"></i>
             <div>No items in Bin.</div>
           </div>
 
@@ -368,11 +420,34 @@ html.theme-dark .dropdown-menu{background:#0f172a;border-color:var(--line-strong
             <label class="form-label">Short Description</label>
             <textarea id="mm_short" class="form-control" rows="3" placeholder="One-paragraph intro (optional)"></textarea>
           </div>
+<div class="col-12">
+  <label class="form-label">Long Description</label>
 
-          <div class="col-12">
-            <label class="form-label">Long Description</label>
-            <textarea id="mm_long" class="form-control" rows="6" placeholder="Detailed overview (optional)"></textarea>
-          </div>
+  <!-- Toolbar (RTE) -->
+  <div id="mm_rte_toolbar" class="toolbar mb-2" aria-label="Long description toolbar" style="display:flex;gap:8px;flex-wrap:wrap;">
+    <button type="button" class="tool btn btn-light btn-sm" data-cmd="bold" title="Bold"><i class="fa fa-bold"></i></button>
+    <button type="button" class="tool btn btn-light btn-sm" data-cmd="italic" title="Italic"><i class="fa fa-italic"></i></button>
+    <button type="button" class="tool btn btn-light btn-sm" data-cmd="underline" title="Underline"><i class="fa fa-underline"></i></button>
+    <button type="button" class="tool btn btn-light btn-sm" data-cmd="insertUnorderedList" title="Bulleted list"><i class="fa fa-list-ul"></i></button>
+    <button type="button" class="tool btn btn-light btn-sm" data-cmd="insertOrderedList" title="Numbered list"><i class="fa fa-list-ol"></i></button>
+    <button type="button" class="tool btn btn-light btn-sm" data-cmd="createLink" title="Insert link"><i class="fa fa-link"></i></button>
+    <button type="button" class="tool btn btn-light btn-sm" data-cmd="removeFormat" title="Remove formatting"><i class="fa fa-eraser"></i></button>
+
+    <select id="mm_insertHeading" class="tool form-select form-select-sm" title="Insert heading" style="width:auto;min-width:120px;">
+      <option value="">Insert…</option>
+      <option value="h2">Heading</option>
+      <option value="p">Paragraph</option>
+    </select>
+  </div>
+
+  <!-- RTE container -->
+  <div id="mm_long_editor" style="min-height:240px; background:#fff; border-radius:12px; border:1px solid var(--line-strong); padding:12px;" contenteditable="true" role="textbox" aria-label="Module long description editor" spellcheck="true"></div>
+
+  <!-- Hidden textarea used to hold HTML that will be sent to the API -->
+  <textarea id="mm_long" class="form-control d-none" rows="6" placeholder="Detailed overview (optional)"></textarea>
+
+  <div class="small text-muted mt-1">Use the editor to format your description. HTML will be saved to the server.</div>
+</div>
 
           <div class="col-12">
             <label class="form-label">Metadata (JSON)</label>
@@ -390,6 +465,56 @@ html.theme-dark .dropdown-menu{background:#0f172a;border-color:var(--line-strong
   </div>
 </div>
 
+<!-- ===== Filter Modal: Status, Per page, Sort & Apply ===== -->
+<div class="modal fade" id="filterModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-sm">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="fa fa-filter me-2"></i>Filters</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+
+      <div class="modal-body">
+        <div class="row g-3">
+          <div class="col-12">
+            <label class="form-label">Status</label>
+            <select id="modal_status" class="form-select">
+              <option value="">All (non-archived)</option>
+              <option value="draft">Draft</option>
+              <option value="published">Published</option>
+            </select>
+          </div>
+
+          <div class="col-12">
+            <label class="form-label">Per page</label>
+            <select id="modal_per_page" class="form-select">
+              <option>10</option><option selected>20</option><option>30</option><option>50</option><option>100</option>
+            </select>
+          </div>
+
+          <div class="col-12">
+            <label class="form-label">Sort By</label>
+            <select id="modal_sort" class="form-select">
+              <option value="-created_at">Newest First</option>
+              <option value="created_at">Oldest First</option>
+              <option value="order_no">Order (asc)</option>
+              <option value="-order_no">Order (desc)</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button id="btnClearFilters" type="button" class="btn btn-light">Clear</button>
+        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+        <button id="btnApplyFilters" type="button" class="btn btn-primary">
+          <i class="fa fa-check me-1"></i>Apply
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
 {{-- Toasts --}}
 <div class="toast-container position-fixed top-0 end-0 p-3" style="z-index:2100">
   <div id="okToast" class="toast text-bg-success border-0"><div class="d-flex">
@@ -400,7 +525,6 @@ html.theme-dark .dropdown-menu{background:#0f172a;border-color:var(--line-strong
   </div></div>
 </div>
 @endsection
-
 @push('scripts')
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
@@ -448,7 +572,7 @@ document.addEventListener('click',(e)=>{
   /* Auth */
   const TOKEN = localStorage.getItem('token') || sessionStorage.getItem('token') || '';
   if(!TOKEN){
-    Swal.fire('Login needed','Your session expired. Please login again.','warning').then(()=> location.href='/'); 
+    Swal.fire('Login needed','Your session expired. Please login again.','warning').then(()=> location.href='/');
     return;
   }
 
@@ -464,13 +588,20 @@ document.addEventListener('click',(e)=>{
   const btnCreate = document.getElementById('btnCreate');
   const btnReorder= document.getElementById('btnReorder');
   const sortHint  = document.getElementById('sortHint');
+  const btnFilterOpen = document.getElementById('btnFilterOpen');
 
   /* Active toolbar */
   const q           = document.getElementById('q');
-  const statusSel   = document.getElementById('status');
   const perPageSel  = document.getElementById('per_page');
-  const btnApply    = document.getElementById('btnApply');
   const btnReset    = document.getElementById('btnReset');
+
+  /* Modal filter elements */
+  const filterModalEl = document.getElementById('filterModal');
+  const modalStatus   = document.getElementById('modal_status');
+  const modalPerPage  = document.getElementById('modal_per_page');
+  const modalSort     = document.getElementById('modal_sort');
+  const btnApplyFilters = document.getElementById('btnApplyFilters');
+  const btnClearFilters = document.getElementById('btnClearFilters');
 
   /* Rows & pagers */
   const tabs = {
@@ -479,7 +610,7 @@ document.addEventListener('click',(e)=>{
     bin      :{rows:'#rows-bin',      loader:'#loaderRow-bin',      empty:'#empty-bin',      pager:'#pager-bin',      ask:'#askCourse-bin',      meta:'#metaTxt-bin'},
   };
 
-  /* Modal */
+  /* Modal and mm refs */
   const mm = {
     modal  : new bootstrap.Modal(document.getElementById('moduleModal')),
     mode   : document.getElementById('mm_mode'),
@@ -491,10 +622,15 @@ document.addEventListener('click',(e)=>{
     order  : document.getElementById('mm_order'),
     ttl    : document.getElementById('mm_title_input'),
     short  : document.getElementById('mm_short'),
-    long   : document.getElementById('mm_long'),
+    long   : document.getElementById('mm_long'),      // hidden textarea (HTML)
     meta   : document.getElementById('mm_meta'),
     save   : document.getElementById('mm_save'),
   };
+
+  /* RTE elements (must exist in DOM) */
+  const mmRte = document.getElementById('mm_long_editor');
+  const mmToolbar = document.getElementById('mm_rte_toolbar');
+  const mmHeading = document.getElementById('mm_insertHeading');
 
   /* State */
   let currentCourseId = '';
@@ -509,18 +645,17 @@ document.addEventListener('click',(e)=>{
   const badgeStatus=(s)=>{ s=String(s||'').toLowerCase(); const map={draft:'warning',published:'success',archived:'secondary'}; const cls=map[s]||'secondary'; return `<span class="badge badge-${cls} text-uppercase">${esc(s)}</span>`; };
   const qs=(sel)=>document.querySelector(sel);
   const show=(el,v)=>{ el.style.display = v ? '' : 'none'; };
-  const enable=(el,v)=>{ el.disabled = !v; };
+  const enable=(el,v)=>{ if(!el) return; el.disabled = !v; };
 
-  const showLoader=(which, v)=>{
-    show(qs(tabs[which].loader), v);
-  };
+  const showLoader=(which, v)=>{ show(qs(tabs[which].loader), v); };
   const clearBody=(which)=>{
     const rowsEl=qs(tabs[which].rows);
     rowsEl.querySelectorAll('tr:not([id^="loaderRow"]):not([id^="askCourse"])').forEach(n=>n.remove());
   };
 
   function setToolbarEnabled(on){
-    [q,statusSel,perPageSel,btnApply,btnReset,btnCreate,btnReorder].forEach(el=> enable(el, on));
+    // status & Apply moved into modal; keep search, per-page, reset & create/reorder buttons here
+    [q, perPageSel, btnReset, btnCreate, btnReorder, btnFilterOpen].forEach(el=> enable(el, on));
     courseHint.style.display = on ? 'none' : '';
   }
 
@@ -555,10 +690,8 @@ document.addEventListener('click',(e)=>{
     setToolbarEnabled(on);
     clearAllTables();
     if(on){
-      // Set course label for modal
       mm.cLabel.value = courseSel.options[courseSel.selectedIndex]?.text || '';
       mm.cId.value    = currentCourseId;
-      // initial load active tab
       state.active.page=1;
       load('active');
     }
@@ -578,21 +711,29 @@ document.addEventListener('click',(e)=>{
   function baseParams(scope){
     const usp=new URLSearchParams();
     usp.set('course_id', currentCourseId);
-    const per=Number(perPageSel?.value || 20);
+
+    // Prefer modal-per-page if user set it; else fall back to toolbar per_page
+    const modalPer = (modalPerPage && modalPerPage.value) ? Number(modalPerPage.value) : null;
+    const per = modalPer || Number(perPageSel?.value || 20);
     const pg = Number(state[scope].page||1);
     usp.set('per_page', per);
     usp.set('page', pg);
+
     if(scope==='active'){
-      usp.set('sort', sort);
+      // prefer modal sort if set, otherwise use global sort variable
+      const sVal = (modalSort && modalSort.value) ? modalSort.value : sort;
+      usp.set('sort', sVal);
+
+      // search query from top toolbar
       if(q && q.value.trim()) usp.set('q', q.value.trim());
-      const st = statusSel?.value || '';
-      if(st) usp.set('status', st); // 'draft' | 'published'
-      // Default server already excludes 'archived'
+
+      // status comes from modal now
+      const st = (modalStatus && modalStatus.value) ? modalStatus.value : '';
+      if(st) usp.set('status', st);
     }else if(scope==='archived'){
       usp.set('status','archived');
       usp.set('sort', '-created_at');
     }else{
-      // bin has its own endpoint
       usp.set('sort','-created_at');
     }
     return usp.toString();
@@ -602,7 +743,7 @@ document.addEventListener('click',(e)=>{
     return '/api/course-modules?' + baseParams(scope);
   }
 
-  /* ========== Row builders ========== */
+  /* ========== Row builders & DnD helpers ========== */
   function actionMenu(scope, r){
     const key = r.uuid || r.id;
     if(scope==='active' || scope==='archived'){
@@ -623,7 +764,6 @@ document.addEventListener('click',(e)=>{
           </ul>
         </div>`;
     }
-    // bin
     return `
       <div class="dropdown text-end" data-bs-display="static">
         <button type="button" class="btn btn-primary btn-sm dd-toggle" data-bs-toggle="dropdown"><i class="fa fa-ellipsis-vertical"></i></button>
@@ -649,8 +789,8 @@ document.addEventListener('click',(e)=>{
     if(scope==='active'){
       tr.draggable = reorderMode;
       tr.dataset.key = r.uuid || r.id;
-        tr.dataset.id  = r.id;            
-  tr.classList.add('reorderable');
+      tr.dataset.id  = r.id;
+      tr.classList.add('reorderable');
       tr.innerHTML = `
         <td class="text-center"><i class="fa fa-grip-lines-vertical drag-handle"></i></td>
         <td>
@@ -662,14 +802,13 @@ document.addEventListener('click',(e)=>{
         <td>${badgeStatus(r.status || '-')}</td>
         <td>${created}</td>
         <td class="text-end">${actionMenu(scope, r)}</td>`;
-      if(reorderMode){
-        tr.classList.add('reorderable');
-        tr.querySelector('.drag-handle').style.opacity = '1';
-      }else{
-        tr.querySelector('.drag-handle').style.opacity = '.35';
-      }
+
+      // ensure handle opacity
+      const handle = tr.querySelector('.drag-handle');
+      if(reorderMode){ handle && (handle.style.opacity = '1'); } else { handle && (handle.style.opacity = '.35'); }
+
       // DnD events
-      tr.addEventListener('dragstart', (ev)=>{ if(!reorderMode) return ev.preventDefault(); draggingRow=tr; tr.classList.add('dragging'); });
+      tr.addEventListener('dragstart', (ev)=>{ if(!reorderMode){ ev.preventDefault(); return; } draggingRow=tr; tr.classList.add('dragging'); });
       tr.addEventListener('dragend',   ()=>{ tr.classList.remove('dragging'); draggingRow=null; });
       tr.addEventListener('dragover',  (ev)=>{ if(!reorderMode) return; ev.preventDefault();
         const tbody = tr.parentElement;
@@ -744,7 +883,7 @@ document.addEventListener('click',(e)=>{
       if(e<pages){ if(e<pages-1) html+='<li class="page-item disabled"><span class="page-link">…</span></li>'; html+=li(false,false,pages,pages); }
       html+=li(cur>=pages,false,'Next',cur+1);
       pager.innerHTML=html;
-      pager.querySelectorAll('a.page-link[data-page]').forEach(a=> a.addEventListener('click',()=>{
+      pager.querySelectorAll('a.page-link[data-page]').forEach(a=> a.addEventListener('click',()=>{ 
         const t=Number(a.dataset.page); if(!t || t===state[scope].page) return; state[scope].page = Math.max(1,t); load(scope);
         window.scrollTo({top:0,behavior:'smooth'});
       }));
@@ -771,22 +910,81 @@ document.addEventListener('click',(e)=>{
   /* ========== Filters (active) ========== */
   let srT;
   q.addEventListener('input', ()=>{ clearTimeout(srT); srT=setTimeout(()=>{ state.active.page=1; load('active'); }, 350); });
-  btnApply.addEventListener('click', ()=>{ state.active.page=1; load('active'); });
+
+  // Reset: clear search and modal filters and reload
   btnReset.addEventListener('click', ()=>{
-    q.value=''; statusSel.value=''; perPageSel.value='20'; sort='-created_at'; state.active.page=1; syncSortHeaders(); load('active');
+    q.value='';
+    if(modalStatus) modalStatus.value = '';
+    if(modalPerPage) modalPerPage.value = '20';
+    if(modalSort) modalSort.value = '-created_at';
+    if(perPageSel) perPageSel.value='20';
+    sort='-created_at';
+    state.active.page=1;
+    syncSortHeaders();
+    load('active');
   });
+
   perPageSel.addEventListener('change', ()=>{ state.active.page=1; load('active'); });
 
-  /* ========== Tab on-demand loads ========== */
+  /* ========== Filter modal init & handlers ======== */
+  (function initFilterModal(){
+    // open filter modal
+    btnFilterOpen.addEventListener('click', ()=>{
+      const instance = bootstrap.Modal.getOrCreateInstance(filterModalEl);
+      instance.show();
+    });
+
+    // sync modal fields when shown
+    filterModalEl.addEventListener('show.bs.modal', ()=>{
+      try{
+        // if modal already has values (user typed) preserve; else reflect current state
+        modalStatus.value = modalStatus.value || '';
+        modalPerPage.value = modalPerPage.value || (perPageSel?.value || '20');
+        modalSort.value = modalSort.value || sort || '-created_at';
+      }catch(e){}
+    });
+
+    // apply button: hide modal then load
+    if(btnApplyFilters){
+      btnApplyFilters.addEventListener('click', ()=>{
+        // apply modal sort to global sort variable for header sync
+        sort = modalSort.value || sort;
+
+        // sync per-page: update top perPageSel so paging shows selected value
+        if(modalPerPage && perPageSel) perPageSel.value = modalPerPage.value || perPageSel.value;
+
+        state.active.page = 1;
+        const instance = bootstrap.Modal.getInstance(filterModalEl) || new bootstrap.Modal(filterModalEl);
+        instance.hide();
+
+        const onHidden = () => {
+          filterModalEl.removeEventListener('hidden.bs.modal', onHidden);
+          syncSortHeaders();
+          load('active');
+        };
+        filterModalEl.addEventListener('hidden.bs.modal', onHidden);
+      });
+    }
+
+    // clear modal inputs
+    if(btnClearFilters){
+      btnClearFilters.addEventListener('click', ()=>{
+        if(modalStatus) modalStatus.value = '';
+        if(modalPerPage) modalPerPage.value = '20';
+        if(modalSort) modalSort.value = '-created_at';
+        sort = '-created_at';
+        syncSortHeaders();
+      });
+    }
+  })();
+
+  /* ========== Tab on-demand loads ========= */
   document.querySelector('a[href="#tab-active"]').addEventListener('shown.bs.tab', ()=>{ if(currentCourseId) load('active'); });
   document.querySelector('a[href="#tab-archived"]').addEventListener('shown.bs.tab', ()=>{ if(currentCourseId) load('archived'); });
   document.querySelector('a[href="#tab-bin"]').addEventListener('shown.bs.tab', ()=>{ if(currentCourseId) load('bin'); });
 
   /* ========== Create / Edit ========= */
-  btnCreate.addEventListener('click', ()=>{
-    if(!currentCourseId) return Swal.fire('Pick a course','Please select a course first.','info');
-    openCreate();
-  });
+  btnCreate.addEventListener('click', ()=>{ if(!currentCourseId) return Swal.fire('Pick a course','Please select a course first.','info'); openCreate(); });
 
   function openCreate(){
     mm.mode.value='create'; mm.key.value=''; mm.title.textContent='Create Module';
@@ -796,9 +994,12 @@ document.addEventListener('click',(e)=>{
     mm.order.value  = '0';
     mm.ttl.value    = '';
     mm.short.value  = '';
-    mm.long.value   = '';
+    // clear hidden textarea and RTE
+    if(mm.long) mm.long.value = '';
+    if(mmRte) mmRte.innerHTML = '';
     mm.meta.value   = '';
     mm.modal.show();
+    setTimeout(()=> { mmRte && mmRte.focus && mmRte.focus(); }, 150);
   }
 
   async function openEdit(key){
@@ -813,13 +1014,31 @@ document.addEventListener('click',(e)=>{
       mm.order.value  = (r.order_no ?? 0);
       mm.ttl.value    = r.title || '';
       mm.short.value  = r.short_description || '';
+      // server value -> hidden textarea and RTE
       mm.long.value   = r.long_description || '';
       mm.meta.value   = r.metadata || '';
+      // set RTE content after a short tick so modal has rendered
+      setTimeout(()=>{ if(mmRte) mmRte.innerHTML = mm.long.value || ''; }, 60);
       mm.modal.show();
     }catch(e){ err(e.message||'Failed to open'); }
   }
 
+  /* ========== Collect mm.long from RTE (sanitized if DOMPurify present) ========== */
+  function collectMmLong(){
+    if(!mm.long) return;
+    const raw = (mmRte ? mmRte.innerHTML : '') || '';
+    if(window.DOMPurify){
+      mm.long.value = DOMPurify.sanitize(raw);
+    } else {
+      mm.long.value = raw;
+    }
+  }
+
+  /* Hook save: collect RTE HTML before building payload */
   mm.save.addEventListener('click', async ()=>{
+    // collect editor contents into hidden textarea
+    collectMmLong();
+
     if(!mm.ttl.value.trim()) return Swal.fire('Title required','Please enter a module title.','info');
     if(!mm.cId.value) return Swal.fire('Course missing','Pick a course from the toolbar.','info');
 
@@ -850,7 +1069,6 @@ document.addEventListener('click',(e)=>{
       if(!res.ok) throw new Error(j?.message||'Save failed');
       ok('Module saved');
       mm.modal.hide();
-      // refresh active list
       load('active');
     }catch(e){ err(e.message||'Save failed'); }
     finally{ mm.save.disabled = false; }
@@ -920,7 +1138,7 @@ document.addEventListener('click',(e)=>{
     }
   });
 
-  /* ========== Reorder mode ========== */
+  /* ========== Reorder mode ========= */
   btnReorder.addEventListener('click', ()=>{
     if(!currentCourseId) return Swal.fire('Pick a course','Please select a course first.','info');
     reorderMode = !reorderMode;
@@ -930,7 +1148,6 @@ document.addEventListener('click',(e)=>{
     document.getElementById('reorderHint').style.display = reorderMode ? '' : 'none';
     document.getElementById('btnSaveOrder').style.display = reorderMode ? '' : 'none';
     document.getElementById('btnCancelOrder').style.display = reorderMode ? '' : 'none';
-    // reload to attach draggable flags consistently
     load('active');
   });
 
@@ -944,45 +1161,109 @@ document.addEventListener('click',(e)=>{
     load('active');
   });
 
-document.getElementById('btnSaveOrder').addEventListener('click', async ()=>{
-  // Only rows in reorder mode carry the 'reorderable' class
-  const rows = [...document.querySelectorAll('#rows-active tr.reorderable')];
+  document.getElementById('btnSaveOrder').addEventListener('click', async ()=>{
+    const rows = [...document.querySelectorAll('#rows-active tr.reorderable')];
+    const ids  = rows.map(tr => Number(tr.dataset.id)).filter(Number.isInteger);
+    if (!ids.length) return Swal.fire('Nothing to save','Drag rows to change order first.','info');
 
-  // IMPORTANT: use the numeric id we stored in data-id
-  const ids  = rows
-    .map(tr => Number(tr.dataset.id))
-    .filter(Number.isInteger);   // ensures controller receives integers
+    const payload = { course_id: Number(currentCourseId), ids };
+    try{
+      const res = await fetch('/api/course-modules/reorder', {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + TOKEN, 'Content-Type' : 'application/json', 'Accept' : 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const j = await res.json().catch(()=>({}));
+      if (!res.ok) throw new Error(j?.message || 'Reorder failed');
+      ok('Order updated');
+      document.getElementById('btnCancelOrder').click();
+    }catch(e){ err(e.message || 'Reorder failed'); }
+  });
 
-  if (!ids.length) {
-    return Swal.fire('Nothing to save','Drag rows to change order first.','info');
-  }
+  /* ========== RTE for mm_long_editor: toolbar, placeholder, paste handling ======= */
+  (function initMmRte(){
+    if(!mmRte || !mm.long) return;
 
-  const payload = {
-    course_id: Number(currentCourseId),
-    ids
-  };
+    // placeholder toggle
+    const togglePlaceholder = ()=>{
+      try{
+        const has = (mmRte.textContent||'').trim().length>0 || (mmRte.innerHTML||'').trim().length>0;
+        mmRte.classList.toggle('has-content', has);
+      }catch(e){}
+    };
+    ['input','keyup','paste','blur'].forEach(ev=> mmRte.addEventListener(ev, togglePlaceholder));
+    togglePlaceholder();
 
-  try{
-    const res = await fetch('/api/course-modules/reorder', {
-      method: 'POST',
-      headers: {
-        'Authorization': 'Bearer ' + TOKEN,
-        'Content-Type' : 'application/json',
-        'Accept'       : 'application/json'
-      },
-      body: JSON.stringify(payload)
+    // mutation observer
+    try{
+      const mo = new MutationObserver(togglePlaceholder);
+      mo.observe(mmRte, { childList:true, subtree:true, characterData:true });
+    }catch(e){}
+
+    // toolbar click handling
+    if(mmToolbar){
+      mmToolbar.addEventListener('click', (e)=>{
+        const btn = e.target.closest('[data-cmd]');
+        if(!btn) return;
+        const cmd = btn.getAttribute('data-cmd');
+        if(cmd === 'createLink'){
+          let url = prompt('Enter URL (including https://):','https://');
+          if(!url) return;
+          if(!/^https?:\/\//i.test(url)){ alert('Please include http:// or https://'); return; }
+          try{ document.execCommand('createLink', false, url); } catch(e){ console.warn(e); }
+          mmRte.focus(); return;
+        }
+        try{ document.execCommand(cmd, false, null);}catch(e){ console.warn('execCommand failed', e); }
+        mmRte.focus();
+      });
+    }
+
+    if(mmHeading){
+      mmHeading.addEventListener('change', function(){
+        const v=this.value;
+        if(!v) return;
+        if(v==='h2') document.execCommand('formatBlock', false, 'h2');
+        else if(v==='p') document.execCommand('formatBlock', false, 'p');
+        this.value='';
+        mmRte.focus();
+      });
+    }
+
+    // paste handler: prefer plain text
+    mmRte.addEventListener('paste', function(e){
+      e.preventDefault();
+      const clipboard = (e.clipboardData || window.clipboardData);
+      const html = clipboard.getData('text/html');
+      const text = clipboard.getData('text/plain') || '';
+      if(html && window.DOMPurify){
+        // if DOMPurify available, sanitize clipboard html and insert
+        const clean = DOMPurify.sanitize(html, {ALLOWED_TAGS: ['b','i','u','a','p','h2','ul','ol','li','br','strong','em','img'], ALLOWED_ATTR: ['href','src','alt','title']});
+        document.execCommand('insertHTML', false, clean);
+      } else {
+        // fallback: plain text
+        if(document.queryCommandSupported && document.queryCommandSupported('insertText')){
+          document.execCommand('insertText', false, text);
+        } else {
+          const node = document.createTextNode(text);
+          const sel = window.getSelection();
+          if(!sel.rangeCount) mmRte.appendChild(node);
+          else sel.getRangeAt(0).insertNode(node);
+        }
+      }
+      togglePlaceholder();
     });
-    const j = await res.json().catch(()=>({}));
-    if (!res.ok) throw new Error(j?.message || 'Reorder failed');
-    ok('Order updated');
-    document.getElementById('btnCancelOrder').click(); // exit reorder mode
-  }catch(e){
-    err(e.message || 'Reorder failed');
-  }
-});
 
+    // when modal opens, if hidden textarea has content, populate editor
+    document.getElementById('moduleModal')?.addEventListener('shown.bs.modal', ()=> {
+      if((mmRte.innerHTML||'').trim()==='' && (mm.long.value||'').trim()!==''){
+        mmRte.innerHTML = mm.long.value;
+      }
+      togglePlaceholder();
+    });
 
-  /* ========== Debounced initial sort sync and ready ========== */
+  })();
+
+  /* ========== Initial setup ========= */
   syncSortHeaders();
 
 })();

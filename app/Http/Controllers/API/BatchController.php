@@ -1067,4 +1067,228 @@ public function instructorsUpdate(Request $request, $idOrUuid)
     return response()->json(['success'=>true,'message'=>'Instructor link updated']);
 }
 
+/**
+ * GET /api/batches/{idOrUuid}/quizzes?q=&assigned=&per_page=&page=
+ * assigned: 'all' (default) | '1' | '0'
+ */
+public function quizzIndex(Request $request, $idOrUuid)
+{
+    $batch = $this->findBatch($idOrUuid);
+    if (!$batch) {
+        return response()->json(['success' => false, 'message' => 'Batch not found'], 404);
+    }
+
+    $v = Validator::make($request->all(), [
+        'q'        => 'nullable|string|max:255',
+        'assigned' => 'nullable|in:all,0,1',
+        'per_page' => 'nullable|integer|min:1|max:200',
+        'page'     => 'nullable|integer|min:1',
+    ]);
+    if ($v->fails()) {
+        return response()->json(['success' => false, 'errors' => $v->errors()], 422);
+    }
+
+    $per  = (int)$request->input('per_page', 20);
+    $page = (int)$request->input('page', 1);
+    $assignedFilter = $request->input('assigned', 'all');
+
+    $qLike = $request->filled('q') ? ('%' . str_replace('%','\\%',$request->q) . '%') : null;
+
+    $select = [
+        'quizz.id',
+        'quizz.uuid',
+        DB::raw('quizz.quiz_name as title'),
+        DB::raw('LEFT(quizz.quiz_description, 200) as excerpt'),
+        DB::raw('CASE WHEN bq.id IS NULL THEN 0 ELSE 1 END as assigned'),
+        DB::raw('bq.id as batch_quiz_id'),
+        DB::raw('bq.display_order'),
+        DB::raw('bq.status as batch_status'),
+        DB::raw('bq.publish_to_students'),
+        DB::raw('bq.available_from'),
+        DB::raw('bq.available_until'),
+        // use created_at as the assignment time if that suits your domain
+        DB::raw('bq.created_at as assigned_at'),
+    ];
+
+    $base = DB::table('quizz')
+        ->leftJoin('batch_quizzes as bq', function($join) use ($batch) {
+            $join->on('quizz.id', 'bq.quiz_id')
+                 ->where('bq.batch_id', $batch->id)
+                 ->whereNull('bq.deleted_at');
+        })
+        ->whereNull('quizz.deleted_at');
+
+    if ($qLike) {
+        $base->where(function($w) use ($qLike) {
+            $w->where('quizz.quiz_name', 'like', $qLike)
+              ->orWhere('quizz.quiz_description', 'like', $qLike);
+        });
+    }
+
+    if ($assignedFilter === '1') {
+        $base->whereNotNull('bq.id');
+    } elseif ($assignedFilter === '0') {
+        $base->whereNull('bq.id');
+    }
+
+    $totalRow = (clone $base)->select(DB::raw('COUNT(DISTINCT quizz.id) as cnt'))->first();
+    $total = (int)($totalRow->cnt ?? 0);
+
+    $rows = $base->select($select)
+        ->orderByRaw('CASE WHEN bq.id IS NULL THEN 1 ELSE 0 END, quizz.quiz_name ASC')
+        ->offset(($page - 1) * $per)
+        ->limit($per)
+        ->get();
+
+    $data = [];
+    foreach ($rows as $r) {
+        $data[] = [
+            'id'                 => (int)$r->id,
+            'uuid'               => $r->uuid,
+            'title'              => $r->title,
+            'excerpt'            => $r->excerpt ?? null,
+            'assigned'           => (bool)$r->assigned,
+            'batch_quiz_id'      => $r->batch_quiz_id ? (int)$r->batch_quiz_id : null,
+            'display_order'      => $r->display_order !== null ? (int)$r->display_order : null,
+            'batch_status'       => $r->batch_status ?? null,
+            'publish_to_students'=> isset($r->publish_to_students) ? (bool)$r->publish_to_students : false,
+            'available_from'     => $r->available_from ?? null,
+            'available_until'    => $r->available_until ?? null,
+            'assigned_at'        => $r->assigned_at ?? null,
+        ];
+    }
+
+    return response()->json([
+        'success' => true,
+        'data' => array_values($data),
+        'pagination' => [
+            'total' => $total,
+            'per_page' => $per,
+            'current_page' => $page,
+            'last_page' => (int)ceil(max(1, $total) / max(1, $per)),
+        ],
+    ]);
+}
+public function quizzToggle(Request $request, $idOrUuid)
+{
+    $uid = $this->authUserIdFromToken($request);
+    if (!$uid) return response()->json(['success' => false, 'message' => 'Unauthorized'], 401);
+
+    $batch = $this->findBatch($idOrUuid);
+    if (!$batch) return response()->json(['success' => false, 'message' => 'Batch not found'], 404);
+
+    $v = Validator::make($request->all(), [
+        'quiz_id'            => 'required|integer|exists:quizz,id',
+        'assigned'           => 'required|boolean',
+        'display_order'      => 'sometimes|integer|min:0',
+        'publish_to_students'=> 'sometimes|boolean',
+        'available_from'     => 'nullable|date',
+        'available_until'    => 'nullable|date|after_or_equal:available_from',
+    ]);
+    if ($v->fails()) return response()->json(['success' => false, 'errors' => $v->errors()], 422);
+
+    $now    = now();
+    $ip     = $request->ip();
+    $quizId = (int) $request->quiz_id;
+
+    // cache column presence once
+    $hasAssignedAt = Schema::hasColumn('batch_quizzes', 'assigned_at');
+
+    // fetch existing (include soft-deleted so we can revive)
+    $existing = DB::table('batch_quizzes')
+        ->where('batch_id', $batch->id)
+        ->where('quiz_id', $quizId)
+        ->first();
+
+    // Use transaction to avoid races
+    $pivotId = null;
+    DB::transaction(function() use (
+        $request, $batch, $quizId, $uid, $ip, $now, $existing, $hasAssignedAt, &$pivotId
+    ) {
+        if ($request->boolean('assigned')) {
+            // build payload using optional() to avoid ->property on null
+            $payload = [
+                'assign_status'      => 1,
+                'display_order'      => $request->filled('display_order') ? (int)$request->display_order : (optional($existing)->display_order ?? 1),
+                'publish_to_students'=> $request->has('publish_to_students') ? (int)$request->publish_to_students : (optional($existing)->publish_to_students ?? 0),
+                'available_from'     => $request->filled('available_from') ? $request->available_from : (optional($existing)->available_from ?? null),
+                'available_until'    => $request->filled('available_until') ? $request->available_until : (optional($existing)->available_until ?? null),
+                'unassigned_at'      => null,
+                'updated_at'         => $now,
+                'deleted_at'         => null,
+            ];
+
+            if ($hasAssignedAt) {
+                // if existing had assigned_at keep it, otherwise set now
+                $payload['assigned_at'] = optional($existing)->assigned_at ?? $now;
+            }
+
+            if ($existing) {
+                DB::table('batch_quizzes')->where('id', $existing->id)->update($payload);
+                $pivotId = $existing->id;
+            } else {
+                $insertData = array_merge($payload, [
+                    'uuid'          => (string) Str::uuid(),
+                    'batch_id'      => $batch->id,
+                    'quiz_id'       => $quizId,
+                    'created_by'    => $uid,
+                    'created_at_ip' => $ip,
+                    'created_at'    => $now,
+                    'metadata'      => json_encode([]),
+                ]);
+
+                $pivotId = DB::table('batch_quizzes')->insertGetId($insertData);
+            }
+        } else {
+            // unassign -> soft-delete + set assign_status = 0
+            DB::table('batch_quizzes')
+                ->where('batch_id', $batch->id)
+                ->where('quiz_id', $quizId)
+                ->whereNull('deleted_at')
+                ->update([
+                    'assign_status' => 0,
+                    'unassigned_at' => $now,
+                    'deleted_at'    => $now,
+                    'updated_at'    => $now,
+                ]);
+
+            // keep pivotId null to indicate removal
+            $pivotId = null;
+        }
+    });
+
+    // if it was an unassign, return success + null data so client removes it
+    if (is_null($pivotId)) {
+        return response()->json(['success' => true, 'data' => null]);
+    }
+
+    // fetch pivot row to return (fresh)
+    $pivot = DB::table('batch_quizzes')->where('id', $pivotId)->first();
+
+    $assignedAt = null;
+    if ($pivot) {
+        $assignedAt = $hasAssignedAt ? ($pivot->assigned_at ?? $pivot->created_at ?? null) : ($pivot->created_at ?? null);
+    }
+
+    $response = [
+        'success' => true,
+        'data'    => $pivot ? [
+            'id'                 => (int)$pivot->id,
+            'uuid'               => $pivot->uuid,
+            'batch_id'           => (int)$pivot->batch_id,
+            'quiz_id'            => (int)$pivot->quiz_id,
+            'display_order'      => isset($pivot->display_order) ? (int)$pivot->display_order : null,
+            'assign_status'      => isset($pivot->assign_status) ? (bool)$pivot->assign_status : false,
+            'publish_to_students'=> isset($pivot->publish_to_students) ? (bool)$pivot->publish_to_students : false,
+            'available_from'     => $pivot->available_from ?? null,
+            'available_until'    => $pivot->available_until ?? null,
+            'assigned_at'        => $assignedAt,
+            'created_at'         => $pivot->created_at ?? null,
+            'updated_at'         => $pivot->updated_at ?? null,
+        ] : null,
+    ];
+
+    return response()->json($response);   
+}
+
 }
