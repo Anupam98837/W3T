@@ -176,3 +176,11 @@ Route::get('/assignments/{assignment}/students/{student}/documents', function (s
 ->whereUuid('assignment')
 ->whereUuid('student')
 ->name('admin.assignments.student.documents');
+
+
+Route::get('/admin/notice/manage', function () {
+    return view('pages.users.admin.pages.notices.manageNotice');
+});
+Route::get('/admin/notice/create', function () {
+    return view('pages.users.admin.pages.notices.createNotice');
+});

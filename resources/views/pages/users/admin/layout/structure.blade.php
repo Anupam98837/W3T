@@ -347,6 +347,16 @@ html.theme-dark .w3-sidebar-scroll::-webkit-scrollbar-thumb {
           <a href="/admin/courses" class="w3-link">Running Courses</a>
         </div>
       </div>
+
+       <div class="w3-group">
+        <a href="#" class="w3-link w3-toggle" data-target="sm-course-modules" aria-expanded="false">
+          <i class="fa-solid fa-layer-group"></i><span>Course Modules</span>
+          <i class="fa fa-chevron-down w3-chev"></i>
+        </a>
+        <div id="sm-course-modules" class="w3-submenu" role="group" aria-label="Course Modules submenu">
+          <a href="/admin/coursesModule/manage" class="w3-link">All Course Modules</a>
+        </div>
+      </div>
  
       <div class="w3-group">
         <a href="#" class="w3-link w3-toggle" data-target="sm-faculty" aria-expanded="false">

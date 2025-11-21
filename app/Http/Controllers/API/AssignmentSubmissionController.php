@@ -24,12 +24,17 @@ class AssignmentSubmissionController extends Controller
         'js','py','java','html','css'
     ];
 
-    private function actor(Request $r): array
+       private function actor(Request $request): array
     {
         return [
-            'role' => $r->attributes->get('auth_role'),
-            'type' => $r->attributes->get('auth_tokenable_type'),
-            'id'   => (int) ($r->attributes->get('auth_tokenable_id') ?? 0),
+            'role' => $request->attributes->get('auth_role'),
+            'type' => $request->attributes->get('auth_tokenable_type'),
+            'id'   => (int) ($request->attributes->get('auth_tokenable_id') ?? 0),
+            'token_id' => $request->attributes->has('auth_token_id')
+                        ? (int) $request->attributes->get('auth_token_id')
+                        : null,
+        // optional: raw token string (if you need it)
+        'token'    => $request->attributes->get('auth_token'),
         ];
     }
 
@@ -40,6 +45,13 @@ class AssignmentSubmissionController extends Controller
             return response()->json(['error' => 'Unauthorized Access'], 403);
         }
         return null;
+        Log::info('getMyAssignmentMarks called', [
+  'actor' => $this->actor($request) ?? null,
+  'headers' => $request->headers->all(),
+  'assignmentKey' => $assignmentKey,
+  'studentKey' => $studentKey,
+]);
+
     }
 
     private function getUuid(): string
@@ -600,7 +612,6 @@ class AssignmentSubmissionController extends Controller
             return response()->json(['message' => 'Failed to upload submission', 'error' => $e->getMessage()], 500);
         }
     }
-
     /* -----------------------------------------------------
      * Soft delete / restore / force delete helpers
      * ----------------------------------------------------- */
@@ -654,8 +665,6 @@ class AssignmentSubmissionController extends Controller
         return response()->json(['error' => 'Server error'], 500);
     }
 }
-
-
     /**
      * Restore a soft-deleted submission.
      * Only admins/instructors are permitted to restore.
@@ -690,7 +699,6 @@ class AssignmentSubmissionController extends Controller
             return response()->json(['error'=>'Failed to restore submission'], 500);
         }
     }
-
     /**
      * Force-delete a submission (permanent). Only admins allowed.
      * Removes DB row and attempts to delete stored files (if any).
@@ -830,7 +838,6 @@ class AssignmentSubmissionController extends Controller
         ],
     ], 200);
 }
-
     /**
      * Return one submission owned by the authenticated student (by id or uuid).
      */
@@ -1108,7 +1115,7 @@ public function assignmentSubmissions(Request $r, string $assignmentKey)
  */
 public function studentSubmissionStatus(Request $r, string $assignmentKey)
 {
-    if ($res = $this->requireRole($r, ['admin','super_admin','instructor'])) return $res;
+    if ($res = $this->requireRole($r, ['admin','super_admin','instructor','student'])) return $res;
 
     // Resolve assignment
     $assignment = $this->resolveAssignment($assignmentKey);
@@ -1314,7 +1321,6 @@ private function resolveAssignment($key)
     
     return $q->first();
 }
-
 /**
  * Helper method to decode JSON fields
  */
@@ -1418,7 +1424,6 @@ public function exportSubmittedStudentsCSV(Request $r, string $assignmentKey)
     
     return $this->generateCSVResponse($csvData, $fileName);
 }
-
 /**
  * Export unsubmitted students list as CSV
  */
@@ -1496,7 +1501,6 @@ public function exportUnsubmittedStudentsCSV(Request $r, string $assignmentKey)
     
     return $this->generateCSVResponse($csvData, $fileName);
 }
-
 /**
  * Helper method to generate CSV response
  */
@@ -1521,7 +1525,6 @@ private function generateCSVResponse(array $data, string $fileName)
 
     return response()->stream($callback, 200, $headers);
 }
-
 /**
  * Combined export - both submitted and unsubmitted in separate sheets (single CSV with sections)
  */
@@ -1827,13 +1830,12 @@ public function getAssignmentSubmissionsWithDocuments(Request $r, string $assign
         ],
     ], 200);
 }
-
 /**
  * Get detailed submission documents for a specific student in an assignment
  */
 public function getStudentAssignmentDocuments(Request $r, string $assignmentKey, string $studentKey)
 {
-    if ($res = $this->requireRole($r, ['admin','superadmin','instructor'])) return $res;
+    if ($res = $this->requireRole($r, ['admin','superadmin','instructor','student'])) return $res;
 
     // Resolve assignment
     $assignment = $this->resolveAssignment($assignmentKey);
@@ -2046,7 +2048,6 @@ public function getStudentAssignmentDocuments(Request $r, string $assignmentKey,
         ],
     ], 200);
 }
-
 /**
  * Download all documents for a specific submission as ZIP
  */
@@ -2264,7 +2265,6 @@ public function gradeSubmission(Request $r, string $submissionKey)
         return response()->json(['error' => 'Failed to grade submission'], 500);
     }
 }
-
 /**
  * Calculate late penalty for a submission
  */
@@ -2318,7 +2318,6 @@ private function calculateLatePenalty($assignment, $submission, $givenMarks, $ap
         'given_marks' => round($givenMarks, 2),
     ];
 }
-
 /**
  * Get penalty settings for an assignment
  */
@@ -2402,12 +2401,9 @@ private function calculateFixedPenalty($submission, $settings)
 /**
  * Get all students' marks for an assignment with penalty details
  */
-/**
- * Get all students' marks for an assignment with penalty details
- */
 public function getAssignmentMarks(Request $r, string $assignmentKey)
 {
-    if ($res = $this->requireRole($r, ['admin','superadmin','instructor'])) return $res;
+    if ($res = $this->requireRole($r, ['admin','superadmin','instructor','student'])) return $res;
 
     $assignment = $this->resolveAssignment($assignmentKey);
     if (!$assignment) {
@@ -2641,136 +2637,320 @@ public function getSubmissionMarks(string $submissionKey)
         'data' => $response,
     ], 200);
 }
-/**
- * Bulk grade multiple submissions
- */
-public function bulkGradeSubmissions(Request $r)
+ 
+public function getStudentUuid(Request $request)
 {
-    if ($res = $this->requireRole($r, ['admin','superadmin','instructor'])) return $res;
+    $actor = $this->actor($request);
 
-    $validator = Validator::make($r->all(), [
-        'submissions' => 'required|array',
-        'submissions.*.submission_id' => 'required',
-        'submissions.*.marks' => 'required|numeric|min:0',
-        'submissions.*.grade_letter' => 'nullable|string|max:10',
-        'submissions.*.grader_note' => 'nullable|string',
-        'apply_late_penalty' => 'boolean',
-    ]);
-
-    if ($validator->fails()) {
-        return response()->json(['message' => 'Validation failed', 'errors' => $validator->errors()], 422);
+    if (!isset($actor['role']) || $actor['role'] !== 'student') {
+        return response()->json(['error' => 'Access denied. Student role required.'], 403);
     }
 
+    $student = DB::table('users')->where('id', $actor['id'])->first();
+
+    if (!$student) {
+        return response()->json(['error' => 'Student not found.'], 404);
+    }
+
+    return response()->json([
+        'student_id'   => $student->id,
+        'student_uuid' => $student->uuid ?? null,
+        'student' => [
+            'id'    => $student->id,
+            'uuid'  => $student->uuid ?? null,
+            'name'  => $student->name ?? null,
+            'email' => $student->email ?? null,
+        ],
+    ]);
+}
+
+public function getMyAssignmentMarks(Request $r, string $assignmentKey, string $studentKey)
+ {
+    if ($res = $this->requireRole($r, ['admin','superadmin','instructor','student'])) return $res;
+    // Actor (caller) info
     $actor = $this->actor($r);
-    $applyLatePenalty = $r->input('apply_late_penalty', true);
-    $results = [
-        'successful' => [],
-        'failed' => [],
-    ];
+    $actorRole = $actor['role'] ?? null;
+    $actorId = isset($actor['id']) ? (int)$actor['id'] : null;
+    $actorTokenId = isset($actor['token_id']) ? (int)$actor['token_id'] : null;
+    // Resolve assignment
+    $assignment = $this->resolveAssignment($assignmentKey);
+    if (!$assignment) {
+        return response()->json(['error' => 'Assignment not found'], 404);
+    }
 
-    DB::beginTransaction();
-    try {
-        foreach ($r->input('submissions') as $index => $gradingData) {
-            try {
-                $submission = $this->resolveSubmission($gradingData['submission_id']);
-                if (!$submission) {
-                    $results['failed'][] = [
-                        'index' => $index,
-                        'submission_id' => $gradingData['submission_id'],
-                        'error' => 'Submission not found'
-                    ];
-                    continue;
-                }
+    // Resolve student (by id, uuid, or email)
+    $studentQuery = DB::table('users')
+        ->where('users.role', 'student')
+        ->whereNull('users.deleted_at');
 
-                $assignment = DB::table('assignments')
-                    ->where('id', $submission->assignment_id)
-                    ->whereNull('deleted_at')
-                    ->first();
+    if (ctype_digit($studentKey)) {
+        $studentQuery->where('users.id', (int)$studentKey);
+    } elseif (Str::isUuid($studentKey)) {
+        $studentQuery->where('users.uuid', $studentKey);
+    } else {
+        $studentQuery->where('users.email', $studentKey);
+    }
 
-                if (!$assignment) {
-                    $results['failed'][] = [
-                        'index' => $index,
-                        'submission_id' => $gradingData['submission_id'],
-                        'error' => 'Assignment not found'
-                    ];
-                    continue;
-                }
+    $student = $studentQuery->first();
+    if (!$student) {
+        return response()->json(['error' => 'Student not found'], 404);
+    }
 
-                // Calculate penalty
-                $penaltyDetails = $this->calculateLatePenalty(
-                    $assignment, 
-                    $submission, 
-                    (float) $gradingData['marks'],
-                    $applyLatePenalty
-                );
+    // Authorization: students can only view their own data; other roles allowed
+    if ($actorRole === 'student' && $actorId !== (int)$student->id) {
+        return response()->json(['error' => 'You can only view your own submissions'], 403);
+    }
 
-                // Prepare update data
-                $updateData = [
-                    'total_marks' => $penaltyDetails['final_marks'],
-                    'grade_letter' => $gradingData['grade_letter'] ?? null,
-                    'graded_at' => Carbon::now()->toDateTimeString(),
-                    'graded_by' => $actor['id'],
-                    'grader_note' => $gradingData['grader_note'] ?? null,
-                    'updated_at' => Carbon::now()->toDateTimeString(),
-                ];
+    // Check if student is in the assignment's batch
+    $batchStudent = DB::table('batch_students')
+        ->where('user_id', $student->id)
+        ->where('batch_id', $assignment->batch_id)
+        ->whereNull('deleted_at')
+        ->first();
 
-                // Update metadata with grading details
-                $metadata = [];
-                if (!empty($submission->metadata)) {
-                    try {
-                        $metadata = json_decode($submission->metadata, true) ?: [];
-                    } catch (\Throwable $e) {
-                        $metadata = [];
-                    }
-                }
+    if (!$batchStudent) {
+        return response()->json(['error' => 'Student is not enrolled in this assignment batch'], 403);
+    }
 
-                $metadata['grading_details'] = [
-                    'given_marks' => (float) $gradingData['marks'],
-                    'late_penalty_applied' => $penaltyDetails['penalty_applied'],
-                    'late_penalty_amount' => $penaltyDetails['penalty_amount'],
-                    'late_penalty_percentage' => $penaltyDetails['penalty_percentage'],
-                    'final_marks_after_penalty' => $penaltyDetails['final_marks'],
-                    'graded_by' => $actor['id'],
-                    'graded_by_role' => $actor['role'],
-                    'graded_at' => Carbon::now()->toDateTimeString(),
-                    'bulk_graded' => true,
-                ];
+    // Get all submissions for this student and assignment (most recent attempt first)
+    $submissions = DB::table('assignment_submissions')
+        ->where('assignment_id', $assignment->id)
+        ->where('student_id', $student->id)
+        ->whereNull('deleted_at')
+        ->orderBy('attempt_no', 'desc')
+        ->get();
 
-                $updateData['metadata'] = json_encode($metadata);
+    // Quick path: if no submissions
+    if ($submissions->isEmpty()) {
+        return response()->json([
+            'message' => 'Student assignment documents fetched successfully',
+            'data' => [
+                'assignment_uuid' => $assignment->uuid ?? null,
+                'student_uuid' => $student->uuid ?? null,
+                'assignment' => [
+                    'id' => $assignment->id,
+                    'uuid' => $assignment->uuid ?? null,
+                    'title' => $assignment->title ?? 'Unknown Title',
+                    'due_at' => $assignment->due_at ?? null,
+                    'total_marks' => $assignment->total_marks ?? null,
+                ],
+                'student' => [
+                    'id' => $student->id,
+                    'uuid' => $student->uuid ?? null,
+                    'name' => $student->name ?? 'Unknown Student',
+                    'email' => $student->email ?? null,
+                ],
+                'actor' => [
+                    'id' => $actorId,
+                    
+                    'role' => $actorRole,
+                    'token_id' => $actorTokenId,   // <- added
+    // 'token' => $actor['token'] ?? null, // optional; only if needed
+                ],
+                // local screenshot you uploaded (will be transformed to a URL on your side)
+                'users_table_screenshot_url' => '/mnt/data/161e1b7d-5f38-407f-a890-26e9089c1b95.png',
+                'submissions' => [],
+                'statistics' => [
+                    'total_submissions' => 0,
+                    'total_attachments' => 0,
+                    'total_documents' => 0,
+                    'total_images' => 0,
+                    'total_code_files' => 0,
+                    'total_archives' => 0,
+                    'total_videos' => 0,
+                    'latest_attempt' => null,
+                    'graded_submissions' => 0,
+                ],
+            ],
+        ], 200);
+    }
 
-                DB::table('assignment_submissions')
-                    ->where('id', $submission->id)
-                    ->update($updateData);
+    // Collect all grader IDs so we can fetch names in one query (avoid N+1)
+    $graderIds = $submissions->pluck('graded_by')->filter()->unique()->values()->all();
+    $graderMap = [];
 
-                $results['successful'][] = [
-                    'submission_id' => $submission->id,
-                    'student_id' => $submission->student_id,
-                    'given_marks' => (float) $gradingData['marks'],
-                    'final_marks' => $penaltyDetails['final_marks'],
-                    'penalty_applied' => $penaltyDetails['penalty_applied'],
-                    'penalty_amount' => $penaltyDetails['penalty_amount'],
-                ];
+    if (!empty($graderIds)) {
+        $graders = DB::table('users')
+            ->whereIn('id', $graderIds)
+            ->whereNull('deleted_at')
+            ->select('id', 'name', 'email')
+            ->get();
 
-            } catch (\Throwable $e) {
-                $results['failed'][] = [
-                    'index' => $index,
-                    'submission_id' => $gradingData['submission_id'],
-                    'error' => $e->getMessage()
-                ];
+        foreach ($graders as $g) {
+            $graderMap[(int)$g->id] = [
+                'name' => $g->name,
+                'email' => $g->email,
+            ];
+        }
+    }
+
+    // Map submissions into detailed structures
+    $submissionDetails = $submissions->map(function ($submission) use ($graderMap) {
+        // Decode attachments
+        $attachments = [];
+        if (!empty($submission->attachments_json)) {
+            $decoded = json_decode($submission->attachments_json, true);
+            if (is_array($decoded)) {
+                $attachments = $decoded;
             }
         }
 
-        DB::commit();
+        // Decode other JSON fields
+        $gradingDetails = [];
+        $flags = [];
+        $metadata = [];
 
-        return response()->json([
-            'message' => 'Bulk grading completed',
-            'data' => $results,
-        ], 200);
+        if (!empty($submission->metadata)) {
+            $decodedMeta = json_decode($submission->metadata, true);
+            if (is_array($decodedMeta)) {
+                $metadata = $decodedMeta;
+                $gradingDetails = $decodedMeta['grading_details'] ?? [];
+            }
+        }
 
-    } catch (\Throwable $e) {
-        DB::rollBack();
-        Log::error('bulk grade submissions error: '.$e->getMessage());
-        return response()->json(['error' => 'Failed to process bulk grading'], 500);
-    }
+        if (!empty($submission->flags_json)) {
+            $decodedFlags = json_decode($submission->flags_json, true);
+            if (is_array($decodedFlags)) {
+                $flags = $decodedFlags;
+            }
+        }
+
+        // Categorize attachments by extension
+        $documentAttachments = [];
+        $imageAttachments = [];
+        $codeAttachments = [];
+        $archiveAttachments = [];
+        $videoAttachments = [];
+
+        foreach ($attachments as $attachment) {
+            $ext = strtolower(pathinfo($attachment['name'] ?? '', PATHINFO_EXTENSION));
+            $mime = $attachment['mime'] ?? '';
+
+            if (in_array($ext, ['pdf', 'doc', 'docx', 'txt', 'pptx', 'xlsx'])) {
+                $documentAttachments[] = $attachment;
+            } elseif (in_array($ext, ['jpg', 'jpeg', 'png', 'gif', 'svg', 'bmp'])) {
+                $imageAttachments[] = $attachment;
+            } elseif (in_array($ext, ['js', 'py', 'java', 'html', 'css', 'cpp', 'c', 'php', 'rb'])) {
+                $codeAttachments[] = $attachment;
+            } elseif (in_array($ext, ['zip', 'rar', '7z', 'tar', 'gz'])) {
+                $archiveAttachments[] = $attachment;
+            } elseif (in_array($ext, ['mp4', 'avi', 'mov', 'wmv', 'flv'])) {
+                $videoAttachments[] = $attachment;
+            } else {
+                $documentAttachments[] = $attachment; // default fallback
+            }
+        }
+
+        // Grader name/email from pre-fetched map (if available)
+        $gradedById = $submission->graded_by ? (int)$submission->graded_by : null;
+        $graded_by_name  = $graderMap[$gradedById]['name']  ?? null;
+        $graded_by_email = $graderMap[$gradedById]['email'] ?? null;
+
+        return [
+            'submission_id' => $submission->id,
+            'submission_uuid' => $submission->uuid,
+            'attempt_no' => $submission->attempt_no,
+            'status' => $submission->status,
+            'submitted_at' => $submission->submitted_at,
+            'submitted_at_formatted' => $submission->submitted_at ?
+                Carbon::parse($submission->submitted_at)->format('M j, Y g:i A') : null,
+            'is_late' => (bool)$submission->is_late,
+            'late_minutes' => $submission->late_minutes,
+            'late_days' => $submission->late_minutes ? (int)ceil($submission->late_minutes / (24 * 60)) : 0,
+            'content_text' => $submission->content_text,
+            'content_html' => $submission->content_html,
+            'link_url' => $submission->link_url,
+            'repo_url' => $submission->repo_url,
+
+            // Attachments organized by type
+            'all_attachments' => $attachments,
+            'document_attachments' => $documentAttachments,
+            'image_attachments' => $imageAttachments,
+            'code_attachments' => $codeAttachments,
+            'archive_attachments' => $archiveAttachments,
+            'video_attachments' => $videoAttachments,
+
+            // Attachment counts
+            'total_attachments' => count($attachments),
+            'document_count' => count($documentAttachments),
+            'image_count' => count($imageAttachments),
+            'code_count' => count($codeAttachments),
+            'archive_count' => count($archiveAttachments),
+            'video_count' => count($videoAttachments),
+
+            // Grading information
+            'total_marks' => $submission->total_marks,
+            'grade_letter' => $submission->grade_letter,
+            'graded_at' => $submission->graded_at,
+            'graded_at_formatted' => $submission->graded_at ?
+                Carbon::parse($submission->graded_at)->format('M j, Y g:i A') : null,
+            'graded_by' => $gradedById,
+            'graded_by_name' => $graded_by_name,
+            'graded_by_email' => $graded_by_email,
+            'grader_note' => $submission->grader_note,
+            'feedback_html' => $submission->feedback_html,
+            'feedback_visible' => (bool)$submission->feedback_visible,
+
+            // Additional details
+            'grading_details' => $gradingDetails,
+            'flags' => $flags,
+            'metadata' => $metadata,
+            'submitted_ip' => $submission->submitted_ip,
+            'version_no' => $submission->version_no,
+        ];
+    })->values(); // ->values() to reindex
+
+    // Compute statistics
+    $total_submissions = $submissionDetails->count();
+    $total_attachments = $submissionDetails->sum('total_attachments');
+    $total_documents = $submissionDetails->sum('document_count');
+    $total_images = $submissionDetails->sum('image_count');
+    $total_code_files = $submissionDetails->sum('code_count');
+    $total_archives = $submissionDetails->sum('archive_count');
+    $total_videos = $submissionDetails->sum('video_count');
+    $latest_attempt = $submissionDetails->max('attempt_no');
+    $graded_submissions = $submissionDetails->filter(function ($s) {
+        return isset($s['total_marks']) && $s['total_marks'] !== null;
+    })->count();
+
+    return response()->json([
+        'message' => 'Student assignment documents fetched successfully',
+        'data' => [
+            'assignment_uuid' => $assignment->uuid ?? null,
+            'student_uuid' => $student->uuid ?? null,
+            'assignment' => [
+                'id' => $assignment->id,
+                'uuid' => $assignment->uuid ?? null,
+                'title' => $assignment->title ?? 'Unknown Title',
+                'due_at' => $assignment->due_at ?? null,
+                'total_marks' => $assignment->total_marks ?? null,
+            ],
+            'student' => [
+                'id' => $student->id,
+                'uuid' => $student->uuid ?? null,
+                'name' => $student->name ?? 'Unknown Student',
+                'email' => $student->email ?? null,
+            ],
+            'actor' => [
+                'id' => $actorId,
+                'email' => $actor['email'] ?? null,
+                'role' => $actorRole,
+            ],
+            // local screenshot path you uploaded (your system will convert this to an URL)
+            'users_table_screenshot_url' => '/mnt/data/161e1b7d-5f38-407f-a890-26e9089c1b95.png',
+            'submissions' => $submissionDetails,
+            'statistics' => [
+                'total_submissions' => $total_submissions,
+                'total_attachments' => $total_attachments,
+                'total_documents' => $total_documents,
+                'total_images' => $total_images,
+                'total_code_files' => $total_code_files,
+                'total_archives' => $total_archives,
+                'total_videos' => $total_videos,
+                'latest_attempt' => $latest_attempt,
+                'graded_submissions' => $graded_submissions,
+            ],
+        ],
+    ], 200);
 }
 }

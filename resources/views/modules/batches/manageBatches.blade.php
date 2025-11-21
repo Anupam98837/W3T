@@ -24,6 +24,7 @@
 
     /* Table Card */
     .table-wrap.card{position:relative;border:1px solid var(--line-strong);border-radius:16px;background:var(--surface);box-shadow:var(--shadow-2);}
+
     .table-wrap .card-body{overflow:visible}
     .table-responsive{overflow:visible !important}
     .table{--bs-table-bg:transparent}
@@ -299,7 +300,7 @@
                 </tr>
                 <tr id="askCourse-bin">
                   <td colspan="4" class="p-4 text-center text-muted">
-                    <i class="fa fa-trash mb-2" style="font-size:28px;opacity:.6;"></i>
+                    <i class="fa fa-trash mb-2" style="font-size:28px;opacity:.6"></i>
                     <div>Select a course to view items in Bin.</div>
                   </td>
                 </tr>
@@ -483,6 +484,46 @@
           </table>
         </div>
         <div class="d-flex justify-content-end p-2"><ul id="ins_pager" class="pagination mb-0"></ul></div>
+      </div>
+      <div class="modal-footer"><button class="btn btn-light" data-bs-dismiss="modal">Close</button></div>
+    </div>
+  </div>
+</div>
+
+{{-- ================= Assign Quizzes (modal) ================= --}}
+<div class="modal fade" id="quizzesModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="fa fa-question me-2"></i>Assign Quizzes</h5>
+        <a id="qz_add_btn" href="/admin/quizzes/manage" class="btn btn-primary btn-sm ms-auto"><i class="fa fa-plus me-1"></i> Add Quiz</a>
+        <button type="button" class="btn-close ms-2" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="d-flex align-items-center justify-content-between mstab-head">
+          <div class="left-tools d-flex align-items-center gap-2">
+            <input id="qz_q" class="form-control" style="width:240px" placeholder="Search by title/type…">
+            <label class="text-muted small mb-0">Per page</label>
+            <select id="qz_per" class="form-select" style="width:90px"><option>10</option><option selected>20</option><option>30</option><option>50</option></select>
+            <label class="text-muted small mb-0">Assigned</label>
+            <select id="qz_assigned" class="form-select" style="width:150px">
+              <option value="all" selected>All</option>
+              <option value="assigned">Assigned</option>
+              <option value="unassigned">Unassigned</option>
+            </select>
+            <button id="qz_apply" class="btn btn-primary"><i class="fa fa-check me-1"></i>Apply</button>
+          </div>
+          <div class="text-muted small" id="qz_meta">—</div>
+        </div>
+        <div class="table-responsive">
+          <table class="table table-hover align-middle st-table mb-0">
+            <thead><tr><th>Title</th><th style="width:120px;">Type</th><th style="width:120px;">Marks</th><th style="width:120px;">Display Order</th><th style="width:120px;">Publish</th><th class="text-center" style="width:110px;">Assign</th></tr></thead>
+            <tbody id="qz_rows">
+              <tr id="qz_loader" style="display:none;"><td colspan="6" class="p-3"><div class="placeholder-wave"><div class="placeholder col-12 mb-2" style="height:16px;"></div><div class="placeholder col-12 mb-2" style="height:16px;"></div><div class="placeholder col-12 mb-2" style="height:16px;"></div></div></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="d-flex justify-content-end p-2"><ul id="qz_pager" class="pagination mb-0"></ul></div>
       </div>
       <div class="modal-footer"><button class="btn btn-light" data-bs-dismiss="modal">Close</button></div>
     </div>
@@ -761,6 +802,7 @@ function wiring(){
     if(act==='view') openView(uuid);
     if(act==='edit') openEditModal(uuid);
     if(act==='instructors') openInstructors(uuid);
+    if(act==='quizzes') openQuizzes(uuid);            // <-- Assign Quiz action
     if(act==='assign') openStudents(uuid);
     if(act==='archive') return archiveBatch(uuid);
     if(act==='unarchive') return unarchiveBatch(uuid);
@@ -807,7 +849,7 @@ function applyFromURL(){}
 
 function rowActions(scope, r){
   if(scope==='active'){
-    return `<div class="dropdown text-end" data-bs-display="static"><button type="button" class="btn btn-primary btn-sm dd-toggle" data-bs-toggle="dropdown" aria-expanded="false" title="Actions"><i class="fa fa-ellipsis-vertical"></i></button><ul class="dropdown-menu dropdown-menu-end"><li><button class="dropdown-item" data-act="view" data-uuid="${r.uuid}"><i class="fa fa-circle-info"></i> View Batch</button></li><li><button class="dropdown-item" data-act="edit" data-uuid="${r.uuid}"><i class="fa fa-pen-to-square"></i> Edit Batch</button></li><li><button class="dropdown-item" data-act="instructors" data-uuid="${r.uuid}"><i class="fa fa-chalkboard-user"></i> Assign Instructor</button></li><li><button class="dropdown-item" data-act="assign" data-uuid="${r.uuid}"><i class="fa fa-user-plus"></i> Manage Students</button></li><li><hr class="dropdown-divider"></li><li><button class="dropdown-item" data-act="archive" data-uuid="${r.uuid}"><i class="fa fa-box-archive"></i> Archive</button></li><li><button class="dropdown-item text-danger" data-act="delete" data-uuid="${r.uuid}"><i class="fa fa-trash"></i> Delete</button></li></ul></div>`;
+    return `<div class="dropdown text-end" data-bs-display="static"><button type="button" class="btn btn-primary btn-sm dd-toggle" data-bs-toggle="dropdown" aria-expanded="false" title="Actions"><i class="fa fa-ellipsis-vertical"></i></button><ul class="dropdown-menu dropdown-menu-end"><li><button class="dropdown-item" data-act="view" data-uuid="${r.uuid}"><i class="fa fa-circle-info"></i> View Batch</button></li><li><button class="dropdown-item" data-act="edit" data-uuid="${r.uuid}"><i class="fa fa-pen-to-square"></i> Edit Batch</button></li><li><button class="dropdown-item" data-act="instructors" data-uuid="${r.uuid}"><i class="fa fa-chalkboard-user"></i> Assign Instructor</button></li><li><button class="dropdown-item" data-act="quizzes" data-uuid="${r.uuid}"><i class="fa fa-question"></i> Assign Quiz</button></li><li><button class="dropdown-item" data-act="assign" data-uuid="${r.uuid}"><i class="fa fa-user-plus"></i> Manage Students</button></li><li><hr class="dropdown-divider"></li><li><button class="dropdown-item" data-act="archive" data-uuid="${r.uuid}"><i class="fa fa-box-archive"></i> Archive</button></li><li><button class="dropdown-item text-danger" data-act="delete" data-uuid="${r.uuid}"><i class="fa fa-trash"></i> Delete</button></li></ul></div>`;
   }
   if(scope==='archived'){
     return `<div class="dropdown text-end" data-bs-display="static"><button type="button" class="btn btn-primary btn-sm dd-toggle" data-bs-toggle="dropdown"><i class="fa fa-ellipsis-vertical"></i></button><ul class="dropdown-menu dropdown-menu-end"><li><button class="dropdown-item" data-act="view" data-uuid="${r.uuid}"><i class="fa fa-circle-info"></i> View Batch</button></li><li><hr class="dropdown-divider"></li><li><button class="dropdown-item" data-act="unarchive" data-uuid="${r.uuid}"><i class="fa fa-box-open"></i> Unarchive</button></li><li><button class="dropdown-item text-danger" data-act="delete" data-uuid="${r.uuid}"><i class="fa fa-trash"></i> Delete</button></li></ul></div>`;
@@ -1141,6 +1183,148 @@ async function archiveBatch(uuid){ const {isConfirmed}=await Swal.fire({icon:'qu
 async function unarchiveBatch(uuid){ try{ const res=await fetch(`/api/batches/${encodeURIComponent(uuid)}`,{method:'PATCH',headers:{'Authorization':'Bearer '+TOKEN,'Content-Type':'application/json','Accept':'application/json'},body:JSON.stringify({status:'active'})}); const j=await res.json().catch(()=>({})); if(!res.ok) throw new Error(firstError(j)||'Unarchive failed'); ok('Batch unarchived'); load('archived'); load('active'); }catch(e){ err(e.message); } }
 async function deleteBatch(uuid){ const {isConfirmed}=await Swal.fire({icon:'warning',title:'Delete batch?',text:'This moves the batch to Bin (soft delete).',showCancelButton:true,confirmButtonText:'Delete',confirmButtonColor:'#ef4444'}); if(!isConfirmed) return; try{ const res=await fetch(`/api/batches/${encodeURIComponent(uuid)}`,{method:'DELETE',headers:{'Authorization':'Bearer '+TOKEN,'Accept':'application/json'}}); const j=await res.json().catch(()=>({})); if(!res.ok) throw new Error(firstError(j)||'Delete failed'); ok('Batch deleted'); load('active'); }catch(e){ err(e.message); } }
 async function restoreBatch(uuid){ try{ const res=await fetch(`/api/batches/${encodeURIComponent(uuid)}/restore`,{method:'POST',headers:{'Authorization':'Bearer '+TOKEN,'Accept':'application/json'}}); const j=await res.json().catch(()=>({})); if(!res.ok) throw new Error(firstError(j)||'Restore failed'); ok('Batch restored'); load('bin'); load('active'); }catch(e){ err(e.message); } }
+
+/* ================= QUIZZES (Assign Quiz UI) ================= */
+const qz_q = document.getElementById('qz_q'), qz_per = document.getElementById('qz_per'), qz_apply = document.getElementById('qz_apply'), qz_assigned = document.getElementById('qz_assigned'), qz_rows = document.getElementById('qz_rows'), qz_loader = document.getElementById('qz_loader'), qz_meta = document.getElementById('qz_meta'), qz_pager = document.getElementById('qz_pager');
+let quizzesModal, qz_uuid=null, qz_page=1;
+function quizzesParams(){ const p=new URLSearchParams(); if(qz_q.value.trim()) p.set('q', qz_q.value.trim()); p.set('per_page', qz_per.value || 20); p.set('page', qz_page); if(qz_assigned.value==='assigned') p.set('assigned','1'); if(qz_assigned.value==='unassigned') p.set('assigned','0'); return p.toString(); }
+function openQuizzes(uuid){ quizzesModal = quizzesModal || new bootstrap.Modal(document.getElementById('quizzesModal')); qz_uuid = uuid; qz_page = 1; qz_assigned.value = 'all'; quizzesModal.show(); loadQuizzes(); }
+qz_apply.addEventListener('click', ()=>{ qz_page=1; loadQuizzes(); }); qz_per.addEventListener('change', ()=>{ qz_page=1; loadQuizzes(); }); qz_assigned.addEventListener('change', ()=>{ qz_page=1; loadQuizzes(); });
+let qzT; qz_q.addEventListener('input', ()=>{ clearTimeout(qzT); qzT = setTimeout(()=>{ qz_page=1; loadQuizzes(); }, 350); });
+
+async function loadQuizzes(){
+  if(!qz_uuid) return;
+  qz_loader.style.display='';
+  qz_rows.querySelectorAll('tr:not(#qz_loader)').forEach(tr=>tr.remove());
+  try{
+    const res = await fetch(`/api/batches/${encodeURIComponent(qz_uuid)}/quizzes?` + quizzesParams(), { headers:{ 'Authorization':'Bearer '+TOKEN, 'Accept':'application/json' } });
+    const j = await res.json();
+    if(!res.ok) throw new Error(j?.message||'Failed to load quizzes');
+    let items = j?.data || [];
+    const pag = j?.pagination || { current_page:1, per_page:Number(qz_per.value||20), total: items.length };
+
+    if(qz_assigned.value==='assigned') items = items.filter(x=> !!x.assigned);
+    if(qz_assigned.value==='unassigned') items = items.filter(x=> !x.assigned);
+
+    const frag = document.createDocumentFragment();
+    items.forEach(u=>{
+      const assigned = !!u.assigned;
+      const title = u.title || u.name || u.quiz_title || ('Quiz #'+(u.id||'?'));
+      const type = u.type || u.quiz_type || '-';
+      const marks = u.total_marks ?? u.marks ?? '-';
+      const displayOrder = (typeof u.display_order !== 'undefined' && u.display_order !== null) ? u.display_order : '';
+      const publish = !!u.publish_to_students;
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td class="fw-semibold">${esc(title)}</td>
+                      <td class="text-capitalize">${esc(type)}</td>
+                      <td>${esc(marks)}</td>
+                      <td><input class="form-control form-control-sm qz-order" type="number" min="0" value="${esc(displayOrder)}" style="width:110px"></td>
+                      <td class="text-center"><div class="form-check form-switch d-inline-block"><input class="form-check-input qz-pub" type="checkbox" ${publish?'checked':''}></div></td>
+                      <td class="text-center"><div class="form-check form-switch d-inline-block"><input class="form-check-input qz-tg" type="checkbox" data-id="${u.id}" ${assigned?'checked':''}></div></td>`;
+      frag.appendChild(tr);
+    });
+    qz_rows.appendChild(frag);
+
+    // attach handlers
+    qz_rows.querySelectorAll('.qz-tg').forEach(ch=>{
+      ch.addEventListener('change', async ()=>{
+        const row = ch.closest('tr');
+        const quizId = Number(ch.dataset.id);
+        const assigned = !!ch.checked;
+        const orderEl = row.querySelector('.qz-order');
+        const pubEl = row.querySelector('.qz-pub');
+        const payload = { quiz_id: quizId, assigned: !!assigned };
+        if(orderEl && orderEl.value !== '') payload.display_order = Number(orderEl.value);
+        if(pubEl) payload.publish_to_students = !!pubEl.checked;
+        try{
+          await toggleQuiz(qz_uuid, payload, ch);
+          // if filter hides this row after change, reload listing
+          if((qz_assigned.value==='assigned' && !assigned) || (qz_assigned.value==='unassigned' && assigned)) loadQuizzes();
+        }catch(e){
+          // toggle already reverts on error inside toggleQuiz
+        }
+      });
+    });
+
+    // also update display_order changes by blur (optional auto-save)
+    qz_rows.querySelectorAll('.qz-order').forEach(io=>{
+      io.addEventListener('blur', async (ev)=>{
+        const row = io.closest('tr');
+        const ch = row.querySelector('.qz-tg');
+        const quizId = Number(ch?.dataset.id);
+        if(!quizId) return;
+        const pubEl = row.querySelector('.qz-pub');
+        const assigned = !!ch.checked;
+        const payload = { quiz_id: quizId, assigned: assigned, display_order: (io.value!==''?Number(io.value):null) };
+        if(pubEl) payload.publish_to_students = !!pubEl.checked;
+        // send update only if assigned (or send to API to update pivot even when not assigned if backend accepts)
+        try{ await toggleQuiz(qz_uuid, payload, null, true); }catch(_){} // ignore UI error here (toggleQuiz handles toasts)
+      });
+    });
+
+    qz_rows.querySelectorAll('.qz-pub').forEach(pb=>{
+      pb.addEventListener('change', async ()=>{
+        const row = pb.closest('tr');
+        const ch = row.querySelector('.qz-tg');
+        const quizId = Number(ch?.dataset.id);
+        if(!quizId) return;
+        const assigned = !!ch.checked;
+        const orderEl = row.querySelector('.qz-order');
+        const payload = { quiz_id: quizId, assigned: assigned, publish_to_students: !!pb.checked };
+        if(orderEl && orderEl.value !== '') payload.display_order = Number(orderEl.value);
+        try{ await toggleQuiz(qz_uuid, payload, null, true); }catch(_){} // update quietly
+      });
+    });
+
+    const total = Number(pag.total||items.length), per = Number(pag.per_page||20), cur = Number(pag.current_page||1);
+    const pages = Math.max(1, Math.ceil(total/per));
+    function li(dis,act,label,t){ return `<li class="page-item ${dis?'disabled':''} ${act?'active':''}"><a class="page-link" href="javascript:void(0)" data-page="${t||''}">${label}</a></li>`; }
+    let html=''; html+=li(cur<=1,false,'Prev',cur-1);
+    const w=2,s=Math.max(1,cur-w),e=Math.min(pages,cur+w);
+    for(let i=s;i<=e;i++) html+=li(false,i===cur,i,i);
+    html+=li(cur>=pages,false,'Next',cur+1);
+    qz_pager.innerHTML = html;
+    qz_pager.querySelectorAll('a.page-link[data-page]').forEach(a=> a.addEventListener('click', ()=>{ const t = Number(a.dataset.page); if(!t||t===qz_page) return; qz_page = t; loadQuizzes(); }));
+    qz_meta.textContent = `Page ${cur} of ${pages} — ${total} quizzes`;
+  }catch(e){
+    console.error('Quiz load error:', e);
+    err(e.message || 'Failed to load quizzes');
+  }finally{
+    qz_loader.style.display='none';
+  }
+}
+
+/**
+ * toggleQuiz
+ * - uuid: batch uuid
+ * - payload: { quiz_id, assigned, display_order?, publish_to_students?, available_from?, available_until? }
+ * - checkboxEl: the checkbox element that triggered the action (optional) - will be reverted on error
+ * - quiet: if true, won't show the standard ok toast (useful for display_order/publish quick-saves)
+ */
+async function toggleQuiz(uuid, payload, checkboxEl=null, quiet=false){
+  try{
+    // Ensure boolean is proper boolean
+    if(typeof payload.assigned === 'undefined') payload.assigned = true;
+    const res = await fetch(`/api/batches/${encodeURIComponent(uuid)}/quizzes/toggle`,{
+      method: 'POST',
+      headers: { 'Authorization':'Bearer '+TOKEN, 'Content-Type':'application/json', 'Accept':'application/json' },
+      body: JSON.stringify(payload)
+    });
+    const j = await res.json().catch(()=>({}));
+    if(!res.ok) throw new Error(j?.message || firstError(j) || 'Quiz toggle failed');
+    if(!quiet) ok(payload.assigned ? 'Quiz assigned to batch' : 'Quiz unassigned from batch');
+    return j;
+  }catch(e){
+    // revert UI toggle if a checkbox element was provided
+    if(checkboxEl) checkboxEl.checked = !checkboxEl.checked;
+    err(e.message || 'Toggle failed');
+    throw e;
+  }
+}
+
+;/* end quizzes section */
+
+/* =================== end of file - rest of code unchanged =================== */
 });
 </script>
 </body>

@@ -10,6 +10,7 @@
 .sm-list{max-width:1100px;margin:18px auto}
 .sm-card{border-radius:12px;padding:18px}
 .sm-item{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px;border-radius:10px;border:1px solid var(--line-strong);}
+/* ... (unchanged earlier styles kept) ... */
 .sm-item+.sm-item{margin-top:10px}
 .sm-item .left{display:flex;gap:12px;align-items:center}
 .sm-item .meta{display:flex;flex-direction:column;gap:4px}
@@ -61,60 +62,7 @@
 .rte.has-content + .rte-ph{display:none}
 /* small toolbar tweaks for modal */
 #notice_rte_toolbar .tool{padding:6px 8px;font-size:14px}
-/* ---------- RTE styles — theme-aware (use main.css vars only) ---------- */
-.toolbar {
-  display:flex;
-  gap:6px;
-  flex-wrap:wrap;
-  margin-bottom:8px;
-}
-.tool {
-  border:1px solid var(--line-strong);
-  border-radius:10px;
-  background:var(--surface);
-  padding:6px 9px;
-  cursor:pointer;
-  color:var(--text-color);
-  font-size:0.95rem;
-  display:inline-flex;
-  align-items:center;
-  gap:6px;
-}
-.tool:hover {
-  background: var(--page-hover);
-  transform: translateY(-1px);
-}
-.rte-wrap { position:relative; }
-.rte {
-  min-height:120px;
-  max-height:400px;
-  overflow:auto;
-  border:1px solid var(--line-strong);
-  border-radius:8px;
-  background:var(--surface);
-  padding:10px;
-  line-height:1.6;
-  outline:none;
-  color:var(--text-color);
-  font-family:var(--font-sans);
-  font-size:var(--fs-14);
-}
-.rte:focus { box-shadow: var(--ring); border-color: var(--accent-color); }
-.rte[contenteditable="true"]:empty:before {
-  /* keep minimal, only if placeholder not present — but we also have explicit .rte-ph */
-  content: "";
-}
-.rte-ph {
-  position:absolute;
-  top:10px;
-  left:10px;
-  color:var(--muted-color);
-  pointer-events:none;
-  font-size:14px;
-  line-height:1;
-}
-.rte.has-content + .rte-ph { display:none; }
-
+...
 /* toolbar compact for modal */
 #notice_rte_toolbar .tool { padding:6px 8px; font-size:14px; }
 
@@ -141,6 +89,127 @@ html.theme-dark .rte-ph {
 /* keep toolbar icons consistent */
 .tool .fa, .tool i { color: inherit; font-size: 0.95rem; }
 
+/* ----------------------------- */
+/* Notices — attachments dropzone (SMALLER variant) */
+/* ----------------------------- */
+
+/* Container */
+.notice-dropzone {
+  border: 2px dashed #8c2fb7;            /* purple dashed border (slightly thinner) */
+  border-radius: 14px;                   /* slightly smaller radius */
+  background: rgba(140,47,183,0.05);    /* lighter purple fill */
+  padding: 20px 18px;                    /* reduced padding from 36 -> 20 */
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  transition: border-color .15s ease, box-shadow .15s ease, background .15s ease;
+  min-height: 110px;                     /* reduced min-height */
+  position: relative;
+}
+
+/* inner dotted icon circle */
+.notice-drop-icon {
+  width: 48px;                           /* reduced from 56 -> 48 */
+  height: 48px;
+  border-radius: 50%;
+  border: 1px dotted rgba(140,47,183,0.35);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  background: rgba(255,255,255,0.6);
+  font-size:16px;                        /* slightly smaller icon */
+  color:#8c2fb7;
+}
+
+/* heading text inside dropzone */
+.notice-dropzone .lead {
+  font-weight:600;
+  font-size:16px;                        /* reduced from 18 -> 16 */
+  color:#2b2b2b;
+  margin-top:4px;
+}
+.notice-dropzone .tiny {
+  font-size:13px;
+  color:#666;
+}
+
+/* actions row */
+.notice-drop-actions {
+  display:flex;
+  gap:8px;
+  align-items:center;
+  justify-content:center;
+  margin-top:6px;
+}
+
+/* purple choose file button (slightly smaller) */
+.notice-choose-btn {
+  background: #8c2fb7;
+  color: #fff;
+  border: 1px solid rgba(0,0,0,0.04);
+  padding: 6px 12px;                     /* reduced padding */
+  border-radius:8px;
+  display: inline-flex;
+  gap:8px;
+  align-items:center;
+  cursor:pointer;
+  font-weight:600;
+  font-size:14px;
+}
+.notice-choose-btn:hover { filter:brightness(.98); transform: translateY(-1px); }
+
+/* clear all button (smaller) */
+.notice-clear-btn {
+  background: transparent;
+  color: #3b3b3b;
+  border: 1px solid rgba(0,0,0,0.06);
+  padding: 6px 10px;
+  border-radius:8px;
+  cursor:pointer;
+  font-size:14px;
+}
+
+/* dragover state (subtle) */
+.notice-dropzone.dragover {
+  border-color: #662d91;
+  box-shadow: 0 6px 18px rgba(102,45,145,0.06);
+  background: rgba(140,47,183,0.07);
+}
+
+/* hide native file input UI */
+.notice-dropzone input[type="file"] { display:none; }
+
+/* file list (kept compact) */
+.notice-file-list { width:100%; max-width:820px; margin-top:10px; display:flex; flex-direction:column; gap:8px; align-items:center; }
+.notice-file-item {
+  width:100%;
+  max-width:820px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  padding:8px 12px;                       /* reduced padding */
+  border-radius:10px;
+  background: #fff;
+  border: 1px solid rgba(0,0,0,0.04);
+  font-size:14px;
+  color:#222;
+}
+.notice-file-item .meta { display:flex; gap:10px; align-items:center; min-width:0; }
+.notice-file-item .name { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0; }
+.notice-file-item .size { color:#777; font-size:13px; white-space:nowrap; }
+.notice-file-remove { color:#c5308d; cursor:pointer; padding:6px; border-radius:6px; }
+
+/* ensure good small-screen behavior */
+@media (max-width:576px){
+  .notice-dropzone { padding:14px 12px; min-height:96px; gap:8px; }
+  .notice-drop-icon { width:40px; height:40px; font-size:14px; }
+  .notice-choose-btn, .notice-clear-btn { padding:6px 10px; font-size:13px; }
+  .notice-dropzone .lead { font-size:15px; }
+  .notice-file-item { padding:8px 10px; }
+}
 </style>
 
 <div class="crs-wrap" data-batch-id="">
@@ -263,9 +332,30 @@ html.theme-dark .rte-ph {
             </div>
 
             <div class="col-12">
-              <label class="form-label">Attachments <small class="text-muted">(multiple allowed, max 50MB each)</small></label>
-              <input id="notice_attachments" name="attachments[]" type="file" class="form-control" multiple>
-              <div class="small text-muted mt-1">Supported: images, pdf, video, etc.</div>
+             <label class="form-label">Attachments <small class="text-muted">(multiple allowed, max 50MB each)</small></label>
+
+<div id="notice_dropzone" class="notice-dropzone" aria-label="Attachments dropzone">
+  <div class="notice-drop-icon"><i class="fa fa-upload"></i></div>
+  <div class="lead">Drag &amp; drop files here or click to upload</div>
+  <div class="tiny">Any format • up to 50 MB per file</div>
+
+  <div class="notice-drop-actions">
+    <label for="notice_attachments" class="notice-choose-btn" id="notice_choose_label">
+      <i class="fa fa-file-upload"></i>
+      <span>Choose Files</span>
+    </label>
+
+    <button type="button" id="notice_clear_files" class="notice-clear-btn">Clear All</button>
+  </div>
+
+  <!-- hidden native input (keeps existing server-side wiring) -->
+  <input id="notice_attachments" name="attachments[]" type="file" multiple />
+</div>
+ <!-- selected file list -->
+  <div id="notice_fileList" class="notice-file-list" aria-live="polite"></div>
+
+<div class="small text-muted mt-1">Supported: images, pdf, video, etc.</div>
+
             </div>
 
             <div class="col-md-6">
@@ -495,10 +585,36 @@ html.theme-dark .rte-ph {
     const right = document.createElement('div'); right.className='right'; right.style.display='flex'; right.style.alignItems='center'; right.style.gap='8px';
     const datePill = document.createElement('div'); datePill.className='duration-pill'; datePill.textContent = row.created_at ? new Date(row.created_at).toLocaleDateString() : ''; right.appendChild(datePill);
 
-    const previewBtn = document.createElement('button'); previewBtn.className='btn btn-outline-primary'; previewBtn.style.minWidth='80px'; previewBtn.textContent='Preview'; previewBtn.type='button';
-    if (Array.isArray(row.attachment) && row.attachment.length > 0) { previewBtn.addEventListener('click', ()=> openFullscreenPreview(row, row.attachment || [], 0)); if (row.attachment.length>1){ const badge=document.createElement('span'); badge.className='small text-muted'; badge.style.marginLeft='6px'; badge.textContent = `(${row.attachment.length})`; previewBtn.appendChild(badge); } } else { previewBtn.disabled = true; previewBtn.classList.add('btn-light'); }
-    right.appendChild(previewBtn);
+    // --- Preview button (show only when attachments exist) ---
+const previewBtn = document.createElement('button');
+previewBtn.className = 'btn btn-outline-primary';
+previewBtn.style.minWidth = '80px';
+previewBtn.type = 'button';
+previewBtn.textContent = 'Preview';
 
+// normalize attachments for this row
+const attachmentsArr = Array.isArray(row.attachment) ? row.attachment : [];
+
+if (attachmentsArr.length > 0) {
+  // show the button and wire preview
+  previewBtn.style.display = 'inline-flex';
+  previewBtn.addEventListener('click', () => openFullscreenPreview(row, attachmentsArr, 0));
+
+  // show count badge when multiple attachments
+  if (attachmentsArr.length > 1) {
+    const badge = document.createElement('span');
+    badge.className = 'small text-muted';
+    badge.style.marginLeft = '6px';
+    badge.textContent = `(${attachmentsArr.length})`;
+    previewBtn.appendChild(badge);
+  }
+} else {
+  // hide the preview button when zero attachments
+  previewBtn.style.display = 'none';
+}
+
+right.appendChild(previewBtn);
+ 
     const moreWrap = document.createElement('div'); moreWrap.className='sm-more';
     moreWrap.innerHTML = `
       <button class="sm-dd-btn" aria-haspopup="true" aria-expanded="false" title="More">⋮</button>
@@ -637,9 +753,41 @@ function openDetailsModal(row){
 
   let _manualBackdrop = null;
   function showCreateModal(){ const nFormEl = document.getElementById('noticeCreateForm'); if (nFormEl) { const isEditing = (noticeIdInput && noticeIdInput.value && noticeIdInput.value.trim() !== ''); if (!isEditing) { nFormEl.reset(); nFormEl.classList.remove('was-validated'); } else { nFormEl.classList.remove('was-validated'); } }
-    const nAlert = document.getElementById('noticeCreateAlert'); if (nAlert) nAlert.style.display='none'; updateContextDisplay(); if (createModalInstance && typeof createModalInstance.show === 'function') { createModalInstance.show(); return; } if (!createModalEl) return; _manualBackdrop = document.createElement('div'); _manualBackdrop.className='modal-backdrop fade show'; document.body.appendChild(_manualBackdrop); createModalEl.classList.add('show'); createModalEl.style.display='block'; createModalEl.setAttribute('aria-hidden','false'); document.body.classList.add('modal-open'); document.documentElement.style.overflow='hidden'; if (!createModalEl._fallbackHooksAdded) { createModalEl.querySelectorAll('[data-bs-dismiss], .btn-close').forEach(btn => btn.addEventListener('click', hideCreateModal)); _manualBackdrop.addEventListener('click', hideCreateModal); document.addEventListener('keydown', _fallbackEscHandler); createModalEl._fallbackHooksAdded = true; } }
+    const nAlert = document.getElementById('noticeCreateAlert'); if (nAlert) nAlert.style.display='none'; updateContextDisplay();
+     if (createModalInstance && typeof createModalInstance.show === 'function') { createModalInstance.show(); return; } if (!createModalEl) return; _manualBackdrop = document.createElement('div'); _manualBackdrop.className='modal-backdrop fade show'; document.body.appendChild(_manualBackdrop); createModalEl.classList.add('show'); createModalEl.style.display='block'; createModalEl.setAttribute('aria-hidden','false'); document.body.classList.add('modal-open'); document.documentElement.style.overflow='hidden'; if (!createModalEl._fallbackHooksAdded) { createModalEl.querySelectorAll('[data-bs-dismiss], .btn-close').forEach(btn => btn.addEventListener('click', hideCreateModal)); _manualBackdrop.addEventListener('click', hideCreateModal); document.addEventListener('keydown', _fallbackEscHandler); createModalEl._fallbackHooksAdded = true; } }
 
-  function hideCreateModal(){ if (createModalInstance && typeof createModalInstance.hide === 'function') { try { createModalInstance.hide(); } catch(e){} return; } if (!createModalEl) return; createModalEl.classList.remove('show'); createModalEl.style.display='none'; createModalEl.setAttribute('aria-hidden','true'); document.body.classList.remove('modal-open'); document.documentElement.style.overflow=''; if (_manualBackdrop && _manualBackdrop.parentNode) { _manualBackdrop.parentNode.removeChild(_manualBackdrop); _manualBackdrop = null; } try { document.removeEventListener('keydown', _fallbackEscHandler); } catch(e){} exitEditMode(); }
+  function cleanupModalBackdrops() {
+    // remove any stray backdrops
+    document.querySelectorAll('.modal-backdrop').forEach(b => { try { b.remove(); } catch(e){} });
+    // remove modal-open class and restore overflow
+    document.body.classList.remove('modal-open');
+    try { document.documentElement.style.overflow = ''; document.body.style.overflow = ''; } catch(e){}
+  }
+
+  function hideCreateModal(){
+    // Prefer bootstrap instance hide if available
+    if (createModalInstance && typeof createModalInstance.hide === 'function') {
+      try {
+        createModalInstance.hide();
+      } catch(e) {
+        // fall through to manual cleanup
+      }
+      // ensure any leftover backdrop is removed (bootstrap sometimes leaves it if operations overlap)
+      setTimeout(cleanupModalBackdrops, 50);
+      // also exit edit mode/state
+      exitEditMode();
+      return;
+    }
+    // manual fallback removal (existing logic)
+    if (!createModalEl) return;
+    createModalEl.classList.remove('show');
+    createModalEl.style.display='none';
+    createModalEl.setAttribute('aria-hidden','true');
+    cleanupModalBackdrops();
+    if (_manualBackdrop && _manualBackdrop.parentNode) { _manualBackdrop.parentNode.removeChild(_manualBackdrop); _manualBackdrop = null; }
+    try { document.removeEventListener('keydown', _fallbackEscHandler); } catch(e){}
+    exitEditMode();
+  }
   function _fallbackEscHandler(e){ if (e.key === 'Escape') hideCreateModal(); }
 
   function enterEditMode(row){ if (noticeIdInput) noticeIdInput.value = row.id || ''; if (noticeMethodInput) noticeMethodInput.value = 'PATCH'; if (noticeTitleInput) noticeTitleInput.value = row.title || ''; 
@@ -651,7 +799,8 @@ function openDetailsModal(row){
       removeBtn.addEventListener('click', ()=>{ chk.checked = true; rowEl.style.opacity='0.45'; rowEl.style.filter='grayscale(0.4)'; removeBtn.style.display='none'; undoBtn.style.display=''; });
       undoBtn.addEventListener('click', ()=>{ chk.checked = false; rowEl.style.opacity=''; rowEl.style.filter=''; removeBtn.style.display=''; undoBtn.style.display='none'; });
       right.appendChild(chk); right.appendChild(removeBtn); right.appendChild(undoBtn); rowEl.appendChild(left); rowEl.appendChild(right); noticeExistingList.appendChild(rowEl); }); } else { noticeExistingList.innerHTML = '<div class="text-muted small">No existing attachments</div>'; } noticeExistingWrap.style.display=''; }
-    const modalTitle = createModalEl.querySelector('.modal-title'); if (modalTitle) modalTitle.innerHTML = '<i class="fa fa-pen me-2"></i> Edit Notice'; if (noticeCreateSubmitBtn) noticeCreateSubmitBtn.innerHTML = '<i class="fa fa-save me-1"></i> Update'; updateContextDisplay(); if (createModalInstance && typeof createModalInstance.show === 'function') createModalInstance.show(); else showCreateModal(); }
+    const modalTitle = createModalEl.querySelector('.modal-title'); if (modalTitle) modalTitle.innerHTML = '<i class="fa fa-pen me-2"></i> Edit Notice'; if (noticeCreateSubmitBtn) noticeCreateSubmitBtn.innerHTML = '<i class="fa fa-save me-1"></i> Update'; updateContextDisplay(); 
+    if (createModalInstance && typeof createModalInstance.show === 'function') createModalInstance.show(); else showCreateModal(); }
 
   function exitEditMode(){ if (noticeIdInput) noticeIdInput.value=''; if (noticeMethodInput) noticeMethodInput.value=''; if (noticeCreateFormEl) noticeCreateFormEl.reset(); if (noticeExistingList) noticeExistingList.innerHTML=''; if (noticeExistingWrap) noticeExistingWrap.style.display='none'; const modalTitle = createModalEl.querySelector('.modal-title'); if (modalTitle) modalTitle.innerHTML = '<i class="fa fa-plus me-2"></i> Add Notice'; if (noticeCreateSubmitBtn) noticeCreateSubmitBtn.innerHTML = '<i class="fa fa-save me-1"></i> Create'; }
   try{ if (createModalEl) createModalEl.addEventListener('hidden.bs.modal', exitEditMode); }catch(e){}
@@ -666,7 +815,8 @@ function openDetailsModal(row){
     fd.append('title', noticeTitleInput ? noticeTitleInput.value.trim() : ''); fd.append('message_html', noticeMessageInput ? noticeMessageInput.value.trim() : ''); fd.append('visibility_scope', noticeVisibility ? noticeVisibility.value : 'batch'); fd.append('priority', noticePriority ? noticePriority.value : 'normal'); fd.append('status', noticeStatus ? noticeStatus.value : 'draft'); const files = noticeAttachmentsInput && noticeAttachmentsInput.files ? noticeAttachmentsInput.files : []; for (let i=0;i<files.length;i++) fd.append('attachments[]', files[i]); const toRemove = Array.from(nForm.querySelectorAll('input[name="remove_attachments[]"]:checked')).map(n=>n.value); toRemove.forEach(v=>fd.append('remove_attachments[]', v)); const prevHtml = nSubmit ? nSubmit.innerHTML : (editingId ? 'Update' : 'Create'); if (nSubmit){ nSubmit.disabled = true; nSubmit.innerHTML = `<i class="fa fa-spinner fa-spin me-1"></i> ${editingId ? 'Updating...' : 'Creating...'}`; }
     try{ let endpoint = apiBase; let method = 'POST'; if (editingId){ fd.append('_method','PATCH'); fd.append('id', editingId); endpoint = `${apiBase}/${encodeURIComponent(editingId)}`; method = 'POST'; } else { const ctxBatch = ctx && ctx.batch_id ? ctx.batch_id : null; if (!ctxBatch){ if (nAlert){ nAlert.innerHTML = 'Missing Batch context — cannot create notice here.'; nAlert.style.display=''; } throw new Error('Missing batch context'); } endpoint = `${apiBase}/batch/${encodeURIComponent(ctxBatch)}`; method = 'POST'; }
       const res = await apiFetch(endpoint, { method: method, body: fd }); const json = await res.json().catch(()=>({})); if (!res.ok) { if (res.status === 422 && json.errors) { let msgs=[]; for (const k in json.errors){ if (Array.isArray(json.errors[k])) msgs.push(`${k}: ${json.errors[k].join(', ')}`); else msgs.push(`${k}: ${json.errors[k]}`); } if (nAlert){ nAlert.innerHTML = msgs.map(m=>`<div>${escapeHtml(m)}</div>`).join(''); nAlert.style.display=''; } } else { if (nAlert){ nAlert.innerHTML = `<div>${escapeHtml(json.message || 'Failed to create/update notice')}</div>`; nAlert.style.display=''; } } throw new Error('Save error'); }
-      try { if (createModalInstance && typeof createModalInstance.hide === 'function') createModalInstance.hide(); else hideCreateModal(); } catch(e){ hideCreateModal(); }
+      try { if (createModalInstance && typeof createModalInstance.hide === 'function') createModalInstance.hide(); else hideCreateModal(); } catch(e){ hideCreateModal(); } 
+      setTimeout(cleanupModalBackdrops, 60);
       exitEditMode(); showOk(json.message || (editingId ? 'Updated' : 'Created')); await loadNotices();
     } catch(err){ console.error('Create/Update failed', err); showErr('Save failed'); }
     finally { if (nSubmit){ nSubmit.disabled = false; nSubmit.innerHTML = prevHtml; } }
@@ -700,6 +850,149 @@ function openDetailsModal(row){
 
     $btnBin.addEventListener('click', (ev)=>{ ev.preventDefault(); openBin(); });
   })();
+  /* ===== Attachments UI: filelist + drag/drop + clear/remove (paste before the final "})();" ) ===== */
+(function wireAttachmentsUI(){
+  const dz = document.getElementById('notice_dropzone');
+  const fileInput = document.getElementById('notice_attachments');
+  const fileListEl = document.getElementById('notice_fileList');
+  const clearBtn = document.getElementById('notice_clear_files');
+  const chooseLabel = document.getElementById('notice_choose_label');
+
+  if (!dz || !fileInput || !fileListEl) return;
+
+  // Helper: format size
+  function fmtSize(bytes){
+    if (!bytes && bytes !== 0) return '';
+    const units = ['B','KB','MB','GB'];
+    let b = Number(bytes), i = 0;
+    while (b >= 1024 && i < units.length - 1){ b /= 1024; i++; }
+    return `${b.toFixed(b < 10 && i > 0 ? 1 : 0)} ${units[i]}`;
+  }
+
+  // Render the current fileInput.files into the UI
+  function renderFileList(){
+    const files = fileInput.files || [];
+    fileListEl.innerHTML = '';
+    if (!files.length) { fileListEl.style.display = 'none'; return; }
+    fileListEl.style.display = 'flex';
+    Array.from(files).forEach((f, idx) => {
+      const row = document.createElement('div');
+      row.className = 'notice-file-item';
+      row.innerHTML = `
+        <div class="meta" style="min-width:0; overflow:hidden;">
+          <div class="name" title="${escapeHtml(f.name)}">${escapeHtml(f.name)}</div>
+          <div class="size small text-muted">${fmtSize(f.size)}</div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <button type="button" class="btn btn-sm btn-outline-secondary notice-file-preview" data-idx="${idx}" title="Preview (local)">Preview</button>
+          <button type="button" class="btn btn-sm btn-outline-danger notice-file-remove" data-idx="${idx}">Remove</button>
+        </div>
+      `;
+      fileListEl.appendChild(row);
+    });
+
+    // wire remove/preview handlers
+    fileListEl.querySelectorAll('.notice-file-remove').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const idx = Number(btn.dataset.idx);
+        removeFileAtIndex(idx);
+      });
+    });
+    fileListEl.querySelectorAll('.notice-file-preview').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const idx = Number(btn.dataset.idx);
+        const f = fileInput.files[idx];
+        if (!f) return;
+        // For images/videos show in new tab using blob url, otherwise open file name
+        const url = URL.createObjectURL(f);
+        window.open(url, '_blank');
+        // revoke later to avoid memory leak
+        setTimeout(()=> URL.revokeObjectURL(url), 30000);
+      });
+    });
+  }
+
+  // Remove a file from input.files by index (using DataTransfer)
+  function removeFileAtIndex(idx){
+    const dt = new DataTransfer();
+    Array.from(fileInput.files).forEach((f, i) => { if (i !== idx) dt.items.add(f); });
+    fileInput.files = dt.files;
+    renderFileList();
+  }
+
+  // Clear all files
+  function clearAllFiles(){
+    fileInput.value = '';
+    // also reset DataTransfer to be safe
+    try { fileInput.files = new DataTransfer().files; } catch(e){}
+    renderFileList();
+  }
+
+  // When native file input changes
+  fileInput.addEventListener('change', () => {
+    renderFileList();
+  });
+
+  // Clear button
+  if (clearBtn) clearBtn.addEventListener('click', (e) => {
+    e.preventDefault();
+    clearAllFiles();
+  });
+
+  // Drag/drop wiring
+  function prevent(ev){ ev.preventDefault(); ev.stopPropagation(); }
+  ['dragenter','dragover'].forEach(ev => {
+    dz.addEventListener(ev, (e) => {
+      prevent(e);
+      dz.classList.add('dragover');
+    });
+  });
+  ['dragleave','dragend','drop'].forEach(ev => {
+    dz.addEventListener(ev, (e) => {
+      if (ev === 'drop') {
+        prevent(e);
+        dz.classList.remove('dragover');
+        const dt = e.dataTransfer;
+        if (dt && dt.files && dt.files.length){
+          // Merge dropped files with existing selection
+          const newDT = new DataTransfer();
+          // keep existing files
+          Array.from(fileInput.files || []).forEach(f => newDT.items.add(f));
+          // add dropped files
+          Array.from(dt.files).forEach(f => newDT.items.add(f));
+          fileInput.files = newDT.files;
+          renderFileList();
+        }
+      } else {
+        dz.classList.remove('dragover');
+      }
+    });
+  });
+
+  // clicking the whole dropzone triggers the native input (label already exists but support click anywhere)
+  dz.addEventListener('click', (e) => {
+    // if the click targeted a button or input, ignore
+    const tag = (e.target && e.target.tagName || '').toLowerCase();
+    if (['button','a','input','label'].includes(tag)) return;
+
+    // fileInput.click();
+  });
+
+  // support keyboard accessibility: pressing Enter/Space on the choose label opens input
+  if (chooseLabel){
+    chooseLabel.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault();
+         fileInput.click(); 
+        }
+    });
+  }
+
+  // Small helper to escape HTML in JS text
+  function escapeHtml(s){ return String(s || '').replace(/[&<>"'`=\/]/g, function(ch){ return({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;','/':'&#x2F;','`':'&#x60','=':'&#x3D;'}[ch]); }); }
+
+  // init (if files already present e.g. from edit mode)
+  renderFileList();
+})();
 
   updateContextDisplay(); loadNotices();
 })();

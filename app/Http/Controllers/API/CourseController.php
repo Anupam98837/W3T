@@ -370,7 +370,7 @@ private function nextMediaOrderNo(int $courseId): int
         ], 201);
     }
 
-    public function index(Request $r)
+ public function index(Request $r)
 {
     if ($resp = $this->requireRole($r, ['admin','superadmin'])) return $resp;
 
@@ -380,19 +380,27 @@ private function nextMediaOrderNo(int $courseId): int
     $status   = $r->query('status');       // draft|published|archived
     $type     = $r->query('course_type');  // paid|free
     $sort     = (string)$r->query('sort', '-created_at'); // or title,status,...
+    $onlyDeleted = (string)$r->query('only_deleted', '') === '1';
 
-    $q = DB::table('courses')->whereNull('deleted_at');
+    // Base query: either deleted or not deleted
+    $q = DB::table('courses');
+    if ($onlyDeleted) {
+        $q->whereNotNull('deleted_at');
+    } else {
+        $q->whereNull('deleted_at');
+    }
+
     if ($qText !== '') {
         $q->where(function($w) use ($qText){
             $w->where('title','like',"%$qText%")->orWhere('slug','like',"%$qText%");
         });
     }
-    if ($status) $q->where('status', $status);
+    if ($status && !$onlyDeleted) $q->where('status', $status); // status filter only for non-deleted listing
     if ($type)   $q->where('course_type', $type);
 
     $dir = 'asc'; $col = $sort;
     if (str_starts_with($sort, '-')) { $dir = 'desc'; $col = ltrim($sort, '-'); }
-    if (!in_array($col, ['created_at','title','status','course_type','order_no'], true)) { $col='created_at'; $dir='desc'; }
+    if (!in_array($col, ['created_at','title','status','course_type','order_no','deleted_at'], true)) { $col='created_at'; $dir='desc'; }
 
     $total = (clone $q)->count();
     $rows  = $q->orderBy($col, $dir)->offset(($page-1)*$perPage)->limit($perPage)->get();
@@ -1175,14 +1183,184 @@ public function listCourseBatchCards(Request $r)
         'role' => $role,
     ]);
 }
+    /**
+ * GET /api/courses/deleted
+ * List soft-deleted courses (admin/superadmin only)
+ */
+public function indexDeleted(Request $r)
+{
+    if ($resp = $this->requireRole($r, ['admin','superadmin'])) return $resp;
 
+    $page     = max(1, (int)$r->query('page', 1));
+    $perPage  = max(1, min(100, (int)$r->query('per_page', 20)));
+    $qText    = trim((string)$r->query('q', ''));
+    $sort     = (string)$r->query('sort', '-deleted_at');
 
+    $q = DB::table('courses')->whereNotNull('deleted_at');
 
+    if ($qText !== '') {
+        $q->where(function($w) use ($qText){
+            $w->where('title','like',"%$qText%")->orWhere('slug','like',"%$qText%");
+        });
+    }
 
+    $dir = 'asc'; $col = $sort;
+    if (str_starts_with($sort, '-')) { $dir = 'desc'; $col = ltrim($sort, '-'); }
+    if (!in_array($col, ['deleted_at','title','status','course_type','created_at'], true)) { $col='deleted_at'; $dir='desc'; }
 
+    $total = (clone $q)->count();
+    $rows  = $q->orderBy($col, $dir)->offset(($page-1)*$perPage)->limit($perPage)->get();
 
+    // Add minimal UI fields
+    foreach ($rows as $row) {
+        $row->final_price_ui = $this->computeFinalPrice(
+            (float)$row->price_amount,
+            $row->discount_amount !== null ? (float)$row->discount_amount : null,
+            $row->discount_percent !== null ? (float)$row->discount_percent : null
+        );
 
+        // count media items (soft-deleted or active)
+        $row->media_count = (int) DB::table('course_featured_media')
+            ->where('course_id', $row->id)
+            ->count();
+    }
 
+    return response()->json(['data'=>$rows,'pagination'=>['page'=>$page,'per_page'=>$perPage,'total'=>$total]]);
+}
 
+/**
+ * POST /api/courses/{course}/restore
+ * Restore a soft-deleted course (admin/superadmin only)
+ */
+public function restore(Request $request, string $course)
+{
+    if ($resp = $this->requireRole($request, ['admin','superadmin'])) return $resp;
+
+    // find including deleted
+    $q = DB::table('courses');
+    if (ctype_digit($course)) $q->where('id', (int)$course);
+    elseif (Str::isUuid($course)) $q->where('uuid', $course);
+    else $q->where('slug', $course);
+
+    $row = $q->first();
+    if (!$row) return response()->json(['error'=>'Course not found'], 404);
+    if ($row->deleted_at === null) return response()->json(['error'=>'Course is not deleted'], 422);
+
+    $id = (int)$row->id;
+
+    DB::beginTransaction();
+    try {
+        // restore course: clear deleted_at, set status to draft (change if you prefer)
+        DB::table('courses')->where('id', $id)->update([
+            'deleted_at' => null,
+            'status'     => 'draft',
+            'updated_at' => now(),
+        ]);
+
+        // restore any soft-deleted media for this course
+        DB::table('course_featured_media')
+            ->where('course_id', $id)
+            ->whereNotNull('deleted_at')
+            ->update([
+                'deleted_at' => null,
+                'status'     => 'active',
+                'updated_at' => now(),
+            ]);
+
+        DB::commit();
+    } catch (\Throwable $e) {
+        DB::rollBack();
+        Log::error('[Course Restore] failed', ['error'=>$e->getMessage(), 'course'=>$course]);
+        return response()->json(['error'=>'Restore failed'], 500);
+    }
+
+    $fresh = DB::table('courses')->where('id', $id)->first();
+
+    $this->logActivity($request, 'store', 'Restored course "'.($fresh->title ?? $row->title).'"', 'courses', $id, null, (array)$row, $fresh ? (array)$fresh : null);
+
+    // notify admins
+    $this->persistNotification([
+        'title'     => 'Course restored',
+        'message'   => '“'.($fresh->title ?? $row->title).'” has been restored.',
+        'receivers' => $this->adminReceivers(),
+        'metadata'  => ['action'=>'restored','course'=>['id'=>$id,'uuid'=>$row->uuid ?? null,'title'=>$fresh->title ?? null]],
+        'type'      => 'course',
+        'link_url'  => rtrim((string)config('app.url'), '/').'/admin/courses/'.$id,
+        'priority'  => 'normal',
+        'status'    => 'active',
+    ]);
+
+    $this->logWithActor('[Course Restore] success', $request, ['course_id'=>$id]);
+
+    return response()->json(['status'=>'success','message'=>'Course restored','data'=>$fresh]);
+}
+
+/**
+ * DELETE /api/courses/{course}/force
+ * Permanently delete a course and its media (admin/superadmin only)
+ * - removes DB rows and attempts to delete local files that belong to app.url
+ */
+public function forceDestroy(Request $request, string $course)
+{
+    if ($resp = $this->requireRole($request, ['admin','superadmin'])) return $resp;
+
+    // find including deleted
+    $q = DB::table('courses');
+    if (ctype_digit($course)) $q->where('id', (int)$course);
+    elseif (Str::isUuid($course)) $q->where('uuid', $course);
+    else $q->where('slug', $course);
+
+    $row = $q->first();
+    if (!$row) return response()->json(['error'=>'Course not found'], 404);
+
+    $id = (int)$row->id;
+    $appUrl = rtrim((string) config('app.url'), '/');
+
+    DB::beginTransaction();
+    try {
+        // fetch media rows for cleanup
+        $mediaRows = DB::table('course_featured_media')->where('course_id', $id)->get();
+
+        // Attempt to delete local files referenced by featured_url if they belong to our app URL
+        foreach ($mediaRows as $m) {
+            if (!empty($m->featured_url) && str_starts_with((string)$m->featured_url, $appUrl)) {
+                try {
+                    $relative = ltrim(str_replace($appUrl, '', (string)$m->featured_url), '/');
+                    $fullpath = $this->mediaBasePublicPath() . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $relative);
+                    if (File::exists($fullpath)) {
+                        File::delete($fullpath);
+                    }
+                } catch (\Throwable $e) {
+                    // log and continue; don't fail the whole delete because of a missing file
+                    Log::warning('[Course ForceDelete] file delete failed', ['media_id'=>$m->id,'error'=>$e->getMessage()]);
+                }
+            }
+        }
+
+        // delete media rows (permanent)
+        DB::table('course_featured_media')->where('course_id', $id)->delete();
+
+        // delete other dependent rows if needed (course_modules, batch relationships, etc.)
+        // NOTE: You may want to selectively delete related tables depending on your app logic.
+        DB::table('course_modules')->where('course_id', $id)->delete();
+        // Optionally delete batches? Usually batches may be kept — comment out if you prefer:
+        // DB::table('batches')->where('course_id', $id)->delete();
+
+        // finally delete the course row
+        DB::table('courses')->where('id', $id)->delete();
+
+        DB::commit();
+    } catch (\Throwable $e) {
+        DB::rollBack();
+        Log::error('[Course ForceDelete] failed', ['error'=>$e->getMessage(),'course_id'=>$id]);
+        return response()->json(['error'=>'Force delete failed'], 500);
+    }
+
+    $this->logActivity($request, 'destroy', 'Permanently deleted course "'.$row->title.'"', 'courses', $id, null, (array)$row, null);
+
+    $this->logWithActor('[Course ForceDelete] success', $request, ['course_id'=>$id]);
+
+    return response()->json(['status'=>'success','message'=>'Course permanently deleted']);
+}
 
 }

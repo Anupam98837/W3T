@@ -69,6 +69,16 @@ Route::middleware('checkRole:admin,super_admin,student,instructor')->group(funct
     Route::post  ('/courses/{course}/media',           [CourseController::class, 'mediaUpload']);   // multipart OR JSON {url}
     Route::post  ('/courses/{course}/media/reorder',   [CourseController::class, 'mediaReorder']);  // {ids:[...]} or {orders:{id:pos}}
     Route::delete('/courses/{course}/media/{media}',   [CourseController::class, 'mediaDestroy']);  // {id|uuid}
+    // list deleted
+    Route::get('/courses/deleted', [CourseController::class, 'indexDeleted']);
+    
+    // restore soft-deleted course
+    Route::post('/courses/{course}/restore', [CourseController::class, 'restore']);
+    Route::patch('/courses/{course}/restore', [CourseController::class, 'restore']); // allow PATCH
+
+    // permanently delete
+    Route::delete('/courses/{course}/force', [CourseController::class, 'forceDestroy']);
+
 });
 
 
@@ -102,8 +112,8 @@ Route::middleware(['checkRole:admin,super_admin'])->group(function () {
     Route::post  ('/course-modules/reorder',              [CourseModuleController::class, 'reorder']);
 });
 
-
 Route::middleware('checkRole:admin,super_admin')->group(function () {
+
     // Batches
     Route::get   ('/batches',                    [BatchController::class, 'index']);
     Route::get   ('/batches/{idOrUuid}',         [BatchController::class, 'show']);
@@ -113,18 +123,37 @@ Route::middleware('checkRole:admin,super_admin')->group(function () {
     Route::post  ('/batches/{idOrUuid}/restore', [BatchController::class, 'restore']);
     Route::patch ('/batches/{idOrUuid}/archive', [BatchController::class, 'archive']);
 
-    // Existing students (for the toggle modal)
+
+    /* ---------------------------
+     *   STUDENT ROUTES
+     * --------------------------- */
     Route::get   ('/batches/{idOrUuid}/students',          [BatchController::class, 'studentsIndex']);
     Route::post  ('/batches/{idOrUuid}/students/toggle',   [BatchController::class, 'studentsToggle']);
-
-    //Instructor Routes 
-    Route::get   ('/batches/{batch}/instructors',            [BatchController::class,'instructorsIndex']);
-    Route::post  ('/batches/{batch}/instructors/toggle',     [BatchController::class,'instructorsToggle']);
-    Route::patch ('/batches/{batch}/instructors/update',     [BatchController::class,'instructorsUpdate']);
-
-    // CSV upload
     Route::post  ('/batches/{idOrUuid}/students/upload-csv', [BatchController::class, 'studentsUploadCsv']);
+
+
+    /* ---------------------------
+     *   INSTRUCTOR ROUTES
+     * --------------------------- */
+    Route::get   ('/batches/{batch}/instructors',          [BatchController::class,'instructorsIndex']);
+    Route::post  ('/batches/{batch}/instructors/toggle',   [BatchController::class,'instructorsToggle']);
+    Route::patch ('/batches/{batch}/instructors/update',   [BatchController::class,'instructorsUpdate']);
+
+
+    /* ---------------------------
+     *   QUIZ ROUTES (NEW)
+     * --------------------------- */
+
+    // List all quizzes + search + filter (assigned/unassigned)
+    Route::get   ('/batches/{idOrUuid}/quizzes',           [BatchController::class, 'quizzIndex']);
+
+    // Assign / Unassign a quiz to batch
+    Route::post  ('/batches/{idOrUuid}/quizzes/toggle',    [BatchController::class, 'quizzToggle']);
+
+    // Update quiz link info (display_order, status, publish_to_students)
+    Route::patch ('/batches/{idOrUuid}/quizzes/update',    [BatchController::class, 'quizzUpdate']);
 });
+
 
 
 // Quiz & Question Routes 
@@ -159,6 +188,10 @@ Route::middleware('checkRole:admin,super_admin')
     // ===== Show/Update generic (MUST be last) =====
     Route::get ('/{key}',           [QuizzController::class, 'show'])->name('show');
     Route::match(['put','patch'],'/{key}', [QuizzController::class, 'update'])->name('update');
+});
+//students UUID
+Route::middleware('checkRole:admin,super_admin,instructor,student')->group(function () {
+    Route::get('/student/uuid', [AssignmentSubmissionController::class, 'getStudentUuid']);
 });
 
 
@@ -205,42 +238,49 @@ Route::middleware('checkRole:admin,super_admin,instructor,student')->prefix('ass
     Route::post('submission/key/{submissionKey}/restore', [AssignmentSubmissionController::class,'restoreSubmission'])->name('assignments.submission.restore')->where('submissionKey','[A-Za-z0-9\-_]+');
 
     Route::delete('submission/key/{submissionKey}/force', [AssignmentSubmissionController::class,'forceDeleteSubmission'])->name('assignments.submission.force_delete')->where('submissionKey','[A-Za-z0-9\-_]+');
+    Route::get('/{assignmentKey}/student/marks', [AssignmentSubmissionController::class, 'getMyAssignmentMarks']);
 
 });
 
 // Instructor-only routes
-Route::middleware('checkRole:admin,super_admin,instructor')
-     ->prefix('assignments')
-     ->group(function () {
+Route::middleware('checkRole:admin,super_admin,instructor,student')
+    ->prefix('assignments')
+    ->group(function () {
 
-    // Get all submissions for a specific assignment
-    Route::get('{assignmentKey}/submissions', [AssignmentSubmissionController::class, 'assignmentSubmissions'])
-         ->name('assignments.submissions.all')
-         ->where('assignmentKey','[A-Za-z0-9\-_]+');
+        // Get all submissions for a specific assignment
+        Route::get('{assignmentKey}/submissions', [AssignmentSubmissionController::class, 'assignmentSubmissions'])
+            ->name('assignments.submissions.all')
+            ->where('assignmentKey', '[A-Za-z0-9\-_]+');
 
-    // Get student submission status (submitted/not submitted)
-    Route::get('{assignmentKey}/student-status', [AssignmentSubmissionController::class, 'studentSubmissionStatus'])
-         ->name('assignments.submissions.status')
-         ->where('assignmentKey','[A-Za-z0-9\-_]+');
+        // Get student submission status
+        Route::get('{assignmentKey}/student-status', [AssignmentSubmissionController::class, 'studentSubmissionStatus'])
+            ->name('assignments.submissions.status')
+            ->where('assignmentKey', '[A-Za-z0-9\-_]+');
 
-    // Get submission statistics
-    Route::get('{assignmentKey}/submission-stats', [AssignmentSubmissionController::class, 'submissionStats'])
-         ->name('assignments.submissions.stats')
-         ->where('assignmentKey','[A-Za-z0-9\-_]+');
-    Route::get('/assignments/{assignmentKey}/export/submitted', [AssignmentSubmissionController::class, 'exportSubmittedStudentsCSV']);
-Route::get('/assignments/{assignmentKey}/export/unsubmitted', [AssignmentSubmissionController::class, 'exportUnsubmittedStudentsCSV']);
-Route::get('/assignments/{assignmentKey}/export/all', [AssignmentSubmissionController::class, 'exportAllStudentsStatusCSV']);
-// Grading routes
-Route::post('/submissions/{submission}/grade', [AssignmentSubmissionController::class, 'gradeSubmission']);
-Route::get('/submissions/{submission}/marks', [AssignmentSubmissionController::class, 'getSubmissionMarks']);
-Route::get('{assignmentKey}/marks', [AssignmentSubmissionController::class, 'getAssignmentMarks']);
-// Route::put('/assignments/{assignment}/penalty-settings', [AssignmentSubmissionController::class, 'updatePenaltySettings']);
-Route::post('/submissions/bulk-grade', [AssignmentSubmissionController::class, 'bulkGradeSubmissions']);
-// Document viewing routes
-Route::get('/assignments/{assignment}/submissions-documents', [AssignmentSubmissionController::class, 'getAssignmentSubmissionsWithDocuments']);
-Route::get('/{assignment}/students/{student}/documents', [AssignmentSubmissionController::class, 'getStudentAssignmentDocuments']);
-Route::get('/submissions/{submission}/download-documents', [AssignmentSubmissionController::class, 'downloadSubmissionDocuments']);
-});
+        // Get submission statistics
+        Route::get('{assignmentKey}/submission-stats', [AssignmentSubmissionController::class, 'submissionStats'])
+            ->name('assignments.submissions.stats')
+            ->where('assignmentKey', '[A-Za-z0-9\-_]+');
+
+        // CSV Export Routes
+        Route::get('{assignmentKey}/export/submitted', [AssignmentSubmissionController::class, 'exportSubmittedStudentsCSV']);
+        Route::get('{assignmentKey}/export/unsubmitted', [AssignmentSubmissionController::class, 'exportUnsubmittedStudentsCSV']);
+        Route::get('{assignmentKey}/export/all', [AssignmentSubmissionController::class, 'exportAllStudentsStatusCSV']);
+
+        // Grading routes
+        Route::post('submissions/{submission}/grade', [AssignmentSubmissionController::class, 'gradeSubmission']);
+        Route::get('submissions/{submission}/marks', [AssignmentSubmissionController::class, 'getSubmissionMarks']);
+        Route::get('{assignmentKey}/marks', [AssignmentSubmissionController::class, 'getAssignmentMarks']);
+
+        // Bulk grade
+        Route::post('submissions/bulk-grade', [AssignmentSubmissionController::class, 'bulkGradeSubmissions']);
+
+        // Document viewing routes
+        Route::get('{assignment}/submissions-documents', [AssignmentSubmissionController::class, 'getAssignmentSubmissionsWithDocuments']);
+        Route::get('{assignment}/students/{student}/documents', [AssignmentSubmissionController::class, 'getStudentAssignmentDocuments']);
+        Route::get('submissions/{submission}/download-documents', [AssignmentSubmissionController::class, 'downloadSubmissionDocuments']);
+    });
+
 // Study Material Routes 
 Route::middleware('checkRole:admin,super_admin,instructor,student')->group(function () {
     Route::get   ('/study-materials',                 [StudyMaterialController::class, 'index']);
@@ -263,8 +303,6 @@ Route::middleware('checkRole:admin,super_admin,instructor,student')->group(funct
 
 
 // All Media Routes 
-
-
 Route::middleware(['checkRole:admin,super_admin,instructor,author'])->group(function () {
     Route::get('/media',  [MediaController::class, 'index']);
     Route::post('/media', [MediaController::class, 'store']);
@@ -299,6 +337,8 @@ Route::middleware(['checkRole:student,admin'])->prefix('exam')->group(function (
     Route::post('/attempts/{attempt}/answer',       [ExamController::class, 'saveAnswer']);
     Route::post('/attempts/{attempt}/submit',       [ExamController::class, 'submit']);
     Route::get ('/attempts/{attempt}/status',       [ExamController::class, 'status']);
+    Route::post('/attempts/{attempt}/focus', [ExamController::class, 'focus']);
+
 });
 
 // printable answer sheet (usually admin/instructor; expose as needed)

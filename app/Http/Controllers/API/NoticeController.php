@@ -125,101 +125,110 @@ class NoticeController extends Controller
      |  Create
      * ========================================================= */
     public function store(Request $r)
-    {
-        if ($res = $this->requireRole($r, ['admin','superadmin','instructor'])) return $res;
-        $actor = $this->actor($r);
+{
+    if ($res = $this->requireRole($r, ['admin','superadmin','instructor'])) return $res;
+    $actor = $this->actor($r);
 
-        $v = Validator::make($r->all(), [
-            'course_id'         => 'required|integer|exists:courses,id',
-            'course_module_id'  => 'nullable|integer|exists:course_modules,id',
-            'batch_id'          => 'required|integer|exists:batches,id',
-            'visibility_scope'  => 'nullable|in:course,batch,module',
-            'title'             => 'required|string|max:255',
-            'message_html'      => 'nullable|string',
-            'priority'          => 'nullable|in:low,normal,high',
-            'status'            => 'nullable|in:draft,published,archived',
-            'attachments.*'     => 'nullable|file|max:51200',
-            'created_at_ip'     => 'nullable|ip',
-        ], [
-            'attachments.*.max' => 'Each attachment must be <= 50 MB.'
-        ]);
+    $v = Validator::make($r->all(), [
+        'course_id'         => 'required|integer|exists:courses,id',
+        'course_module_id'  => 'nullable|integer|exists:course_modules,id',
+        'batch_id'          => 'nullable|integer|exists:batches,id',
+        'visibility_scope'  => 'nullable|in:course,batch,module',
+        'title'             => 'required|string|max:255',
+        'message_html'      => 'nullable|string',
+        'priority'          => 'nullable|in:low,normal,high',
+        'status'            => 'nullable|in:draft,published,archived',
+        'attachments.*'     => 'nullable|file|max:51200',
+        'created_at_ip'     => 'nullable|ip',
+    ], [
+        'attachments.*.max' => 'Each attachment must be <= 50 MB.'
+    ]);
 
-        if ($v->fails()) {
-            return response()->json(['errors'=>$v->errors()], 422);
-        }
-
-        $uuid = $this->genUuid();
-        $slug = $this->uniqueSlug($r->title);
-        $visibility = $r->input('visibility_scope', 'batch');
-
-        // Collect files
-        $files = [];
-        if ($r->hasFile('attachments')) {
-            $files = is_array($r->file('attachments')) ? $r->file('attachments') : [$r->file('attachments')];
-        }
-
-        $stored = [];
-        if (!empty($files)) {
-            $root = $this->ensureDir(storage_path('app/notices/'.(int)$r->batch_id));
-            foreach ($files as $file) {
-                if (!$file || !$file->isValid()) continue;
-
-                $ext  = strtolower($file->getClientOriginalExtension() ?: 'bin');
-                $fid  = Str::lower(Str::random(10));
-                $name = $fid.'.'.$ext;
-
-                $file->move($root, $name);
-
-                $absPath = $root.DIRECTORY_SEPARATOR.$name;
-                $relPath = 'notices/'.(int)$r->batch_id.'/'.$name;
-
-                $mime = $file->getClientMimeType() ?: (is_file($absPath) ? mime_content_type($absPath) : 'application/octet-stream');
-                $size = @filesize($absPath) ?: 0;
-                $sha  = is_file($absPath) ? hash_file('sha256', $absPath) : null;
-
-                $url  = $this->appUrl()."/api/notices/stream/{$uuid}/{$fid}";
-
-                $stored[] = [
-                    'id'          => $fid,
-                    'disk'        => 'local',
-                    'path'        => $relPath,
-                    'url'         => $url,
-                    'mime'        => $mime,
-                    'ext'         => $ext,
-                    'size'        => $size,
-                    'sha256'      => $sha,
-                    'uploaded_at' => Carbon::now()->toIso8601String(),
-                ];
-            }
-        }
-
-        $now = Carbon::now();
-        $id = DB::table('notices')->insertGetId([
-            'uuid'              => $uuid,
-            'course_id'         => (int)$r->course_id,
-            'course_module_id'  => $r->input('course_module_id') ? (int)$r->course_module_id : null,
-            'batch_id'          => (int)$r->batch_id,
-            'visibility_scope'  => $visibility,
-            'title'             => $r->title,
-            'slug'              => $slug,
-            'message_html'      => $r->input('message_html'),
-            'attachments'       => $stored ? json_encode($stored) : null,
-            'priority'          => $r->input('priority', 'normal'),
-            'status'            => $r->input('status', 'draft'),
-            'created_by'        => $actor['id'] ?: 0,
-            'created_at_ip'     => $r->input('created_at_ip'),
-            'created_at'        => $now,
-            'updated_at'        => $now,
-        ]);
-
-        return response()->json([
-            'message' => 'Notice created',
-            'id'      => $id,
-            'uuid'    => $uuid,
-            'slug'    => $slug,
-            'attachments' => $stored,
-        ], 201);
+    if ($v->fails()) {
+        return response()->json(['errors'=>$v->errors()], 422);
     }
+
+    $uuid = $this->genUuid();
+    $slug = $this->uniqueSlug($r->title);
+
+    // Default visibility changed to 'course' to allow course-only notices
+    $visibility = $r->input('visibility_scope', 'course');
+
+    // Collect files (if any)
+    $files = [];
+    if ($r->hasFile('attachments')) {
+        $files = is_array($r->file('attachments')) ? $r->file('attachments') : [$r->file('attachments')];
+    }
+
+    // compute batch id (nullable) — avoid casting empty -> 0
+    $batchId = $r->filled('batch_id') ? (int) $r->input('batch_id') : null;
+
+    // storage folder: use batch id when present, otherwise a course-scoped folder
+    $storageFolder = $batchId !== null ? (string)$batchId : 'course_' . (int)$r->input('course_id');
+
+    $stored = [];
+    if (!empty($files)) {
+        $root = $this->ensureDir(storage_path('app/notices/'.$storageFolder));
+        foreach ($files as $file) {
+            if (!$file || !$file->isValid()) continue;
+
+            $ext  = strtolower($file->getClientOriginalExtension() ?: 'bin');
+            $fid  = Str::lower(Str::random(10));
+            $name = $fid.'.'.$ext;
+
+            $file->move($root, $name);
+
+            $absPath = $root.DIRECTORY_SEPARATOR.$name;
+            $relPath = 'notices/'.$storageFolder.'/'.$name;
+
+            $mime = $file->getClientMimeType() ?: (is_file($absPath) ? mime_content_type($absPath) : 'application/octet-stream');
+            $size = @filesize($absPath) ?: 0;
+            $sha  = is_file($absPath) ? hash_file('sha256', $absPath) : null;
+
+            $url  = $this->appUrl()."/api/notices/stream/{$uuid}/{$fid}";
+
+            $stored[] = [
+                'id'          => $fid,
+                'disk'        => 'local',
+                'path'        => $relPath,
+                'url'         => $url,
+                'mime'        => $mime,
+                'ext'         => $ext,
+                'size'        => $size,
+                'sha256'      => $sha,
+                'uploaded_at' => Carbon::now()->toIso8601String(),
+            ];
+        }
+    }
+
+    $now = Carbon::now();
+    $id = DB::table('notices')->insertGetId([
+        'uuid'              => $uuid,
+        'course_id'         => (int)$r->course_id,
+        'course_module_id'  => $r->input('course_module_id') ? (int)$r->course_module_id : null,
+        'batch_id'          => $batchId, // NULL when not provided
+        'visibility_scope'  => $visibility,
+        'title'             => $r->title,
+        'slug'              => $slug,
+        'message_html'      => $r->input('message_html'),
+        'attachments'       => $stored ? json_encode($stored) : null,
+        'priority'          => $r->input('priority', 'normal'),
+        'status'            => $r->input('status', 'draft'),
+        'created_by'        => $actor['id'] ?: 0,
+        'created_at_ip'     => $r->input('created_at_ip'),
+        'created_at'        => $now,
+        'updated_at'        => $now,
+    ]);
+
+    return response()->json([
+        'message' => 'Notice created',
+        'id'      => $id,
+        'uuid'    => $uuid,
+        'slug'    => $slug,
+        'attachments' => $stored,
+    ], 201);
+}
+
 
     /* =========================================================
      |  Update (fields + add/remove attachments)
@@ -293,7 +302,9 @@ class NoticeController extends Controller
         // Append new attachments
         if ($r->hasFile('attachments')) {
             $files = is_array($r->file('attachments')) ? $r->file('attachments') : [$r->file('attachments')];
-            $root  = $this->ensureDir(storage_path('app/notices/' . (int)$row->batch_id));
+            $rootFolder = $row->batch_id ? (string) $row->batch_id : 'course_' . (int) ($row->course_id ?? 0);
+$root  = $this->ensureDir(storage_path('app/notices/' . $rootFolder));
+
             foreach ($files as $file) {
                 if (!$file || !$file->isValid()) continue;
 
@@ -303,7 +314,7 @@ class NoticeController extends Controller
                 $file->move($root, $name);
 
                 $absPath = $root . DIRECTORY_SEPARATOR . $name;
-                $relPath = 'notices/' . (int)$row->batch_id . '/' . $name;
+$relPath = 'notices/' . $rootFolder . '/' . $name;
 
                 $mime = $file->getClientMimeType() ?: (is_file($absPath) ? mime_content_type($absPath) : 'application/octet-stream');
                 $size = @filesize($absPath) ?: 0;

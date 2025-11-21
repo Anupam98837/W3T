@@ -94,7 +94,7 @@
           <div class="err" data-for="course_module_id"></div>
         </div>
         <div class="col-md-4">
-          <label class="form-label" for="batch_id">Batch <span class="text-danger">*</span></label>
+        <label class="form-label" for="batch_id">Batch </label>
           <select id="batch_id" class="form-select" disabled></select>
           <div class="err" data-for="batch_id"></div>
         </div>
@@ -509,14 +509,14 @@
 
       let hasErr=false;
       if(!course_id){ fErr('course_id','Course is required.'); hasErr=true; }
-      if(!batch_id){ fErr('batch_id','Batch is required.'); hasErr=true; }
+      // if(!batch_id){ fErr('batch_id','Batch is required.'); hasErr=true; }
       if(!title){ fErr('title','Title is required.'); hasErr=true; }
       if(hasErr) return;
 
       const fd = new FormData();
       fd.append('course_id', course_id);
       if(course_module_id) fd.append('course_module_id', course_module_id);
-      fd.append('batch_id', batch_id);
+      if(batch_id) fd.append('batch_id', batch_id);
       fd.append('title', title);
       if(message_html) fd.append('message_html', message_html);
       Array.from(dt.files).forEach(f=> fd.append('attachments[]', f, f.name));
