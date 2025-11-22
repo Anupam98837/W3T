@@ -1113,9 +1113,18 @@ public function assignmentSubmissions(Request $r, string $assignmentKey)
 /**
  * Get student submission status for an assignment (who submitted and who didn't)
  */
+/**
+ * Get student submission status for an assignment (who submitted and who didn't)
+ */
 public function studentSubmissionStatus(Request $r, string $assignmentKey)
 {
     if ($res = $this->requireRole($r, ['admin','super_admin','instructor','student'])) return $res;
+
+    // Get actor (assumes this->actor(Request) returns ['id'=>..., 'role'=>..., 'uuid'=>...])
+    $actor = method_exists($this, 'actor') ? $this->actor($r) : null;
+    $actorId = $actor['id'] ?? null;
+    $actorRole = isset($actor['role']) ? strtolower($actor['role']) : null;
+    $actorUuid = $actor['uuid'] ?? null;
 
     // Resolve assignment
     $assignment = $this->resolveAssignment($assignmentKey);
@@ -1173,11 +1182,30 @@ public function studentSubmissionStatus(Request $r, string $assignmentKey)
         ], 200);
     }
 
+    // If the requester is a student, restrict the visible students to only that student (if enrolled)
+    if ($actorRole === 'student') {
+        $visible = $batchStudents->filter(function ($s) use ($actorId, $actorUuid) {
+            // match by numeric id or uuid
+            if ($actorId && (int)$s->student_id === (int)$actorId) return true;
+            if ($actorUuid && isset($s->student_uuid) && $s->student_uuid === $actorUuid) return true;
+            return false;
+        })->values();
+
+        // If the student is not part of the batch, return forbidden (adjust to empty list if you prefer)
+        if ($visible->isEmpty()) {
+            return response()->json(['message' => 'You are not enrolled in this batch'], 403);
+        }
+
+        // replace batchStudents with visible set for downstream processing
+        $batchStudents = $visible;
+    }
+    // else (admin/instructor/super_admin) leave $batchStudents as-is (full list)
+
     // Get submissions for this assignment (ordered so first() is latest attempt)
     $submissions = DB::table('assignment_submissions')
         ->where('assignment_id', $assignment->id)
         ->whereNull('deleted_at')
-        ->select('student_id', 'attempt_no', 'submitted_at', 'status', 'is_late')
+        ->select('student_id', 'attempt_no', 'submitted_at', 'status', 'is_late', 'id as submission_id')
         ->orderBy('attempt_no', 'desc')
         ->get()
         ->groupBy('student_id');
@@ -1289,7 +1317,7 @@ public function studentSubmissionStatus(Request $r, string $assignmentKey)
             ],
             // paginated view for existing UI
             'students' => $paginatedData,
-            // NEW: convenience arrays for frontend tabs (full lists, not paginated)
+            // convenience arrays for frontend tabs (full lists, not paginated)
             'submitted' => $submittedList,
             'not_submitted' => $notSubmittedList,
             'pagination' => [

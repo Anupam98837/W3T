@@ -152,6 +152,10 @@ Route::middleware('checkRole:admin,super_admin')->group(function () {
 
     // Update quiz link info (display_order, status, publish_to_students)
     Route::patch ('/batches/{idOrUuid}/quizzes/update',    [BatchController::class, 'quizzUpdate']);
+    Route::get('/quizz/by-batch/{batch}', [QuizzController::class,'viewByBatch']);
+Route::get('/quizz/by-course/{course}', [QuizzController::class,'viewByCourse']);
+Route::get('/quizz/by-module/{module}', [QuizzController::class,'viewByCourseModule']);
+
 });
 
 

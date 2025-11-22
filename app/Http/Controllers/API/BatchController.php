@@ -1066,7 +1066,6 @@ public function instructorsUpdate(Request $request, $idOrUuid)
 
     return response()->json(['success'=>true,'message'=>'Instructor link updated']);
 }
-
 /**
  * GET /api/batches/{idOrUuid}/quizzes?q=&assigned=&per_page=&page=
  * assigned: 'all' (default) | '1' | '0'
@@ -1106,8 +1105,10 @@ public function quizzIndex(Request $request, $idOrUuid)
         DB::raw('bq.publish_to_students'),
         DB::raw('bq.available_from'),
         DB::raw('bq.available_until'),
-        // use created_at as the assignment time if that suits your domain
+        // assignment time
         DB::raw('bq.created_at as assigned_at'),
+        // now read attempt_allowed from pivot
+        DB::raw('bq.attempt_allowed as attempt_allowed'),
     ];
 
     $base = DB::table('quizz')
@@ -1155,6 +1156,8 @@ public function quizzIndex(Request $request, $idOrUuid)
             'available_from'     => $r->available_from ?? null,
             'available_until'    => $r->available_until ?? null,
             'assigned_at'        => $r->assigned_at ?? null,
+            // now comes from pivot
+            'attempt_allowed'    => isset($r->attempt_allowed) ? (is_null($r->attempt_allowed) ? null : (int)$r->attempt_allowed) : null,
         ];
     }
 
@@ -1184,6 +1187,7 @@ public function quizzToggle(Request $request, $idOrUuid)
         'publish_to_students'=> 'sometimes|boolean',
         'available_from'     => 'nullable|date',
         'available_until'    => 'nullable|date|after_or_equal:available_from',
+        'attempt_allowed'    => 'sometimes|nullable|integer|min:0',
     ]);
     if ($v->fails()) return response()->json(['success' => false, 'errors' => $v->errors()], 422);
 
@@ -1213,6 +1217,8 @@ public function quizzToggle(Request $request, $idOrUuid)
                 'publish_to_students'=> $request->has('publish_to_students') ? (int)$request->publish_to_students : (optional($existing)->publish_to_students ?? 0),
                 'available_from'     => $request->filled('available_from') ? $request->available_from : (optional($existing)->available_from ?? null),
                 'available_until'    => $request->filled('available_until') ? $request->available_until : (optional($existing)->available_until ?? null),
+                // attempt_allowed sourced from request if present, otherwise keep existing pivot value
+                'attempt_allowed'    => $request->has('attempt_allowed') ? (is_null($request->attempt_allowed) ? null : (int)$request->attempt_allowed) : (optional($existing)->attempt_allowed ?? null),
                 'unassigned_at'      => null,
                 'updated_at'         => $now,
                 'deleted_at'         => null,
@@ -1265,6 +1271,9 @@ public function quizzToggle(Request $request, $idOrUuid)
     // fetch pivot row to return (fresh)
     $pivot = DB::table('batch_quizzes')->where('id', $pivotId)->first();
 
+    // attempt_allowed now comes from pivot
+    $attemptAllowed = isset($pivot->attempt_allowed) ? (is_null($pivot->attempt_allowed) ? null : (int)$pivot->attempt_allowed) : null;
+
     $assignedAt = null;
     if ($pivot) {
         $assignedAt = $hasAssignedAt ? ($pivot->assigned_at ?? $pivot->created_at ?? null) : ($pivot->created_at ?? null);
@@ -1285,10 +1294,108 @@ public function quizzToggle(Request $request, $idOrUuid)
             'assigned_at'        => $assignedAt,
             'created_at'         => $pivot->created_at ?? null,
             'updated_at'         => $pivot->updated_at ?? null,
+            // now from pivot
+            'attempt_allowed'    => $attemptAllowed,
         ] : null,
     ];
 
     return response()->json($response);   
 }
+public function quizzUpdate(Request $request, $idOrUuid)
+{
+    $uid = $this->authUserIdFromToken($request);
+    if (!$uid) return response()->json(['success' => false, 'message' => 'Unauthorized'], 401);
+
+    $batch = $this->findBatch($idOrUuid);
+    if (!$batch) return response()->json(['success' => false, 'message' => 'Batch not found'], 404);
+
+    $v = Validator::make($request->all(), [
+        // identify pivot either by batch_quiz_id OR quiz_id
+        'batch_quiz_id'      => 'nullable|integer|exists:batch_quizzes,id',
+        'quiz_id'            => 'nullable|integer|exists:quizz,id',
+        'display_order'      => 'sometimes|nullable|integer|min:0',
+        'publish_to_students'=> 'sometimes|boolean',
+        'available_from'     => 'nullable|date',
+        'available_until'    => 'nullable|date|after_or_equal:available_from',
+        // update pivot attempt_allowed
+        'attempt_allowed'    => 'sometimes|nullable|integer|min:0',
+    ]);
+    if ($v->fails()) return response()->json(['success' => false, 'errors' => $v->errors()], 422);
+
+    // locate pivot
+    $pivot = null;
+    if ($request->filled('batch_quiz_id')) {
+        $pivot = DB::table('batch_quizzes')->where('id', (int)$request->batch_quiz_id)->first();
+        if (!$pivot) return response()->json(['success'=>false,'message'=>'Assignment not found'],404);
+        if ((int)$pivot->batch_id !== (int)$batch->id) {
+            return response()->json(['success'=>false,'message'=>'Assignment does not belong to this batch'],403);
+        }
+    } elseif ($request->filled('quiz_id')) {
+        $pivot = DB::table('batch_quizzes')
+            ->where('batch_id', $batch->id)
+            ->where('quiz_id', (int)$request->quiz_id)
+            ->first();
+        if (!$pivot) return response()->json(['success'=>false,'message'=>'Assignment not found for this batch'],404);
+    } else {
+        return response()->json(['success'=>false,'message'=>'batch_quiz_id or quiz_id required'],422);
+    }
+
+    $now = now();
+    DB::transaction(function() use ($request, $pivot, $now) {
+        $update = ['updated_at' => $now];
+
+        if ($request->has('display_order')) {
+            $update['display_order'] = $request->input('display_order') === null ? null : (int)$request->input('display_order');
+        }
+
+        if ($request->has('publish_to_students')) {
+            $update['publish_to_students'] = (int) $request->input('publish_to_students');
+        }
+
+        if ($request->has('available_from')) {
+            $update['available_from'] = $request->input('available_from') ?: null;
+        }
+
+        if ($request->has('available_until')) {
+            $update['available_until'] = $request->input('available_until') ?: null;
+        }
+
+        // update pivot attempt_allowed when provided
+        if ($request->has('attempt_allowed')) {
+            $update['attempt_allowed'] = $request->input('attempt_allowed') === null ? null : (int)$request->input('attempt_allowed');
+        }
+
+        if (count($update) > 1) {
+            DB::table('batch_quizzes')->where('id', $pivot->id)->update($update);
+        }
+    });
+
+    // fetch fresh pivot to return authoritative values
+    $pivot = DB::table('batch_quizzes')->where('id', $pivot->id)->first();
+    $assignedAt = $pivot->assigned_at ?? $pivot->created_at ?? null;
+
+    $response = [
+        'success' => true,
+        'data'    => $pivot ? [
+            'id'                 => (int)$pivot->id,
+            'uuid'               => $pivot->uuid,
+            'batch_id'           => (int)$pivot->batch_id,
+            'quiz_id'            => (int)$pivot->quiz_id,
+            'display_order'      => isset($pivot->display_order) ? (int)$pivot->display_order : null,
+            'assign_status'      => isset($pivot->assign_status) ? (bool)$pivot->assign_status : false,
+            'publish_to_students'=> isset($pivot->publish_to_students) ? (bool)$pivot->publish_to_students : false,
+            'available_from'     => $pivot->available_from ?? null,
+            'available_until'    => $pivot->available_until ?? null,
+            'assigned_at'        => $assignedAt,
+            'created_at'         => $pivot->created_at ?? null,
+            'updated_at'         => $pivot->updated_at ?? null,
+            // pivot-sourced attempts
+            'attempt_allowed'    => isset($pivot->attempt_allowed) ? (is_null($pivot->attempt_allowed) ? null : (int)$pivot->attempt_allowed) : null,
+        ] : null,
+    ];
+
+    return response()->json($response);
+}
+
 
 }

@@ -151,14 +151,7 @@ html.theme-dark .dropdown-menu{background:#0f172a;border-color:var(--line-strong
       <div id="courseHint" class="small text-muted" style="display:none;">Pick a course to load modules.</div>
     </div>
 
-    <div class="col-12 col-xxl-auto ms-xxl-auto d-flex justify-content-xxl-end gap-2">
-            <button id="btnReorder" class="btn btn-primary" disabled>
-        <i class="fa fa-up-down-left-right me-1"></i>Reorder
-      </button>
-      <button id="btnCreate" class="btn btn-primary" disabled>
-        <i class="fa fa-plus me-1"></i>New Module
-      </button>
-    </div>
+    
   </div>
 
   {{-- ===== Tabs ===== --}}
@@ -213,6 +206,14 @@ html.theme-dark .dropdown-menu{background:#0f172a;border-color:var(--line-strong
 
           <button id="btnReset" class="btn btn-primary" disabled><i class="fa fa-rotate-left me-1"></i>Reset</button>
         </div>
+        <div class="col-12 col-xxl-auto ms-xxl-auto d-flex justify-content-xxl-end gap-2">
+            <button id="btnReorder" class="btn btn-primary" disabled>
+        <i class="fa fa-up-down-left-right me-1"></i>Reorder
+      </button>
+      <button id="btnCreate" class="btn btn-primary" disabled>
+        <i class="fa fa-plus me-1"></i>New Module
+      </button>
+    </div>
 
         <div class="col-12 col-xl-auto ms-xl-auto d-flex justify-content-xl-end small text-muted">
           Sorting: <span id="sortHint" class="ms-1">Newest first</span>
