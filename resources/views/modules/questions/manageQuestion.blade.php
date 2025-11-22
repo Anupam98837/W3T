@@ -31,6 +31,87 @@
     body{ background: var(--bg-gray); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; margin: 0; padding: 0; }
     .container{ max-width: 1400px; margin: 0 auto; padding: 20px; }
 
+    .quiz-header{
+    max-width: 1400px;
+    margin: 0 auto 16px;
+    padding: 14px 20px;
+    background: var(--surface);
+    border: 1px solid var(--line-strong);
+    border-radius: 12px;
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+}
+.quiz-header-main{ flex: 1; min-width: 0; }
+
+.quiz-chip{
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 3px 8px;
+    border-radius: 999px;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    background: #eef2ff;
+    color: #4338ca;
+    margin-bottom: 6px;
+}
+
+.quiz-header-title{
+    margin: 0;
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--ink);
+}
+.quiz-header-desc{
+    margin: 4px 0 0;
+    font-size: 13px;
+    color: var(--muted);
+    max-width: 640px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.quiz-header-meta{
+    display: flex;
+    gap: 16px;
+    align-items: flex-end;
+    flex-wrap: wrap;
+}
+.quiz-header-meta-item{
+    text-align: right;
+    min-width: 90px;
+}
+.quiz-header-meta-label{
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--muted);
+}
+.quiz-header-meta-value{
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--ink);
+}
+
+@media (max-width: 768px){
+    .quiz-header{
+        flex-direction: column;
+        align-items: flex-start;
+    }
+    .quiz-header-meta{
+        width: 100%;
+        justify-content: flex-start;
+    }
+    .quiz-header-meta-item{
+        text-align: left;
+    }
+}
+
+
     /* Layout */
     .layout-grid{ 
         display: grid; 
@@ -738,6 +819,268 @@
 .question-item .q-badge.medium { background:#fef3c7; color:#92400e; } /* existing ok */
 .question-item .q-badge.hard   { background:#fee2e2; color:#991b1b; }
 
+.question-item-main{
+    flex: 1;
+    min-width: 0;
+}
+
+.question-item-title{
+    font-size: 13px;
+    color: var(--ink);
+    margin-bottom: 4px;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.question-item-meta{
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.question-item .q-type{
+    padding: 2px 7px;
+    border-radius: 999px;
+    font-size: 10px;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--muted);
+}
+.question-item .q-type i{
+    font-size: 10px;
+}
+
+/* keep your difficulty colours, plus per-type tint (if not already there) */
+.question-item .q-type.single_choice{
+    background:#eef2ff;border-color:#c7d2fe;color:#4338ca;
+}
+.question-item .q-type.multiple_choice{
+    background:#f0fdf4;border-color:#bbf7d0;color:#166534;
+}
+.question-item .q-type.true_false{
+    background:#e0f2fe;border-color:#bae6fd;color:#075985;
+}
+.question-item .q-type.fill_in_the_blank{
+    background:#f9fafb;border-color:#e5e7eb;color:#374151;
+}
+
+
+/* ===== Question Preview Modal (refined) ===== */
+.preview-overlay{
+    position:fixed;
+    inset:0;
+    display:none;
+    align-items:center;
+    justify-content:center;
+    z-index:9998;
+    background:rgba(15,23,42,0.35);
+    backdrop-filter:blur(3px);
+}
+
+html.theme-dark .preview-overlay{
+    background:rgba(15,23,42,0.75);
+}
+
+.preview-modal{
+    width:min(800px,96vw);
+    max-height:82vh;
+    background:var(--surface);
+    border-radius:18px;
+    border:1px solid var(--line-strong);
+    box-shadow:0 22px 55px rgba(15,23,42,0.45);
+    display:flex;
+    flex-direction:column;
+    overflow:hidden;
+}
+
+/* Header */
+.preview-header{
+    padding:14px 20px 12px;
+    border-bottom:1px solid var(--line-strong);
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-start;
+    gap:12px;
+    background:linear-gradient(
+        135deg,
+        var(--bg-body),
+        rgba(79,70,229,0.04)
+    );
+}
+.preview-title{
+    margin:2px 0 0;
+    font-size:18px;
+    font-weight:600;
+    color:var(--ink);
+}
+.preview-chips{
+    display:flex;
+    flex-wrap:wrap;
+    gap:6px;
+    margin-bottom:4px;
+}
+.preview-chip{
+    font-size:10px;
+    padding:3px 9px;
+    border-radius:999px;
+    background:#eef2ff;
+    color:#4338ca;
+    text-transform:uppercase;
+    letter-spacing:0.04em;
+    font-weight:600;
+}
+
+/* difficulty tints */
+.preview-chip.diff-easy{background:#dcfce7;color:#166534;}
+.preview-chip.diff-medium{background:#fef3c7;color:#92400e;}
+.preview-chip.diff-hard{background:#fee2e2;color:#991b1b;}
+
+/* Body */
+.preview-body{
+    padding:16px 20px 4px;
+    overflow-y:auto;
+    background:var(--surface);
+}
+.preview-desc{
+    font-size:13px;
+    color:var(--muted);
+    margin-bottom:12px;
+}
+.preview-options{
+    margin-top:4px;
+}
+
+/* Options */
+.preview-option{
+    border-radius:12px;
+    border:1px solid var(--border);
+    padding:10px 12px;
+    display:flex;
+    gap:10px;
+    align-items:flex-start;
+    margin-bottom:8px;
+    background:var(--bg-gray);
+    transition:
+        box-shadow .15s ease,
+        border-color .15s ease,
+        background .15s ease,
+        transform .12s ease;
+}
+.preview-option:hover{
+    transform:translateY(-1px);
+    box-shadow:0 6px 18px rgba(15,23,42,0.12);
+}
+.preview-option-label{
+    width:24px;
+    height:24px;
+    border-radius:999px;
+    border:1px solid var(--border);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-size:11px;
+    font-weight:600;
+    margin-top:2px;
+    color:var(--muted);
+    background:var(--surface);
+}
+.preview-option-content{
+    flex:1;
+    min-width:0;
+    font-size:13px;
+    line-height:1.5;
+}
+
+/* Correct option state */
+.preview-option.correct{
+    border-color:#16a34a;
+    background:#f0fdf4;
+    box-shadow:
+        0 0 0 1px rgba(22,163,74,0.24),
+        0 10px 24px rgba(22,163,74,0.18);
+}
+.preview-option.correct .preview-option-label{
+    background:#16a34a;
+    border-color:#16a34a;
+    color:#ecfdf5;
+}
+
+/* Fill-in-the-blank blanks */
+.preview-blank{
+    display:inline-block;
+    min-width:40px;
+    border-bottom:2px solid #9ca3af;
+    margin:0 3px;
+}
+
+/* Explanation section */
+.preview-extra{
+    margin-top:14px;
+    font-size:13px;
+}
+.preview-extra-title{
+    font-weight:600;
+    margin-bottom:4px;
+}
+
+/* Footer */
+.preview-footer{
+    padding:10px 20px 14px;
+    border-top:1px solid var(--line-strong);
+    display:flex;
+    justify-content:flex-end;
+    gap:8px;
+    background:var(--bg-body);
+}
+
+/* ---- Dark mode tweaks ---- */
+html.theme-dark .preview-modal{
+    background:#020617;
+    border-color:#1f2937;
+}
+html.theme-dark .preview-header{
+    background:linear-gradient(
+        135deg,
+        #020617,
+        rgba(79,70,229,0.12)
+    );
+    border-bottom-color:#1f2937;
+}
+html.theme-dark .preview-body{
+    background:#020617;
+}
+html.theme-dark .preview-footer{
+    background:#020617;
+    border-top-color:#1f2937;
+}
+html.theme-dark .preview-option{
+    background:#020617;
+    border-color:#334155;
+    box-shadow:none;
+}
+html.theme-dark .preview-option:hover{
+    box-shadow:0 10px 26px rgba(15,23,42,0.8);
+}
+html.theme-dark .preview-option-label{
+    border-color:#475569;
+    background:#020617;
+    color:#cbd5f5;
+}
+html.theme-dark .preview-option.correct{
+    background:#022c22;
+    border-color:#16a34a;
+    box-shadow:
+        0 0 0 1px rgba(34,197,94,0.55),
+        0 12px 30px rgba(22,163,74,0.45);
+}
+
+
+
+
 
 
     </style>
@@ -745,6 +1088,33 @@
 <body>
     @section('content')
     <div class="container">
+
+
+    {{-- Quiz header card --}}
+    <div class="quiz-header">
+        <div class="quiz-header-main">
+            <div class="quiz-chip">
+                <i class="fa fa-clipboard-list"></i>
+                <span>Quiz</span>
+            </div>
+            <h4 class="quiz-header-title" id="quizTitle">Loading quiz…</h4>
+            <p class="quiz-header-desc" id="quizDesc">
+                Please wait while we fetch quiz details.
+            </p>
+        </div>
+
+        <div class="quiz-header-meta">
+            <div class="quiz-header-meta-item">
+                <div class="quiz-header-meta-label">Questions</div>
+                <div class="quiz-header-meta-value" id="quizQuestionCountTop">0</div>
+            </div>
+            <div class="quiz-header-meta-item">
+                <div class="quiz-header-meta-label">Total time</div>
+                <div class="quiz-header-meta-value" id="quizTotalTime">—</div>
+            </div>
+        </div>
+    </div>
+
         <div class="layout-grid">
             <!-- Sidebar -->
             <div class="sidebar">
@@ -1041,6 +1411,30 @@
   </div>
 </div>
 
+<!-- Question Preview Modal -->
+<div id="previewOverlay" class="preview-overlay">
+  <div class="preview-modal">
+    <div class="preview-header">
+      <div>
+        <div id="previewChips" class="preview-chips"></div>
+        <h5 id="previewTitle" class="preview-title">Question preview</h5>
+      </div>
+      <button type="button" class="btn btn-light btn-sm" id="previewCloseBtn">
+        <i class="fa fa-times"></i>
+      </button>
+    </div>
+    <div class="preview-body">
+      <div id="previewDesc" class="preview-desc" style="display:none;"></div>
+      <div id="previewOptions" class="preview-options"></div>
+      <div id="previewExtra" class="preview-extra"></div>
+    </div>
+    <div class="preview-footer">
+      <button type="button" class="btn btn-light btn-sm" id="previewCloseBtn2">Close</button>
+    </div>
+  </div>
+</div>
+
+
     @endsection
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
@@ -1049,6 +1443,31 @@
     document.addEventListener('DOMContentLoaded', function() {
         var TOKEN = localStorage.getItem('token') || sessionStorage.getItem('token') || '';
         var ROLE = (localStorage.getItem('role') || 'admin');
+        var quizMeta = null; 
+        var previewOverlay = document.getElementById('previewOverlay');
+var previewTitle   = document.getElementById('previewTitle');
+var previewDesc    = document.getElementById('previewDesc');
+var previewOptions = document.getElementById('previewOptions');
+var previewExtra   = document.getElementById('previewExtra');
+var previewChips   = document.getElementById('previewChips');
+
+function openPreviewModal(){
+    if (!previewOverlay) return;
+    previewOverlay.style.display = 'flex';
+    document.body.style.overflow = 'hidden';
+}
+function closePreviewModal(){
+    if (!previewOverlay) return;
+    previewOverlay.style.display = 'none';
+    document.body.style.overflow = '';
+}
+
+document.getElementById('previewCloseBtn')?.addEventListener('click', closePreviewModal);
+document.getElementById('previewCloseBtn2')?.addEventListener('click', closePreviewModal);
+previewOverlay?.addEventListener('click', function(e){
+    if (e.target === previewOverlay) closePreviewModal();
+});
+
 
 document.getElementById('btnBack')?.addEventListener('click', function(){
   location.href = `/${ROLE}/quizz/manage`;
@@ -1438,6 +1857,40 @@ async function deleteMedia(id){
                 showToast('error', prefix + ': HTTP ' + resp.status);
             }
         }
+
+        function updateQuizHeader(){
+    if (!quizMeta) return;
+
+    var titleEl = document.getElementById('quizTitle');
+    var descEl  = document.getElementById('quizDesc');
+    var timeEl  = document.getElementById('quizTotalTime');
+
+    if (titleEl) {
+        titleEl.textContent = quizMeta.quiz_name || 'Untitled quiz';
+    }
+
+    if (descEl) {
+        var raw  = quizMeta.quiz_description || '';
+        var tmp  = document.createElement('div');
+        tmp.innerHTML = raw;
+        var text = (tmp.textContent || tmp.innerText || '').trim();
+
+        if (text.length > 180) {
+            text = text.slice(0, 180).trim() + '…';
+        }
+        descEl.textContent = text || 'No description added for this quiz yet.';
+    }
+
+    if (timeEl) {
+        var minutes = parseInt(quizMeta.total_time, 10);
+        if (!isNaN(minutes) && minutes > 0) {
+            timeEl.textContent = minutes + ' min';
+        } else {
+            timeEl.textContent = '—';
+        }
+    }
+}
+
 
         var usp = new URLSearchParams(location.search);
         var quizK = usp.get('quiz');
@@ -2033,26 +2486,44 @@ async function deleteMedia(id){
 
             var titlePlain = stripHtml(q.question_title);
             var truncatedTitle = truncateText(titlePlain, 4);
-            const diff = (q.question_difficulty || 'medium').toLowerCase();
+    const diff = (q.question_difficulty || 'medium').toLowerCase();
 const badgeLabel = diff.charAt(0).toUpperCase() + diff.slice(1);
-            
-            li.innerHTML = `
-                <div class="q-number">${q.question_order || '-'}</div>
-                <div class="q-title">${esc(truncatedTitle) || 'Untitled'}</div>
-                <div class="q-badge ${diff}">${badgeLabel}</div>
-                <div class="question-menu">
-                    <button class="menu-btn">
-                        <i class="fa fa-ellipsis-v"></i>
-                    </button>
-                    <div class="menu-dropdown">
-                        <div class="menu-item edit" data-id="${q.question_id}">
-                            <i class="fa fa-edit"></i> Edit
-                        </div>
-                        <div class="menu-item delete" data-id="${q.question_id}">
-                            <i class="fa fa-trash"></i> Delete
-                        </div>
-                    </div>
-                </div>`;
+const typeMeta = typeMetaForList(q);
+
+li.innerHTML = `
+    <div class="q-number">${q.question_order || '-'}</div>
+
+    <div class="question-item-main">
+        <div class="question-item-title">
+            ${esc(truncateText(stripHtml(q.question_title || ''), 10)) || 'Untitled'}
+        </div>
+        <div class="question-item-meta">
+            <span class="q-badge ${diff}">${badgeLabel}</span>
+            <span class="q-type ${typeMeta.key}" title="${typeMeta.label}">
+                <i class="${typeMeta.icon}"></i>
+                <span>${typeMeta.short}</span>
+            </span>
+        </div>
+    </div>
+
+    <div class="question-menu">
+        <button class="menu-btn">
+            <i class="fa fa-ellipsis-v"></i>
+        </button>
+        <div class="menu-dropdown">
+            <div class="menu-item view" data-id="${q.question_id}">
+                <i class="fa fa-eye"></i> View
+            </div>
+            <div class="menu-item edit" data-id="${q.question_id}">
+                <i class="fa fa-edit"></i> Edit
+            </div>
+            <div class="menu-item delete" data-id="${q.question_id}">
+                <i class="fa fa-trash"></i> Delete
+            </div>
+        </div>
+    </div>`;
+
+
             
             return li;
         }
@@ -2077,6 +2548,9 @@ const badgeLabel = diff.charAt(0).toUpperCase() + diff.slice(1);
             box.appendChild(frag);
             var questionsCount = document.getElementById('questionsCount');
             if (questionsCount) questionsCount.textContent = arr.length;
+            var headerCount = document.getElementById('quizQuestionCountTop');
+            if (headerCount) headerCount.textContent = arr.length;
+
             
             // Add event listeners for menu buttons
             document.querySelectorAll('.menu-btn').forEach(function(btn) {
@@ -2164,6 +2638,18 @@ const badgeLabel = diff.charAt(0).toUpperCase() + diff.slice(1);
                     d.classList.remove('show');
                 });
             });
+
+            document.querySelectorAll('.menu-item.view').forEach(function(item) {
+    item.addEventListener('click', async function(e) {
+        e.stopPropagation();
+        const id = this.dataset.id;
+        document.querySelectorAll('.menu-dropdown').forEach(function(d) {
+            d.classList.remove('show');
+        });
+        await viewQuestion(id);
+    });
+});
+
         }
 
         async function loadList(){
@@ -2290,6 +2776,151 @@ if (qDifficulty) qDifficulty.value = 'medium';
           // if we ever stored single flag on answers or there is exactly one correct, treat it as single_choice
           return (anySingleFlag || correctCount === 1) ? 'single_choice' : 'multiple_choice';
         }
+
+        function renderQuestionPreview(q){
+    if (!previewTitle) return;
+    const uiType = guessUiType(q);
+    const diff = (q.question_difficulty || 'medium').toLowerCase();
+    const typeMeta = typeMetaForList(q);
+
+    // chips
+    previewChips.innerHTML = `
+        <span class="preview-chip diff-${diff}">${diff.charAt(0).toUpperCase()+diff.slice(1)}</span>
+        <span class="preview-chip">${typeMeta.label}</span>
+        <span class="preview-chip">${q.question_mark || 1} mark${(q.question_mark||1) > 1 ? 's':''}</span>
+    `;
+
+    // title — replace {dash} with blank lines for Fill in the blank
+    var titleHtml = q.question_title || 'Untitled question';
+    if (uiType === 'fill_in_the_blank') {
+        titleHtml = titleHtml.replace(/{dash}/g, '<span class="preview-blank"></span>');
+    }
+    previewTitle.innerHTML = titleHtml;
+
+    // description
+    const descHtml = q.question_description || '';
+    if (stripHtml(descHtml).trim().length){
+        previewDesc.style.display = 'block';
+        previewDesc.innerHTML = descHtml;
+    } else {
+        previewDesc.style.display = 'none';
+        previewDesc.innerHTML = '';
+    }
+
+    // options
+    previewOptions.innerHTML = '';
+    const answers = Array.isArray(q.answers) ? q.answers.slice() : [];
+    answers.sort((a,b) => (a.answer_order||0) - (b.answer_order||0));
+
+    if (uiType === 'fill_in_the_blank') {
+        if (answers.length){
+            const heading = document.createElement('div');
+            heading.className = 'preview-extra-title';
+            heading.textContent = 'Correct answers';
+            previewOptions.appendChild(heading);
+
+            answers.forEach((ans, idx) => {
+                const wrap = document.createElement('div');
+                wrap.className = 'preview-option correct';
+                wrap.innerHTML = `
+                    <div class="preview-option-label">${idx+1}</div>
+                    <div class="preview-option-content">${ans.answer_title || ''}</div>
+                `;
+                previewOptions.appendChild(wrap);
+            });
+        }
+    } else {
+        const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+        answers.forEach((ans, idx) => {
+            const correct = !!ans.is_correct;
+            const wrap = document.createElement('div');
+            wrap.className = 'preview-option' + (correct ? ' correct' : '');
+            const letter = letters[idx] || '?';
+            wrap.innerHTML = `
+                <div class="preview-option-label">${letter}</div>
+                <div class="preview-option-content">${ans.answer_title || ''}</div>
+            `;
+            previewOptions.appendChild(wrap);
+        });
+    }
+
+    // explanation (if any)
+    const explHtml = q.answer_explanation || '';
+    if (stripHtml(explHtml).trim().length){
+        previewExtra.innerHTML = `
+            <div class="preview-extra-title">Explanation</div>
+            <div>${explHtml}</div>
+        `;
+    } else {
+        previewExtra.innerHTML = '';
+    }
+}
+
+async function viewQuestion(id){
+    const loader = document.getElementById('contentLoader');
+    if (loader) loader.style.display = 'flex';
+
+    const resp = await apiFetch('/api/quizz/questions/' + encodeURIComponent(id), { method:'GET' });
+
+    if (loader) loader.style.display = 'none';
+
+    if (!resp.ok){
+        handleApiFailure('Load failed', resp);
+        return;
+    }
+    const q = resp.isJson ? (resp.data.data || resp.data) : null;
+    if (!q){
+        showToast('error', 'Failed to load question');
+        return;
+    }
+    renderQuestionPreview(q);
+    openPreviewModal();
+}
+
+
+function typeMetaForList(q){
+    const uiType = guessUiType(q); // 'single_choice' | 'multiple_choice' | 'true_false' | 'fill_in_the_blank'
+
+    switch (uiType) {
+        case 'single_choice':
+            return {
+                key: 'single_choice',
+                label: 'Single choice',
+                short: 'SC',
+                icon: 'fa-regular fa-circle-dot'
+            };
+        case 'multiple_choice':
+            return {
+                key: 'multiple_choice',
+                label: 'Multiple choice',
+                short: 'MCQ',
+                icon: 'fa-solid fa-square-check'
+            };
+        case 'true_false':
+            return {
+                key: 'true_false',
+                label: 'True / False',
+                short: 'T/F',
+                icon: 'fa-solid fa-check'
+            };
+        case 'fill_in_the_blank':
+            return {
+                key: 'fill_in_the_blank',
+                label: 'Fill in the blank',
+                short: 'Fill',
+                icon: 'fa-solid fa-ellipsis'
+            };
+        default:
+            return {
+                key: 'multiple_choice',
+                label: 'MCQ',
+                short: 'MCQ',
+                icon: 'fa-regular fa-circle-question'
+            };
+    }
+}
+
+
 
 
         async function openQuestion(id, liEl){
@@ -2572,16 +3203,18 @@ if (qDifficulty) qDifficulty.value = (q.question_difficulty || 'medium');
             }
             
             const resp = await apiFetch('/api/quizz/' + encodeURIComponent(quizK), { method:'GET' });
-            if(!resp.ok){
-                handleApiFailure('Quiz load failed', resp);
-                return;
-            }
-            
-            var row = (resp.isJson ? (resp.data.data || resp.data) : {}) || {};
-            quizId = row.id;
-            
-            loadList();
-            resetForm();
+    if(!resp.ok){
+        handleApiFailure('Quiz load failed', resp);
+        return;
+    }
+    
+    var row = (resp.isJson ? (resp.data.data || resp.data) : {}) || {};
+    quizId   = row.id;
+    quizMeta = row;
+    updateQuizHeader();
+    
+    loadList();
+    resetForm();
         })();
 
         resetAnswersForType();

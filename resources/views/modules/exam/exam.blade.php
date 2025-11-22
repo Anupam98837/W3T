@@ -77,6 +77,10 @@
     mjx-container svg,mjx-container[display="block"] svg,.mjx-chtml svg{vertical-align:middle}
 
     @media (min-width:992px){ .col-fixed-260{flex:0 0 260px; max-width:260px} }
+    .spin{
+        border-radius: none !important;
+        border-color:transparent !important;
+    }
   </style>
 </head>
 <body>
