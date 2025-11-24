@@ -1681,7 +1681,7 @@ html.theme-dark .as-fullscreen { background: rgba(0,0,0,0.9); }
           <div class="marks-note" id="mm_note">—</div>
         </div>
 
-        <div class="marks-row" style="grid-column: 1 / -1;display:none;">
+        <div class="marks-row" style="grid-column: 1 / -1;">
           <div class="marks-label">Graded by</div>
           <div class="marks-value" id="mm_graded_by">—</div>
         </div>

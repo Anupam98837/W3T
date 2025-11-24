@@ -1,0 +1,8 @@
+ID,Expense Date,Expense Head,Amount,Currency,Note,Creator,Created At,Attachments
+"11","2025-11-12","June Bill",7000.00,"INR","","demo1","2025-11-12 18:13:33",""
+"10","2025-11-12","Supplies",5000.00,"INR","","demo1","2025-11-12 18:13:04",""
+"9","2025-11-12","seating tables",56789.00,"INR","","demo1","2025-11-12 18:12:48",""
+
+Grand totals by person
+Person,Currency,Amount
+"demo1",INR,68789.00

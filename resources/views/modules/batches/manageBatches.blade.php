@@ -1382,8 +1382,6 @@ async function loadQuizzes(){
     qz_loader.style.display='none';
   }
 }
-
-
 /**
  * toggleQuiz
  * - uuid: batch uuid

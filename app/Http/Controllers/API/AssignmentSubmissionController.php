@@ -1900,12 +1900,18 @@ public function getStudentAssignmentDocuments(Request $r, string $assignmentKey,
         return response()->json(['error' => 'Student is not enrolled in this assignment batch'], 403);
     }
 
-    // Get all submissions for this student and assignment
+    // Get all submissions for this student and assignment WITH grader info
     $submissions = DB::table('assignment_submissions')
-        ->where('assignment_id', $assignment->id)
-        ->where('student_id', $student->id)
-        ->whereNull('deleted_at')
-        ->orderBy('attempt_no', 'desc')
+        ->leftJoin('users as grader', 'assignment_submissions.graded_by', '=', 'grader.id')
+        ->where('assignment_submissions.assignment_id', $assignment->id)
+        ->where('assignment_submissions.student_id', $student->id)
+        ->whereNull('assignment_submissions.deleted_at')
+        ->orderBy('assignment_submissions.attempt_no', 'desc')
+        ->select(
+            'assignment_submissions.*',
+            'grader.name as grader_name',
+            'grader.email as grader_email'
+        )
         ->get();
 
     // Process submissions with detailed attachment info
@@ -2003,13 +2009,15 @@ public function getStudentAssignmentDocuments(Request $r, string $assignmentKey,
             'archive_count' => count($archiveAttachments),
             'video_count' => count($videoAttachments),
             
-            // Grading information
+            // Grading information - UPDATED WITH GRADER NAME
             'total_marks' => $submission->total_marks,
             'grade_letter' => $submission->grade_letter,
             'graded_at' => $submission->graded_at,
             'graded_at_formatted' => $submission->graded_at ? 
                 Carbon::parse($submission->graded_at)->format('M j, Y g:i A') : null,
-            'graded_by' => $submission->graded_by,
+            'graded_by' => $submission->grader_name, // Now returns grader's name instead of ID
+            'graded_by_id' => $submission->graded_by, // Keep the ID as well if needed
+            'graded_by_email' => $submission->grader_email, // Grader's email
             'grader_note' => $submission->grader_note,
             'feedback_html' => $submission->feedback_html,
             'feedback_visible' => (bool)$submission->feedback_visible,
@@ -2053,7 +2061,7 @@ public function getStudentAssignmentDocuments(Request $r, string $assignmentKey,
                 'uuid' => $assignment->uuid ?? null,
                 'title' => $assignment->title ?? 'Unknown Title',
                 'due_at' => $assignment->due_at ?? null,
-                'total_marks' => $assignment->total_marks ?? null, // Changed from max_marks to total_marks
+                'total_marks' => $assignment->total_marks ?? null,
             ],
             'student' => [
                 'id' => $student->id,

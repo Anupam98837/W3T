@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\File;
 use Illuminate\Validation\Rule;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
 class QuizzController extends Controller
@@ -590,23 +591,17 @@ class QuizzController extends Controller
 
         return response()->json(['status'=>'success','message'=>'Note added','data'=>$note]);
     }
-    /**
- * View quizzes by batch (GET /api/quizz/by-batch/{batchKey})
- */
-public function viewByBatch(Request $r, string $batchKey)
+    
+ public function viewQuizzesByBatch(Request $r, string $batchKey)
 {
-    // role + actor checks
-    $role = (string) $r->attributes->get('auth_role');
+    $role = (string) ($r->attributes->get('auth_role') ?? '');
     $uid  = (int) ($r->attributes->get('auth_tokenable_id') ?? 0);
 
-    if (!$role || !in_array($role, ['super_admin','superadmin','admin','instructor','student','super_admin','superadmin'], true)) {
+    if (!$role || !in_array($role, ['superadmin','admin','instructor','student'], true)) {
         return response()->json(['error' => 'Unauthorized Access'], 403);
     }
 
-    $isAdminLike  = in_array($role, ['super_admin','superadmin','admin'], true);
-    $isInstructor = $role === 'instructor';
-    $isStudent    = $role === 'student';
-    $isStaff      = $isAdminLike || $isInstructor;
+    $isStudent = $role === 'student';
 
     // resolve batch (id | uuid | slug)
     $bq = DB::table('batches')->whereNull('deleted_at');
@@ -616,340 +611,262 @@ public function viewByBatch(Request $r, string $batchKey)
         $bq->where('uuid', $batchKey);
     } elseif (Schema::hasColumn('batches','slug')) {
         $bq->where('slug', $batchKey);
-    } else {
-        return response()->json(['error' => 'Batch not found'], 404);
     }
     $batch = $bq->first();
     if (!$batch) return response()->json(['error' => 'Batch not found'], 404);
 
-    // detect pivot fk columns for batch_instructors / batch_students
-    $biUserCol = Schema::hasColumn('batch_instructors','user_id')
-        ? 'user_id'
-        : (Schema::hasColumn('batch_instructors','instructor_id') ? 'instructor_id' : null);
-
-    $bsUserCol = Schema::hasColumn('batch_students','user_id')
-        ? 'user_id'
-        : (Schema::hasColumn('batch_students','student_id') ? 'student_id' : null);
-
-    if ($isInstructor) {
-        if (!$biUserCol) return response()->json(['error'=>'Schema issue: batch_instructors needs user_id OR instructor_id'], 500);
-        $assigned = DB::table('batch_instructors')->where('batch_id',$batch->id)->whereNull('deleted_at')->where($biUserCol, $uid)->exists();
-        if (!$assigned) return response()->json(['error'=>'Forbidden'], 403);
-    }
-
+    // student must be enrolled
     if ($isStudent) {
-        if (!$bsUserCol) return response()->json(['error'=>'Schema issue: batch_students needs user_id OR student_id'], 500);
-        $enrolled = DB::table('batch_students')->where('batch_id',$batch->id)->whereNull('deleted_at')->where($bsUserCol, $uid)->exists();
-        if (!$enrolled) return response()->json(['error'=>'Forbidden'], 403);
+        $bsUserCol = Schema::hasColumn('batch_students','user_id')
+            ? 'user_id'
+            : (Schema::hasColumn('batch_students','student_id') ? 'student_id' : null);
+
+        if (!$bsUserCol) {
+            return response()->json(['error'=>'Schema issue: batch_students needs user_id OR student_id'], 500);
+        }
+
+        $enrolled = DB::table('batch_students')
+            ->where('batch_id', $batch->id)
+            ->whereNull('deleted_at')
+            ->where($bsUserCol, $uid)
+            ->exists();
+
+        if (!$enrolled) return response()->json(['error' => 'Forbidden'], 403);
     }
 
-    // load course for context (same as your study function)
-    $course = DB::table('courses')->where('id', $batch->course_id)->whereNull('deleted_at')->first();
-    if (!$course) return response()->json(['error' => 'Course not found for this batch'], 404);
+    $now = now();
 
-    // determine how quizzes relate to batches in your DB:
-    // 1) direct quizz.batch_id column
-    // 2) pivot quizz_batches (quizz_id, batch_id)
-    $quizzTableHasBatch = Schema::hasColumn('quizz','batch_id');
-    $hasQuizzBatchesPivot = Schema::hasTable('quizz_batches');
+    // Base query - ensure only assigned quizzes (inner join)
+    $query = DB::table('batch_quizzes as bq')
+        ->join('quizz as q', 'q.id', '=', 'bq.quiz_id')
+        ->leftJoin('users as creator', 'creator.id', '=', 'q.created_by') // Join with users table for creator
+        ->where('bq.batch_id', $batch->id)
+        ->whereNull('bq.deleted_at')
+        ->whereNull('q.deleted_at')
+        ->where('bq.status', 'active')
+        ->where('bq.assign_status', 1);
 
-    if (!$quizzTableHasBatch && !$hasQuizzBatchesPivot) {
-        // still try to fetch quizzes by course / module columns as fallback later
-    }
-
-    // Build base quiz query
-    $q = DB::table('quizz as q')->whereNull('q.deleted_at');
-
-    if ($quizzTableHasBatch) {
-        $q->where('q.batch_id', $batch->id);
-    } elseif ($hasQuizzBatchesPivot) {
-        $q->join('quizz_batches as qb', 'qb.quizz_id', '=', 'q.id')
-          ->where('qb.batch_id', $batch->id)
-          ->whereNull('qb.deleted_at');
-    } else {
-        // fallback: try quizzes that belong to the same course (less strict)
-        $q->where('q.course_id', $course->id);
-    }
-
-    // if student, only active quizzes (and optionally published modules)
+    // student visibility rules
     if ($isStudent) {
-        $q->where('q.status', 'active');
-        // if quizzes have course_module_id and module publish status matters:
-        if (Schema::hasColumn('quizz','course_module_id')) {
-            $q->leftJoin('course_modules as cm', 'cm.id', '=', 'q.course_module_id')
-              ->whereNull('cm.deleted_at')
-              ->where('cm.status', 'published');
-        }
-    } else {
-        // staff may want module title for grouping
-        if (Schema::hasColumn('quizz','course_module_id')) {
-            $q->leftJoin('course_modules as cm', 'cm.id', '=', 'q.course_module_id');
-        }
+        $query->where('bq.publish_to_students', 1);
+        $query->where('q.status', 'active');
+
+        $query->where(function ($qb) use ($now) {
+            $qb->whereNull('bq.available_from')->orWhere('bq.available_from', '<=', $now);
+        });
+        $query->where(function ($qb) use ($now) {
+            $qb->whereNull('bq.available_until')->orWhere('bq.available_until', '>=', $now);
+        });
     }
 
     // select fields
-    $q->select(
-        'q.id','q.uuid','q.quiz_name','q.quiz_description','q.status','q.is_public',
-        'q.course_module_id',
-        DB::raw('q.created_at'),
-        DB::raw('q.updated_at'),
-        DB::raw('cm.title as module_title'),
-        DB::raw('cm.uuid as module_uuid')
-    );
+    $select = [
+        // Quiz identification & content
+        'q.id as id',
+        'q.uuid as uuid',
+        'q.quiz_name as title',
+        'q.quiz_description as excerpt',
+        'q.quiz_img',
+        'q.instructions',
+        'q.note',
+        'q.is_public',
+        'q.result_set_up_type',
+        'q.result_release_date',
+        'q.total_time',
+        'q.total_questions',
+        'q.is_question_random',
+        'q.is_option_random',
+        'q.status as quiz_status',
+        'q.created_by', // Include created_by field
 
-    $quizzes = $q->orderBy('q.created_at', 'desc')->get();
+        // Creator information
+        'creator.name as created_by_name', // Get creator's name
 
-    // group by module (module could be null)
-    $grouped = [];
-    foreach ($quizzes as $qq) {
-        $moduleKey = $qq->course_module_id === null ? 'null' : (string)$qq->course_module_id;
-        if (!isset($grouped[$moduleKey])) {
-            $grouped[$moduleKey] = [
-                'module' => [
-                    'id' => $qq->course_module_id === null ? null : (int)$qq->course_module_id,
-                    'uuid' => $qq->module_uuid ?? null,
-                    'title' => $qq->module_title ?? null,
-                ],
-                'quizzes' => []
-            ];
-        }
-
-        // enrich counts
-        try { $qq->question_count = DB::table('quizz_questions')->where('quiz_id', $qq->id)->count(); } catch (\Throwable $e) { $qq->question_count = 0; }
-        try { $qq->student_count  = DB::table('quizz_results')->where('quiz_id', $qq->id)->distinct('user_id')->count('user_id'); } catch (\Throwable $e) { $qq->student_count = 0; }
-
-        $grouped[$moduleKey]['quizzes'][] = $qq;
-    }
-
-    $modulesWithQuizzes = array_values($grouped);
-
-    // metadata/stats
-    $studentsCount = DB::table('batch_students')->where('batch_id', $batch->id)->whereNull('deleted_at')->count();
-    $quizzesCount  = count($quizzes);
-
-    $payload = [
-        'batch' => (array)$batch,
-        'course' => [
-            'id' => (int)$course->id,
-            'uuid' => $course->uuid,
-            'title' => $course->title,
-            'slug' => $course->slug,
-        ],
-        'modules_with_quizzes' => $modulesWithQuizzes,
-        'stats' => [
-            'students_count' => (int)$studentsCount,
-            'quizzes_count' => (int)$quizzesCount,
-            'you_are_instructor' => $isInstructor,
-            'you_are_student' => $isStudent,
-        ],
-        'permissions' => [
-            'can_view_unpublished_modules' => $isStaff,
-            'can_create_quizzes' => $isAdminLike || $isInstructor,
-        ],
+        // Batch quiz relationship info
+        'bq.id as batch_quiz_id',
+        'bq.display_order',
+        'bq.available_from',
+        'bq.available_until',
+        'bq.assigned_at',
+        'bq.publish_to_students',
+        'bq.attempt_allowed',
+        'bq.status as batch_status',
+        'bq.assign_status as assign_status_flag',
     ];
 
-    $this->logWithActor('[Quizz] viewByBatch payload prepared', $r, ['batch_id' => $batch->id, 'quizzes' => $quizzesCount, 'role' => $role]);
+    $query->select($select)
+          ->orderBy('bq.display_order', 'asc')
+          ->orderBy('bq.assigned_at', 'desc');
 
-    return response()->json(['data' => $payload]);
+    // pagination
+    $perPage = (int) $r->query('per_page', 20);
+    $page    = (int) max(1, $r->query('page', 1));
+
+    $paginator = $query->paginate($perPage, ['*'], 'page', $page);
+
+    // Map items
+    $items = collect($paginator->items())->map(function ($quiz) {
+        return [
+            'id' => $quiz->id,
+            'uuid' => $quiz->uuid,
+            'title' => $quiz->title,
+            'excerpt' => $quiz->excerpt,
+            // Quiz details
+            'quiz_img' => $quiz->quiz_img,
+            'instructions' => $quiz->instructions,
+            'note' => $quiz->note,
+            'is_public' => $quiz->is_public === 'yes' || $quiz->is_public === 1 || $quiz->is_public === true,
+            'result_set_up_type' => $quiz->result_set_up_type,
+            'result_release_date' => $quiz->result_release_date ? \Carbon\Carbon::parse($quiz->result_release_date)->toDateTimeString() : null,
+            'total_time' => $quiz->total_time !== null ? (int)$quiz->total_time : null,
+            'total_questions' => $quiz->total_questions !== null ? (int)$quiz->total_questions : null,
+            'is_question_random' => isset($quiz->is_question_random) ? (bool)$quiz->is_question_random : null,
+            'is_option_random' => isset($quiz->is_option_random) ? (bool)$quiz->is_option_random : null,
+            'quiz_status' => $quiz->quiz_status,
+
+            // Creator information
+            'created_by' => $quiz->created_by ? (int)$quiz->created_by : null,
+            'created_by_name' => $quiz->created_by_name, // Add creator's name
+
+            // Batch quiz fields
+            'assigned' => (bool) $quiz->assign_status_flag,
+            'batch_quiz_id' => $quiz->batch_quiz_id !== null ? (int)$quiz->batch_quiz_id : null,
+            'display_order' => $quiz->display_order !== null ? (int)$quiz->display_order : null,
+            'batch_status' => $quiz->batch_status ?? null,
+            'publish_to_students' => (bool)$quiz->publish_to_students,
+            'available_from' => $quiz->available_from ? \Carbon\Carbon::parse($quiz->available_from)->toDateTimeString() : null,
+            'available_until' => $quiz->available_until ? \Carbon\Carbon::parse($quiz->available_until)->toDateTimeString() : null,
+            'assigned_at' => $quiz->assigned_at ? \Carbon\Carbon::parse($quiz->assigned_at)->toDateTimeString() : null,
+            'attempt_allowed' => $quiz->attempt_allowed !== null ? (int)$quiz->attempt_allowed : 1,
+        ];
+    });
+
+    return response()->json([
+        'success' => true,
+        'data' => $items->values(),
+        'pagination' => [
+            'total' => (int)$paginator->total(),
+            'per_page' => (int)$paginator->perPage(),
+            'current_page' => (int)$paginator->currentPage(),
+            'last_page' => (int)$paginator->lastPage(),
+        ],
+    ]);
 }
-
 /**
- * View quizzes by course (GET /api/quizz/by-course/{courseKey})
+ * DELETED INDEX (GET /api/quizz/deleted)
+ * Lists soft-deleted quizzes (supports ?q=search, ?per_page=, ?page=, ?batch_uuid=, ?batch_id=)
  */
-public function viewByCourse(Request $r, string $courseKey)
+public function deletedIndex(Request $r)
 {
-    $role = (string) $r->attributes->get('auth_role');
-    $uid  = (int) ($r->attributes->get('auth_tokenable_id') ?? 0);
+    // Only admins / super_admins can list deleted quizzes
+    if ($resp = $this->requireRole($r, ['admin','super_admin'])) return $resp;
 
-    if (!$role || !in_array($role, ['super_admin','superadmin','admin','instructor','student'], true)) {
-        return response()->json(['error' => 'Unauthorized Access'], 403);
+    $page    = max(1, (int)$r->query('page', 1));
+    $perPage = max(1, min(200, (int)$r->query('per_page', 20)));
+    $qText   = trim((string)$r->query('q', ''));
+    $batchUuid = $r->query('batch_uuid');
+    $batchId   = $r->query('batch_id');
+
+    // Base query: soft-deleted quizzes
+    $q = DB::table('quizz as q')
+        ->leftJoin('users as creator', 'creator.id', '=', 'q.created_by')
+        ->whereNotNull('q.deleted_at');
+
+    // Optional text search
+    if ($qText !== '') {
+        $q->where(function($w) use ($qText) {
+            $w->where('q.quiz_name', 'like', "%{$qText}%")
+              ->orWhere('q.quiz_description', 'like', "%{$qText}%")
+              ->orWhere('q.uuid', 'like', "%{$qText}%");
+        });
     }
 
-    $isAdminLike  = in_array($role, ['super_admin','superadmin','admin'], true);
-    $isInstructor = $role === 'instructor';
-    $isStudent    = $role === 'student';
-    $isStaff      = $isAdminLike || $isInstructor;
-
-    // resolve course
-    $cq = DB::table('courses')->whereNull('deleted_at');
-    if (ctype_digit($courseKey)) {
-        $cq->where('id', (int)$courseKey);
-    } elseif (Str::isUuid($courseKey)) {
-        $cq->where('uuid', $courseKey);
-    } elseif (Schema::hasColumn('courses','slug')) {
-        $cq->where('slug', $courseKey);
-    } else {
-        return response()->json(['error' => 'Course not found'], 404);
-    }
-    $course = $cq->first();
-    if (!$course) return response()->json(['error' => 'Course not found'], 404);
-
-    // base query: quizzes that have course_id OR quizzes whose batches belong to course
-    $quizzHasCourse = Schema::hasColumn('quizz','course_id');
-    $pivotQuizzBatches = Schema::hasTable('quizz_batches');
-
-    $q = DB::table('quizz as q')->whereNull('q.deleted_at');
-
-    if ($quizzHasCourse) {
-        $q->where('q.course_id', $course->id);
-    } elseif ($pivotQuizzBatches) {
-        // join batches -> filter batches that belong to this course
-        $q->join('quizz_batches as qb', 'qb.quizz_id', '=', 'q.id')
-          ->join('batches as b', 'b.id', '=', 'qb.batch_id')
-          ->whereNull('qb.deleted_at')
-          ->whereNull('b.deleted_at')
-          ->where('b.course_id', $course->id);
-    } else {
-        // last resort: quizzes referencing modules from this course
-        if (Schema::hasColumn('quizz','course_module_id')) {
-            $q->leftJoin('course_modules as cm', 'cm.id', '=', 'q.course_module_id')
-              ->where('cm.course_id', $course->id)
-              ->whereNull('cm.deleted_at');
+    // Optional batch scoping - resolve batch via uuid or id and join batch_quizzes
+    if ($batchUuid || $batchId) {
+        $bq = DB::table('batches')->whereNull('deleted_at');
+        if ($batchId && ctype_digit((string)$batchId)) {
+            $bq->where('id', (int)$batchId);
+        } elseif ($batchUuid && Str::isUuid((string)$batchUuid)) {
+            $bq->where('uuid', $batchUuid);
+        } elseif ($batchId && !ctype_digit((string)$batchId) && Schema::hasColumn('batches','slug')) {
+            // allow slug via batch_id param if provided as string
+            $bq->where('slug', $batchId);
+        }
+        $batch = $bq->first();
+        if ($batch) {
+            // join with batch_quizzes to narrow to those which were assigned to the batch
+            $q->join('batch_quizzes as bq', function($join) use ($batch) {
+                $join->on('bq.quiz_id', '=', 'q.id')->where('bq.batch_id', '=', $batch->id);
+            });
+            $q->whereNull('bq.deleted_at');
         } else {
-            // nothing to match: return empty set
-            return response()->json(['data' => ['course' => (array)$course, 'modules_with_quizzes' => [], 'stats' => []]]);
+            // if batch param was provided but not found, return empty set
+            return response()->json([
+                'success' => true,
+                'data' => [],
+                'pagination' => ['total' => 0, 'per_page' => $perPage, 'current_page' => $page, 'last_page' => 0]
+            ]);
         }
     }
 
-    if ($isStudent) {
-        $q->where('q.status', 'active');
-        if (Schema::hasColumn('quizz','course_module_id')) {
-            $q->leftJoin('course_modules as cm', 'cm.id', '=', 'q.course_module_id')
-              ->where('cm.status', 'published');
-        }
-    } else {
-        if (Schema::hasColumn('quizz','course_module_id')) {
-            $q->leftJoin('course_modules as cm', 'cm.id', '=', 'q.course_module_id');
-        }
-    }
-
-    $q->select(
-        'q.id','q.uuid','q.quiz_name','q.quiz_description','q.status','q.is_public',
-        'q.course_module_id',
-        DB::raw('cm.title as module_title'),
-        DB::raw('cm.uuid as module_uuid'),
-        DB::raw('q.created_at'), DB::raw('q.updated_at')
-    );
-
-    $quizzes = $q->orderBy('q.created_at', 'desc')->get();
-
-    // group by module and enrich counts
-    $grouped = [];
-    foreach ($quizzes as $qq) {
-        $moduleKey = $qq->course_module_id === null ? 'null' : (string)$qq->course_module_id;
-        if (!isset($grouped[$moduleKey])) {
-            $grouped[$moduleKey] = [
-                'module' => [
-                    'id' => $qq->course_module_id === null ? null : (int)$qq->course_module_id,
-                    'uuid' => $qq->module_uuid ?? null,
-                    'title' => $qq->module_title ?? null,
-                ],
-                'quizzes' => []
-            ];
-        }
-
-        try { $qq->question_count = DB::table('quizz_questions')->where('quiz_id', $qq->id)->count(); } catch (\Throwable $e) { $qq->question_count = 0; }
-        try { $qq->student_count  = DB::table('quizz_results')->where('quiz_id', $qq->id)->distinct('user_id')->count('user_id'); } catch (\Throwable $e) { $qq->student_count = 0; }
-
-        $grouped[$moduleKey]['quizzes'][] = $qq;
-    }
-
-    $modulesWithQuizzes = array_values($grouped);
-
-    $payload = [
-        'course' => (array)$course,
-        'modules_with_quizzes' => $modulesWithQuizzes,
-        'stats' => [
-            'quizzes_count' => count($quizzes),
-        ],
-        'permissions' => [
-            'can_create_quizzes' => $isAdminLike || $isInstructor,
-            'can_view_unpublished_modules' => $isStaff,
-        ],
+    // Select fields; include counts via subqueries (avoids N+1)
+    $select = [
+        'q.id',
+        'q.uuid',
+        'q.quiz_name as title',
+        'q.quiz_description as excerpt',
+        'q.quiz_img',
+        'q.total_time',
+        'q.total_questions',
+        'q.total_attempts',
+        'q.is_public',
+        'q.result_set_up_type',
+        'q.status',
+        'q.created_by',
+        'creator.name as created_by_name',
+        'q.deleted_at',
+        // subqueries
+        DB::raw('(SELECT COUNT(*) FROM quizz_questions qq WHERE qq.quiz_id = q.id) AS question_count'),
+        DB::raw('(SELECT COUNT(DISTINCT user_id) FROM quizz_results qr WHERE qr.quiz_id = q.id) AS student_count'),
     ];
 
-    $this->logWithActor('[Quizz] viewByCourse payload prepared', $r, ['course_id' => $course->id, 'quizzes' => count($quizzes), 'role' => $role]);
+    $query = $q->select($select)
+               ->orderBy('q.deleted_at', 'desc');
 
-    return response()->json(['data' => $payload]);
-}
+    $paginator = $query->paginate($perPage, ['*'], 'page', $page);
 
-/**
- * View quizzes by course module (GET /api/quizz/by-module/{moduleKey})
- */
-public function viewByCourseModule(Request $r, string $moduleKey)
-{
-    $role = (string) $r->attributes->get('auth_role');
-    $uid  = (int) ($r->attributes->get('auth_tokenable_id') ?? 0);
+    // Map items to consistent shape
+    $items = collect($paginator->items())->map(function ($row) {
+        return [
+            'id' => (int) $row->id,
+            'uuid' => $row->uuid,
+            'title' => $row->title,
+            'excerpt' => $row->excerpt,
+            'quiz_img' => $row->quiz_img,
+            'total_time' => $row->total_time !== null ? (int)$row->total_time : null,
+            'total_questions' => $row->total_questions !== null ? (int)$row->total_questions : null,
+            'total_attempts' => $row->total_attempts !== null ? (int)$row->total_attempts : null,
+            'is_public' => $row->is_public === 'yes' || $row->is_public === 1 || $row->is_public === true,
+            'result_set_up_type' => $row->result_set_up_type,
+            'status' => $row->status,
+            'created_by' => $row->created_by ? (int)$row->created_by : null,
+            'created_by_name' => $row->created_by_name ?? null,
+            'deleted_at' => $row->deleted_at ? \Carbon\Carbon::parse($row->deleted_at)->toDateTimeString() : null,
+            'question_count' => isset($row->question_count) ? (int)$row->question_count : 0,
+            'student_count' => isset($row->student_count) ? (int)$row->student_count : 0,
+        ];
+    })->values();
 
-    if (!$role || !in_array($role, ['super_admin','superadmin','admin','instructor','student'], true)) {
-        return response()->json(['error' => 'Unauthorized Access'], 403);
-    }
-
-    $isAdminLike  = in_array($role, ['super_admin','superadmin','admin'], true);
-    $isInstructor = $role === 'instructor';
-    $isStudent    = $role === 'student';
-    $isStaff      = $isAdminLike || $isInstructor;
-
-    // resolve module by id|uuid|slug
-    $mq = DB::table('course_modules')->whereNull('deleted_at');
-    if (ctype_digit($moduleKey)) {
-        $mq->where('id', (int)$moduleKey);
-    } elseif (Str::isUuid($moduleKey)) {
-        $mq->where('uuid', $moduleKey);
-    } elseif (Schema::hasColumn('course_modules','slug')) {
-        $mq->where('slug', $moduleKey);
-    } else {
-        return response()->json(['error' => 'Module not found'], 404);
-    }
-    $module = $mq->first();
-    if (!$module) return response()->json(['error' => 'Module not found'], 404);
-
-    // base quiz query (prefer quizz.course_module_id)
-    $q = DB::table('quizz as q')->whereNull('q.deleted_at');
-
-    if (Schema::hasColumn('quizz','course_module_id')) {
-        $q->where('q.course_module_id', $module->id);
-    } else {
-        // fallback: try quizzes linked to batches that belong to this module's course,
-        // or return empty if we can't link safely.
-        $q->leftJoin('course_modules as cm', 'cm.id', '=', DB::raw((int)$module->id)) // dummy join to keep structure
-          ->whereRaw('1 = 0'); // force empty - safer than returning unrelated quizzes
-    }
-
-    if ($isStudent) {
-        $q->where('q.status', 'active');
-        // module must be published
-        if (($module->status ?? '') !== 'published') {
-            return response()->json(['error' => 'Forbidden'], 403);
-        }
-    } else {
-        $q->leftJoin('course_modules as cm', 'cm.id', '=', 'q.course_module_id');
-    }
-
-    $q->select('q.id','q.uuid','q.quiz_name','q.quiz_description','q.status','q.is_public','q.course_module_id', DB::raw('q.created_at'), DB::raw('q.updated_at'));
-
-    $quizzes = $q->orderBy('q.created_at', 'desc')->get();
-
-    foreach ($quizzes as $qq) {
-        try { $qq->question_count = DB::table('quizz_questions')->where('quiz_id', $qq->id)->count(); } catch (\Throwable $e) { $qq->question_count = 0; }
-        try { $qq->student_count  = DB::table('quizz_results')->where('quiz_id', $qq->id)->distinct('user_id')->count('user_id'); } catch (\Throwable $e) { $qq->student_count = 0; }
-    }
-
-    $payload = [
-        'module' => (array)$module,
-        'quizzes' => $quizzes,
-        'stats' => [
-            'quizzes_count' => count($quizzes),
+    return response()->json([
+        'success' => true,
+        'data' => $items,
+        'pagination' => [
+            'total' => (int) $paginator->total(),
+            'per_page' => (int) $paginator->perPage(),
+            'current_page' => (int) $paginator->currentPage(),
+            'last_page' => (int) $paginator->lastPage(),
         ],
-        'permissions' => [
-            'can_create_quizzes' => $isAdminLike || $isInstructor,
-            'can_view_unpublished' => $isStaff,
-        ],
-    ];
-
-    $this->logWithActor('[Quizz] viewByCourseModule payload prepared', $r, ['module_id' => $module->id, 'quizzes' => count($quizzes), 'role' => $role]);
-
-    return response()->json(['data' => $payload]);
+    ]);
 }
 
 }

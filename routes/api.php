@@ -112,7 +112,7 @@ Route::middleware(['checkRole:admin,super_admin'])->group(function () {
     Route::post  ('/course-modules/reorder',              [CourseModuleController::class, 'reorder']);
 });
 
-Route::middleware('checkRole:admin,super_admin')->group(function () {
+Route::middleware('checkRole:admin,super_admin,instructor, student')->group(function () {
 
     // Batches
     Route::get   ('/batches',                    [BatchController::class, 'index']);
@@ -152,9 +152,9 @@ Route::middleware('checkRole:admin,super_admin')->group(function () {
 
     // Update quiz link info (display_order, status, publish_to_students)
     Route::patch ('/batches/{idOrUuid}/quizzes/update',    [BatchController::class, 'quizzUpdate']);
-    Route::get('/quizz/by-batch/{batch}', [QuizzController::class,'viewByBatch']);
-Route::get('/quizz/by-course/{course}', [QuizzController::class,'viewByCourse']);
-Route::get('/quizz/by-module/{module}', [QuizzController::class,'viewByCourseModule']);
+    Route::get('/batch/{batchKey}/quizzes', [QuizzController::class,'viewQuizzesByBatch']);
+// Route::get('/quizz/by-course/{course}', [QuizzController::class,'viewByCourse']);
+// Route::get('/quizz/by-module/{module}', [QuizzController::class,'viewByCourseModule']);
 
 });
 
@@ -184,7 +184,8 @@ Route::middleware('checkRole:admin,super_admin')
     Route::patch ('/{key}/restore', [QuizzController::class, 'restore'])->name('restore');
     Route::delete('/{key}',         [QuizzController::class, 'destroy'])->name('destroy');
     Route::delete('/{key}/force',   [QuizzController::class, 'forceDelete'])->name('force');
- 
+    Route::get('/deleted', [QuizzController::class, 'deletedIndex']);
+
     // ===== Optional notes =====
     Route::get ('/{key}/notes',     [QuizzController::class, 'listNotes'])->name('notes.list');
     Route::post ('/{key}/notes',    [QuizzController::class, 'addNote'])->name('notes.add');

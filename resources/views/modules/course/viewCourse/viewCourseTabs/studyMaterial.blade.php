@@ -507,10 +507,32 @@ function normalizeAttachments(row) {
 
   const meta = document.createElement('div'); meta.className = 'meta';
   const title = document.createElement('div'); title.className = 'title'; title.textContent = row.title || 'Untitled';
+  
   const sub = document.createElement('div'); sub.className = 'sub';
   sub.textContent = row.description ? row.description : (row.attachment_count ? `${row.attachment_count} attachment(s)` : '—');
-  meta.appendChild(title); meta.appendChild(sub);
-  left.appendChild(icon); left.appendChild(meta);
+  
+  // ADD CREATOR INFO HERE
+  const creatorInfo = document.createElement('div'); 
+  creatorInfo.className = 'creator-info';
+  creatorInfo.style.fontSize = '12px';
+  creatorInfo.style.color = 'var(--muted-color)';
+  creatorInfo.style.marginTop = '4px';
+  creatorInfo.style.display = 'flex';
+  creatorInfo.style.alignItems = 'center';
+  creatorInfo.style.gap = '6px';
+  
+  // Add user icon and creator name
+  creatorInfo.innerHTML = `
+    <i class="fa fa-user" style="font-size:10px;"></i>
+    <span>${escapeHtml(row.created_by_name || 'Unknown')}</span>
+  `;
+  
+  meta.appendChild(title); 
+  meta.appendChild(sub);
+  meta.appendChild(creatorInfo); // Add creator info to meta section
+  
+  left.appendChild(icon); 
+  left.appendChild(meta);
 
   const right = document.createElement('div'); right.className = 'right';
   right.style.display = 'flex'; right.style.alignItems = 'center'; right.style.gap = '8px';
@@ -591,7 +613,6 @@ function normalizeAttachments(row) {
 
   return wrapper;
 }
-
   function renderList(items){
     if (!$items) return;
     $items.innerHTML = '';

@@ -729,6 +729,10 @@ public function restore(Request $r, string $assignment)
  * View assignments for a batch (RBAC aware)
  * Route example: GET /api/batches/{batchKey}/assignments
  */
+/**
+ * View assignments for a batch (RBAC aware)
+ * Route example: GET /api/batches/{batchKey}/assignments
+ */
 public function viewAssignmentByBatch(Request $r, string $batchKey)
 {
     // allow super_admin/admin/instructor/student (with checks)
@@ -791,16 +795,18 @@ public function viewAssignmentByBatch(Request $r, string $batchKey)
     if (!$isStaff) $modQ->where('status', 'published');
     $modules = $modQ->get();
 
-    // load assignments for batch (join modules for context)
+    // load assignments for batch (join modules for context and creator info)
     $aq = DB::table('assignments as a')
         ->leftJoin('course_modules as cm', 'cm.id', '=', 'a.course_module_id')
+        ->leftJoin('users as creator', 'creator.id', '=', 'a.created_by') // Join with users table for creator info
         ->where('a.batch_id', $batch->id)
         ->whereNull('a.deleted_at')
         ->whereNull('cm.deleted_at')
         ->select(
             'a.id','a.uuid','a.title','a.slug','a.instruction','a.status','a.attachments_json',
             'a.course_module_id','cm.title as module_title','cm.uuid as module_uuid','cm.status as module_status',
-            'a.created_at','a.updated_at'
+            'a.created_at','a.updated_at',
+            'creator.name as created_by_name' // Get creator's name
         )
         ->orderBy('cm.order_no')
         ->orderBy('a.created_at', 'desc');
@@ -842,6 +848,7 @@ public function viewAssignmentByBatch(Request $r, string $batchKey)
             'attachments' => $attachments,
             'created_at' => $as->created_at,
             'updated_at' => $as->updated_at,
+            'created_by_name' => $as->created_by_name, // Include creator's name
         ];
     }
 
