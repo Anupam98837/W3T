@@ -94,197 +94,333 @@ class ExamController extends Controller
      | body: { quiz: "uuid|id" }
      | Creates a running attempt with a strict server deadline
      |============================================ */
-    public function start(Request $request)
-    {
-        $user = $this->getUserFromToken($request);
-        if (!$user || !$this->isStudent($user)) {
-            return response()->json(['success'=>false,'message'=>'Unauthorized (student token required)'], 401);
-        }
-
-        $v = Validator::make($request->all(), [
-            'quiz' => ['required'] // uuid or id
-        ]);
-        if ($v->fails()) {
-            return response()->json(['success'=>false,'errors'=>$v->errors()], 422);
-        }
-
-        $quiz = $this->quizByKey($request->input('quiz'));
-        if (!$quiz) {
-            return response()->json(['success'=>false,'message'=>'Quiz not found'], 404);
-        }
-        if (($quiz->status ?? 'active') !== 'active') {
-            return response()->json(['success'=>false,'message'=>'Quiz is not active'], 409);
-        }
-
-        // Enforce per-quiz attempts
-        $allowed = (int)($quiz->total_attempts ?? 1);
-        $used    = (int) DB::table('quizz_results')
-                        ->where('quiz_id', $quiz->id)
-                        ->where('user_id', $user->id)
-                        ->count();
-        if ($used >= $allowed) {
-            return response()->json([
-                'success'=>false,
-                'message'=>"Attempt limit reached ({$used}/{$allowed})"
-            ], 429);
-        }
-
-        // If a running attempt exists, return it (idempotent start)
-        $running = DB::table('quizz_attempts')
-            ->where('quiz_id', $quiz->id)
-            ->where('user_id', $user->id)
-            ->where('status', 'in_progress')
-            ->orderByDesc('id')
-            ->first();
-
-        $now = Carbon::now();
-        $durationMin = (int)($quiz->total_time ?? 0); // minutes
-        if ($durationMin <= 0) {
-            return response()->json(['success'=>false,'message'=>'Quiz has no total_time set'], 422);
-        }
-        $deadline = $now->copy()->addMinutes($durationMin);
-
-        if ($running) {
-            // If already timed out, auto finalize then create new (if attempts left)
-            if ($now->gte(Carbon::parse($running->server_deadline_at))) {
-                $this->autoFinalize($running);
-            } else {
-                return response()->json([
-                    'success'=>true,
-                    'attempt'=>[
-                        'attempt_uuid'       => $running->uuid,
-                        'quiz_id'            => (int)$quiz->id,
-                        'quiz_uuid'          => (string)$quiz->uuid,
-                        'quiz_name'          => (string)($quiz->quiz_name ?? 'Quiz'),
-                        'total_time_sec'     => $durationMin * 60,
-                        'server_end_at'      => (string)$running->server_deadline_at,
-                        'time_left_sec'      => max(0, Carbon::parse($running->server_deadline_at)->diffInSeconds($now, false) * -1),
-                    ]
-                ], 200);
-            }
-        }
-
-        $attemptUuid = (string) Str::uuid();
-        $attemptId = DB::table('quizz_attempts')->insertGetId([
-            'uuid'                => $attemptUuid,
-            'quiz_id'             => (int)$quiz->id,
-            'quiz_uuid'           => (string)($quiz->uuid ?? null),
-            'user_id'             => (int)$user->id,
-            'status'              => 'in_progress', 
-            'total_time_sec'      => $durationMin * 60,
-            'started_at'          => $now,
-            'server_deadline_at'  => $deadline,
-            'current_question_id' => null,
-            'current_q_started_at'=> null,
-            'last_activity_at'    => $now,
-            'created_at'          => $now,
-            'updated_at'          => $now,
-        ]);
-
-        return response()->json([
-            'success'=>true,
-            'attempt'=>[
-                'attempt_id'         => $attemptId,
-                'attempt_uuid'       => $attemptUuid,
-                'quiz_id'            => (int)$quiz->id,
-                'quiz_uuid'          => (string)$quiz->uuid,
-                'quiz_name'          => (string)($quiz->quiz_name ?? 'Quiz'),
-                'total_time_sec'     => $durationMin * 60,
-                'server_end_at'      => (string)$deadline,
-                'time_left_sec'      => max(0, $deadline->diffInSeconds($now, false) * -1),
-            ]
-        ], 201);
+public function start(Request $request)
+{
+    $user = $this->getUserFromToken($request);
+    if (!$user || !$this->isStudent($user)) {
+        return response()->json(['success'=>false,'message'=>'Unauthorized (student token required)'], 401);
     }
+
+    $v = Validator::make($request->all(), [
+        'quiz' => ['required'] // uuid or id
+    ]);
+    if ($v->fails()) {
+        return response()->json(['success'=>false,'errors'=>$v->errors()], 422);
+    }
+
+    $quiz = $this->quizByKey($request->input('quiz'));
+    if (!$quiz) {
+        return response()->json(['success'=>false,'message'=>'Quiz not found'], 404);
+    }
+    if (($quiz->status ?? 'active') !== 'active') {
+        return response()->json(['success'=>false,'message'=>'Quiz is not active'], 409);
+    }
+
+    // Enforce per-quiz attempts
+    $allowed = (int)($quiz->total_attempts ?? 1);
+    $used    = (int) DB::table('quizz_results')
+                    ->where('quiz_id', $quiz->id)
+                    ->where('user_id', $user->id)
+                    ->count();
+    if ($used >= $allowed) {
+        return response()->json([
+            'success'=>false,
+            'message'=>"Attempt limit reached ({$used}/{$allowed})"
+        ], 429);
+    }
+
+    // If a running attempt exists, return it (idempotent start)
+    $running = DB::table('quizz_attempts')
+        ->where('quiz_id', $quiz->id)
+        ->where('user_id', $user->id)
+        ->where('status', 'in_progress')
+        ->orderByDesc('id')
+        ->first();
+
+    $now = Carbon::now();
+    $durationMin = (int)($quiz->total_time ?? 0); // minutes
+    if ($durationMin <= 0) {
+        return response()->json(['success'=>false,'message'=>'Quiz has no total_time set'], 422);
+    }
+    $deadline = $now->copy()->addMinutes($durationMin);
+
+    if ($running) {
+        // If already timed out, auto finalize then create new (if attempts left)
+        if ($now->gte(Carbon::parse($running->server_deadline_at))) {
+            $this->autoFinalize($running);
+        } else {
+            return response()->json([
+                'success'=>true,
+                'attempt'=>[
+                    'attempt_uuid'       => $running->uuid,
+                    'quiz_id'            => (int)$quiz->id,
+                    'quiz_uuid'          => (string)$quiz->uuid,
+                    'quiz_name'          => (string)($quiz->quiz_name ?? 'Quiz'),
+                    'total_time_sec'     => $durationMin * 60,
+                    'server_end_at'      => (string)$running->server_deadline_at,
+                    'time_left_sec'      => max(0, Carbon::parse($running->server_deadline_at)->diffInSeconds($now, false) * -1),
+                ]
+            ], 200);
+        }
+    }
+
+    /* 🔹 NEW: build per-attempt layout (questions_order + options_order) */
+
+    // All questions for this quiz (base order = question_order)
+    $qRows = DB::table('quizz_questions')
+        ->where('quiz_id', $quiz->id)
+        ->orderBy('question_order')
+        ->get(['id','question_type']);
+
+    if ($qRows->isEmpty()) {
+        return response()->json(['success'=>false,'message'=>'Quiz has no questions'], 422);
+    }
+
+    // Base question IDs in admin-defined order
+    $questionIds = $qRows->pluck('id')->map(fn($v) => (int)$v)->all();
+
+    // Optional: randomize question order
+    if (($quiz->is_question_random ?? 'no') === 'yes') {
+        shuffle($questionIds);
+    }
+
+    // Map question_id => type (to avoid re-querying later)
+    $qTypes = [];
+    foreach ($qRows as $qRow) {
+        $qTypes[(int)$qRow->id] = (string)($qRow->question_type ?? '');
+    }
+
+    // Fetch all answers for these questions
+    $aRows = DB::table('quizz_question_answers')
+        ->whereIn('belongs_question_id', $questionIds)
+        ->orderBy('belongs_question_id')
+        ->orderBy('answer_order')
+        ->get(['id','belongs_question_id','answer_order']);
+
+    $answersByQ = $aRows->groupBy('belongs_question_id');
+
+    // Build per-question option order mapping
+    $optionsOrder = [];
+    foreach ($questionIds as $qid) {
+        $answers = $answersByQ[$qid] ?? collect();
+        if ($answers->isEmpty()) {
+            $optionsOrder[$qid] = [];
+            continue;
+        }
+
+        $answerIds = $answers->pluck('id')->map(fn($v) => (int)$v)->all();
+        $qType     = $qTypes[$qid] ?? '';
+
+        // Optional: randomize options for non-FIB questions
+        if (($quiz->is_option_random ?? 'no') === 'yes' && $qType !== 'fill_in_the_blank') {
+            shuffle($answerIds);
+        }
+
+        $optionsOrder[$qid] = $answerIds;
+    }
+
+    // Insert attempt with frozen layout
+    $attemptUuid = (string) Str::uuid();
+    $attemptId = DB::table('quizz_attempts')->insertGetId([
+        'uuid'                => $attemptUuid,
+        'quiz_id'             => (int)$quiz->id,
+        'quiz_uuid'           => (string)($quiz->uuid ?? null),
+        'user_id'             => (int)$user->id,
+        'status'              => 'in_progress',
+        'total_time_sec'      => $durationMin * 60,
+        'started_at'          => $now,
+        'server_deadline_at'  => $deadline,
+        'current_question_id' => null,
+        'current_q_started_at'=> null,
+        'last_activity_at'    => $now,
+        'questions_order'     => json_encode($questionIds, JSON_UNESCAPED_UNICODE),
+        'options_order'       => json_encode($optionsOrder, JSON_UNESCAPED_UNICODE),
+        'created_at'          => $now,
+        'updated_at'          => $now,
+    ]);
+
+    return response()->json([
+        'success'=>true,
+        'attempt'=>[
+            'attempt_id'         => $attemptId,
+            'attempt_uuid'       => $attemptUuid,
+            'quiz_id'            => (int)$quiz->id,
+            'quiz_uuid'          => (string)$quiz->uuid,
+            'quiz_name'          => (string)($quiz->quiz_name ?? 'Quiz'),
+            'total_time_sec'     => $durationMin * 60,
+            'server_end_at'      => (string)$deadline,
+            'time_left_sec'      => max(0, $deadline->diffInSeconds($now, false) * -1),
+        ]
+    ], 201);
+}
+
 
     /* ============================================
      | GET /api/exam/attempts/{attempt}/questions
      | Returns all questions (without is_correct)
      |============================================ */
-    public function questions(Request $request, string $attemptUuid)
-    {
-        $user = $this->getUserFromToken($request);
-        if (!$user) return response()->json(['success'=>false,'message'=>'Unauthorized'], 401);
+public function questions(Request $request, string $attemptUuid)
+{
+    $user = $this->getUserFromToken($request);
+    if (!$user) return response()->json(['success'=>false,'message'=>'Unauthorized'], 401);
 
-        $attempt = DB::table('quizz_attempts')->where('uuid', $attemptUuid)->first();
-        if (!$attempt || (int)$attempt->user_id !== (int)$user->id) {
-            return response()->json(['success'=>false,'message'=>'Attempt not found'], 404);
-        }
-
-        // auto-finalize if timed out
-        if ($this->deadlinePassed($attempt)) {
-            $attempt = $this->autoFinalize($attempt, true); // returns fresh
-        }
-
-        $rows = DB::table('quizz_questions as q')
-            ->leftJoin('quizz_question_answers as a', 'a.belongs_question_id', '=', 'q.id')
-            ->where('q.quiz_id', $attempt->quiz_id)
-            ->orderBy('q.question_order')
-            ->orderBy('a.answer_order')
-            ->select([
-                'q.id as question_id',
-                'q.question_title',
-                'q.question_description',
-                'q.answer_explanation',
-                'q.question_type',
-                'q.question_mark',
-                'q.question_order',
-                DB::raw("(
-                    SELECT COUNT(*) FROM quizz_question_answers
-                    WHERE belongs_question_id = q.id AND is_correct = 1
-                ) as correct_count"),
-
-                'a.id as answer_id',
-                'a.answer_title',
-                'a.answer_order',
-            ])
-            ->get();
-
-        $questions = [];
-        foreach ($rows as $r) {
-            $qid = (int)$r->question_id;
-            if (!isset($questions[$qid])) {
-                $questions[$qid] = [
-                    'question_id'   => $qid,
-                    'question_title'=> $r->question_title,
-                    'question_description'=> $r->question_description,
-                    'question_type' => $r->question_type,
-                    'question_mark' => (int)$r->question_mark,
-                    'question_order'=> (int)$r->question_order,
-                    'has_multiple_correct_answer' => ((int)$r->correct_count > 1),
-                    'answers' => [],
-                ];
-            }
-            if ($r->answer_id !== null) {
-                $questions[$qid]['answers'][] = [
-                    'answer_id'   => (int)$r->answer_id,
-                    'answer_title'=> $r->answer_title,
-                    'answer_order'=> (int)($r->answer_order ?? 0),
-                ];
-            }
-        }
-
-        // student’s saved selections (to allow restore)
-        $saved = DB::table('quizz_attempt_answers')
-            ->where('attempt_id', $attempt->id)
-            ->pluck('selected_raw', 'question_id');
-
-        $selections = [];
-        foreach ($saved as $qid => $json) {
-            try { $selections[$qid] = json_decode($json, true); }
-            catch (\Throwable $e) { $selections[$qid] = null; }
-        }
-
-        return response()->json([
-            'success'=>true,
-            'attempt'=>[
-                'status'          => $attempt->status,
-                'time_left_sec'   => $this->timeLeftSec($attempt),
-                'server_end_at'   => (string)$attempt->server_deadline_at,
-            ],
-            'questions'=> array_values($questions),
-            'selections'=> $selections
-        ], 200);
+    $attempt = DB::table('quizz_attempts')->where('uuid', $attemptUuid)->first();
+    if (!$attempt || (int)$attempt->user_id !== (int)$user->id) {
+        return response()->json(['success'=>false,'message'=>'Attempt not found'], 404);
     }
+
+    // auto-finalize if timed out
+    if ($this->deadlinePassed($attempt)) {
+        $attempt = $this->autoFinalize($attempt, true); // returns fresh
+    }
+
+    // 1) Fetch all questions + answers for this quiz
+    $rows = DB::table('quizz_questions as q')
+        ->leftJoin('quizz_question_answers as a', 'a.belongs_question_id', '=', 'q.id')
+        ->where('q.quiz_id', $attempt->quiz_id)
+        ->orderBy('q.question_order')    // base order; we’ll override by layout if present
+        ->orderBy('a.answer_order')
+        ->select([
+            'q.id as question_id',
+            'q.question_title',
+            'q.question_description',
+            'q.answer_explanation',
+            'q.question_type',
+            'q.question_mark',
+            'q.question_order',
+            DB::raw("(
+                SELECT COUNT(*) FROM quizz_question_answers
+                WHERE belongs_question_id = q.id AND is_correct = 1
+            ) as correct_count"),
+
+            'a.id as answer_id',
+            'a.answer_title',
+            'a.answer_order',
+        ])
+        ->get();
+
+    // 2) Build map: question_id => question data (+ answers)
+    $questionsById = [];
+    foreach ($rows as $r) {
+        $qid = (int)$r->question_id;
+
+        if (!isset($questionsById[$qid])) {
+            $questionsById[$qid] = [
+                'question_id'                 => $qid,
+                'question_title'              => $r->question_title,
+                'question_description'        => $r->question_description,
+                'question_type'               => $r->question_type,
+                'question_mark'               => (int)$r->question_mark,
+                'question_order'              => (int)$r->question_order,
+                'has_multiple_correct_answer' => ((int)$r->correct_count > 1),
+                'answers'                     => [],
+            ];
+        }
+
+        if ($r->answer_id !== null) {
+            $questionsById[$qid]['answers'][] = [
+                'answer_id'   => (int)$r->answer_id,
+                'answer_title'=> $r->answer_title,
+                'answer_order'=> (int)($r->answer_order ?? 0),
+            ];
+        }
+    }
+
+    // 3) Student’s saved selections (unchanged)
+    $saved = DB::table('quizz_attempt_answers')
+        ->where('attempt_id', $attempt->id)
+        ->pluck('selected_raw', 'question_id');
+
+    $selections = [];
+    foreach ($saved as $qid => $json) {
+        try { $selections[$qid] = json_decode($json, true); }
+        catch (\Throwable $e) { $selections[$qid] = null; }
+    }
+
+    // 4) Decode stored layout (if any)
+    $orderedQuestions = [];
+
+    $layoutQuestions = null;
+    $layoutOptions   = null;
+
+    if (!empty($attempt->questions_order)) {
+        try { $layoutQuestions = json_decode($attempt->questions_order, true); }
+        catch (\Throwable $e) { $layoutQuestions = null; }
+    }
+
+    if (!empty($attempt->options_order)) {
+        try { $layoutOptions = json_decode($attempt->options_order, true); }
+        catch (\Throwable $e) { $layoutOptions = null; }
+    }
+
+    $hasLayout = is_array($layoutQuestions) && !empty($layoutQuestions);
+
+    if ($hasLayout) {
+        // Use the stored question order
+        $usedQids = [];
+        foreach ($layoutQuestions as $qid) {
+            $qid = (int)$qid;
+            if (!isset($questionsById[$qid])) continue;
+
+            $qArr = $questionsById[$qid];
+
+            // Reorder answers using stored options order (if present)
+            if (is_array($layoutOptions)) {
+                $keyInt = $qid;
+                $keyStr = (string)$qid;
+                $ansOrder = $layoutOptions[$keyInt] ?? ($layoutOptions[$keyStr] ?? null);
+
+                if (is_array($ansOrder) && !empty($qArr['answers'])) {
+                    $answersById = [];
+                    foreach ($qArr['answers'] as $ans) {
+                        $answersById[(int)$ans['answer_id']] = $ans;
+                    }
+
+                    $newAnswers = [];
+                    foreach ($ansOrder as $aid) {
+                        $aid = (int)$aid;
+                        if (isset($answersById[$aid])) {
+                            $newAnswers[] = $answersById[$aid];
+                            unset($answersById[$aid]);
+                        }
+                    }
+
+                    // Append any answers that weren't in the stored order
+                    foreach ($answersById as $aRow) {
+                        $newAnswers[] = $aRow;
+                    }
+
+                    $qArr['answers'] = $newAnswers;
+                }
+            }
+
+            $orderedQuestions[] = $qArr;
+            $usedQids[$qid] = true;
+        }
+
+        // In case there are questions without layout entries (edge-case)
+        foreach ($questionsById as $qid => $qArr) {
+            if (!isset($usedQids[$qid])) {
+                $orderedQuestions[] = $qArr;
+            }
+        }
+    } else {
+        // Fallback: old attempts / layout missing → original behavior
+        $orderedQuestions = array_values($questionsById);
+    }
+
+    return response()->json([
+        'success'=>true,
+        'attempt'=>[
+            'status'          => $attempt->status,
+            'time_left_sec'   => $this->timeLeftSec($attempt),
+            'server_end_at'   => (string)$attempt->server_deadline_at,
+        ],
+        'questions'=> $orderedQuestions,
+        'selections'=> $selections
+    ], 200);
+}
+
 
     /* ============================================
  | POST /api/exam/attempts/{attempt}/focus

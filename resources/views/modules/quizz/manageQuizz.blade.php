@@ -84,6 +84,29 @@ html.theme-dark .modal-content{background:#0f172a;border-color:var(--line-strong
 html.theme-dark .table thead th{background:#0f172a;border-color:var(--line-strong);color:#94a3b8}
 html.theme-dark .table tbody tr{border-color:var(--line-soft)}
 html.theme-dark .dropdown-menu{background:#0f172a;border-color:var(--line-strong)}
+/* Randomization modal tweaks */
+#randomizeModal .form-check{
+  display: grid;
+  grid-template-columns: auto 1fr;
+  column-gap: .8rem;
+  align-items: flex-start;
+}
+
+#randomizeModal .form-check-input{
+  margin-left: 0;
+  margin-top: .25rem; /* vertically align with text */
+}
+
+#randomizeModal .form-check-label{
+  margin-bottom: 0;
+  grid-column: 2;      /* text sits to the right of toggle */
+}
+
+#randomizeModal .form-text{
+  grid-column: 2;      /* helper text under the label, same column */
+  margin-top: .15rem;
+}
+
 </style>
 @endpush
 
@@ -321,6 +344,57 @@ html.theme-dark .dropdown-menu{background:#0f172a;border-color:var(--line-strong
   </div>
 </div>
 
+{{-- Randomization Modal --}}
+<div class="modal fade" id="randomizeModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">
+          <i class="fa fa-shuffle me-2"></i>
+          Randomization
+          <small class="text-muted d-block fs-6" id="randomQuizTitle"></small>
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div class="form-check form-switch mb-3">
+          <input class="form-check-input" type="checkbox" id="toggleQuestionRandom">
+          <label class="form-check-label fw-semibold" for="toggleQuestionRandom">
+            Randomize question order
+          </label>
+          <div class="form-text">
+            Each student will see the questions in a different order.
+          </div>
+        </div>
+
+        <div class="form-check form-switch mb-2">
+          <input class="form-check-input" type="checkbox" id="toggleOptionRandom">
+          <label class="form-check-label fw-semibold" for="toggleOptionRandom">
+            Randomize options within each question
+          </label>
+          <div class="form-text">
+            Shuffles choices for MCQ / True–False. Fill in the blanks are not affected.
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+       <button id="btnSaveRandom" class="btn btn-primary">
+  <span class="lbl">
+    <i class="fa fa-check me-1"></i>Save
+  </span>
+  <span class="spin d-none">
+    <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+    Saving…
+  </span>
+</button>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+
 {{-- Toasts (success/error only) --}}
 <div class="toast-container position-fixed top-0 end-0 p-3" style="z-index:2100">
   <div id="okToast" class="toast text-bg-success border-0"><div class="d-flex">
@@ -468,6 +542,15 @@ document.addEventListener('click', (e) => {
   const qs=(sel)=>document.querySelector(sel);
   const qsa=(sel)=>document.querySelectorAll(sel);
   const showLoader=(scope, v)=>{ qs(tabs[scope].loader).style.display = v ? '' : 'none'; };
+  const setBtnBusy = (btn, on) => {
+  if (!btn) return;
+  btn.disabled = !!on;
+  const lbl  = btn.querySelector('.lbl');
+  const spin = btn.querySelector('.spin');
+  if (lbl)  lbl.classList.toggle('d-none', !!on);
+  if (spin) spin.classList.toggle('d-none', !on);
+};
+
 
   function paramsBase(scope){
     const usp = new URLSearchParams();
@@ -510,6 +593,9 @@ document.addEventListener('click', (e) => {
             <li><button class="dropdown-item" data-act="notes" data-key="${key}" data-name="${esc(r.quiz_name||'')}">
               <i class="fa fa-note-sticky"></i> Notes
             </button></li>
+            <li><button class="dropdown-item" data-act="randomize" data-key="${key}" data-name="${esc(r.quiz_name||'')}">
+          <i class="fa fa-shuffle"></i> Randomize
+        </button></li>
             <li><hr class="dropdown-divider"></li>
             ${String(r.status||'').toLowerCase()==='archived'
               ? `<li><button class="dropdown-item" data-act="unarchive" data-key="${key}" data-name="${esc(r.quiz_name||'')}"><i class="fa fa-box-open"></i> Unarchive</button></li>`
@@ -735,6 +821,10 @@ document.addEventListener('click', (e) => {
       openNotes(key, name);
       return;
     }
+    if (act==='randomize'){
+      openRandomModal(key, name);
+      return;
+    }
     if (act==='archive'){
       const {isConfirmed}=await Swal.fire({icon:'question',title:'Archive quiz?',html:`"${esc(name)}"`,showCancelButton:true,confirmButtonText:'Archive',confirmButtonColor:'#8b5cf6'});
       if(!isConfirmed) return;
@@ -794,6 +884,90 @@ document.addEventListener('click', (e) => {
       ok(doneMsg || 'Updated');
     }catch(e){ err(e.message||'Status update failed'); }
   }
+
+    /* ========= Randomization Modal ========= */
+  let currentKeyForRandom = null;
+
+  const randomModalEl   = document.getElementById('randomizeModal');
+  const randomModal     = randomModalEl ? new bootstrap.Modal(randomModalEl) : null;
+  const randomQuizTitle = document.getElementById('randomQuizTitle');
+  const toggleQuestionRandom = document.getElementById('toggleQuestionRandom');
+  const toggleOptionRandom   = document.getElementById('toggleOptionRandom');
+  const btnSaveRandom        = document.getElementById('btnSaveRandom');
+
+  btnSaveRandom?.addEventListener('click', saveRandomSettings);
+
+
+  async function openRandomModal(key, name){
+    currentKeyForRandom = key;
+
+    if (randomQuizTitle) {
+      randomQuizTitle.textContent = name || 'Quiz';
+    }
+    if (toggleQuestionRandom) toggleQuestionRandom.checked = false;
+    if (toggleOptionRandom)   toggleOptionRandom.checked   = false;
+
+    // Load current flags from API
+    try{
+      const res = await fetch(`/api/quizz/${encodeURIComponent(key)}`, {
+        headers: {
+          'Authorization':'Bearer '+TOKEN,
+          'Accept':'application/json'
+        }
+      });
+      const j = await res.json().catch(()=> ({}));
+      if (!res.ok) throw new Error(j?.message || 'Failed to load quiz');
+
+      const q = j.data || j.quiz || j;
+      const qFlag = String(q?.is_question_random || 'no').toLowerCase() === 'yes';
+      const oFlag = String(q?.is_option_random   || 'no').toLowerCase() === 'yes';
+
+      if (toggleQuestionRandom) toggleQuestionRandom.checked = qFlag;
+      if (toggleOptionRandom)   toggleOptionRandom.checked   = oFlag;
+    } catch(e){
+      console.error(e);
+      err(e.message || 'Failed to load randomization');
+    }
+
+    randomModal?.show();
+  }
+
+  async function saveRandomSettings(){
+    if (!currentKeyForRandom) return;
+
+    const isQ = toggleQuestionRandom?.checked ? 'yes' : 'no';
+    const isO = toggleOptionRandom?.checked   ? 'yes' : 'no';
+
+    setBtnBusy(btnSaveRandom, true);   // <— turn loader ON
+
+    try{
+      const res = await fetch(`/api/quizz/${encodeURIComponent(currentKeyForRandom)}`, {
+        method: 'PATCH',
+        headers: {
+          'Authorization':'Bearer '+TOKEN,
+          'Content-Type':'application/json',
+          'Accept':'application/json'
+        },
+        body: JSON.stringify({
+          is_question_random: isQ,
+          is_option_random:   isO
+        })
+      });
+      const j = await res.json().catch(()=> ({}));
+      if (!res.ok) throw new Error(j?.message || 'Failed to update settings');
+
+      ok('Randomization updated');
+      randomModal?.hide();
+      load('active');  // refresh table
+    }catch(e){
+      console.error(e);
+      err(e.message || 'Failed to update settings');
+    }finally{
+      setBtnBusy(btnSaveRandom, false); // <— turn loader OFF
+    }
+  }
+
+
 
   /* ========= Notes ========= */
   let currentKeyForNotes = null;
