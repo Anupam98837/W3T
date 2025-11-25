@@ -16,6 +16,8 @@ use App\Http\Controllers\API\AssignmentController;
 use App\Http\Controllers\API\AssignmentSubmissionController;
 use App\Http\Controllers\API\ExamController;
 use App\Http\Controllers\API\NoticeController;
+use App\Http\Controllers\API\ModuleController;
+use App\Http\Controllers\API\PrivilegeController;
 
 Route::get('/user', function (Request $request) {
     return $request->user();
@@ -351,3 +353,30 @@ Route::middleware(['checkRole:admin,instructor,super_admin'])->get(
     '/exam/results/{id}/answer-sheet',
     [ExamController::class, 'answerSheet']
 );
+
+Route::middleware('checkRole: admin,super_admin,instructor')->group(function () {
+    // Modules (list, create, show, update, soft-delete, restore)
+    // modules
+Route::get('modules', [ModuleController::class, 'index']);
+Route::get('modules/archived', [ModuleController::class, 'archived']);
+Route::get('modules/bin', [ModuleController::class, 'bin']);
+Route::post('modules', [ModuleController::class, 'store']);
+Route::get('modules/{id}', [ModuleController::class, 'show']);
+Route::put('modules/{id}', [ModuleController::class, 'update']);
+Route::patch('modules/{id}', [ModuleController::class, 'update']);
+Route::delete('modules/{id}', [ModuleController::class, 'destroy']);
+Route::post('modules/{id}/restore', [ModuleController::class, 'restore']);
+Route::post('modules/{id}/archive', [ModuleController::class, 'archive']);
+Route::post('modules/{id}/unarchive', [ModuleController::class, 'unarchive']);
+Route::delete('modules/{id}/force', [ModuleController::class, 'forceDelete']);
+Route::post('modules/reorder', [ModuleController::class, 'reorder']);
+
+
+    // Privileges
+    Route::get('privileges', [PrivilegeController::class, 'index']);
+    Route::post('privileges', [PrivilegeController::class, 'store']);
+    Route::get('privileges/{id}', [PrivilegeController::class, 'show']);
+    Route::put('privileges/{id}', [PrivilegeController::class, 'update']);
+    Route::delete('privileges/{id}', [PrivilegeController::class, 'destroy']);
+    Route::post('privileges/{id}/restore', [PrivilegeController::class, 'restore']);
+});

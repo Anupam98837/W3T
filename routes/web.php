@@ -139,7 +139,9 @@ Route::get('/admin/notice/create', function () {
     return view('pages.users.admin.pages.notices.createNotice');
 });
 
-
+Route::get('/admin/module/manage', function () {
+    return view('modules.module.manageModule');
+});
 // Student Routes
 Route::get('/student/dashboard', function () {
     return view('pages.users.student.pages.common.dashboard');
