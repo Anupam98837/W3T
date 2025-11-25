@@ -10,6 +10,22 @@
     
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"/>
     <link rel="stylesheet" href="{{ asset('assets/css/common/main.css') }}"/>
+
+    <script>
+  window.MathJax = {
+    tex: {
+      inlineMath: [['$', '$'], ['\\(', '\\)']],
+      displayMath: [['\\[', '\\]'], ['$$', '$$']],
+      processEscapes: true
+    },
+    options: {
+      skipHtmlTags: ['script','noscript','style','textarea','pre','code']
+    }
+  };
+</script>
+<script id="MathJax-script" async
+        src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js"></script>
+
     
     <style>
     :root{
@@ -822,23 +838,27 @@
 .question-item-main{
     flex: 1;
     min-width: 0;
+    display: flex;              /* title + chips in one row */
+    align-items: center;
+    gap: 8px;
 }
 
 .question-item-title{
     font-size: 13px;
     color: var(--ink);
-    margin-bottom: 4px;
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    -webkit-box-orient: vertical;
+    margin-bottom: 0;
+    white-space: nowrap;        /* single line */
     overflow: hidden;
+    text-overflow: ellipsis;    /* ... when too long */
 }
 
 .question-item-meta{
     display: flex;
     align-items: center;
     gap: 6px;
+    flex-shrink: 0;             /* chips don’t disappear */
 }
+
 .question-item .q-type{
     padding: 2px 7px;
     border-radius: 999px;
@@ -850,9 +870,16 @@
     background: var(--surface);
     color: var(--muted);
 }
+
 .question-item .q-type i{
     font-size: 10px;
 }
+
+/* hide SC / MCQ / Fill text – keep only icon */
+.question-item .q-type span{
+    display: none;
+}
+
 
 /* keep your difficulty colours, plus per-type tint (if not already there) */
 .question-item .q-type.single_choice{
@@ -1078,10 +1105,16 @@ html.theme-dark .preview-option.correct{
         0 12px 30px rgba(22,163,74,0.45);
 }
 
-
-
-
-
+mjx-container,
+    mjx-container[display="block"],
+    .mjx-chtml {
+      display: inline-block !important;
+    }
+    mjx-container svg,
+    mjx-container[display="block"] svg,
+    .mjx-chtml svg {
+      vertical-align: middle;
+    }
 
     </style>
 </head>
@@ -1444,6 +1477,14 @@ html.theme-dark .preview-option.correct{
         var TOKEN = localStorage.getItem('token') || sessionStorage.getItem('token') || '';
         var ROLE = (localStorage.getItem('role') || 'admin');
         var quizMeta = null; 
+
+        function typesetMath(root) {
+        if (!window.MathJax || !window.MathJax.typesetPromise) return;
+        const nodes = root ? [root] : undefined;
+        MathJax.typesetPromise(nodes).catch(function (err) {
+            console.error('MathJax typeset error:', err);
+        });
+    }
         var previewOverlay = document.getElementById('previewOverlay');
 var previewTitle   = document.getElementById('previewTitle');
 var previewDesc    = document.getElementById('previewDesc');
@@ -1662,6 +1703,7 @@ document.getElementById('btnHelp')?.addEventListener('click', function(){
 
     renderGrid();
   }
+
 
   function renderGrid(){
     if (!mpList.length){
@@ -2650,6 +2692,8 @@ li.innerHTML = `
     });
 });
 
+typesetMath(box);
+
         }
 
         async function loadList(){
@@ -2777,10 +2821,10 @@ if (qDifficulty) qDifficulty.value = 'medium';
           return (anySingleFlag || correctCount === 1) ? 'single_choice' : 'multiple_choice';
         }
 
-        function renderQuestionPreview(q){
+function renderQuestionPreview(q){
     if (!previewTitle) return;
     const uiType = guessUiType(q);
-    const diff = (q.question_difficulty || 'medium').toLowerCase();
+    const diff   = (q.question_difficulty || 'medium').toLowerCase();
     const typeMeta = typeMetaForList(q);
 
     // chips
@@ -2790,24 +2834,28 @@ if (qDifficulty) qDifficulty.value = 'medium';
         <span class="preview-chip">${q.question_mark || 1} mark${(q.question_mark||1) > 1 ? 's':''}</span>
     `;
 
-    // title — replace {dash} with blank lines for Fill in the blank
-    var titleHtml = q.question_title || 'Untitled question';
+    // ---- TITLE: strip HTML so TeX is contiguous ----
+    const rawTitle   = q.question_title || 'Untitled question';
+    const plainTitle = stripHtml(rawTitle); // remove <p>, <br>, etc.
+    let   titleHtml  = plainTitle;
+
     if (uiType === 'fill_in_the_blank') {
-        titleHtml = titleHtml.replace(/{dash}/g, '<span class="preview-blank"></span>');
+        // turn {dash} tokens into blanks
+        titleHtml = plainTitle.replace(/{dash}/g, '<span class="preview-blank"></span>');
     }
     previewTitle.innerHTML = titleHtml;
 
-    // description
-    const descHtml = q.question_description || '';
-    if (stripHtml(descHtml).trim().length){
+    // ---- DESCRIPTION (also flattened so TeX works) ----
+    const descPlain = stripHtml(q.question_description || '');
+    if (descPlain.trim().length){
         previewDesc.style.display = 'block';
-        previewDesc.innerHTML = descHtml;
+        previewDesc.innerHTML = esc(descPlain);
     } else {
         previewDesc.style.display = 'none';
         previewDesc.innerHTML = '';
     }
 
-    // options
+    // ---- OPTIONS ----
     previewOptions.innerHTML = '';
     const answers = Array.isArray(q.answers) ? q.answers.slice() : [];
     answers.sort((a,b) => (a.answer_order||0) - (b.answer_order||0));
@@ -2820,11 +2868,12 @@ if (qDifficulty) qDifficulty.value = 'medium';
             previewOptions.appendChild(heading);
 
             answers.forEach((ans, idx) => {
+                const text = stripHtml(ans.answer_title || '');
                 const wrap = document.createElement('div');
                 wrap.className = 'preview-option correct';
                 wrap.innerHTML = `
                     <div class="preview-option-label">${idx+1}</div>
-                    <div class="preview-option-content">${ans.answer_title || ''}</div>
+                    <div class="preview-option-content">${esc(text)}</div>
                 `;
                 previewOptions.appendChild(wrap);
             });
@@ -2832,29 +2881,36 @@ if (qDifficulty) qDifficulty.value = 'medium';
     } else {
         const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
         answers.forEach((ans, idx) => {
+            const text    = stripHtml(ans.answer_title || '');
             const correct = !!ans.is_correct;
-            const wrap = document.createElement('div');
+            const wrap    = document.createElement('div');
+            const letter  = letters[idx] || '?';
+
             wrap.className = 'preview-option' + (correct ? ' correct' : '');
-            const letter = letters[idx] || '?';
             wrap.innerHTML = `
                 <div class="preview-option-label">${letter}</div>
-                <div class="preview-option-content">${ans.answer_title || ''}</div>
+                <div class="preview-option-content">${esc(text)}</div>
             `;
             previewOptions.appendChild(wrap);
         });
     }
 
-    // explanation (if any)
-    const explHtml = q.answer_explanation || '';
-    if (stripHtml(explHtml).trim().length){
+    // ---- EXPLANATION ----
+    const explPlain = stripHtml(q.answer_explanation || '');
+    if (explPlain.trim().length){
         previewExtra.innerHTML = `
             <div class="preview-extra-title">Explanation</div>
-            <div>${explHtml}</div>
+            <div>${esc(explPlain)}</div>
         `;
     } else {
         previewExtra.innerHTML = '';
     }
+
+    // finally typeset the whole modal (header + body)
+    const previewRoot = document.getElementById('previewOverlay');
+    typesetMath(previewRoot);
 }
+
 
 async function viewQuestion(id){
     const loader = document.getElementById('contentLoader');
@@ -2903,13 +2959,15 @@ function typeMetaForList(q){
                 short: 'T/F',
                 icon: 'fa-solid fa-check'
             };
-        case 'fill_in_the_blank':
-            return {
-                key: 'fill_in_the_blank',
-                label: 'Fill in the blank',
-                short: 'Fill',
-                icon: 'fa-solid fa-ellipsis'
-            };
+       case 'fill_in_the_blank':
+    return {
+        key: 'fill_in_the_blank',
+        label: 'Fill in the blank',
+        short: 'Fill',
+        // no more horizontal dots; looks like blanks/lines
+        icon: 'fa-solid fa-grip-lines'
+    };
+
         default:
             return {
                 key: 'multiple_choice',
@@ -3022,13 +3080,15 @@ if (qDifficulty) qDifficulty.value = (q.question_difficulty || 'medium');
 
         var qSearch = document.getElementById('qSearch');
         if (qSearch) {
-            qSearch.addEventListener('input', function(){
-                var t = this.value.toLowerCase();
-                document.querySelectorAll('#qList .question-item').forEach(function(li){
-                    var txt = (li.querySelector('.q-title') ? li.querySelector('.q-title').textContent.toLowerCase() : '');
-                    li.style.display = (txt.indexOf(t) !== -1) ? '' : 'none';
-                });
-            });
+        qSearch.addEventListener('input', function(){
+    var t = this.value.toLowerCase();
+    document.querySelectorAll('#qList .question-item').forEach(function(li){
+        var txtEl = li.querySelector('.question-item-title');
+        var txt   = txtEl ? txtEl.textContent.toLowerCase() : '';
+        li.style.display = (txt.indexOf(t) !== -1) ? '' : 'none';
+    });
+});
+
         }
 
         var btnSave = document.getElementById('btnSave');

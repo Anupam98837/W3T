@@ -183,6 +183,10 @@ class QuizzController extends Controller
             'total_time'           => ['sometimes','nullable','integer','min:1'],
             'total_attempts'       => ['sometimes','nullable','integer','min:1'],
 
+             // 🔽 NEW: randomization flags
+            'is_question_random'   => ['sometimes','string', Rule::in(['yes','no'])],
+            'is_option_random'     => ['sometimes','string', Rule::in(['yes','no'])],
+
             // image via file OR URL
             'quiz_img'             => ['sometimes','file','image','mimes:jpeg,png,jpg,gif,webp,avif','max:4096'],
             'quiz_img_url'         => ['sometimes','nullable','url'],
@@ -223,6 +227,9 @@ class QuizzController extends Controller
             'result_release_date'  => $data['result_release_date'] ?? null,
             'total_time'           => $data['total_time'] ?? null,
             'total_attempts'       => $data['total_attempts'] ?? 1,
+              // 🔽 NEW: store flags (backed by your toggles)
+            'is_question_random'   => $data['is_question_random'] ?? 'no',
+            'is_option_random'     => $data['is_option_random'] ?? 'no',
             'status'               => $data['status'] ?? 'active',
             'created_at'           => $now,
             'created_at_ip'        => $request->ip(),
@@ -366,6 +373,9 @@ class QuizzController extends Controller
             'total_time'           => ['sometimes','nullable','integer','min:1'],
             'total_attempts'       => ['sometimes','nullable','integer','min:1'],
             'status'               => ['sometimes', Rule::in(['active','archived'])],
+             // 🔽 NEW: randomization flags
+            'is_question_random'   => ['sometimes','string', Rule::in(['yes','no'])],
+            'is_option_random'     => ['sometimes','string', Rule::in(['yes','no'])],
 
             // image via file OR URL
             'quiz_img'             => ['sometimes','file','image','mimes:jpeg,png,jpg,gif,webp,avif','max:4096'],
