@@ -142,6 +142,14 @@ Route::get('/admin/notice/create', function () {
 Route::get('/admin/module/manage', function () {
     return view('modules.module.manageModule');
 });
+
+Route::get('/admin/privilege/manage', function () {
+    return view('modules.privileges.managePrivileges');
+});
+  Route::get('/admin/privilege/assign/{userId?}', function ($userId = null) {
+        return view('modules.privileges.assignPrivileges', compact('userId'));
+    })->where('userId','[0-9]+')->name('admin.privileges.assign.user');
+
 // Student Routes
 Route::get('/student/dashboard', function () {
     return view('pages.users.student.pages.common.dashboard');

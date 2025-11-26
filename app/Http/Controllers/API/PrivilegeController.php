@@ -1,12 +1,14 @@
 <?php
 
 namespace App\Http\Controllers\API;
+
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Schema;
 use Exception;
 
 class PrivilegeController extends Controller
@@ -33,7 +35,7 @@ class PrivilegeController extends Controller
                     // no module found -> return empty paginator
                     return response()->json([
                         'data' => [],
-                        'meta' => ['page' => 1, 'per_page' => $perPage, 'total' => 0],
+                        'pagination' => ['page' => 1, 'per_page' => $perPage, 'total' => 0, 'last_page' => 1],
                     ]);
                 }
             } else {
@@ -42,7 +44,37 @@ class PrivilegeController extends Controller
         }
 
         $paginator = $query->orderBy('id', 'desc')->paginate($perPage);
-        return response()->json($paginator->toArray());
+        return response()->json([
+            'data' => $paginator->items(),
+            'pagination' => [
+                'page' => $paginator->currentPage(),
+                'per_page' => $paginator->perPage(),
+                'total' => $paginator->total(),
+                'last_page' => $paginator->lastPage(),
+            ],
+        ]);
+    }
+
+    /**
+     * Bin (soft-deleted privileges)
+     */
+    public function bin(Request $request)
+    {
+        $perPage = max(1, min(200, (int) $request->query('per_page', 20)));
+
+        $query = DB::table('privileges')->whereNotNull('deleted_at')->orderBy('deleted_at', 'desc');
+
+        $paginator = $query->paginate($perPage);
+
+        return response()->json([
+            'data' => $paginator->items(),
+            'pagination' => [
+                'page' => $paginator->currentPage(),
+                'per_page' => $paginator->perPage(),
+                'total' => $paginator->total(),
+                'last_page' => $paginator->lastPage(),
+            ],
+        ]);
     }
 
     /**
@@ -94,7 +126,7 @@ class PrivilegeController extends Controller
 
         try {
             $id = DB::transaction(function () use ($moduleId, $action, $request, $userId, $ip) {
-                return DB::table('privileges')->insertGetId([
+                $payload = [
                     'uuid' => (string) Str::uuid(),
                     'module_id' => $moduleId,
                     'action' => $action,
@@ -104,7 +136,14 @@ class PrivilegeController extends Controller
                     'created_by' => $userId,
                     'created_at_ip' => $ip,
                     'deleted_at' => null,
-                ]);
+                ];
+
+                // add order_no if the schema supports it and request provided one
+                if (Schema::hasColumn('privileges', 'order_no') && $request->has('order_no')) {
+                    $payload['order_no'] = (int) $request->input('order_no');
+                }
+
+                return DB::table('privileges')->insertGetId($payload);
             });
 
             $priv = DB::table('privileges')->where('id', $id)->first();
@@ -255,6 +294,101 @@ class PrivilegeController extends Controller
             return response()->json(['privilege' => $priv, 'message' => 'Privilege restored']);
         } catch (Exception $e) {
             return response()->json(['message' => 'Could not restore privilege', 'error' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Archive a privilege (set status = 'archived') - only if `status` column exists
+     */
+    public function archive(Request $request, $identifier)
+    {
+        if (! Schema::hasColumn('privileges', 'status')) {
+            return response()->json(['message' => 'Archive not supported for privileges (no status column)'], 400);
+        }
+
+        $priv = $this->resolvePrivilege($identifier, false);
+        if (!$priv) {
+            return response()->json(['message' => 'Privilege not found'], 404);
+        }
+
+        try {
+            DB::table('privileges')->where('id', $priv->id)->update(['status' => 'archived', 'updated_at' => now()]);
+            return response()->json(['message' => 'Privilege archived']);
+        } catch (Exception $e) {
+            return response()->json(['message' => 'Could not archive privilege', 'error' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Unarchive a privilege (set status = 'draft') - only if `status` column exists
+     */
+    public function unarchive(Request $request, $identifier)
+    {
+        if (! Schema::hasColumn('privileges', 'status')) {
+            return response()->json(['message' => 'Unarchive not supported for privileges (no status column)'], 400);
+        }
+
+        $priv = $this->resolvePrivilege($identifier, false);
+        if (!$priv) {
+            return response()->json(['message' => 'Privilege not found'], 404);
+        }
+
+        try {
+            DB::table('privileges')->where('id', $priv->id)->update(['status' => 'draft', 'updated_at' => now()]);
+            return response()->json(['message' => 'Privilege unarchived']);
+        } catch (Exception $e) {
+            return response()->json(['message' => 'Could not unarchive privilege', 'error' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Force delete permanently (irreversible)
+     */
+    public function forceDelete(Request $request, $identifier)
+    {
+        $priv = $this->resolvePrivilege($identifier, true);
+        if (!$priv) {
+            return response()->json(['message' => 'Privilege not found'], 404);
+        }
+
+        try {
+            DB::transaction(function () use ($priv) {
+                DB::table('privileges')->where('id', $priv->id)->delete();
+            });
+            return response()->json(['message' => 'Privilege permanently deleted']);
+        } catch (Exception $e) {
+            return response()->json(['message' => 'Could not permanently delete privilege', 'error' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Reorder privileges — expects { ids: [id1,id2,id3,...] }
+     * It will update order_no according to array position (0..n-1)
+     * Requires privileges.order_no column to exist.
+     */
+    public function reorder(Request $request)
+    {
+        if (! Schema::hasColumn('privileges', 'order_no')) {
+            return response()->json(['message' => 'Reorder not supported: privileges.order_no column missing'], 400);
+        }
+
+        $v = Validator::make($request->all(), [
+            'ids' => 'required|array|min:1',
+            'ids.*' => 'integer|min:1',
+        ]);
+        if ($v->fails()) return response()->json(['errors' => $v->errors()], 422);
+
+        $ids = $request->input('ids');
+
+        try {
+            DB::transaction(function () use ($ids) {
+                foreach ($ids as $idx => $id) {
+                    DB::table('privileges')->where('id', $id)->update(['order_no' => $idx, 'updated_at' => now()]);
+                }
+            });
+            return response()->json(['message' => 'Order updated']);
+        } catch (Exception $e) {
+            return response()->json(['message' => 'Could not update order', 'error' => $e->getMessage()], 500);
         }
     }
 }

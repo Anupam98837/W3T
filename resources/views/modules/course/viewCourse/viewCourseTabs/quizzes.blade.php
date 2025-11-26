@@ -668,28 +668,43 @@
 
   // ---------- Start Quiz (new) ----------
   function startQuiz(row) {
-    try {
-      const key = row.uuid || row.id || row.quiz?.uuid || row.quiz?.id;
-      if (!key) {
-        showErr('Unable to start quiz: missing quiz identifier');
-        return;
-      }
+  try {
+    // quiz uuid (correct)
+    const quizUuid =
+      row.uuid ||
+      row.quiz?.uuid ||
+      row.quiz?.id ||
+      row.id;
 
-      // build start URL — adjust to match your app's route if needed
-      // Common patterns you might use instead:
-      //  - `/quizzes/${key}/start`
-      //  - `/quizz/${key}/attempt`
-      //  - `/take-quiz/${key}`
-      // Current chosen pattern:
-      const startUrl = `/quizz/${encodeURIComponent(String(key))}/start`;
-
-      // navigate to start URL (same tab)
-      window.location.href = startUrl;
-    } catch (e) {
-      console.error('startQuiz failed', e);
-      showErr('Failed to start quiz');
+    if (!quizUuid) {
+      showErr("Missing quiz UUID");
+      return;
     }
+
+    // -- FIX STARTS HERE --
+    // Always pick UUID for the batch-wise assignment, never ID
+    const batchQuizUuid =
+      row.batch_quizzes_uuid ||   // preferred
+      row.batch_quiz_uuid ||      // alternate
+      row.batch_quiz?.uuid ||     // nested
+      null;
+
+    if (!batchQuizUuid) {
+      showErr("Missing batch quiz UUID");
+      console.warn("Row data:", row);
+      return;
+    }
+
+    // Build correct URL
+    const finalUrl =
+      `/exam/${encodeURIComponent(quizUuid)}/batch?=${encodeURIComponent(batchQuizUuid)}`;
+
+    window.location.href = finalUrl;
+  } catch (e) {
+    console.error("startQuiz error", e);
+    showErr("Failed to start quiz");
   }
+}
 
   // ---------- Rendering ----------
   function renderList(items){

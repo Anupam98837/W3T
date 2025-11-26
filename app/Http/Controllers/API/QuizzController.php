@@ -601,8 +601,7 @@ class QuizzController extends Controller
 
         return response()->json(['status'=>'success','message'=>'Note added','data'=>$note]);
     }
-    
- public function viewQuizzesByBatch(Request $r, string $batchKey)
+public function viewQuizzesByBatch(Request $r, string $batchKey)
 {
     $role = (string) ($r->attributes->get('auth_role') ?? '');
     $uid  = (int) ($r->attributes->get('auth_tokenable_id') ?? 0);
@@ -694,6 +693,7 @@ class QuizzController extends Controller
 
         // Batch quiz relationship info
         'bq.id as batch_quiz_id',
+        'bq.uuid as batch_quizzes_uuid',   // <-- ADDED: send batch_quizzes UUID
         'bq.display_order',
         'bq.available_from',
         'bq.available_until',
@@ -741,6 +741,7 @@ class QuizzController extends Controller
             // Batch quiz fields
             'assigned' => (bool) $quiz->assign_status_flag,
             'batch_quiz_id' => $quiz->batch_quiz_id !== null ? (int)$quiz->batch_quiz_id : null,
+            'batch_quizzes_uuid' => isset($quiz->batch_quizzes_uuid) ? (string)$quiz->batch_quizzes_uuid : null, // <-- ADDED
             'display_order' => $quiz->display_order !== null ? (int)$quiz->display_order : null,
             'batch_status' => $quiz->batch_status ?? null,
             'publish_to_students' => (bool)$quiz->publish_to_students,
@@ -762,6 +763,7 @@ class QuizzController extends Controller
         ],
     ]);
 }
+
 /**
  * DELETED INDEX (GET /api/quizz/deleted)
  * Lists soft-deleted quizzes (supports ?q=search, ?per_page=, ?page=, ?batch_uuid=, ?batch_id=)

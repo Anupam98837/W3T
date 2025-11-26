@@ -18,6 +18,7 @@ use App\Http\Controllers\API\ExamController;
 use App\Http\Controllers\API\NoticeController;
 use App\Http\Controllers\API\ModuleController;
 use App\Http\Controllers\API\PrivilegeController;
+use App\Http\Controllers\API\UserPrivilegeController;
 
 Route::get('/user', function (Request $request) {
     return $request->user();
@@ -354,29 +355,73 @@ Route::middleware(['checkRole:admin,instructor,super_admin'])->get(
     [ExamController::class, 'answerSheet']
 );
 
-Route::middleware('checkRole: admin,super_admin,instructor')->group(function () {
-    // Modules (list, create, show, update, soft-delete, restore)
-    // modules
-Route::get('modules', [ModuleController::class, 'index']);
-Route::get('modules/archived', [ModuleController::class, 'archived']);
-Route::get('modules/bin', [ModuleController::class, 'bin']);
-Route::post('modules', [ModuleController::class, 'store']);
-Route::get('modules/{id}', [ModuleController::class, 'show']);
-Route::put('modules/{id}', [ModuleController::class, 'update']);
-Route::patch('modules/{id}', [ModuleController::class, 'update']);
-Route::delete('modules/{id}', [ModuleController::class, 'destroy']);
-Route::post('modules/{id}/restore', [ModuleController::class, 'restore']);
-Route::post('modules/{id}/archive', [ModuleController::class, 'archive']);
-Route::post('modules/{id}/unarchive', [ModuleController::class, 'unarchive']);
-Route::delete('modules/{id}/force', [ModuleController::class, 'forceDelete']);
-Route::post('modules/reorder', [ModuleController::class, 'reorder']);
+Route::middleware('checkRole:admin,super_admin,instructor')->group(function () {
+    // list / create
+    Route::get('modules', [ModuleController::class, 'index'])->name('modules.index');
+    Route::get('modules/archived', [ModuleController::class, 'archived'])->name('modules.archived');
+    Route::get('modules/bin', [ModuleController::class, 'bin'])->name('modules.bin');
+    Route::post('modules', [ModuleController::class, 'store'])->name('modules.store');
+
+    // single module (constrain id to number or UUID to avoid collisions)
+    Route::get('modules/{id}', [ModuleController::class, 'show'])
+        ->where('id', '[0-9]+|[0-9a-fA-F\-]{36}')
+        ->name('modules.show');
+    Route::match(['put','patch'], 'modules/{id}', [ModuleController::class, 'update'])
+        ->where('id', '[0-9]+|[0-9a-fA-F\-]{36}')
+        ->name('modules.update');
+    Route::delete('modules/{id}', [ModuleController::class, 'destroy'])
+        ->where('id', '[0-9]+|[0-9a-fA-F\-]{36}')
+        ->name('modules.destroy');
+
+    // actions
+    Route::post('modules/{id}/restore', [ModuleController::class, 'restore'])
+        ->where('id', '[0-9]+|[0-9a-fA-F\-]{36}')
+        ->name('modules.restore');
+    Route::post('modules/{id}/archive', [ModuleController::class, 'archive'])
+        ->where('id', '[0-9]+|[0-9a-fA-F\-]{36}')
+        ->name('modules.archive');
+    Route::post('modules/{id}/unarchive', [ModuleController::class, 'unarchive'])
+        ->where('id', '[0-9]+|[0-9a-fA-F\-]{36}')
+        ->name('modules.unarchive');
+    Route::get('/modules/all-with-privileges', [ModuleController::class, 'allWithPrivileges']);
+
+    // force delete (permanent)
+    Route::delete('modules/{id}/force', [ModuleController::class, 'forceDelete'])
+        ->where('id', '[0-9]+|[0-9a-fA-F\-]{36}')
+        ->name('modules.forceDelete');
+
+    // reorder
+    Route::post('modules/reorder', [ModuleController::class, 'reorder'])->name('modules.reorder');
+
+     // Privileges
+    Route::get('privileges', [PrivilegeController::class, 'index']);             // list (optional module_id filter)
+    Route::get('privileges/archived', [PrivilegeController::class, 'archived']); // archived list (if implemented)
+    Route::get('privileges/bin', [PrivilegeController::class, 'bin']);           // soft-deleted (bin)
+
+    Route::post('privileges', [PrivilegeController::class, 'store']);            // create
+    Route::get('privileges/{id}', [PrivilegeController::class, 'show']);        // show by id|uuid
+    Route::put('privileges/{id}', [PrivilegeController::class, 'update']);      // update (full)
+    Route::patch('privileges/{id}', [PrivilegeController::class, 'update']);    // update (partial)
+
+    Route::delete('privileges/{id}', [PrivilegeController::class, 'destroy']);  // soft-delete
+    Route::post('privileges/{id}/restore', [PrivilegeController::class, 'restore']); // restore from bin
+
+    // archive / unarchive (only if controller supports it and `status` column exists)
+    Route::post('privileges/{id}/archive', [PrivilegeController::class, 'archive']);
+    Route::post('privileges/{id}/unarchive', [PrivilegeController::class, 'unarchive']);
+
+    // force delete (permanent)
+    Route::delete('privileges/{id}/force', [PrivilegeController::class, 'forceDelete']);
+
+    // reorder (expects { ids: [...] })
+    Route::post('privileges/reorder', [PrivilegeController::class, 'reorder']);
+
+   // User privilege endpoints
+Route::post('/user-privileges/sync',   [UserPrivilegeController::class, 'sync']);
+Route::post('/user-privileges/assign', [UserPrivilegeController::class, 'assign']); // assign single privilege
+Route::post('/user-privileges/delete', [UserPrivilegeController::class, 'destroy']); // revoke (soft-delete) mapping
+Route::get( '/user-privileges/list',   [UserPrivilegeController::class, 'list']);   // list active privileges for a user
+Route::post('/user-privileges/unassign', [UserPrivilegeController::class, 'unassign']);
 
 
-    // Privileges
-    Route::get('privileges', [PrivilegeController::class, 'index']);
-    Route::post('privileges', [PrivilegeController::class, 'store']);
-    Route::get('privileges/{id}', [PrivilegeController::class, 'show']);
-    Route::put('privileges/{id}', [PrivilegeController::class, 'update']);
-    Route::delete('privileges/{id}', [PrivilegeController::class, 'destroy']);
-    Route::post('privileges/{id}/restore', [PrivilegeController::class, 'restore']);
 });

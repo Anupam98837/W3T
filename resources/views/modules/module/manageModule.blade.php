@@ -19,12 +19,6 @@
 .mfa-toolbar .btn-light{background:var(--surface);border:1px solid var(--line-strong)}
 .mfa-toolbar .btn-primary{background:var(--primary-color);border:none}
 
-/* Tabs */
-.nav.nav-tabs{border-color:var(--line-strong)}
-.nav-tabs .nav-link{color:var(--ink)}
-.nav-tabs .nav-link.active{background:var(--surface);border-color:var(--line-strong) var(--line-strong) var(--surface)}
-.tab-content,.tab-pane{overflow:visible}
-
 /* Table Card */
 .table-wrap.card{position:relative;border:1px solid var(--line-strong);border-radius:16px;background:var(--surface);box-shadow:var(--shadow-2);overflow:visible}
 .table-wrap .card-body{overflow:visible}
@@ -89,10 +83,6 @@ html.theme-dark .table thead th{background:#0f172a;border-color:var(--line-stron
 html.theme-dark .table tbody tr{border-color:var(--line-soft)}
 html.theme-dark .dropdown-menu{background:#0f172a;border-color:var(--line-strong)}
 
-/* Tab icons */
-.nav-tabs .nav-link i { font-size: 0.95rem; line-height: 1; vertical-align: middle; }
-.nav-tabs .nav-link { display: inline-flex; align-items: center; gap: .5rem; }
-
 /* Ensure common wrappers don't clip dropdowns */
 .table-responsive,
 .table-wrap,
@@ -133,6 +123,11 @@ html.theme-dark .dropdown-menu{background:#0f172a;border-color:var(--line-strong
 /* small: ensure dropdown caret/contents not clipped visually */
 .dropdown-menu { overflow: visible; }
 
+/* Privilege modal helpers */
+.priv-rows .row { gap: .5rem; align-items: center; margin-bottom: .5rem; }
+.priv-rows .col-action { flex: 1 1 45%; }
+.priv-rows .col-desc   { flex: 1 1 45%; }
+.priv-rows .col-remove { flex: 0 0 48px; text-align: right; }
 </style>
 @endpush
 
@@ -144,7 +139,7 @@ html.theme-dark .dropdown-menu{background:#0f172a;border-color:var(--line-strong
     <div class="col-12 col-xxl d-flex align-items-center flex-wrap gap-2">
 
       <div class="d-flex align-items-center gap-2">
-        <label class="text-muted small mb-0">Modules</label>
+        <label class="text-muted small mb-0">My Modules</label>
       </div>
 
     </div>
@@ -175,7 +170,6 @@ html.theme-dark .dropdown-menu{background:#0f172a;border-color:var(--line-strong
   </li>
 </ul>
 
-
   <div class="tab-content mb-3">
 
     {{-- ===== ACTIVE ===== --}}
@@ -191,15 +185,12 @@ html.theme-dark .dropdown-menu{background:#0f172a;border-color:var(--line-strong
             </select>
           </div>
           <div class="position-relative" style="min-width:280px;">
-            <input id="q" type="text" class="form-control ps-5" placeholder="Search title/description…">
+            <input id="q" type="text" class="form-control ps-5" placeholder="Search name/description…">
             <i class="fa fa-search position-absolute" style="left:12px;top:50%;transform:translateY(-50%);opacity:.6;"></i>
           </div>
           <button id="btnFilterOpen" class="btn btn-light" title="Filters">
         <i class="fa fa-filter me-1"></i>Filters
       </button>
-
-          <!-- Status & Apply moved to Filter Modal -->
-          
 
           <button id="btnReset" class="btn btn-primary"><i class="fa fa-rotate-left me-1"></i>Reset</button>
         </div>
@@ -207,6 +198,12 @@ html.theme-dark .dropdown-menu{background:#0f172a;border-color:var(--line-strong
             <button id="btnReorder" class="btn btn-primary">
         <i class="fa fa-up-down-left-right me-1"></i>Reorder
       </button>
+
+      {{-- New: Privileges button --}}
+      <button id="btnPrivilege" class="btn btn-light">
+        <i class="fa fa-shield-alt me-1"></i>+ Privilege
+      </button>
+
       <button id="btnCreate" class="btn btn-primary">
         <i class="fa fa-plus me-1"></i>New Module
       </button>
@@ -225,9 +222,8 @@ html.theme-dark .dropdown-menu{background:#0f172a;border-color:var(--line-strong
               <thead class="sticky-top">
                 <tr>
                   <th style="width:40px;"></th>
-                  <th class="sortable" data-col="title">TITLE <span class="caret"></span></th>
-                  <th style="width:22%;">SHORT DESCRIPTION</th>
-                  <th class="sortable" data-col="order_no" style="width:110px;">ORDER <span class="caret"></span></th>
+                  <th class="sortable" data-col="name">NAME <span class="caret"></span></th>
+                  <th style="width:22%;">DESCRIPTION</th>
                   <th class="sortable" data-col="status" style="width:130px;">STATUS <span class="caret"></span></th>
                   <th class="sortable" data-col="created_at" style="width:170px;">CREATED <span class="caret"></span></th>
                   <th class="text-end" style="width:112px;">ACTIONS</th>
@@ -235,7 +231,7 @@ html.theme-dark .dropdown-menu{background:#0f172a;border-color:var(--line-strong
               </thead>
               <tbody id="rows-active">
                 <tr id="loaderRow-active" style="display:none;">
-                  <td colspan="7" class="p-0">
+                  <td colspan="6" class="p-0">
                     <div class="p-4">
                       <div class="placeholder-wave">
                         <div class="placeholder col-12 mb-2" style="height:18px;"></div>
@@ -280,16 +276,15 @@ html.theme-dark .dropdown-menu{background:#0f172a;border-color:var(--line-strong
             <table class="table table-hover table-borderless align-middle mb-0">
               <thead class="sticky-top">
                 <tr>
-                  <th>TITLE</th>
-                  <th style="width:22%;">SHORT DESCRIPTION</th>
-                  <th style="width:110px;">ORDER</th>
+                  <th>NAME</th>
+                  <th style="width:22%;">DESCRIPTION</th>
                   <th style="width:170px;">CREATED</th>
                   <th class="text-end" style="width:112px;">ACTIONS</th>
                 </tr>
               </thead>
               <tbody id="rows-archived">
                 <tr id="loaderRow-archived" style="display:none;">
-                  <td colspan="5" class="p-0">
+                  <td colspan="4" class="p-0">
                     <div class="p-4">
                       <div class="placeholder-wave">
                         <div class="placeholder col-12 mb-2" style="height:18px;"></div>
@@ -323,8 +318,8 @@ html.theme-dark .dropdown-menu{background:#0f172a;border-color:var(--line-strong
             <table class="table table-hover table-borderless align-middle mb-0">
               <thead class="sticky-top">
                 <tr>
-                  <th>TITLE</th>
-                  <th style="width:22%;">SHORT DESCRIPTION</th>
+                  <th>NAME</th>
+                  <th style="width:22%;">DESCRIPTION</th>
                   <th style="width:140px;">DELETED AT</th>
                   <th class="text-end" style="width:160px;">ACTIONS</th>
                 </tr>
@@ -360,9 +355,9 @@ html.theme-dark .dropdown-menu{background:#0f172a;border-color:var(--line-strong
   </div><!-- /.tab-content -->
 </div>
 
-{{-- ===== Create / Edit Modal ===== --}}
+{{-- ===== Create / Edit Module Modal ===== --}}
 <div class="modal fade" id="moduleModal" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog modal-xl modal-dialog-scrollable">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
     <div class="modal-content">
       <div class="modal-header">
         <h5 id="mm_title" class="modal-title"><i class="fa fa-book me-2"></i>Create Module</h5>
@@ -373,67 +368,26 @@ html.theme-dark .dropdown-menu{background:#0f172a;border-color:var(--line-strong
         <input type="hidden" id="mm_mode" value="create">
         <input type="hidden" id="mm_key" value="">
         <div class="row g-3">
-          <div class="col-md-6">
-            <label class="form-label">Course</label>
-            <input id="mm_course_label" class="form-control" readonly>
-            <input id="mm_course_id" type="hidden">
-            <div class="small text-muted mt-1">Course is optional when creating modules from this page.</div>
+          <div class="col-12">
+            <label class="form-label">Name <span class="text-danger">*</span></label>
+            <input id="mm_name" class="form-control" maxlength="150" placeholder="e.g., Module 1 — Getting Started">
           </div>
-          <div class="col-md-3">
+
+          <div class="col-12">
+            <label class="form-label">Description</label>
+            <textarea id="mm_description" class="form-control" rows="4" placeholder="Short description (optional)"></textarea>
+          </div>
+
+          <div class="col-md-4">
             <label class="form-label">Status</label>
             <select id="mm_status" class="form-select">
-              <option value="draft" selected>Draft</option>
-              <option value="published">Published</option>
+              <option value="Active" selected>Active</option>
+              <option value="Draft">Draft</option>
+              <option value="Published">Published</option>
+              <option value="Archived">Archived</option>
             </select>
           </div>
-          <div class="col-md-3">
-            <label class="form-label">Order No.</label>
-            <input id="mm_order" type="number" min="0" step="1" class="form-control" value="0">
-          </div>
 
-          <div class="col-12">
-            <label class="form-label">Title <span class="text-danger">*</span></label>
-            <input id="mm_title_input" class="form-control" maxlength="255" placeholder="e.g., Module 1 — Getting Started">
-          </div>
-
-          <div class="col-12">
-            <label class="form-label">Short Description</label>
-            <textarea id="mm_short" class="form-control" rows="3" placeholder="One-paragraph intro (optional)"></textarea>
-          </div>
-<div class="col-12">
-  <label class="form-label">Long Description</label>
-
-  <!-- Toolbar (RTE) -->
-  <div id="mm_rte_toolbar" class="toolbar mb-2" aria-label="Long description toolbar" style="display:flex;gap:8px;flex-wrap:wrap;">
-    <button type="button" class="tool btn btn-light btn-sm" data-cmd="bold" title="Bold"><i class="fa fa-bold"></i></button>
-    <button type="button" class="tool btn btn-light btn-sm" data-cmd="italic" title="Italic"><i class="fa fa-italic"></i></button>
-    <button type="button" class="tool btn btn-light btn-sm" data-cmd="underline" title="Underline"><i class="fa fa-underline"></i></button>
-    <button type="button" class="tool btn btn-light btn-sm" data-cmd="insertUnorderedList" title="Bulleted list"><i class="fa fa-list-ul"></i></button>
-    <button type="button" class="tool btn btn-light btn-sm" data-cmd="insertOrderedList" title="Numbered list"><i class="fa fa-list-ol"></i></button>
-    <button type="button" class="tool btn btn-light btn-sm" data-cmd="createLink" title="Insert link"><i class="fa fa-link"></i></button>
-    <button type="button" class="tool btn btn-light btn-sm" data-cmd="removeFormat" title="Remove formatting"><i class="fa fa-eraser"></i></button>
-
-    <select id="mm_insertHeading" class="tool form-select form-select-sm" title="Insert heading" style="width:auto;min-width:120px;">
-      <option value="">Insert…</option>
-      <option value="h2">Heading</option>
-      <option value="p">Paragraph</option>
-    </select>
-  </div>
-
-  <!-- RTE container -->
-  <div id="mm_long_editor" style="min-height:240px; background:#fff; border-radius:12px; border:1px solid var(--line-strong); padding:12px;" contenteditable="true" role="textbox" aria-label="Module long description editor" spellcheck="true"></div>
-
-  <!-- Hidden textarea used to hold HTML that will be sent to the API -->
-  <textarea id="mm_long" class="form-control d-none" rows="6" placeholder="Detailed overview (optional)"></textarea>
-
-  <div class="small text-muted mt-1">Use the editor to format your description. HTML will be saved to the server.</div>
-</div>
-
-          <div class="col-12">
-            <label class="form-label">Metadata (JSON)</label>
-            <textarea id="mm_meta" class="form-control" rows="4" placeholder='e.g. {"tags":["intro","basics"],"quiz_count":0}'></textarea>
-            <div class="small text-muted mt-1">Optional. Must be valid JSON. Saved as JSON column.</div>
-          </div>
         </div>
       </div>
 
@@ -445,51 +399,43 @@ html.theme-dark .dropdown-menu{background:#0f172a;border-color:var(--line-strong
   </div>
 </div>
 
-<!-- ===== Filter Modal: Status, Per page, Sort & Apply ===== -->
-<div class="modal fade" id="filterModal" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog modal-sm">
+{{-- ===== Privileges Modal ===== --}}
+<div class="modal fade" id="privilegeModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable">
     <div class="modal-content">
       <div class="modal-header">
-        <h5 class="modal-title"><i class="fa fa-filter me-2"></i>Filters</h5>
+        <h5 class="modal-title"><i class="fa fa-shield-alt me-2"></i>Create Privileges</h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
 
       <div class="modal-body">
-        <div class="row g-3">
-          <div class="col-12">
-            <label class="form-label">Status</label>
-            <select id="modal_status" class="form-select">
-              <option value="">All (non-archived)</option>
-              <option value="draft">Draft</option>
-              <option value="published">Published</option>
+        <div class="row g-3 mb-2">
+          <div class="col-md-8">
+            <label class="form-label">Module</label>
+            <select id="priv_module_select" class="form-select">
+              <option value="">Loading modules…</option>
             </select>
+            <div class="small text-muted mt-1">Select the module to attach privileges to.</div>
           </div>
 
-          <div class="col-12">
-            <label class="form-label">Per page</label>
-            <select id="modal_per_page" class="form-select">
-              <option>10</option><option selected>20</option><option>30</option><option>50</option><option>100</option>
-            </select>
-          </div>
-
-          <div class="col-12">
-            <label class="form-label">Sort By</label>
-            <select id="modal_sort" class="form-select">
-              <option value="-created_at">Newest First</option>
-              <option value="created_at">Oldest First</option>
-              <option value="order_no">Order (asc)</option>
-              <option value="-order_no">Order (desc)</option>
-            </select>
+          <div class="col-md-4 d-flex align-items-end">
+            <button id="btnAddPrivRow" type="button" class="btn btn-primary ms-auto"><i class="fa fa-plus me-1"></i>Add Privilege Row</button>
           </div>
         </div>
+
+        <div class="priv-rows" id="priv_rows_container">
+          <!-- dynamic rows will be appended here -->
+        </div>
+
+        <!-- <div class="mt-2 small text-muted">
+          Example image for layout (uploaded):<br>
+          <img src="/mnt/data/c8eb5f6b-0796-4e3c-af92-80d5a1632456.png" alt="example" style="max-width:320px;border-radius:8px;border:1px solid #eee;margin-top:.5rem;">
+        </div> -->
       </div>
 
       <div class="modal-footer">
-        <button id="btnClearFilters" type="button" class="btn btn-light">Clear</button>
-        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
-        <button id="btnApplyFilters" type="button" class="btn btn-primary">
-          <i class="fa fa-check me-1"></i>Apply
-        </button>
+        <button class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+        <button id="priv_save" class="btn btn-primary"><i class="fa fa-save me-1"></i>Create Privileges</button>
       </div>
     </div>
   </div>
@@ -505,11 +451,12 @@ html.theme-dark .dropdown-menu{background:#0f172a;border-color:var(--line-strong
   </div></div>
 </div>
 @endsection
+
 @push('scripts')
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <script>
-/* =================== Dropdown portal to <body> =================== */
+/* =================== Dropdown portal to <body> (unchanged) =================== */
 (function(){
   let activePortal=null;
   const place=(menu, btnRect)=>{
@@ -564,6 +511,7 @@ document.addEventListener('click',(e)=>{
 
   /* Elements */
   const btnCreate = document.getElementById('btnCreate');
+  const btnPrivilege = document.getElementById('btnPrivilege');
   const btnReorder= document.getElementById('btnReorder');
   const sortHint  = document.getElementById('sortHint');
   const btnFilterOpen = document.getElementById('btnFilterOpen');
@@ -573,7 +521,7 @@ document.addEventListener('click',(e)=>{
   const perPageSel  = document.getElementById('per_page');
   const btnReset    = document.getElementById('btnReset');
 
-  /* Modal filter elements */
+  /* Modal filter elements (optional — may not exist) */
   const filterModalEl = document.getElementById('filterModal');
   const modalStatus   = document.getElementById('modal_status');
   const modalPerPage  = document.getElementById('modal_per_page');
@@ -594,24 +542,23 @@ document.addEventListener('click',(e)=>{
     mode   : document.getElementById('mm_mode'),
     key    : document.getElementById('mm_key'),
     title  : document.getElementById('mm_title'),
-    cLabel : document.getElementById('mm_course_label'),
-    cId    : document.getElementById('mm_course_id'),
+    name   : document.getElementById('mm_name'),
+    description: document.getElementById('mm_description'),
     status : document.getElementById('mm_status'),
-    order  : document.getElementById('mm_order'),
-    ttl    : document.getElementById('mm_title_input'),
-    short  : document.getElementById('mm_short'),
-    long   : document.getElementById('mm_long'),      // hidden textarea (HTML)
-    meta   : document.getElementById('mm_meta'),
     save   : document.getElementById('mm_save'),
   };
 
-  /* RTE elements (must exist in DOM) */
-  const mmRte = document.getElementById('mm_long_editor');
-  const mmToolbar = document.getElementById('mm_rte_toolbar');
-  const mmHeading = document.getElementById('mm_insertHeading');
+  /* Privileges modal refs */
+  const priv = {
+    modalEl: document.getElementById('privilegeModal'),
+    modal: new bootstrap.Modal(document.getElementById('privilegeModal')),
+    moduleSelect: document.getElementById('priv_module_select'),
+    rowsContainer: document.getElementById('priv_rows_container'),
+    addRowBtn: document.getElementById('btnAddPrivRow'),
+    saveBtn: document.getElementById('priv_save')
+  };
 
   /* State */
-  let currentCourseId = ''; // not used for filtering by default
   const state = { active:{page:1}, archived:{page:1}, bin:{page:1} };
   let sort = '-created_at';
   let reorderMode = false;
@@ -620,7 +567,7 @@ document.addEventListener('click',(e)=>{
   /* Utils */
   const esc=(s)=>{const m={'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;','`':'&#96;'}; return (s==null?'':String(s)).replace(/[&<>"'`]/g,ch=>m[ch]); };
   const fmtDate=(iso)=>{ if(!iso) return '-'; const d=new Date(iso); if(isNaN(d)) return esc(iso); return d.toLocaleString(undefined,{year:'numeric',month:'short','day':'2-digit','hour':'2-digit','minute':'2-digit'}); };
-  const badgeStatus=(s)=>{ s=String(s||'').toLowerCase(); const map={draft:'warning',published:'success',archived:'secondary'}; const cls=map[s]||'secondary'; return `<span class="badge badge-${cls} text-uppercase">${esc(s)}</span>`; };
+  const badgeStatus=(s)=>{ s=String(s||'').toLowerCase(); const map={active:'success',draft:'warning',published:'success',archived:'secondary'}; const cls=map[s]||'secondary'; return `<span class="badge badge-${cls} text-uppercase">${esc(s)}</span>`; };
   const qs=(sel)=> sel ? document.querySelector(sel) : null;
   const show=(el,v)=>{ if(!el) return; el.style.display = v ? '' : 'none'; };
   const enable=(el,v)=>{ if(!el) return; el.disabled = !v; };
@@ -633,7 +580,7 @@ document.addEventListener('click',(e)=>{
   };
 
   function setToolbarEnabled(on){
-    [q, perPageSel, btnReset, btnCreate, btnReorder, btnFilterOpen].forEach(el=> enable(el, on));
+    [q, perPageSel, btnReset, btnCreate, btnReorder, btnFilterOpen, btnPrivilege].forEach(el=> enable(el, on));
   }
 
   function syncSortHeaders(){
@@ -686,13 +633,13 @@ document.addEventListener('click',(e)=>{
             <i class="fa fa-ellipsis-vertical"></i>
           </button>
           <ul class="dropdown-menu dropdown-menu-end">
-            <li><button class="dropdown-item" data-act="edit" data-key="${key}" data-name="${esc(r.title||'')}"><i class="fa fa-pen-to-square"></i> Edit</button></li>
+            <li><button class="dropdown-item" data-act="edit" data-key="${key}" data-name="${esc(r.name||'')}"><i class="fa fa-pen-to-square"></i> Edit</button></li>
             <li><hr class="dropdown-divider"></li>
             ${archived
-              ? `<li><button class="dropdown-item" data-act="unarchive" data-key="${key}" data-name="${esc(r.title||'')}"><i class="fa fa-box-open"></i> Unarchive</button></li>`
-              : `<li><button class="dropdown-item" data-act="archive" data-key="${key}" data-name="${esc(r.title||'')}"><i class="fa fa-box-archive"></i> Archive</button></li>`
+              ? `<li><button class="dropdown-item" data-act="unarchive" data-key="${key}" data-name="${esc(r.name||'')}"><i class="fa fa-box-open"></i> Unarchive</button></li>`
+              : `<li><button class="dropdown-item" data-act="archive" data-key="${key}" data-name="${esc(r.name||'')}"><i class="fa fa-box-archive"></i> Archive</button></li>`
             }
-            <li><button class="dropdown-item text-danger" data-act="delete" data-key="${key}" data-name="${esc(r.title||'')}"><i class="fa fa-trash"></i> Delete</button></li>
+            <li><button class="dropdown-item text-danger" data-act="delete" data-key="${key}" data-name="${esc(r.name||'')}"><i class="fa fa-trash"></i> Delete</button></li>
           </ul>
         </div>`;
     }
@@ -700,18 +647,17 @@ document.addEventListener('click',(e)=>{
       <div class="dropdown text-end" data-bs-display="static">
         <button type="button" class="btn btn-primary btn-sm dd-toggle" data-bs-toggle="dropdown"><i class="fa fa-ellipsis-vertical"></i></button>
         <ul class="dropdown-menu dropdown-menu-end">
-          <li><button class="dropdown-item" data-act="restore" data-key="${key}" data-name="${esc(r.title||'')}"><i class="fa fa-rotate-left"></i> Restore</button></li>
-          <li><button class="dropdown-item text-danger" data-act="force" data-key="${key}" data-name="${esc(r.title||'')}"><i class="fa fa-skull-crossbones"></i> Delete Permanently</button></li>
+          <li><button class="dropdown-item" data-act="restore" data-key="${key}" data-name="${esc(r.name||'')}"><i class="fa fa-rotate-left"></i> Restore</button></li>
+          <li><button class="dropdown-item text-danger" data-act="force" data-key="${key}" data-name="${esc(r.name||'')}"><i class="fa fa-skull-crossbones"></i> Delete Permanently</button></li>
         </ul>
       </div>`;
   }
 
   function rowHTML(scope, r){
     const tr=document.createElement('tr');
-    const short = (r.short_description || '') + '';
+    const desc = (r.description || '') + '';
     const created = fmtDate(r.created_at);
     const delAt   = fmtDate(r.deleted_at);
-    const ord = (r.order_no==null? '-' : r.order_no);
     const isArchived = String(r.status||'').toLowerCase()==='archived';
     const isDeleted  = !!r.deleted_at;
 
@@ -726,20 +672,17 @@ document.addEventListener('click',(e)=>{
       tr.innerHTML = `
         <td class="text-center"><i class="fa fa-grip-lines-vertical drag-handle"></i></td>
         <td>
-          <div class="fw-semibold">${esc(r.title || '-')}</div>
-          <div class="small text-muted">${esc((short || '').slice(0,100))}${short && short.length>100 ? '…' : ''}</div>
+          <div class="fw-semibold">${esc(r.name || '-')}</div>
+          <div class="small text-muted">${esc((desc || '').slice(0,100))}${desc && desc.length>100 ? '…' : ''}</div>
         </td>
-        <td>${esc((short || '').slice(0,140))}${short && short.length>140 ? '…' : ''}</td>
-        <td>${esc(ord)}</td>
+        <td>${esc((desc || '').slice(0,140))}${desc && desc.length>140 ? '…' : ''}</td>
         <td>${badgeStatus(r.status || '-')}</td>
         <td>${created}</td>
         <td class="text-end">${actionMenu(scope, r)}</td>`;
 
-      // ensure handle opacity
       const handle = tr.querySelector('.drag-handle');
       if(reorderMode){ handle && (handle.style.opacity = '1'); } else { handle && (handle.style.opacity = '.35'); }
 
-      // DnD events
       tr.addEventListener('dragstart', (ev)=>{ if(!reorderMode){ ev.preventDefault(); return; } draggingRow=tr; tr.classList.add('dragging'); });
       tr.addEventListener('dragend',   ()=>{ tr.classList.remove('dragging'); draggingRow=null; });
       tr.addEventListener('dragover',  (ev)=>{ if(!reorderMode) return; ev.preventDefault();
@@ -753,11 +696,10 @@ document.addEventListener('click',(e)=>{
     if(scope==='archived'){
       tr.innerHTML = `
         <td>
-          <div class="fw-semibold">${esc(r.title || '-')}</div>
-          <div class="small text-muted">${esc((short || '').slice(0,100))}${short && short.length>100 ? '…' : ''}</div>
+          <div class="fw-semibold">${esc(r.name || '-')}</div>
+          <div class="small text-muted">${esc((desc || '').slice(0,100))}${desc && desc.length>100 ? '…' : ''}</div>
         </td>
-        <td>${esc((short || '').slice(0,140))}${short && short.length>140 ? '…' : ''}</td>
-        <td>${esc(ord)}</td>
+        <td>${esc((desc || '').slice(0,140))}${desc && desc.length>140 ? '…' : ''}</td>
         <td>${created}</td>
         <td class="text-end">${actionMenu(scope, r)}</td>`;
       return tr;
@@ -766,10 +708,10 @@ document.addEventListener('click',(e)=>{
     // bin
     tr.innerHTML = `
       <td>
-        <div class="fw-semibold">${esc(r.title || '-')}</div>
-        <div class="small text-muted">${esc((short || '').slice(0,100))}${short && short.length>100 ? '…' : ''}</div>
+        <div class="fw-semibold">${esc(r.name || '-')}</div>
+        <div class="small text-muted">${esc((desc || '').slice(0,100))}${desc && desc.length>100 ? '…' : ''}</div>
       </td>
-      <td>${esc((short || '').slice(0,140))}${short && short.length>140 ? '…' : ''}</td>
+      <td>${esc((desc || '').slice(0,140))}${desc && desc.length>140 ? '…' : ''}</td>
       <td>${delAt}</td>
       <td class="text-end">${actionMenu(scope, r)}</td>`;
     return tr;
@@ -795,7 +737,7 @@ document.addEventListener('click',(e)=>{
     .then(r=>r.json().then(j=>({ok:r.ok, j})))
     .then(({ok,j})=>{
       if(!ok) throw new Error(j?.message||'Load failed');
-      const items=j?.data || [];
+      const items=j?.data || (j.module ? [j.module] : []);
       const pag  = j?.pagination || j?.meta || {page:1, per_page:20, total:items.length};
 
       if(items.length===0) show(empty, true);
@@ -841,44 +783,45 @@ document.addEventListener('click',(e)=>{
 
   /* ========== Filters (active) ========== */
   let srT;
-  q.addEventListener('input', ()=>{ clearTimeout(srT); srT=setTimeout(()=>{ state.active.page=1; load('active'); }, 350); });
+  if(q) q.addEventListener('input', ()=>{ clearTimeout(srT); srT=setTimeout(()=>{ state.active.page=1; load('active'); }, 350); });
 
   // Reset: clear search and modal filters and reload
-  btnReset.addEventListener('click', ()=>{
-    q.value='';
-    if(modalStatus) modalStatus.value = '';
-    if(modalPerPage) modalPerPage.value = '20';
-    if(modalSort) modalSort.value = '-created_at';
-    if(perPageSel) perPageSel.value='20';
-    sort='-created_at';
-    state.active.page=1;
-    syncSortHeaders();
-    load('active');
-  });
+  if(btnReset){
+    btnReset.addEventListener('click', ()=>{
+      if(q) q.value='';
+      if(modalStatus) modalStatus.value = '';
+      if(modalPerPage) modalPerPage.value = '20';
+      if(modalSort) modalSort.value = '-created_at';
+      if(perPageSel) perPageSel.value='20';
+      sort='-created_at';
+      state.active.page=1;
+      syncSortHeaders();
+      load('active');
+    });
+  }
 
-  perPageSel.addEventListener('change', ()=>{ state.active.page=1; load('active'); });
+  if(perPageSel) perPageSel.addEventListener('change', ()=>{ state.active.page=1; load('active'); });
 
   /* ========== Filter modal init & handlers ======== */
   (function initFilterModal(){
-    // open filter modal
-    btnFilterOpen.addEventListener('click', ()=>{
+    if (!filterModalEl) return;
+
+    btnFilterOpen && btnFilterOpen.addEventListener('click', ()=>{
       const instance = bootstrap.Modal.getOrCreateInstance(filterModalEl);
       instance.show();
     });
 
-    // sync modal fields when shown
     filterModalEl.addEventListener('show.bs.modal', ()=>{
       try{
-        modalStatus.value = modalStatus.value || '';
-        modalPerPage.value = modalPerPage.value || (perPageSel?.value || '20');
-        modalSort.value = modalSort.value || sort || '-created_at';
+        if (modalStatus) modalStatus.value = modalStatus.value || '';
+        if (modalPerPage) modalPerPage.value = modalPerPage.value || (perPageSel?.value || '20');
+        if (modalSort) modalSort.value = modalSort.value || sort || '-created_at';
       }catch(e){}
     });
 
-    // apply button: hide modal then load
     if(btnApplyFilters){
       btnApplyFilters.addEventListener('click', ()=>{
-        sort = modalSort.value || sort;
+        if(modalSort) sort = modalSort.value || sort;
         if(modalPerPage && perPageSel) perPageSel.value = modalPerPage.value || perPageSel.value;
         state.active.page = 1;
         const instance = bootstrap.Modal.getInstance(filterModalEl) || new bootstrap.Modal(filterModalEl);
@@ -893,7 +836,6 @@ document.addEventListener('click',(e)=>{
       });
     }
 
-    // clear modal inputs
     if(btnClearFilters){
       btnClearFilters.addEventListener('click', ()=>{
         if(modalStatus) modalStatus.value = '';
@@ -910,75 +852,39 @@ document.addEventListener('click',(e)=>{
   document.querySelector('a[href="#tab-archived"]').addEventListener('shown.bs.tab', ()=>{ load('archived'); });
   document.querySelector('a[href="#tab-bin"]').addEventListener('shown.bs.tab', ()=>{ load('bin'); });
 
-  /* ========== Create / Edit ========= */
-  btnCreate.addEventListener('click', ()=>{ openCreate(); });
+  /* ========== Create / Edit Module ========= */
+  btnCreate && btnCreate.addEventListener('click', ()=>{ openCreate(); });
 
   function openCreate(){
     mm.mode.value='create'; mm.key.value=''; mm.title.textContent='Create Module';
-    mm.cLabel.value = '';
-    mm.cId.value    = '';
-    mm.status.value = 'draft';
-    mm.order.value  = '0';
-    mm.ttl.value    = '';
-    mm.short.value  = '';
-    if(mm.long) mm.long.value = '';
-    if(mmRte) mmRte.innerHTML = '';
-    mm.meta.value   = '';
+    if(mm.name) mm.name.value=''; if(mm.description) mm.description.value=''; if(mm.status) mm.status.value='Active';
     mm.modal.show();
-    setTimeout(()=> { mmRte && mmRte.focus && mmRte.focus(); }, 150);
+    setTimeout(()=> { mm.name && mm.name.focus && mm.name.focus(); }, 150);
   }
 
   async function openEdit(key){
     try{
       const res=await fetch(`/api/modules/${encodeURIComponent(key)}`,{headers:{'Authorization':'Bearer '+TOKEN,'Accept':'application/json'}});
       const j=await res.json(); if(!res.ok) throw new Error(j?.message||'Load failed');
-      const r=j.data||{};
+      // tolerate both {module:...} and {data:...}
+      const r = j.module || j.data || j || {};
       mm.mode.value='edit'; mm.key.value=(r.uuid || r.id); mm.title.textContent='Edit Module';
-      mm.cLabel.value = r.course_title || '';
-      mm.cId.value    = r.course_id || '';
-      mm.status.value = (r.status || 'draft');
-      mm.order.value  = (r.order_no ?? 0);
-      mm.ttl.value    = r.title || '';
-      mm.short.value  = r.short_description || '';
-      mm.long.value   = r.long_description || '';
-      mm.meta.value   = r.metadata || '';
-      setTimeout(()=>{ if(mmRte) mmRte.innerHTML = mm.long.value || ''; }, 60);
+      if(mm.name) mm.name.value    = r.name || '';
+      if(mm.description) mm.description.value = r.description || '';
+      if(mm.status) mm.status.value  = (r.status || 'Active');
       mm.modal.show();
     }catch(e){ err(e.message||'Failed to open'); }
   }
 
-  /* ========== Collect mm.long from RTE (sanitized if DOMPurify present) ========== */
-  function collectMmLong(){
-    if(!mm.long) return;
-    const raw = (mmRte ? mmRte.innerHTML : '') || '';
-    if(window.DOMPurify){
-      mm.long.value = DOMPurify.sanitize(raw);
-    } else {
-      mm.long.value = raw;
-    }
-  }
-
-  /* Hook save: collect RTE HTML before building payload */
-  mm.save.addEventListener('click', async ()=>{
-    collectMmLong();
-
-    if(!mm.ttl.value.trim()) return Swal.fire('Title required','Please enter a module title.','info');
-
-    let metaVal = mm.meta.value.trim();
-    if(metaVal){
-      try{ JSON.parse(metaVal); }catch{ return Swal.fire('Invalid JSON','Please provide valid JSON in Metadata.','info'); }
-    }
+  /* ========== Save handler (create/update) ======== */
+  mm.save && mm.save.addEventListener('click', async ()=>{
+    if(!mm.name || !mm.name.value.trim()) return Swal.fire('Name required','Please enter a module name.','info');
 
     const payload = {
-      title: mm.ttl.value.trim(),
-      short_description: mm.short.value.trim() || null,
-      long_description:  mm.long.value.trim() || null,
-      order_no: Number(mm.order.value||0),
-      status: mm.status.value,
-      metadata: metaVal || null,
+      name: mm.name.value.trim(),
+      description: mm.description.value.trim() || null,
+      status: mm.status && mm.status.value ? mm.status.value : 'Active'
     };
-    // include course_id if provided
-    if(mm.cId && mm.cId.value) payload.course_id = Number(mm.cId.value);
 
     const isEdit = (mm.mode.value==='edit' && mm.key.value);
     const url    = isEdit ? `/api/modules/${encodeURIComponent(mm.key.value)}` : '/api/modules';
@@ -996,7 +902,7 @@ document.addEventListener('click',(e)=>{
     finally{ mm.save.disabled = false; }
   });
 
-  /* ========== Row actions ========= */
+  /* ========== Row actions (archive/delete/restore/force) ========= */
   document.addEventListener('click', async (e)=>{
     const it = e.target.closest('.dropdown-item[data-act]');
     if(!it) return;
@@ -1044,7 +950,7 @@ document.addEventListener('click',(e)=>{
         const res=await fetch(`/api/modules/${encodeURIComponent(key)}/restore`,{method:'POST',headers:{'Authorization':'Bearer '+TOKEN,'Accept':'application/json'}});
         const j=await res.json().catch(()=>({})); if(!res.ok) throw new Error(j?.message||'Restore failed');
         ok('Module restored'); load('bin'); load('active');
-      }catch(e){ err(e.message||'Restore failed'); }
+      }catch(e){ err(e.message||'Restore failed'); }    
       return;
     }
 
@@ -1061,7 +967,7 @@ document.addEventListener('click',(e)=>{
   });
 
   /* ========== Reorder mode ========= */
-  btnReorder.addEventListener('click', ()=>{
+  btnReorder && btnReorder.addEventListener('click', ()=>{
     reorderMode = !reorderMode;
     btnReorder.classList.toggle('btn-primary', reorderMode);
     btnReorder.classList.toggle('btn-light', !reorderMode);
@@ -1072,7 +978,7 @@ document.addEventListener('click',(e)=>{
     load('active');
   });
 
-  document.getElementById('btnCancelOrder').addEventListener('click', ()=>{
+  document.getElementById('btnCancelOrder')?.addEventListener('click', ()=>{
     reorderMode=false;
     btnReorder.classList.remove('btn-primary'); btnReorder.classList.add('btn-light');
     btnReorder.innerHTML='<i class="fa fa-up-down-left-right me-1"></i>Reorder';
@@ -1082,7 +988,7 @@ document.addEventListener('click',(e)=>{
     load('active');
   });
 
-  document.getElementById('btnSaveOrder').addEventListener('click', async ()=>{
+  document.getElementById('btnSaveOrder')?.addEventListener('click', async ()=>{
     const rows = [...document.querySelectorAll('#rows-active tr.reorderable')];
     const ids  = rows.map(tr => Number(tr.dataset.id)).filter(Number.isInteger);
     if (!ids.length) return Swal.fire('Nothing to save','Drag rows to change order first.','info');
@@ -1101,91 +1007,287 @@ document.addEventListener('click',(e)=>{
     }catch(e){ err(e.message || 'Reorder failed'); }
   });
 
-  /* ========== RTE for mm_long_editor: toolbar, placeholder, paste handling ======= */
-  (function initMmRte(){
-    if(!mmRte || !mm.long) return;
+  /* ========== Privileges modal logic (UPDATED) ========== */
 
-    // placeholder toggle
-    const togglePlaceholder = ()=>{
-      try{
-        const has = (mmRte.textContent||'').trim().length>0 || (mmRte.innerHTML||'').trim().length>0;
-        mmRte.classList.toggle('has-content', has);
-      }catch(e){}
-    };
-    ['input','keyup','paste','blur'].forEach(ev=> mmRte.addEventListener(ev, togglePlaceholder));
-    togglePlaceholder();
+  // track originally loaded privilege ids for delete-detection
+  let _originalPrivIds = new Set();
 
-    // mutation observer
+  // helper to create a new privilege row DOM (accepts optional id)
+  function createPrivRow(action = '', description = '', id = null) {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'row g-2 align-items-center mb-2 priv-row';
+    if (id) wrapper.dataset.privId = String(id);
+
+    wrapper.innerHTML = `
+      <div class="col">
+        <input type="text" class="form-control priv-action"
+          placeholder="Privilege action (e.g., view_reports)"
+          maxlength="60"
+          value="${esc(action)}">
+      </div>
+
+      <div class="col">
+        <input type="text" class="form-control priv-desc"
+          placeholder="Short description (optional)"
+          value="${esc(description)}">
+      </div>
+
+      <div class="col-auto">
+        <button type="button" class="btn btn-light btn-sm priv-remove" title="Remove">
+          <i class="fa fa-trash text-danger"></i>
+        </button>
+      </div>
+    `;
+
+    wrapper.querySelector('.priv-remove').addEventListener('click', () => wrapper.remove());
+    return wrapper;
+  }
+
+
+  // load modules into moduleSelect (adds change handler to load existing privileges)
+  async function loadModulesForSelect(){
+    if(!priv.moduleSelect) return;
+    priv.moduleSelect.innerHTML = '<option value="">Loading…</option>';
     try{
-      const mo = new MutationObserver(togglePlaceholder);
-      mo.observe(mmRte, { childList:true, subtree:true, characterData:true });
-    }catch(e){}
-
-    // toolbar click handling
-    if(mmToolbar){
-      mmToolbar.addEventListener('click', (e)=>{
-        const btn = e.target.closest('[data-cmd]');
-        if(!btn) return;
-        const cmd = btn.getAttribute('data-cmd');
-        if(cmd === 'createLink'){
-          let url = prompt('Enter URL (including https://):','https://');
-          if(!url) return;
-          if(!/^https?:\/\//i.test(url)){ alert('Please include http:// or https://'); return; }
-          try{ document.execCommand('createLink', false, url); } catch(e){ console.warn(e); }
-          mmRte.focus(); return;
-        }
-        try{ document.execCommand(cmd, false, null);}catch(e){ console.warn('execCommand failed', e); }
-        mmRte.focus();
+      const res = await fetch('/api/modules?per_page=200', {headers:{'Authorization':'Bearer '+TOKEN,'Accept':'application/json'}});
+      const j = await res.json().catch(()=>({}));
+      if(!res.ok) throw new Error(j?.message || 'Failed to load modules');
+      const items = j.data || [];
+      if(!items.length){
+        priv.moduleSelect.innerHTML = '<option value="">No modules found</option>';
+        return;
+      }
+      // prefer name, but tolerate title (older api)
+      const opts = items.map(m => {
+        const label = (m.name || m.title || ('#'+m.id));
+        const val = m.uuid || m.id;
+        return `<option value="${esc(val)}">${esc(label)}</option>`;
       });
+      priv.moduleSelect.innerHTML = '<option value="">Select module…</option>' + opts.join('');
+    }catch(e){
+      priv.moduleSelect.innerHTML = '<option value="">Failed to load modules</option>';
+      console.error(e);
     }
 
-    if(mmHeading){
-      mmHeading.addEventListener('change', function(){
-        const v=this.value;
-        if(!v) return;
-        if(v==='h2') document.execCommand('formatBlock', false, 'h2');
-        else if(v==='p') document.execCommand('formatBlock', false, 'p');
-        this.value='';
-        mmRte.focus();
+    // attach change handler once (idempotent)
+    if(!priv.moduleSelect._hasChangeHandler){
+      priv.moduleSelect.addEventListener('change', async ()=>{
+        const moduleVal = priv.moduleSelect.value || null;
+        // clear existing rows
+        priv.rowsContainer.innerHTML = '';
+        _originalPrivIds = new Set();
+        if(!moduleVal){
+          // no module selected: keep one empty editable row
+          priv.rowsContainer.appendChild(createPrivRow());
+          return;
+        }
+        // load privileges for selected module
+        await loadPrivilegesForModule(moduleVal);
       });
+      priv.moduleSelect._hasChangeHandler = true;
     }
+  }
 
-    // paste handler: prefer plain text
-    mmRte.addEventListener('paste', function(e){
-      e.preventDefault();
-      const clipboard = (e.clipboardData || window.clipboardData);
-      const html = clipboard.getData('text/html');
-      const text = clipboard.getData('text/plain') || '';
-      if(html && window.DOMPurify){
-        const clean = DOMPurify.sanitize(html, {ALLOWED_TAGS: ['b','i','u','a','p','h2','ul','ol','li','br','strong','em','img'], ALLOWED_ATTR: ['href','src','alt','title']});
-        document.execCommand('insertHTML', false, clean);
-      } else {
-        if(document.queryCommandSupported && document.queryCommandSupported('insertText')){
-          document.execCommand('insertText', false, text);
-        } else {
-          const node = document.createTextNode(text);
-          const sel = window.getSelection();
-          if(!sel.rangeCount) mmRte.appendChild(node);
-          else sel.getRangeAt(0).insertNode(node);
+  // Fetch privileges for a module and populate rows
+  async function loadPrivilegesForModule(moduleVal){
+    priv.rowsContainer.innerHTML = '<div class="p-3 small text-muted">Loading privileges…</div>';
+    try{
+      // Try two likely endpoints (order: module nested endpoint -> generic privileges query)
+      const tryEndpoints = [
+        `/api/modules/${encodeURIComponent(moduleVal)}/privileges`,
+        `/api/privileges?module_id=${encodeURIComponent(moduleVal)}`
+      ];
+
+      let items = [];
+      let success = false;
+      for(const url of tryEndpoints){
+        try{
+          const res = await fetch(url, { headers: { 'Authorization': 'Bearer ' + TOKEN, 'Accept': 'application/json' } });
+          if(!res.ok) { continue; }
+          const j = await res.json().catch(()=>({}));
+          // tolerate {data: [...]}, or direct array, or {privileges: [...]}
+          items = j.data || j.privileges || (Array.isArray(j) ? j : []);
+          success = true;
+          break;
+        }catch(e){
+          // try next endpoint
+          continue;
         }
       }
-      togglePlaceholder();
-    });
 
-    // when modal opens, if hidden textarea has content, populate editor
-    document.getElementById('moduleModal')?.addEventListener('shown.bs.modal', ()=> {
-      if((mmRte.innerHTML||'').trim()==='' && (mm.long.value||'').trim()!==''){
-        mmRte.innerHTML = mm.long.value;
+      priv.rowsContainer.innerHTML = '';
+      _originalPrivIds = new Set();
+      if(!success || !items || !items.length){
+        // no privileges found — show one empty row to allow adding
+        priv.rowsContainer.appendChild(createPrivRow());
+        return;
       }
-      togglePlaceholder();
-    });
 
-  })();
+      // Populate rows with existing privileges (editable). Expect items elements to have id|uuid, action, description
+      items.forEach(it => {
+        const id = it.id || it.uuid || it.key || null;
+        const action = it.action || it.name || '';
+        const desc = it.description || '';
+        if(id) _originalPrivIds.add(String(id));
+        priv.rowsContainer.appendChild(createPrivRow(action, desc, id));
+      });
+
+    }catch(e){
+      console.error(e);
+      priv.rowsContainer.innerHTML = '<div class="p-3 text-danger small">Failed to load privileges.</div>';
+      // fallback to a blank row so user can still add
+      priv.rowsContainer.appendChild(createPrivRow());
+    }
+  }
+
+  // open privilege modal (update: keep behaviour, but load modules and respect preloaded privileges)
+  btnPrivilege && btnPrivilege.addEventListener('click', async ()=>{
+    priv.rowsContainer.innerHTML = '';
+    // add initial row until modules load completes
+    priv.rowsContainer.appendChild(createPrivRow());
+    await loadModulesForSelect();
+    priv.modal.show();
+  });
+
+  // add row button
+  priv.addRowBtn && priv.addRowBtn.addEventListener('click', ()=>{
+    priv.rowsContainer.appendChild(createPrivRow());
+  });
+
+  // save privileges: handle deletes (destroy), PATCH existing ones, POST new ones; show summary
+  priv.saveBtn && priv.saveBtn.addEventListener('click', async ()=>{
+    const moduleVal = priv.moduleSelect && priv.moduleSelect.value ? priv.moduleSelect.value : null;
+    if(!moduleVal) return Swal.fire('Module required','Please select a module first','info');
+
+    const rows = [...priv.rowsContainer.querySelectorAll('.priv-row')];
+    // current IDs present in UI
+    const currentIds = new Set(rows.map(r => r.dataset.privId).filter(Boolean).map(String));
+
+    // IDs deleted by user = originalIds - currentIds
+    const deletedIds = [..._originalPrivIds].filter(id => !currentIds.has(id));
+
+    const payloads = rows.map(r => {
+      const actionEl = r.querySelector('.priv-action');
+      const descEl = r.querySelector('.priv-desc');
+      return {
+        id: r.dataset.privId ? r.dataset.privId : null,
+        action: actionEl ? actionEl.value.trim() : '',
+        description: descEl ? descEl.value.trim() : ''
+      };
+    }).filter(p => p.action && p.action.length>0);
+
+    if(!payloads.length && !deletedIds.length) return Swal.fire('No changes','Nothing to save or delete','info');
+
+    const { isConfirmed } = await Swal.fire({
+      icon: 'question',
+      title: 'Apply privilege changes?',
+      html: `This will create/update ${payloads.length} privilege(s) and delete ${deletedIds.length} removed privilege(s).`,
+      showCancelButton: true,
+      confirmButtonText: 'Proceed',
+      confirmButtonColor: '#0ea5e9'
+    });
+    if(!isConfirmed) return;
+
+    priv.saveBtn.disabled = true;
+    try{
+      // perform delete ops first (so server constraints on uniqueness won't conflict)
+      const deleteOps = deletedIds.map(id => fetch(`/api/privileges/${encodeURIComponent(id)}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': 'Bearer ' + TOKEN, 'Accept': 'application/json' }
+      }).then(async res => ({ res, j: await res.json().catch(()=>({})) })).catch(err => ({ err })));
+
+      const deleteSettled = await Promise.allSettled(deleteOps);
+      let deleted = 0, deleteFailed = 0;
+      for(let i=0;i<deleteSettled.length;i++){
+        const s = deleteSettled[i];
+        if(s.status === 'fulfilled'){
+          const r = s.value;
+          if(r.err || !r.res || !r.res.ok) { deleteFailed++; } else deleted++;
+        } else deleteFailed++;
+      }
+
+      // now perform create/update for remaining rows
+      const ops = payloads.map(p => {
+        if(p.id){
+          // update existing privilege
+          const url = `/api/privileges/${encodeURIComponent(p.id)}`;
+          return fetch(url, {
+            method: 'PATCH',
+            headers: { 'Authorization': 'Bearer ' + TOKEN, 'Content-Type': 'application/json', 'Accept': 'application/json' },
+            body: JSON.stringify({ action: p.action, description: p.description || null, module_id: moduleVal })
+          }).then(async res => ({ res, j: await res.json().catch(()=>({})) })).catch(err => ({ err }));
+        }else{
+          // create new privilege
+          const url = `/api/privileges`;
+          return fetch(url, {
+            method: 'POST',
+            headers: { 'Authorization': 'Bearer ' + TOKEN, 'Content-Type': 'application/json', 'Accept': 'application/json' },
+            body: JSON.stringify({ module_id: moduleVal, action: p.action, description: p.description || null })
+          }).then(async res => ({ res, j: await res.json().catch(()=>({})) })).catch(err => ({ err }));
+        }
+      });
+
+      const settled = await Promise.allSettled(ops);
+      let created = 0, updated = 0, failed = 0;
+      // iterate results to count outcomes and optionally update DOM with new ids for created rows
+      for(let i=0;i<settled.length;i++){
+        const s = settled[i];
+        const input = payloads[i];
+        if(s.status === 'fulfilled'){
+          const payloadResult = s.value;
+          if(payloadResult.err){ failed++; continue; }
+          const res = payloadResult.res;
+          const body = payloadResult.j || {};
+          if(!res || !res.ok){ failed++; continue; }
+          if(input.id) updated++;
+          else created++;
+          // if new, try to write back returned id to row so further edits will PATCH
+          if(!input.id && body && (body.id || body.uuid || body.data?.id || body.data?.uuid)){
+            const newId = body.id || body.uuid || body.data?.id || body.data?.uuid;
+            // find the corresponding row (match by action + description — best-effort)
+            const matchRow = [...priv.rowsContainer.querySelectorAll('.priv-row')].find(r=>{
+              const a=r.querySelector('.priv-action')?.value?.trim();
+              const d=r.querySelector('.priv-desc')?.value?.trim();
+              return a===input.action && d===(input.description||'') && !r.dataset.privId;
+            });
+            if(matchRow) matchRow.dataset.privId = String(newId);
+          }
+        }else{
+          failed++;
+        }
+      }
+
+      const parts = [];
+      if(created) parts.push(`${created} created`);
+      if(updated) parts.push(`${updated} updated`);
+      if(deleted) parts.push(`${deleted} deleted`);
+      if(failed) parts.push(`${failed} failed`);
+      if(deleteFailed) parts.push(`${deleteFailed} delete-failed`);
+      ok(parts.length ? parts.join(' • ') : 'No changes');
+
+      // keep modal open if some failed, otherwise close
+      if(failed === 0 && deleteFailed === 0){
+        priv.modal.hide();
+      }else{
+        err(`${(failed+deleteFailed)} operation(s) failed — check rows and try again`);
+      }
+
+      // reload modules into select (to reflect any label changes if your API returns updated module list)
+      await loadModulesForSelect();
+      // refresh the list for the currently selected module to reflect server state
+      if(priv.moduleSelect.value) await loadPrivilegesForModule(priv.moduleSelect.value);
+
+    }catch(e){
+      console.error(e);
+      err(e.message || 'Failed to create/update privileges');
+    }finally{
+      priv.saveBtn.disabled = false;
+    }
+  });
 
   /* ========== Initial setup ========= */
   syncSortHeaders();
   setToolbarEnabled(true);
-  // load all modules on page load (no course filter)
   load('active');
 
 })();
