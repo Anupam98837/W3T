@@ -1627,7 +1627,7 @@ html.theme-dark .as-fullscreen { background: rgba(0,0,0,0.9); }
           <div class="section-header">
             <h3 class="section-title">Documents</h3>
             <div class="d-flex align-items-center gap-2">
-              <button id="give_marks_btn" class="give-marks-btn d-inline-flex align-items-center" style="display:none">
+              <button id="give_marks_btn" class="give-marks-btn d-inline-flex align-items-center">
                 <i class="fas fa-check-circle"></i> Give Marks
               </button>
               <button id="open_in_ui" class="view-ui-link d-inline-flex align-items-center" style="display:none !important;">
@@ -1681,7 +1681,7 @@ html.theme-dark .as-fullscreen { background: rgba(0,0,0,0.9); }
           <div class="marks-note" id="mm_note">—</div>
         </div>
 
-        <div class="marks-row" style="grid-column: 1 / -1;display:none;">
+        <div class="marks-row" style="grid-column: 1 / -1;">
           <div class="marks-label">Graded by</div>
           <div class="marks-value" id="mm_graded_by">—</div>
         </div>
@@ -1762,6 +1762,9 @@ const defaultHeaders = {
   'Authorization': TOKEN ? ('Bearer ' + TOKEN) : '',
   'Accept': 'application/json'
 };
+document.documentElement.classList.add('theme-dark'); // enable
+document.documentElement.classList.remove('theme-dark'); // disable
+
 async function apiFetch(url, opts = {}) {
   let finalUrl = url;
   if (!String(url).startsWith('/api')) {
@@ -1800,24 +1803,8 @@ const submissionCountEl = document.getElementById('submission_count');
 let studentsData = [];
 let selectedStudent = null;
 let currentAssignment = { id: null, uuid: null, title: null, due_at: null, course_name: null };
-// parse path segments to extract assignment and optional student keys
-(function(){
-  const parts = location.pathname.split('/').filter(Boolean);
-  let aKey = null;
-  let sKey = null;
-  const ai = parts.indexOf('assignments');
-  if (ai !== -1 && parts.length > ai + 1) {
-    aKey = parts[ai + 1];
-    // check if '/assignments/:a/students/:s' pattern exists
-    if (parts.length > ai + 3 && parts[ai + 2] === 'students') {
-      sKey = parts[ai + 3];
-    }
-  }
-  // fallback: existing behaviour uses '13'
-  window.__ASSIGNMENT_KEY__ = window.__ASSIGNMENT_KEY__ || aKey || null;
-  window.__PRESELECT_STUDENT__ = window.__PRESELECT_STUDENT__ || sKey || null;
-})();
-
+window.__ASSIGNMENT_KEY__ = window.__ASSIGNMENT_KEY__ || (location.pathname.split('/').filter(Boolean).includes('assignments') ? location.pathname.split('/').filter(Boolean)[location.pathname.split('/').filter(Boolean).indexOf('assignments')+1] : '13');
+window.__PRESELECT_STUDENT__ = window.__PRESELECT_STUDENT__ || null;
 
 /* ---------- UI alert helpers ---------- */
 function showAlertInModal(message, type) {
@@ -1828,6 +1815,15 @@ function showAlertInModal(message, type) {
   alertBox.style.display = 'block';
 }
 function showAlert(message, type='error') { showAlertInModal(message, type); }
+// Robust role getter — reads storage and normalizes variants
+function getCurrentRole() {
+  const raw =
+    (typeof role !== 'undefined' && role) ||
+    sessionStorage.getItem('role') ||
+    localStorage.getItem('role') ||
+    '';
+  return String(raw).toLowerCase().trim();
+}
 
 /* ---------- fetch student-status and render ---------- */
 async function fetchStudentStatus(){
@@ -1873,34 +1869,15 @@ async function fetchStudentStatus(){
     else if (j.assignment) setAssignmentInfo(j.assignment);
 
     studentsData = arr.map(s => ({
-  student_id: s.student_id ?? s.id ?? s.studentId ?? s.user_id ?? null,
-  student_uuid: s.student_uuid ?? s.uuid ?? s.user_uuid ?? s.userUuid ?? null,
-  name: s.student_name ?? s.name ?? s.full_name ?? '',
-  email: s.student_email ?? s.email ?? '',
-  submission_count: s.submission_count ?? s.total_submissions ?? s.documents_count ?? 1,
-  raw: s
-}));
+      student_id: s.student_id ?? s.id ?? s.studentId ?? s.user_id ?? null,
+      student_uuid: s.student_uuid ?? s.uuid ?? s.user_uuid ?? s.userUuid ?? null,
+      name: s.student_name ?? s.name ?? s.full_name ?? '',
+      email: s.student_email ?? s.email ?? '',
+      submission_count: s.submission_count ?? s.total_submissions ?? s.documents_count ?? 1,
+      raw: s
+    }));
 
-// If a student key is present in the URL, filter to that student only (but don't discard if not found)
-if (window.__PRESELECT_STUDENT__) {
-  const key = decodeURIComponent(window.__PRESELECT_STUDENT__);
-  const filtered = studentsData.filter(s =>
-    (s.student_uuid && String(s.student_uuid) === String(key)) ||
-    (s.student_id && String(s.student_id) === String(key)) ||
-    (s.email && String(s.email) === String(key))
-  );
-  if (filtered.length) {
-    studentsData = filtered;
-    // Optional: hide the full student list UI when preselecting a single student
-    // document.getElementById('students_host').classList.add('single-student-mode');
-  } else {
-    // keep original studentsData (useful if the student lives outside the submitted list)
-    console.warn('preselected student not found in API list; page will attempt to load by key');
-  }
-}
-
-renderStudents();
-
+    renderStudents();
   }catch(err){
     if (err && err.status && (err.status === 401 || err.status === 403)) {
       studentsHost.innerHTML = '<div class="as-empty">Access denied. You are not authorized to view submissions.</div>';
@@ -2205,6 +2182,7 @@ function renderStudents(){
 }
 
 /* ---------- load student documents (unchanged) ---------- */
+// 2) loadStudentDocuments: updated view/given marks logic
 async function loadStudentDocuments(student){
   selectedStudent = student;
   document.getElementById('student_name').textContent = student.name || 'Student';
@@ -2292,169 +2270,207 @@ async function loadStudentDocuments(student){
 
   if (resJson.data.assignment) setAssignmentInfo(resJson.data.assignment);
 
+  const graderRoles = ['admin', 'instructor', 'super_admin', 'superadmin'];
+
   const submissionsHtml = submissions.map((sub, subIndex) => {
-  const attach = sub.all_attachments || sub.attachments || sub.attachments_json || sub.attachmentsJson || [];
-  let attachments = [];
-  if (Array.isArray(attach)) attachments = attach;
-  else if (typeof attach === 'string' && attach.trim()) {
-    try { attachments = JSON.parse(attach); } catch(e){ attachments = []; }
-  }
-
-  // Marks detection (show best candidates)
-  const marksCandidates = ['total_marks','marks','score','obtained_marks','obtainedMarks','grade_value','points'];
-  let marksRaw = null;
-  for (const k of marksCandidates) {
-    if (typeof sub[k] !== 'undefined' && sub[k] !== null && sub[k] !== '') { marksRaw = sub[k]; break; }
-  }
-  if (marksRaw === null && sub.grade && typeof sub.grade === 'object') {
-    marksRaw = sub.grade.marks ?? sub.grade.value ?? sub.grade.score ?? null;
-  }
-  let marksText = 'Not graded';
-  if (marksRaw !== null && typeof marksRaw !== 'undefined' && marksRaw !== '') {
-    if (typeof marksRaw === 'object') {
-      if (typeof marksRaw.obtained !== 'undefined' && typeof marksRaw.out_of !== 'undefined') {
-        marksText = `${marksRaw.obtained}/${marksRaw.out_of}`;
-      } else if (typeof marksRaw.value !== 'undefined') {
-        marksText = String(marksRaw.value);
-      } else {
-        marksText = JSON.stringify(marksRaw);
-      }
-    } else {
-      marksText = String(marksRaw);
+    const attach = sub.all_attachments || sub.attachments || sub.attachments_json || sub.attachmentsJson || [];
+    let attachments = [];
+    if (Array.isArray(attach)) attachments = attach;
+    else if (typeof attach === 'string' && attach.trim()) {
+      try { attachments = JSON.parse(attach); } catch(e){ attachments = []; }
     }
-  }
 
-  // grade / note / graded_by candidates
-  const gradeCandidates = ['grade','grade_letter','gradeLetter','grade_value','letter'];
-  let gradeRaw = null;
-  for (const k of gradeCandidates) {
-    if (typeof sub[k] !== 'undefined' && sub[k] !== null && sub[k] !== '') { gradeRaw = sub[k]; break; }
-  }
-  if (!gradeRaw && sub.grade && typeof sub.grade === 'object') gradeRaw = sub.grade.letter ?? sub.grade.value ?? null;
-  const gradeText = gradeRaw !== null && gradeRaw !== undefined && gradeRaw !== '' ? String(gradeRaw) : '—';
+    // Marks detection (show best candidates)
+    const marksCandidates = ['total_marks','marks','score','obtained_marks','obtainedMarks','grade_value','points'];
+    let marksRaw = null;
+    for (const k of marksCandidates) {
+      if (typeof sub[k] !== 'undefined' && sub[k] !== null && sub[k] !== '') { marksRaw = sub[k]; break; }
+    }
+    if (marksRaw === null && sub.grade && typeof sub.grade === 'object') {
+      marksRaw = sub.grade.marks ?? sub.grade.value ?? sub.grade.score ?? null;
+    }
+    let marksText = 'Not graded';
+    if (marksRaw !== null && typeof marksRaw !== 'undefined' && marksRaw !== '') {
+      if (typeof marksRaw === 'object') {
+        if (typeof marksRaw.obtained !== 'undefined' && typeof marksRaw.out_of !== 'undefined') {
+          marksText = `${marksRaw.obtained}/${marksRaw.out_of}`;
+        } else if (typeof marksRaw.value !== 'undefined') {
+          marksText = String(marksRaw.value);
+        } else {
+          marksText = JSON.stringify(marksRaw);
+        }
+      } else {
+        marksText = String(marksRaw);
+      }
+    }
 
-  const noteCandidates = ['grader_note','grade_note','note','feedback','comments'];
-  let noteRaw = null;
-  for (const k of noteCandidates) {
-    if (typeof sub[k] !== 'undefined' && sub[k] !== null && sub[k] !== '') { noteRaw = sub[k]; break; }
-  }
-  if (!noteRaw && sub.grade && typeof sub.grade === 'object') noteRaw = sub.grade.note ?? sub.grade.feedback ?? null;
-  const noteText = noteRaw ? String(noteRaw) : 'No notes';
+    // grade / note / graded_by candidates
+    const gradeCandidates = ['grade','grade_letter','gradeLetter','grade_value','letter'];
+    let gradeRaw = null;
+    for (const k of gradeCandidates) {
+      if (typeof sub[k] !== 'undefined' && sub[k] !== null && sub[k] !== '') { gradeRaw = sub[k]; break; }
+    }
+    if (!gradeRaw && sub.grade && typeof sub.grade === 'object') gradeRaw = sub.grade.letter ?? sub.grade.value ?? null;
+    const gradeText = gradeRaw !== null && gradeRaw !== undefined && gradeRaw !== '' ? String(gradeRaw) : '—';
 
-  const gradedByCandidates = ['graded_by','graded_by_name','gradedBy','grader','grader_name','graded_by_user'];
-  let gradedByRaw = null;
-  for (const k of gradedByCandidates) {
-    if (typeof sub[k] !== 'undefined' && sub[k] !== null && sub[k] !== '') { gradedByRaw = sub[k]; break; }
-  }
-  if (!gradedByRaw && sub.grade && typeof sub.grade === 'object') gradedByRaw = sub.grade.by ?? sub.grade.graded_by ?? null;
-  const gradedByText = gradedByRaw ? String(gradedByRaw) : '—';
+    const noteCandidates = ['grader_note','grade_note','note','feedback','comments'];
+    let noteRaw = null;
+    for (const k of noteCandidates) {
+      if (typeof sub[k] !== 'undefined' && sub[k] !== null && sub[k] !== '') { noteRaw = sub[k]; break; }
+    }
+    if (!noteRaw && sub.grade && typeof sub.grade === 'object') noteRaw = sub.grade.note ?? sub.grade.feedback ?? null;
+    const noteText = noteRaw ? String(noteRaw) : 'No notes';
 
-  const attachmentsHtml = attachments.map(a => {
-    const url = a.url || a.path || '#';
-    const safeName = a.name || (url.split('/').pop() || 'file');
-    const ext = (safeName.split('.').pop()||'').toLowerCase();
-    let iconClass = 'icon-default';
-    let iconType = 'fa-file';
-    if (ext === 'pdf') { iconClass = 'icon-pdf'; iconType = 'fa-file-pdf'; }
-    else if (['jpg','jpeg','png','gif','svg','bmp'].includes(ext)) { iconClass = 'icon-image'; iconType = 'fa-file-image'; }
-    else if (['doc','docx'].includes(ext)) { iconClass = 'icon-doc'; iconType = 'fa-file-word'; }
-    else if (['xls','xlsx'].includes(ext)) { iconType = 'fa-file-excel'; }
-    else if (['ppt','pptx'].includes(ext)) { iconType = 'fa-file-powerpoint'; }
-    else if (['zip','rar','7z'].includes(ext)) { iconType = 'fa-file-archive'; }
+    const gradedByCandidates = ['graded_by','graded_by_name','gradedBy','grader','grader_name','graded_by_user'];
+    let gradedByRaw = null;
+    for (const k of gradedByCandidates) {
+      if (typeof sub[k] !== 'undefined' && sub[k] !== null && sub[k] !== '') { gradedByRaw = sub[k]; break; }
+    }
+    if (!gradedByRaw && sub.grade && typeof sub.grade === 'object') gradedByRaw = sub.grade.by ?? sub.grade.graded_by ?? null;
+    const gradedByText = gradedByRaw ? String(gradedByRaw) : '—';
 
-    return `
-      <div class="doc-card">
-        <div class="doc-card-inner">
-          <div class="doc-info">
-            <div class="doc-icon ${iconClass}"><i class="fas ${iconType}"></i></div>
-            <div class="doc-content">
-              <div class="doc-name">${escapeHtml(safeName)}</div>
-              <div class="doc-meta">${escapeHtml(a.mime||'')} • ${formatBytes(a.size||0)}</div>
+    const attachmentsHtml = attachments.map(a => {
+      const url = a.url || a.path || '#';
+      const safeName = a.name || (url.split('/').pop() || 'file');
+      const ext = (safeName.split('.').pop()||'').toLowerCase();
+      let iconClass = 'icon-default';
+      let iconType = 'fa-file';
+      if (ext === 'pdf') { iconClass = 'icon-pdf'; iconType = 'fa-file-pdf'; }
+      else if (['jpg','jpeg','png','gif','svg','bmp'].includes(ext)) { iconClass = 'icon-image'; iconType = 'fa-file-image'; }
+      else if (['doc','docx'].includes(ext)) { iconClass = 'icon-doc'; iconType = 'fa-file-word'; }
+      else if (['xls','xlsx'].includes(ext)) { iconType = 'fa-file-excel'; }
+      else if (['ppt','pptx'].includes(ext)) { iconType = 'fa-file-powerpoint'; }
+      else if (['zip','rar','7z'].includes(ext)) { iconType = 'fa-file-archive'; }
+
+      return `
+        <div class="doc-card">
+          <div class="doc-card-inner">
+            <div class="doc-info">
+              <div class="doc-icon ${iconClass}"><i class="fas ${iconType}"></i></div>
+              <div class="doc-content">
+                <div class="doc-name">${escapeHtml(safeName)}</div>
+                <div class="doc-meta">${escapeHtml(a.mime||'')} • ${formatBytes(a.size||0)}</div>
+              </div>
+            </div>
+            <div class="doc-actions">
+              <button class="btn-icon btn-icon-primary" data-url="${escapeHtml(a.url||a.path||'#')}" data-name="${escapeHtml(safeName)}" title="View"><i class="fa fa-eye"></i></button>
+              <a class="btn-icon btn-icon-outline" href="${escapeHtml(a.url||a.path||'#')}" target="_blank" rel="noopener" title="Download" style="display:none"><i class="fa fa-download"></i></a>
             </div>
           </div>
-          <div class="doc-actions">
-            <button class="btn-icon btn-icon-primary" data-url="${escapeHtml(a.url||a.path||'#')}" data-name="${escapeHtml(safeName)}" title="View"><i class="fa fa-eye"></i></button>
-            <a class="btn-icon btn-icon-outline" href="${escapeHtml(a.url||a.path||'#')}" target="_blank" rel="noopener" title="Download" style="display:none"><i class="fa fa-download"></i></a>
+        </div>
+      `;
+    }).join('');
+
+    const attemptNo = escapeHtml(String(sub.attempt_no || sub.attempt || sub.attemptNo || (subIndex+1) || '—'));
+    const attemptStatus = escapeHtml(sub.status || '');
+    const submittedAt = escapeHtml(sub.submitted_at || sub.submittedAt || sub.created_at || '');
+
+    // show View/Given Marks only if marks/grade/note exist
+    const hasMarks = (marksRaw !== null && typeof marksRaw !== 'undefined' && marksRaw !== '') ||
+                     (gradeRaw !== null && typeof gradeRaw !== 'undefined' && gradeRaw !== '') ||
+                     (noteRaw !== null && typeof noteRaw !== 'undefined' && noteRaw !== '');
+
+    const viewLabel = graderRoles.includes(role) ? 'Given Marks' : 'View Marks';
+
+    const viewMarksBtnHtml = hasMarks ? `
+      <button class="view-marks-btn"
+        data-marks="${escapeHtml(marksText)}"
+        data-grade="${escapeHtml(gradeText)}"
+        data-note="${escapeHtml(noteText)}"
+        data-graded-by="${escapeHtml(gradedByText)}"
+        data-submission-id="${escapeHtml(String(sub.id||sub.submission_id||sub.uuid||''))}">
+        ${escapeHtml(viewLabel)}
+      </button>` : '';
+
+    return `
+      <div class="attempt-section">
+        <div class="attempt-header">
+          <div class="attempt-title">Attempt ${attemptNo}  ${viewMarksBtnHtml}</div>
+
+          <div class="attempt-right">
+            <div class="attempt-submitted">Submitted: ${submittedAt}</div>
           </div>
         </div>
+
+        <div class="doc-grid">${attachmentsHtml}</div>
       </div>
     `;
   }).join('');
 
-  const attemptNo = escapeHtml(String(sub.attempt_no || sub.attempt || sub.attemptNo || (subIndex+1) || '—'));
-  const attemptStatus = escapeHtml(sub.status || '');
-  const submittedAt = escapeHtml(sub.submitted_at || sub.submittedAt || sub.created_at || '');
-
-  // add View Marks button with data attributes
-const viewMarksBtnHtml = `
-  <button class="view-marks-btn"
-    data-marks="${escapeHtml(marksText)}"
-    data-grade="${escapeHtml(gradeText)}"
-    data-note="${escapeHtml(noteText)}"
-    data-graded-by="${escapeHtml(gradedByText)}"
-    data-submission-id="${escapeHtml(String(sub.id||sub.submission_id||sub.uuid||''))}">
-    View Marks
-  </button>`;
-
-    return `
-    <div class="attempt-section">
-      <div class="attempt-header">
-        <div class="attempt-title">Attempt ${attemptNo}  ${viewMarksBtnHtml}</div>
-
-        <div class="attempt-right">
-         
-          <div class="attempt-submitted">Submitted: ${submittedAt}</div>
-        </div>
-      </div>
-
-      <div class="doc-grid">${attachmentsHtml}</div>
-    </div>
-  `;
-}).join('');
-
-
   docsHost.innerHTML = submissionsHtml;
 
   // Attach view handlers to the view buttons we render above
-// attach view handlers to doc view buttons (existing)
-docsHost.querySelectorAll('.btn-icon[data-url]').forEach(btn => {
-  btn.addEventListener('click', (ev) => {
-    ev.preventDefault();
-    const u = btn.getAttribute('data-url');
-    if (!u) { console.warn('View button has no data-url'); return; }
-    const name = btn.getAttribute('data-name') || 'Document';
-    openViewer(u, name);
+  docsHost.querySelectorAll('.btn-icon[data-url]').forEach(btn => {
+    btn.addEventListener('click', (ev) => {
+      ev.preventDefault();
+      const u = btn.getAttribute('data-url');
+      if (!u) { console.warn('View button has no data-url'); return; }
+      const name = btn.getAttribute('data-name') || 'Document';
+      openViewer(u, name);
+    });
   });
-});
 
-// NEW: attach View Marks buttons
-docsHost.querySelectorAll('.view-marks-btn').forEach(btn => {
-  btn.addEventListener('click', (ev) => {
-    ev.preventDefault();
-    const m = btn.getAttribute('data-marks') || 'Not graded';
-    const g = btn.getAttribute('data-grade') || '—';
-    const n = btn.getAttribute('data-note') || 'No notes';
-    const by = btn.getAttribute('data-graded-by') || '—';
-    const sid = btn.getAttribute('data-submission-id') || '';
+  // Attach view marks handlers (only exists if button was rendered)
+  const viewMarksButtons = docsHost.querySelectorAll('.view-marks-btn');
+  if (viewMarksButtons && viewMarksButtons.length) {
+    viewMarksButtons.forEach(btn => {
+      btn.addEventListener('click', (ev) => {
+        ev.preventDefault();
+        const m = btn.getAttribute('data-marks') || 'Not graded';
+        const g = btn.getAttribute('data-grade') || '—';
+        const n = btn.getAttribute('data-note') || 'No notes';
+        const by = btn.getAttribute('data-graded-by') || '—';
+        const sid = btn.getAttribute('data-submission-id') || '';
 
-    // prefer showing exact values stored, but if these are placeholders and we have an API, try to fetch detailed submission
-    openMarksModal({ marks: m, grade: g, note: n, graded_by: by, submission_id: sid });
-  });
-});
-
-
+        openMarksModal({ marks: m, grade: g, note: n, graded_by: by, submission_id: sid });
+      });
+    });
+  }
 }
 
 /* ---------- Grade modal (unchanged) ---------- */
 function updateGiveMarksButton() {
-  const allowed = ['admin', 'instructor', 'super_admin', 'superadmin'].includes(role);
+  // try to find button if not defined globally
+  const btn = (typeof giveMarksBtn !== 'undefined' && giveMarksBtn) ? giveMarksBtn : document.getElementById('give_marks_btn');
+  if (!btn) return;
 
-  if (allowed && selectedStudent && (selectedStudent.student_id || selectedStudent.student_uuid)) {
-    giveMarksBtn.style.display = 'flex';
+  const r = getCurrentRole();
+  const graderRoles = ['admin', 'instructor', 'super_admin', 'superadmin'];
+
+  // If a student — enforce hidden state with !important and disable tab index/clicks
+  if (r === 'student') {
+    try {
+      btn.style.setProperty('display', 'none', 'important'); // correct way to use !important
+      btn.setAttribute('aria-hidden', 'true');
+      btn.setAttribute('disabled', 'true');
+      btn.tabIndex = -1;
+      // remove event listeners by cloning (safe)
+      btn.replaceWith(btn.cloneNode(true));
+    } catch (err) {
+      // If anything fails, remove from DOM as last resort
+      try { btn.remove(); } catch(e) {}
+    }
+    return;
+  }
+
+  // For graders: only show if a student is selected
+  if (graderRoles.includes(r) && selectedStudent && (selectedStudent.student_id || selectedStudent.student_uuid)) {
+    // ensure visible
+    btn.style.removeProperty('display');
+    btn.style.setProperty('display', 'flex');
+    btn.removeAttribute('aria-hidden');
+    btn.removeAttribute('disabled');
+    btn.tabIndex = 0;
   } else {
-    giveMarksBtn.style.display = 'none';
+    // hide otherwise
+    btn.style.setProperty('display', 'none', 'important');
+    btn.setAttribute('aria-hidden', 'true');
+    btn.setAttribute('disabled', 'true');
+    btn.tabIndex = -1;
   }
 }
+
+
 
 async function openGradeModal() {
   if (!selectedStudent) { showAlert('Please select a student first.', 'error'); return; }
@@ -2811,10 +2827,10 @@ function openViewer(url, name){
 /* ---------- initial load ---------- */
 (async ()=>{
   if (looksLikeUuid(window.__ASSIGNMENT_KEY__)) currentAssignment.uuid = window.__ASSIGNMENT_KEY__;
-await fetchStudentStatus();
-try {
-  await fetchAssignmentDetails(currentAssignment.uuid || window.__ASSIGNMENT_KEY__);
-} catch (e) { console.warn('fetchAssignmentDetails failed', e); }
+  await fetchStudentStatus();
+  try {
+    await fetchAssignmentDetails(currentAssignment.uuid || window.__ASSIGNMENT_KEY__);
+  } catch (e) { console.warn('fetchAssignmentDetails failed', e); }
 
   if (!currentAssignment.uuid && studentsData.length) {
     try { await loadStudentDocuments(studentsData[0]); } catch(e){ /* ignore */ }

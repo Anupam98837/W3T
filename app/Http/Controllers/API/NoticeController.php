@@ -14,6 +14,9 @@ use Carbon\Carbon;
 
 class NoticeController extends Controller
 {
+    // Public media subdirectory under public/
+    private const MEDIA_SUBDIR = 'assets/media/notices';
+
     /* -------------------------
      |  Helpers
      * ------------------------- */
@@ -41,10 +44,22 @@ class NoticeController extends Controller
         return rtrim(config('app.url'), '/');
     }
 
+    private function mediaBasePublicPath(): string
+    {
+        return public_path();
+    }
+
+    private function toPublicUrl(string $relativePath): string
+    {
+        $base = $this->appUrl();
+        $rel  = ltrim(str_replace('\\','/',$relativePath), '/');
+        return $base . '/' . $rel;
+    }
+
     private function ensureDir(string $path): string
     {
-        if (!File::exists($path)) {
-            File::makeDirectory($path, 0775, true);
+        if (! File::exists($path)) {
+            File::ensureDirectoryExists($path, 0755, true);
         }
         return $path;
     }
@@ -125,110 +140,116 @@ class NoticeController extends Controller
      |  Create
      * ========================================================= */
     public function store(Request $r)
-{
-    if ($res = $this->requireRole($r, ['admin','superadmin','instructor'])) return $res;
-    $actor = $this->actor($r);
+    {
+        if ($res = $this->requireRole($r, ['admin','superadmin','instructor'])) return $res;
+        $actor = $this->actor($r);
 
-    $v = Validator::make($r->all(), [
-        'course_id'         => 'required|integer|exists:courses,id',
-        'course_module_id'  => 'nullable|integer|exists:course_modules,id',
-        'batch_id'          => 'nullable|integer|exists:batches,id',
-        'visibility_scope'  => 'nullable|in:course,batch,module',
-        'title'             => 'required|string|max:255',
-        'message_html'      => 'nullable|string',
-        'priority'          => 'nullable|in:low,normal,high',
-        'status'            => 'nullable|in:draft,published,archived',
-        'attachments.*'     => 'nullable|file|max:51200',
-        'created_at_ip'     => 'nullable|ip',
-    ], [
-        'attachments.*.max' => 'Each attachment must be <= 50 MB.'
-    ]);
+        $v = Validator::make($r->all(), [
+            'course_id'         => 'required|integer|exists:courses,id',
+            'course_module_id'  => 'nullable|integer|exists:course_modules,id',
+            'batch_id'          => 'nullable|integer|exists:batches,id',
+            'visibility_scope'  => 'nullable|in:course,batch,module',
+            'title'             => 'required|string|max:255',
+            'message_html'      => 'nullable|string',
+            'priority'          => 'nullable|in:low,normal,high',
+            'status'            => 'nullable|in:draft,published,archived',
+            'attachments.*'     => 'nullable|file|max:51200',
+            'created_at_ip'     => 'nullable|ip',
+        ], [
+            'attachments.*.max' => 'Each attachment must be <= 50 MB.'
+        ]);
 
-    if ($v->fails()) {
-        return response()->json(['errors'=>$v->errors()], 422);
-    }
-
-    $uuid = $this->genUuid();
-    $slug = $this->uniqueSlug($r->title);
-
-    // Default visibility changed to 'course' to allow course-only notices
-    $visibility = $r->input('visibility_scope', 'course');
-
-    // Collect files (if any)
-    $files = [];
-    if ($r->hasFile('attachments')) {
-        $files = is_array($r->file('attachments')) ? $r->file('attachments') : [$r->file('attachments')];
-    }
-
-    // compute batch id (nullable) — avoid casting empty -> 0
-    $batchId = $r->filled('batch_id') ? (int) $r->input('batch_id') : null;
-
-    // storage folder: use batch id when present, otherwise a course-scoped folder
-    $storageFolder = $batchId !== null ? (string)$batchId : 'course_' . (int)$r->input('course_id');
-
-    $stored = [];
-    if (!empty($files)) {
-        $root = $this->ensureDir(storage_path('app/notices/'.$storageFolder));
-        foreach ($files as $file) {
-            if (!$file || !$file->isValid()) continue;
-
-            $ext  = strtolower($file->getClientOriginalExtension() ?: 'bin');
-            $fid  = Str::lower(Str::random(10));
-            $name = $fid.'.'.$ext;
-
-            $file->move($root, $name);
-
-            $absPath = $root.DIRECTORY_SEPARATOR.$name;
-            $relPath = 'notices/'.$storageFolder.'/'.$name;
-
-            $mime = $file->getClientMimeType() ?: (is_file($absPath) ? mime_content_type($absPath) : 'application/octet-stream');
-            $size = @filesize($absPath) ?: 0;
-            $sha  = is_file($absPath) ? hash_file('sha256', $absPath) : null;
-
-            $url  = $this->appUrl()."/api/notices/stream/{$uuid}/{$fid}";
-
-            $stored[] = [
-                'id'          => $fid,
-                'disk'        => 'local',
-                'path'        => $relPath,
-                'url'         => $url,
-                'mime'        => $mime,
-                'ext'         => $ext,
-                'size'        => $size,
-                'sha256'      => $sha,
-                'uploaded_at' => Carbon::now()->toIso8601String(),
-            ];
+        if ($v->fails()) {
+            return response()->json(['errors'=>$v->errors()], 422);
         }
+
+        $uuid = $this->genUuid();
+        $slug = $this->uniqueSlug($r->title);
+
+        // Default visibility changed to 'course' to allow course-only notices
+        $visibility = $r->input('visibility_scope', 'course');
+
+        // Collect files (if any)
+        $files = [];
+        if ($r->hasFile('attachments')) {
+            $files = is_array($r->file('attachments')) ? $r->file('attachments') : [$r->file('attachments')];
+        }
+
+        // compute batch id (nullable) — avoid casting empty -> 0
+        $batchId = $r->filled('batch_id') ? (int) $r->input('batch_id') : null;
+
+        // storage folder: use batch id when present, otherwise a course-scoped folder
+        $storageFolder = $batchId !== null ? (string)$batchId : 'course_' . (int)$r->input('course_id');
+
+        $stored = [];
+        if (!empty($files)) {
+            // store under public/assets/media/notices/{storageFolder}
+            $destBase = $this->mediaBasePublicPath() . DIRECTORY_SEPARATOR . self::MEDIA_SUBDIR . DIRECTORY_SEPARATOR . $storageFolder;
+            $this->ensureDir($destBase);
+
+            foreach ($files as $file) {
+                if (!$file || !$file->isValid()) continue;
+
+                $ext  = strtolower($file->getClientOriginalExtension() ?: 'bin');
+                $fid  = Str::lower(Str::random(10));
+                $name = $fid.'.'.$ext;
+
+                try {
+                    $file->move($destBase, $name);
+                } catch (\Throwable $e) {
+                    Log::error('Failed to move uploaded notice file: '.$e->getMessage(), ['dest'=>$destBase,'file'=>$name]);
+                    continue;
+                }
+
+                $absPath = $destBase . DIRECTORY_SEPARATOR . $name;
+                $relPath = self::MEDIA_SUBDIR . '/' . $storageFolder . '/' . $name; // relative to public/
+                $mime = $file->getClientMimeType() ?: (is_file($absPath) ? mime_content_type($absPath) : 'application/octet-stream');
+                $size = @filesize($absPath) ?: 0;
+                $sha  = is_file($absPath) ? hash_file('sha256', $absPath) : null;
+
+                $url  = $this->toPublicUrl($relPath);
+
+                $stored[] = [
+                    'id'          => $fid,
+                    'disk'        => 'public',
+                    'path'        => $relPath,
+                    'url'         => $url,
+                    'mime'        => $mime,
+                    'ext'         => $ext,
+                    'size'        => $size,
+                    'sha256'      => $sha,
+                    'uploaded_at' => Carbon::now()->toIso8601String(),
+                ];
+            }
+        }
+
+        $now = Carbon::now();
+        $id = DB::table('notices')->insertGetId([
+            'uuid'              => $uuid,
+            'course_id'         => (int)$r->course_id,
+            'course_module_id'  => $r->input('course_module_id') ? (int)$r->course_module_id : null,
+            'batch_id'          => $batchId, // NULL when not provided
+            'visibility_scope'  => $visibility,
+            'title'             => $r->title,
+            'slug'              => $slug,
+            'message_html'      => $r->input('message_html'),
+            'attachments'       => $stored ? json_encode($stored) : null,
+            'priority'          => $r->input('priority', 'normal'),
+            'status'            => $r->input('status', 'draft'),
+            'created_by'        => $actor['id'] ?: 0,
+            'created_at_ip'     => $r->input('created_at_ip'),
+            'created_at'        => $now,
+            'updated_at'        => $now,
+        ]);
+
+        return response()->json([
+            'message' => 'Notice created',
+            'id'      => $id,
+            'uuid'    => $uuid,
+            'slug'    => $slug,
+            'attachments' => $stored,
+        ], 201);
     }
-
-    $now = Carbon::now();
-    $id = DB::table('notices')->insertGetId([
-        'uuid'              => $uuid,
-        'course_id'         => (int)$r->course_id,
-        'course_module_id'  => $r->input('course_module_id') ? (int)$r->course_module_id : null,
-        'batch_id'          => $batchId, // NULL when not provided
-        'visibility_scope'  => $visibility,
-        'title'             => $r->title,
-        'slug'              => $slug,
-        'message_html'      => $r->input('message_html'),
-        'attachments'       => $stored ? json_encode($stored) : null,
-        'priority'          => $r->input('priority', 'normal'),
-        'status'            => $r->input('status', 'draft'),
-        'created_by'        => $actor['id'] ?: 0,
-        'created_at_ip'     => $r->input('created_at_ip'),
-        'created_at'        => $now,
-        'updated_at'        => $now,
-    ]);
-
-    return response()->json([
-        'message' => 'Notice created',
-        'id'      => $id,
-        'uuid'    => $uuid,
-        'slug'    => $slug,
-        'attachments' => $stored,
-    ], 201);
-}
-
 
     /* =========================================================
      |  Update (fields + add/remove attachments)
@@ -283,14 +304,21 @@ class NoticeController extends Controller
                 if ($attId !== '' && isset($remSet[$attId])) {
                     // attempt to remove file (best-effort)
                     try {
-                        if (!empty($att['path']) && (empty($att['disk']) || $att['disk'] === 'local')) {
-                            $candidate = storage_path('app/' . ltrim($att['path'], '/'));
-                            if (file_exists($candidate)) {
-                                @unlink($candidate);
+                        if (!empty($att['path'])) {
+                            // if path is public assets relative path: remove from public
+                            $p = $att['path'];
+                            if (strpos($p, self::MEDIA_SUBDIR) === 0 || strpos($p, 'notices/') === 0) {
+                                $candidate = $this->mediaBasePublicPath() . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, ltrim($p, '/'));
+                            } else {
+                                // fallback to storage/app/
+                                $candidate = storage_path('app/' . ltrim($p, '/'));
+                            }
+                            if (File::exists($candidate) && is_file($candidate)) {
+                                File::delete($candidate);
                             }
                         }
                     } catch (\Throwable $ex) {
-                        Log::warning('Failed to unlink notice attachment', ['path' => $att['path'] ?? null, 'error' => $ex->getMessage()]);
+                        Log::warning('Failed to delete notice attachment during update', ['path' => $att['path'] ?? null, 'error' => $ex->getMessage()]);
                     }
                     continue; // removed
                 }
@@ -302,8 +330,10 @@ class NoticeController extends Controller
         // Append new attachments
         if ($r->hasFile('attachments')) {
             $files = is_array($r->file('attachments')) ? $r->file('attachments') : [$r->file('attachments')];
+
             $rootFolder = $row->batch_id ? (string) $row->batch_id : 'course_' . (int) ($row->course_id ?? 0);
-$root  = $this->ensureDir(storage_path('app/notices/' . $rootFolder));
+            $destBase = $this->mediaBasePublicPath() . DIRECTORY_SEPARATOR . self::MEDIA_SUBDIR . DIRECTORY_SEPARATOR . $rootFolder;
+            $this->ensureDir($destBase);
 
             foreach ($files as $file) {
                 if (!$file || !$file->isValid()) continue;
@@ -311,19 +341,25 @@ $root  = $this->ensureDir(storage_path('app/notices/' . $rootFolder));
                 $ext  = strtolower($file->getClientOriginalExtension() ?: 'bin');
                 $fid  = Str::lower(Str::random(10));
                 $name = $fid . '.' . $ext;
-                $file->move($root, $name);
 
-                $absPath = $root . DIRECTORY_SEPARATOR . $name;
-$relPath = 'notices/' . $rootFolder . '/' . $name;
+                try {
+                    $file->move($destBase, $name);
+                } catch (\Throwable $e) {
+                    Log::error('Failed to move uploaded notice file (update): '.$e->getMessage(), ['dest'=>$destBase,'file'=>$name]);
+                    continue;
+                }
+
+                $absPath = $destBase . DIRECTORY_SEPARATOR . $name;
+                $relPath = self::MEDIA_SUBDIR . '/' . $rootFolder . '/' . $name;
 
                 $mime = $file->getClientMimeType() ?: (is_file($absPath) ? mime_content_type($absPath) : 'application/octet-stream');
                 $size = @filesize($absPath) ?: 0;
                 $sha  = is_file($absPath) ? hash_file('sha256', $absPath) : null;
-                $url  = $this->appUrl() . "/api/notices/stream/{$row->uuid}/{$fid}";
+                $url  = $this->toPublicUrl($relPath);
 
                 $stored[] = [
                     'id'          => $fid,
-                    'disk'        => 'local',
+                    'disk'        => 'public',
                     'path'        => $relPath,
                     'url'         => $url,
                     'mime'        => $mime,
@@ -377,9 +413,20 @@ $relPath = 'notices/' . $rootFolder . '/' . $name;
         // delete attached files (best-effort)
         $attachments = $this->jsonDecode($row->attachments);
         foreach ($attachments as $a) {
-            $absPath = storage_path('app/'.($a['path'] ?? ''));
-            if (is_file($absPath)) {
-                @unlink($absPath);
+            try {
+                $p = $a['path'] ?? null;
+                if ($p) {
+                    if (strpos($p, self::MEDIA_SUBDIR) === 0 || strpos($p, 'notices/') === 0) {
+                        $absPath = $this->mediaBasePublicPath() . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, ltrim($p, '/'));
+                    } else {
+                        $absPath = storage_path('app/' . ltrim($p, '/'));
+                    }
+                    if (is_file($absPath)) {
+                        @unlink($absPath);
+                    }
+                }
+            } catch (\Throwable $ex) {
+                Log::warning('forceDelete: failed to remove notice attachment', ['error'=>$ex->getMessage(),'attachment'=>$a]);
             }
         }
 
@@ -465,8 +512,18 @@ $relPath = 'notices/' . $rootFolder . '/' . $name;
         }
         if (!$file) return response()->json(['error' => 'File not found'], 404);
 
-        $absPath = storage_path('app/'.($file['path'] ?? ''));
-        if (!is_file($absPath)) {
+        // Resolve absolute path (prefer public media path, fallback to storage/app)
+        $absPath = null;
+        if (!empty($file['path'])) {
+            $p = $file['path'];
+            if (strpos($p, self::MEDIA_SUBDIR) === 0 || strpos($p, 'notices/') === 0) {
+                $absPath = $this->mediaBasePublicPath() . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, ltrim($p, '/'));
+            } else {
+                $absPath = storage_path('app/' . ltrim($p, '/'));
+            }
+        }
+
+        if (!$absPath || !is_file($absPath)) {
             return response()->json(['error'=>'File missing on server'], 410);
         }
 
@@ -487,7 +544,7 @@ $relPath = 'notices/' . $rootFolder . '/' . $name;
     }
 
     /* =========================================================
-     |  View Notices by Batch (RBAC-aware) — similar to study materials view
+     |  View Notices by Batch (RBAC-aware)
      * ========================================================= */
     public function viewByBatch(Request $r, string $batchKey)
     {
@@ -570,6 +627,7 @@ $relPath = 'notices/' . $rootFolder . '/' . $name;
         // load notices for this batch
         $nQ = DB::table('notices as n')
             ->leftJoin('course_modules as cm', 'cm.id', '=', 'n.course_module_id')
+            ->leftJoin('users as creator', 'creator.id', '=', 'n.created_by') // Join with users table
             ->where('n.batch_id', $batch->id)
             ->whereNull('n.deleted_at')
             ->whereNull('cm.deleted_at')
@@ -584,10 +642,12 @@ $relPath = 'notices/' . $rootFolder . '/' . $name;
                 'n.priority',
                 'n.status',
                 'n.course_module_id',
+                'n.created_by', // Include created_by field
                 'cm.title as module_title',
                 'cm.uuid as module_uuid',
                 'n.created_at',
-                'n.updated_at'
+                'n.updated_at',
+                'creator.name as created_by_name' // Get creator's name
             )
             ->orderBy('cm.order_no')
             ->orderBy('n.created_at', 'desc');
@@ -624,6 +684,8 @@ $relPath = 'notices/' . $rootFolder . '/' . $name;
                 'priority' => $notice->priority,
                 'status' => $notice->status,
                 'attachments' => $attachments,
+                'created_by' => $notice->created_by ? (int)$notice->created_by : null,
+                'created_by_name' => $notice->created_by_name, // Add creator's name
                 'created_at' => $notice->created_at,
                 'updated_at' => $notice->updated_at,
             ];
@@ -817,7 +879,8 @@ $relPath = 'notices/' . $rootFolder . '/' . $name;
 
         $stored = [];
         if (!empty($files)) {
-            $root = $this->ensureDir(storage_path('app/notices/'.(int)$batch->id));
+            $destBase = $this->mediaBasePublicPath() . DIRECTORY_SEPARATOR . self::MEDIA_SUBDIR . DIRECTORY_SEPARATOR . (int)$batch->id;
+            $this->ensureDir($destBase);
             foreach ($files as $file) {
                 if (!$file || !$file->isValid()) continue;
 
@@ -825,20 +888,25 @@ $relPath = 'notices/' . $rootFolder . '/' . $name;
                 $fid  = Str::lower(Str::random(10));
                 $name = $fid.'.'.$ext;
 
-                $file->move($root, $name);
+                try {
+                    $file->move($destBase, $name);
+                } catch (\Throwable $e) {
+                    Log::error('Failed to move uploaded notice file (storeByBatch): '.$e->getMessage(), ['dest'=>$destBase,'file'=>$name]);
+                    continue;
+                }
 
-                $absPath = $root.DIRECTORY_SEPARATOR.$name;
-                $relPath = 'notices/'.(int)$batch->id.'/'.$name;
+                $absPath = $destBase.DIRECTORY_SEPARATOR.$name;
+                $relPath = self::MEDIA_SUBDIR . '/' . (int)$batch->id . '/' . $name;
 
                 $mime = $file->getClientMimeType() ?: (is_file($absPath) ? mime_content_type($absPath) : 'application/octet-stream');
                 $size = @filesize($absPath) ?: 0;
                 $sha  = is_file($absPath) ? hash_file('sha256', $absPath) : null;
 
-                $url  = $this->appUrl()."/api/notices/stream/{$uuid}/{$fid}";
+                $url  = $this->toPublicUrl($relPath);
 
                 $stored[] = [
                     'id'          => $fid,
-                    'disk'        => 'local',
+                    'disk'        => 'public',
                     'path'        => $relPath,
                     'url'         => $url,
                     'mime'        => $mime,

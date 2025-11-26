@@ -6,7 +6,7 @@
     'recorded'    => 'modules.course.viewCourse.viewCourseTabs.recordedVideos',
     'materials'   => 'modules.course.viewCourse.viewCourseTabs.studyMaterial',
     'assignments' => 'modules.course.viewCourse.viewCourseTabs.assignments',
-    'exams'       => 'modules.course.viewCourse.viewCourseTabs.exams',
+    'quizzes'       => 'modules.course.viewCourse.viewCourseTabs.quizzes',
     'notices'     => 'modules.course.viewCourse.viewCourseTabs.notices',
     'chat'        => 'modules.course.viewCourse.viewCourseTabs.chat',
   ];
@@ -325,7 +325,7 @@
             <li class="nav-item"><a class="nav-link {{ $tabKey==='recorded'?'active':'' }}"    href="{{ $self }}?tab=recorded{{ $mParam }}"><i class="fa-regular fa-circle-play"></i>Recorded Sessions</a></li>
             <li class="nav-item"><a class="nav-link {{ $tabKey==='materials'?'active':'' }}"   href="{{ $self }}?tab=materials{{ $mParam }}"><i class="fa-regular fa-folder-open"></i>Study Material</a></li>
             <li class="nav-item"><a class="nav-link {{ $tabKey==='assignments'?'active':'' }}" href="{{ $self }}?tab=assignments{{ $mParam }}"><i class="fa-regular fa-square-check"></i>Assignments</a></li>
-            <li class="nav-item"><a class="nav-link {{ $tabKey==='exams'?'active':'' }}"       href="{{ $self }}?tab=exams{{ $mParam }}"><i class="fa-regular fa-file-lines"></i>Exams</a></li>
+            <li class="nav-item"><a class="nav-link {{ $tabKey==='quizzes'?'active':'' }}"       href="{{ $self }}?tab=quizzes{{ $mParam }}"><i class="fa-regular fa-file-lines"></i>Quizzes</a></li>
             <li class="nav-item"><a class="nav-link {{ $tabKey==='notices'?'active':'' }}"     href="{{ $self }}?tab=notices{{ $mParam }}"><i class="fa-regular fa-bell"></i>Notices</a></li>
             <li class="nav-item"><a class="nav-link {{ $tabKey==='chat'?'active':'' }}"        href="{{ $self }}?tab=chat{{ $mParam }}"><i class="fa-regular fa-comments"></i>Chat</a></li>
           </ul>

@@ -517,11 +517,27 @@
         </div>
         <div class="table-responsive">
           <table class="table table-hover align-middle st-table mb-0">
-            <thead><tr><th>Title</th><th style="width:120px;">Type</th><th style="width:120px;">Marks</th><th style="width:120px;">Display Order</th><th style="width:120px;">Publish</th><th class="text-center" style="width:110px;">Assign</th></tr></thead>
-            <tbody id="qz_rows">
-              <tr id="qz_loader" style="display:none;"><td colspan="6" class="p-3"><div class="placeholder-wave"><div class="placeholder col-12 mb-2" style="height:16px;"></div><div class="placeholder col-12 mb-2" style="height:16px;"></div><div class="placeholder col-12 mb-2" style="height:16px;"></div></div></td></tr>
-            </tbody>
-          </table>
+    <thead>
+        <tr>
+            <th>Title</th>
+            <th style="width:120px;">Attempts</th>
+            <th style="width:120px;">Publish</th>
+            <th class="text-center" style="width:110px;">Assign</th>
+        </tr>
+    </thead>
+    <tbody id="qz_rows">
+        <tr id="qz_loader" style="display:none;">
+            <td colspan="4" class="p-3">
+                <div class="placeholder-wave">
+                    <div class="placeholder col-12 mb-2" style="height:16px;"></div>
+                    <div class="placeholder col-12 mb-2" style="height:16px;"></div>
+                    <div class="placeholder col-12 mb-2" style="height:16px;"></div>
+                </div>
+            </td>
+        </tr>
+    </tbody>
+</table>
+
         </div>
         <div class="d-flex justify-content-end p-2"><ul id="qz_pager" class="pagination mb-0"></ul></div>
       </div>
@@ -1196,10 +1212,15 @@ async function loadQuizzes(){
   if(!qz_uuid) return;
   qz_loader.style.display='';
   qz_rows.querySelectorAll('tr:not(#qz_loader)').forEach(tr=>tr.remove());
+
   try{
-    const res = await fetch(`/api/batches/${encodeURIComponent(qz_uuid)}/quizzes?` + quizzesParams(), { headers:{ 'Authorization':'Bearer '+TOKEN, 'Accept':'application/json' } });
+    const res = await fetch(`/api/batches/${encodeURIComponent(qz_uuid)}/quizzes?` + quizzesParams(), {
+      headers:{ 'Authorization':'Bearer '+TOKEN, 'Accept':'application/json' }
+    });
+
     const j = await res.json();
-    if(!res.ok) throw new Error(j?.message||'Failed to load quizzes');
+    if(!res.ok) throw new Error(j?.message || 'Failed to load quizzes');
+
     let items = j?.data || [];
     const pag = j?.pagination || { current_page:1, per_page:Number(qz_per.value||20), total: items.length };
 
@@ -1209,83 +1230,151 @@ async function loadQuizzes(){
     const frag = document.createDocumentFragment();
     items.forEach(u=>{
       const assigned = !!u.assigned;
-      const title = u.title || u.name || u.quiz_title || ('Quiz #'+(u.id||'?'));
-      const type = u.type || u.quiz_type || '-';
-      const marks = u.total_marks ?? u.marks ?? '-';
-      const displayOrder = (typeof u.display_order !== 'undefined' && u.display_order !== null) ? u.display_order : '';
+      const title = u.title || u.name || ('Quiz #'+(u.id||'?'));
       const publish = !!u.publish_to_students;
+
+      // attempts from batch_quizzes.attempt_allowed
+      const attemptsVal = (u.attempt_allowed !== null && u.attempt_allowed !== undefined)
+                          ? u.attempt_allowed
+                          : '';
+
       const tr = document.createElement('tr');
-      tr.innerHTML = `<td class="fw-semibold">${esc(title)}</td>
-                      <td class="text-capitalize">${esc(type)}</td>
-                      <td>${esc(marks)}</td>
-                      <td><input class="form-control form-control-sm qz-order" type="number" min="0" value="${esc(displayOrder)}" style="width:110px"></td>
-                      <td class="text-center"><div class="form-check form-switch d-inline-block"><input class="form-check-input qz-pub" type="checkbox" ${publish?'checked':''}></div></td>
-                      <td class="text-center"><div class="form-check form-switch d-inline-block"><input class="form-check-input qz-tg" type="checkbox" data-id="${u.id}" ${assigned?'checked':''}></div></td>`;
+      tr.innerHTML = `
+        <td class="fw-semibold">${esc(title)}</td>
+
+        <td>
+            <input class="form-control form-control-sm qz-order"
+                   type="number"
+                   min="0"
+                   value="${esc(attemptsVal)}"
+                   style="width:110px">
+        </td>
+
+        <td class="text-center">
+            <div class="form-check form-switch d-inline-block">
+                <input class="form-check-input qz-pub" type="checkbox" ${publish ? 'checked' : ''}>
+            </div>
+        </td>
+
+        <td class="text-center">
+            <div class="form-check form-switch d-inline-block">
+                <input class="form-check-input qz-tg" type="checkbox" data-id="${u.id}" ${assigned?'checked':''}>
+            </div>
+        </td>
+      `;
       frag.appendChild(tr);
     });
+
     qz_rows.appendChild(frag);
 
-    // attach handlers
+    /* ================= ASSIGN TOGGLE ================= */
     qz_rows.querySelectorAll('.qz-tg').forEach(ch=>{
       ch.addEventListener('change', async ()=>{
         const row = ch.closest('tr');
         const quizId = Number(ch.dataset.id);
         const assigned = !!ch.checked;
-        const orderEl = row.querySelector('.qz-order');
         const pubEl = row.querySelector('.qz-pub');
-        const payload = { quiz_id: quizId, assigned: !!assigned };
-        if(orderEl && orderEl.value !== '') payload.display_order = Number(orderEl.value);
-        if(pubEl) payload.publish_to_students = !!pubEl.checked;
+        const attemptEl = row.querySelector('.qz-order');
+
+        const payload = {
+          quiz_id: quizId,
+          assigned,
+          publish_to_students: pubEl?.checked ?? false,
+        };
+
+        if(attemptEl && attemptEl.value !== '') {
+          payload.attempt_allowed = Number(attemptEl.value);
+        }
+
         try{
           await toggleQuiz(qz_uuid, payload, ch);
-          // if filter hides this row after change, reload listing
-          if((qz_assigned.value==='assigned' && !assigned) || (qz_assigned.value==='unassigned' && assigned)) loadQuizzes();
-        }catch(e){
-          // toggle already reverts on error inside toggleQuiz
-        }
+
+          if((qz_assigned.value==='assigned' && !assigned) ||
+             (qz_assigned.value==='unassigned' && assigned)) loadQuizzes();
+
+        }catch(e){}
       });
     });
 
-    // also update display_order changes by blur (optional auto-save)
-    qz_rows.querySelectorAll('.qz-order').forEach(io=>{
-      io.addEventListener('blur', async (ev)=>{
-        const row = io.closest('tr');
-        const ch = row.querySelector('.qz-tg');
-        const quizId = Number(ch?.dataset.id);
-        if(!quizId) return;
-        const pubEl = row.querySelector('.qz-pub');
-        const assigned = !!ch.checked;
-        const payload = { quiz_id: quizId, assigned: assigned, display_order: (io.value!==''?Number(io.value):null) };
-        if(pubEl) payload.publish_to_students = !!pubEl.checked;
-        // send update only if assigned (or send to API to update pivot even when not assigned if backend accepts)
-        try{ await toggleQuiz(qz_uuid, payload, null, true); }catch(_){} // ignore UI error here (toggleQuiz handles toasts)
-      });
-    });
-
+    /* ================= PUBLISH TOGGLE ================= */
     qz_rows.querySelectorAll('.qz-pub').forEach(pb=>{
       pb.addEventListener('change', async ()=>{
         const row = pb.closest('tr');
         const ch = row.querySelector('.qz-tg');
         const quizId = Number(ch?.dataset.id);
         if(!quizId) return;
-        const assigned = !!ch.checked;
-        const orderEl = row.querySelector('.qz-order');
-        const payload = { quiz_id: quizId, assigned: assigned, publish_to_students: !!pb.checked };
-        if(orderEl && orderEl.value !== '') payload.display_order = Number(orderEl.value);
-        try{ await toggleQuiz(qz_uuid, payload, null, true); }catch(_){} // update quietly
+
+        const attemptEl = row.querySelector('.qz-order');
+
+        const payload = {
+          quiz_id: quizId,
+          assigned: !!ch.checked,
+          publish_to_students: !!pb.checked
+        };
+
+        if(attemptEl && attemptEl.value !== '') {
+          payload.attempt_allowed = Number(attemptEl.value);
+        }
+
+        try{ await toggleQuiz(qz_uuid, payload, null, true); }catch(_){}
       });
     });
 
+    /* ================= ATTEMPTS INPUT SAVE ================= */
+    qz_rows.querySelectorAll('.qz-order').forEach(io=>{
+      io.addEventListener('blur', async ()=>{
+        const row = io.closest('tr');
+        const ch = row.querySelector('.qz-tg');
+        const quizId = Number(ch?.dataset.id);
+        if(!quizId) return;
+
+        const val = io.value !== '' ? Number(io.value) : null;
+
+        const payload = {
+          quiz_id: quizId,
+          assigned: !!ch.checked,
+          attempt_allowed: val
+        };
+
+        try{
+          await toggleQuiz(qz_uuid, payload, null, true);
+        }catch(e){
+          err('Failed to save attempts');
+        }
+      });
+    });
+
+    /* ================= PAGINATION ================= */
     const total = Number(pag.total||items.length), per = Number(pag.per_page||20), cur = Number(pag.current_page||1);
     const pages = Math.max(1, Math.ceil(total/per));
-    function li(dis,act,label,t){ return `<li class="page-item ${dis?'disabled':''} ${act?'active':''}"><a class="page-link" href="javascript:void(0)" data-page="${t||''}">${label}</a></li>`; }
-    let html=''; html+=li(cur<=1,false,'Prev',cur-1);
+
+    function li(dis,act,label,t){
+      return `<li class="page-item ${dis?'disabled':''} ${act?'active':''}">
+                <a class="page-link" href="javascript:void(0)" data-page="${t||''}">${label}</a>
+              </li>`;
+    }
+
+    let html=''; 
+    html+=li(cur<=1,false,'Prev',cur-1);
+
     const w=2,s=Math.max(1,cur-w),e=Math.min(pages,cur+w);
     for(let i=s;i<=e;i++) html+=li(false,i===cur,i,i);
+
     html+=li(cur>=pages,false,'Next',cur+1);
+
     qz_pager.innerHTML = html;
-    qz_pager.querySelectorAll('a.page-link[data-page]').forEach(a=> a.addEventListener('click', ()=>{ const t = Number(a.dataset.page); if(!t||t===qz_page) return; qz_page = t; loadQuizzes(); }));
+
+    qz_pager.querySelectorAll('a.page-link[data-page]').forEach(a=>{
+      a.addEventListener('click', ()=>{
+        const t = Number(a.dataset.page);
+        if(!t || t===qz_page) return;
+        qz_page = t;
+        loadQuizzes();
+      });
+    });
+
     qz_meta.textContent = `Page ${cur} of ${pages} — ${total} quizzes`;
+
   }catch(e){
     console.error('Quiz load error:', e);
     err(e.message || 'Failed to load quizzes');
@@ -1293,7 +1382,6 @@ async function loadQuizzes(){
     qz_loader.style.display='none';
   }
 }
-
 /**
  * toggleQuiz
  * - uuid: batch uuid

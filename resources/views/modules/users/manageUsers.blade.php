@@ -255,7 +255,6 @@
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.all.min.js"></script>
 <!-- Ensure Bootstrap JS is loaded before our inline script -->
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-
 <script>
 // Delegated handler for dropdown toggles - safer version
 document.addEventListener('click', (e) => {
@@ -446,6 +445,9 @@ document.addEventListener('DOMContentLoaded', function(){
         actionHtml += `<li><button type="button" class="dropdown-item" data-action="edit" title="Edit"><i class="fa fa-pen-to-square"></i> Edit</button></li>`;
       }
 
+      // NEW: Manage privileges menu item
+      actionHtml += `<li><button type="button" class="dropdown-item" data-action="manage-privileges" title="Manage Privileges"><i class="fa fa-shield-alt"></i> Manage privileges</button></li>`;
+
       if (canDelete) {
         actionHtml += `<li><hr class="dropdown-divider"></li>
             <li><button type="button" class="dropdown-item text-danger" data-action="delete" title="Delete"><i class="fa fa-trash"></i> Delete</button></li>`;
@@ -575,6 +577,20 @@ document.addEventListener('DOMContentLoaded', function(){
     } else if (act==='edit'){
       if(!canWrite) return;
       spin(); openEdit(id, false).catch(ex=>err(ex.message)).finally(un);
+    } else if (act === 'manage-privileges') {
+      // Redirect to manage privileges page for this user
+      // Use query param user_id; adjust path if your route is different (e.g., prefix /admin)
+      try {
+        // Close dropdown first
+        const toggle = btn.closest('.dropdown')?.querySelector('.dd-toggle');
+        if (toggle) {
+          try { bootstrap.Dropdown.getOrCreateInstance(toggle).hide(); } catch(e) { /* ignore */ }
+        }
+      } catch(e){ /* ignore */ }
+
+      // navigate
+      window.location.href = `/user-privileges/manage?user_id=${encodeURIComponent(id)}`;
+      return;
     } else if (act==='delete'){
       if(!canDelete) return;
       Swal.fire({
@@ -595,7 +611,7 @@ document.addEventListener('DOMContentLoaded', function(){
       });
     }
 
-    // Close the dropdown after action (safe)
+    // Close the dropdown after other actions (safe)
     const toggle = btn.closest('.dropdown')?.querySelector('.dd-toggle');
     if (toggle) {
       try { bootstrap.Dropdown.getOrCreateInstance(toggle).hide(); } catch(e) { /* ignore */ }

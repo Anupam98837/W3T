@@ -1113,9 +1113,18 @@ public function assignmentSubmissions(Request $r, string $assignmentKey)
 /**
  * Get student submission status for an assignment (who submitted and who didn't)
  */
+/**
+ * Get student submission status for an assignment (who submitted and who didn't)
+ */
 public function studentSubmissionStatus(Request $r, string $assignmentKey)
 {
     if ($res = $this->requireRole($r, ['admin','super_admin','instructor','student'])) return $res;
+
+    // Get actor (assumes this->actor(Request) returns ['id'=>..., 'role'=>..., 'uuid'=>...])
+    $actor = method_exists($this, 'actor') ? $this->actor($r) : null;
+    $actorId = $actor['id'] ?? null;
+    $actorRole = isset($actor['role']) ? strtolower($actor['role']) : null;
+    $actorUuid = $actor['uuid'] ?? null;
 
     // Resolve assignment
     $assignment = $this->resolveAssignment($assignmentKey);
@@ -1173,11 +1182,30 @@ public function studentSubmissionStatus(Request $r, string $assignmentKey)
         ], 200);
     }
 
+    // If the requester is a student, restrict the visible students to only that student (if enrolled)
+    if ($actorRole === 'student') {
+        $visible = $batchStudents->filter(function ($s) use ($actorId, $actorUuid) {
+            // match by numeric id or uuid
+            if ($actorId && (int)$s->student_id === (int)$actorId) return true;
+            if ($actorUuid && isset($s->student_uuid) && $s->student_uuid === $actorUuid) return true;
+            return false;
+        })->values();
+
+        // If the student is not part of the batch, return forbidden (adjust to empty list if you prefer)
+        if ($visible->isEmpty()) {
+            return response()->json(['message' => 'You are not enrolled in this batch'], 403);
+        }
+
+        // replace batchStudents with visible set for downstream processing
+        $batchStudents = $visible;
+    }
+    // else (admin/instructor/super_admin) leave $batchStudents as-is (full list)
+
     // Get submissions for this assignment (ordered so first() is latest attempt)
     $submissions = DB::table('assignment_submissions')
         ->where('assignment_id', $assignment->id)
         ->whereNull('deleted_at')
-        ->select('student_id', 'attempt_no', 'submitted_at', 'status', 'is_late')
+        ->select('student_id', 'attempt_no', 'submitted_at', 'status', 'is_late', 'id as submission_id')
         ->orderBy('attempt_no', 'desc')
         ->get()
         ->groupBy('student_id');
@@ -1289,7 +1317,7 @@ public function studentSubmissionStatus(Request $r, string $assignmentKey)
             ],
             // paginated view for existing UI
             'students' => $paginatedData,
-            // NEW: convenience arrays for frontend tabs (full lists, not paginated)
+            // convenience arrays for frontend tabs (full lists, not paginated)
             'submitted' => $submittedList,
             'not_submitted' => $notSubmittedList,
             'pagination' => [
@@ -1872,12 +1900,18 @@ public function getStudentAssignmentDocuments(Request $r, string $assignmentKey,
         return response()->json(['error' => 'Student is not enrolled in this assignment batch'], 403);
     }
 
-    // Get all submissions for this student and assignment
+    // Get all submissions for this student and assignment WITH grader info
     $submissions = DB::table('assignment_submissions')
-        ->where('assignment_id', $assignment->id)
-        ->where('student_id', $student->id)
-        ->whereNull('deleted_at')
-        ->orderBy('attempt_no', 'desc')
+        ->leftJoin('users as grader', 'assignment_submissions.graded_by', '=', 'grader.id')
+        ->where('assignment_submissions.assignment_id', $assignment->id)
+        ->where('assignment_submissions.student_id', $student->id)
+        ->whereNull('assignment_submissions.deleted_at')
+        ->orderBy('assignment_submissions.attempt_no', 'desc')
+        ->select(
+            'assignment_submissions.*',
+            'grader.name as grader_name',
+            'grader.email as grader_email'
+        )
         ->get();
 
     // Process submissions with detailed attachment info
@@ -1975,13 +2009,15 @@ public function getStudentAssignmentDocuments(Request $r, string $assignmentKey,
             'archive_count' => count($archiveAttachments),
             'video_count' => count($videoAttachments),
             
-            // Grading information
+            // Grading information - UPDATED WITH GRADER NAME
             'total_marks' => $submission->total_marks,
             'grade_letter' => $submission->grade_letter,
             'graded_at' => $submission->graded_at,
             'graded_at_formatted' => $submission->graded_at ? 
                 Carbon::parse($submission->graded_at)->format('M j, Y g:i A') : null,
-            'graded_by' => $submission->graded_by,
+            'graded_by' => $submission->grader_name, // Now returns grader's name instead of ID
+            'graded_by_id' => $submission->graded_by, // Keep the ID as well if needed
+            'graded_by_email' => $submission->grader_email, // Grader's email
             'grader_note' => $submission->grader_note,
             'feedback_html' => $submission->feedback_html,
             'feedback_visible' => (bool)$submission->feedback_visible,
@@ -2025,7 +2061,7 @@ public function getStudentAssignmentDocuments(Request $r, string $assignmentKey,
                 'uuid' => $assignment->uuid ?? null,
                 'title' => $assignment->title ?? 'Unknown Title',
                 'due_at' => $assignment->due_at ?? null,
-                'total_marks' => $assignment->total_marks ?? null, // Changed from max_marks to total_marks
+                'total_marks' => $assignment->total_marks ?? null,
             ],
             'student' => [
                 'id' => $student->id,

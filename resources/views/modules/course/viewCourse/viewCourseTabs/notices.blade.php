@@ -572,7 +572,7 @@ html.theme-dark .rte-ph {
     return arr.filter(it => it && (it.url || it.path || it.signed_url));
   }
 
-  function createItemRow(row) {
+ function createItemRow(row) {
     const attachments = normalizeAttachments(row);
     row.attachment = attachments;
     if (typeof row.attachment_count === 'undefined') row.attachment_count = attachments.length;
@@ -580,49 +580,73 @@ html.theme-dark .rte-ph {
     const wrapper = document.createElement('div'); wrapper.className = 'sm-item';
     const left = document.createElement('div'); left.className = 'left';
     const icon = document.createElement('div'); icon.className = 'icon'; icon.style.width='44px'; icon.style.height='44px'; icon.style.borderRadius='10px'; icon.style.display='flex'; icon.style.alignItems='center'; icon.style.justifyContent='center'; icon.style.border='1px solid var(--line-strong)'; icon.style.background='linear-gradient(180deg, rgba(0,0,0,0.02), transparent)'; icon.innerHTML = '<i class="fa fa-bullhorn" style="color:var(--secondary-color)"></i>';
-    const meta = document.createElement('div'); meta.className='meta'; const title = document.createElement('div'); title.className='title'; title.textContent = row.title || 'Untitled'; const sub = document.createElement('div'); sub.className='sub'; sub.textContent = row.message_html ? 'Has message' : (row.attachment_count ? `${row.attachment_count} attachment(s)` : '—'); meta.appendChild(title); meta.appendChild(sub); left.appendChild(icon); left.appendChild(meta);
+    
+    const meta = document.createElement('div'); meta.className='meta'; 
+    const title = document.createElement('div'); title.className='title'; title.textContent = row.title || 'Untitled'; 
+    const sub = document.createElement('div'); sub.className='sub'; sub.textContent = row.message_html ? 'Has message' : (row.attachment_count ? `${row.attachment_count} attachment(s)` : '—'); 
+    
+    // ADD CREATOR INFO HERE
+    const creatorInfo = document.createElement('div'); 
+    creatorInfo.className = 'creator-info';
+    creatorInfo.style.fontSize = '12px';
+    creatorInfo.style.color = 'var(--muted-color)';
+    creatorInfo.style.marginTop = '4px';
+    creatorInfo.style.display = 'flex';
+    creatorInfo.style.alignItems = 'center';
+    creatorInfo.style.gap = '6px';
+    creatorInfo.innerHTML = `
+        <i class="fa fa-user" style="font-size:10px;"></i>
+        <span>${escapeHtml(row.created_by_name || 'Unknown')}</span>
+    `;
+    
+    meta.appendChild(title); 
+    meta.appendChild(sub);
+    meta.appendChild(creatorInfo); // Add creator info to meta section
+    
+    left.appendChild(icon); 
+    left.appendChild(meta);
 
     const right = document.createElement('div'); right.className='right'; right.style.display='flex'; right.style.alignItems='center'; right.style.gap='8px';
     const datePill = document.createElement('div'); datePill.className='duration-pill'; datePill.textContent = row.created_at ? new Date(row.created_at).toLocaleDateString() : ''; right.appendChild(datePill);
 
     // --- Preview button (show only when attachments exist) ---
-const previewBtn = document.createElement('button');
-previewBtn.className = 'btn btn-outline-primary';
-previewBtn.style.minWidth = '80px';
-previewBtn.type = 'button';
-previewBtn.textContent = 'Preview';
+    const previewBtn = document.createElement('button');
+    previewBtn.className = 'btn btn-outline-primary';
+    previewBtn.style.minWidth = '80px';
+    previewBtn.type = 'button';
+    previewBtn.textContent = 'Preview';
 
-// normalize attachments for this row
-const attachmentsArr = Array.isArray(row.attachment) ? row.attachment : [];
+    // normalize attachments for this row
+    const attachmentsArr = Array.isArray(row.attachment) ? row.attachment : [];
 
-if (attachmentsArr.length > 0) {
-  // show the button and wire preview
-  previewBtn.style.display = 'inline-flex';
-  previewBtn.addEventListener('click', () => openFullscreenPreview(row, attachmentsArr, 0));
+    if (attachmentsArr.length > 0) {
+        // show the button and wire preview
+        previewBtn.style.display = 'inline-flex';
+        previewBtn.addEventListener('click', () => openFullscreenPreview(row, attachmentsArr, 0));
 
-  // show count badge when multiple attachments
-  if (attachmentsArr.length > 1) {
-    const badge = document.createElement('span');
-    badge.className = 'small text-muted';
-    badge.style.marginLeft = '6px';
-    badge.textContent = `(${attachmentsArr.length})`;
-    previewBtn.appendChild(badge);
-  }
-} else {
-  // hide the preview button when zero attachments
-  previewBtn.style.display = 'none';
-}
+        // show count badge when multiple attachments
+        if (attachmentsArr.length > 1) {
+            const badge = document.createElement('span');
+            badge.className = 'small text-muted';
+            badge.style.marginLeft = '6px';
+            badge.textContent = `(${attachmentsArr.length})`;
+            previewBtn.appendChild(badge);
+        }
+    } else {
+        // hide the preview button when zero attachments
+        previewBtn.style.display = 'none';
+    }
 
-right.appendChild(previewBtn);
- 
+    right.appendChild(previewBtn);
+    
     const moreWrap = document.createElement('div'); moreWrap.className='sm-more';
     moreWrap.innerHTML = `
-      <button class="sm-dd-btn" aria-haspopup="true" aria-expanded="false" title="More">⋮</button>
-      <div class="sm-dd" role="menu" aria-hidden="true">
+        <button class="sm-dd-btn" aria-haspopup="true" aria-expanded="false" title="More">⋮</button>
+        <div class="sm-dd" role="menu" aria-hidden="true">
         <a href="#" data-action="view"><i class="fa fa-eye sm-icon-purple"></i><span>View</span></a>
         ${canEdit ? `<a href="#" data-action="edit"><i class="fa fa-pen sm-icon-black"></i><span>Edit</span></a>` : ''}
         ${canDelete ? `<div class="divider"></div><a href="#" data-action="delete" class="text-danger"><i class="fa fa-trash sm-icon-red"></i><span>Delete</span></a>` : ''}
-      </div>
+        </div>
     `;
     right.appendChild(moreWrap);
 
@@ -637,8 +661,7 @@ right.appendChild(previewBtn);
     const delBtn = moreWrap.querySelector('[data-action="delete"]'); if (delBtn) { delBtn.addEventListener('click', async (ev)=>{ ev.preventDefault(); ev.stopPropagation(); const r = await Swal.fire({ title: 'Move to Bin?', text: `Move "${row.title || 'this notice'}" to Bin?`, icon: 'warning', showCancelButton: true, confirmButtonText: 'Yes, move it', cancelButtonText: 'Cancel' }); if (!r.isConfirmed){ closeAllDropdowns(); return; } try { const res = await apiFetch(`${apiBase}/${encodeURIComponent(row.id)}`, { method: 'DELETE' }); if (!res.ok) throw new Error('Delete failed: '+res.status); showOk('Moved to Bin'); await loadNotices(); } catch(e){ console.error(e); showErr('Delete failed'); } finally { closeAllDropdowns(); } }); }
 
     return wrapper;
-  }
-
+}
   function renderList(items){ if (!$items) return; $items.innerHTML=''; if (!items || items.length===0){ showItems(false); showEmpty(true); return; } showEmpty(false); showItems(true); items.forEach(it => $items.appendChild(createItemRow(it))); }
 function openDetailsModal(row){
   detailsModal.style.display='block';
