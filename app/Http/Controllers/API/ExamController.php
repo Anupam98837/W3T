@@ -89,6 +89,32 @@ class ExamController extends Controller
     return (string) (DB::table('quizz_questions')->where('id',$questionId)->value('question_type') ?? 'mcq');
 }
 
+private function batchQuizByKey(string|int $key, int $quizId): ?object
+{
+    $q = DB::table('batch_quizzes')
+        ->where('quiz_id', $quizId);
+
+    if (is_numeric($key)) {
+        $q->where('id', (int) $key);
+    } else {
+        $q->where('uuid', (string) $key);
+    }
+
+    return $q->first();
+}
+
+
+private function isStudentInBatch(int $batchId, int $userId): bool
+{
+    return DB::table('batch_students')
+        ->where('batch_id', $batchId)
+        ->where('user_id', $userId)
+        ->where('enrollment_status', 'enrolled')
+        ->whereNull('deleted_at')
+        ->exists();
+}
+
+
     /* ============================================
      | POST /api/exam/start
      | body: { quiz: "uuid|id" }
@@ -102,12 +128,14 @@ public function start(Request $request)
     }
 
     $v = Validator::make($request->all(), [
-        'quiz' => ['required'] // uuid or id
+        'quiz'       => ['required'],      // uuid or id of quizz
+        'batch_quiz' => ['nullable'],      // uuid or id of batch_quizzes (when coming from batch)
     ]);
     if ($v->fails()) {
         return response()->json(['success'=>false,'errors'=>$v->errors()], 422);
     }
 
+    // ---- Resolve quiz ----
     $quiz = $this->quizByKey($request->input('quiz'));
     if (!$quiz) {
         return response()->json(['success'=>false,'message'=>'Quiz not found'], 404);
@@ -116,32 +144,128 @@ public function start(Request $request)
         return response()->json(['success'=>false,'message'=>'Quiz is not active'], 409);
     }
 
-    // Enforce per-quiz attempts
-    $allowed = (int)($quiz->total_attempts ?? 1);
-    $used    = (int) DB::table('quizz_results')
-                    ->where('quiz_id', $quiz->id)
-                    ->where('user_id', $user->id)
-                    ->count();
-    if ($used >= $allowed) {
+    // ---- Resolve optional batch context ----
+    $batchKey  = $request->input('batch_quiz');          // can be uuid or id or null
+    $batchQuiz = null;                                   // row from batch_quizzes
+    $batch     = null;                                   // row from batches
+
+    if (!empty($batchKey)) {
+        $batchQuiz = $this->batchQuizByKey($batchKey, (int) $quiz->id);
+        if (!$batchQuiz) {
+            return response()->json([
+                'success'=>false,
+                'message'=>'Batch quiz not found for this quiz'
+            ], 404);
+        }
+
+        // Load batch row
+        $batch = DB::table('batches')
+            ->where('id', $batchQuiz->batch_id)
+            ->whereNull('deleted_at')
+            ->first();
+
+        if (!$batch) {
+            return response()->json([
+                'success'=>false,
+                'message'=>'Batch not available'
+            ], 404);
+        }
+
+        // Ensure this student belongs to that batch
+        if (!$this->isStudentInBatch((int)$batchQuiz->batch_id, (int)$user->id)) {
+            return response()->json([
+                'success'=>false,
+                'message'=>'You are not enrolled in this batch'
+            ], 403);
+        }
+    }
+
+    // ============================================
+    //  Global attempt limit (quiz.total_attempts)
+    // ============================================
+    $globalAllowed = max(1, (int)($quiz->total_attempts ?? 1));
+
+    $globalUsed = (int) DB::table('quizz_results')
+        ->where('quiz_id', $quiz->id)
+        ->where('user_id', $user->id)
+        ->count();
+
+    if ($globalUsed >= $globalAllowed) {
         return response()->json([
-            'success'=>false,
-            'message'=>"Attempt limit reached ({$used}/{$allowed})"
+            'success' => false,
+            'message' => "Attempt limit reached for this quiz ({$globalUsed}/{$globalAllowed})"
         ], 429);
     }
 
-    // If a running attempt exists, return it (idempotent start)
-    $running = DB::table('quizz_attempts')
-        ->where('quiz_id', $quiz->id)
-        ->where('user_id', $user->id)
-        ->where('status', 'in_progress')
-        ->orderByDesc('id')
-        ->first();
+    // ============================================
+    //  Batch-wise attempt limit (batch_quizzes.attempt_allowed)
+    //  NOTE: batch_attempt_allowed is always <= globalAllowed
+    // ============================================
+    $batchAllowed = null;
+    $batchUsed    = null;
 
-    $now = Carbon::now();
+    if ($batchQuiz) {
+        $configured = (int)($batchQuiz->attempt_allowed ?? 0);
+
+        if ($configured <= 0) {
+            // if not set, fall back to global
+            $batchAllowed = $globalAllowed;
+        } else {
+            // hard guard: cannot exceed quiz total_attempts
+            $batchAllowed = min($configured, $globalAllowed);
+        }
+
+        // Count how many SUBMITTED attempts exist for this user in THIS batch_quiz
+        // (join quizz_attempt_batch + quizz_results on attempt_id)
+        $batchUsed = (int) DB::table('quizz_attempt_batch as qab')
+            ->join('quizz_results as r', 'r.attempt_id', '=', 'qab.attempt_id')
+            ->where('qab.batch_quiz_id', $batchQuiz->id)
+            ->where('qab.user_id', $user->id)
+            ->count();
+
+        if ($batchUsed >= $batchAllowed) {
+            return response()->json([
+                'success' => false,
+                'message' => "Attempt limit reached for this batch ({$batchUsed}/{$batchAllowed})"
+            ], 429);
+        }
+    }
+
+    // ============================================
+    //  If a running attempt exists for this CONTEXT,
+    //  return it (idempotent start)
+    // ============================================
+    if ($batchQuiz) {
+        // when coming via batch, only pick attempts linked to this batch_quiz
+        $running = DB::table('quizz_attempts as qa')
+            ->join('quizz_attempt_batch as qab', 'qab.attempt_id', '=', 'qa.id')
+            ->where('qa.quiz_id', $quiz->id)
+            ->where('qa.user_id', $user->id)
+            ->where('qa.status', 'in_progress')
+            ->where('qab.batch_quiz_id', $batchQuiz->id)
+            ->orderByDesc('qa.id')
+            ->select('qa.*')
+            ->first();
+    } else {
+        // standalone quiz context: attempts that are NOT mapped to any batch
+        $running = DB::table('quizz_attempts as qa')
+            ->leftJoin('quizz_attempt_batch as qab', 'qab.attempt_id', '=', 'qa.id')
+            ->where('qa.quiz_id', $quiz->id)
+            ->where('qa.user_id', $user->id)
+            ->where('qa.status', 'in_progress')
+            ->whereNull('qab.id')
+            ->orderByDesc('qa.id')
+            ->select('qa.*')
+            ->first();
+    }
+
+    $now         = Carbon::now();
     $durationMin = (int)($quiz->total_time ?? 0); // minutes
+
     if ($durationMin <= 0) {
         return response()->json(['success'=>false,'message'=>'Quiz has no total_time set'], 422);
     }
+
     $deadline = $now->copy()->addMinutes($durationMin);
 
     if ($running) {
@@ -159,14 +283,19 @@ public function start(Request $request)
                     'total_time_sec'     => $durationMin * 60,
                     'server_end_at'      => (string)$running->server_deadline_at,
                     'time_left_sec'      => max(0, Carbon::parse($running->server_deadline_at)->diffInSeconds($now, false) * -1),
+
+                    // extra info (front-end can ignore safely)
+                    'batch_quiz_id'      => $batchQuiz->id ?? null,
+                    'batch_attempt_used' => $batchUsed,
+                    'batch_attempt_allowed' => $batchAllowed,
                 ]
             ], 200);
         }
     }
 
-    /* 🔹 NEW: build per-attempt layout (questions_order + options_order) */
-
-    // All questions for this quiz (base order = question_order)
+    // ============================================
+    //  Build per-attempt layout (same as before)
+    // ============================================
     $qRows = DB::table('quizz_questions')
         ->where('quiz_id', $quiz->id)
         ->orderBy('question_order')
@@ -176,21 +305,17 @@ public function start(Request $request)
         return response()->json(['success'=>false,'message'=>'Quiz has no questions'], 422);
     }
 
-    // Base question IDs in admin-defined order
     $questionIds = $qRows->pluck('id')->map(fn($v) => (int)$v)->all();
 
-    // Optional: randomize question order
     if (($quiz->is_question_random ?? 'no') === 'yes') {
         shuffle($questionIds);
     }
 
-    // Map question_id => type (to avoid re-querying later)
     $qTypes = [];
     foreach ($qRows as $qRow) {
         $qTypes[(int)$qRow->id] = (string)($qRow->question_type ?? '');
     }
 
-    // Fetch all answers for these questions
     $aRows = DB::table('quizz_question_answers')
         ->whereIn('belongs_question_id', $questionIds)
         ->orderBy('belongs_question_id')
@@ -199,7 +324,6 @@ public function start(Request $request)
 
     $answersByQ = $aRows->groupBy('belongs_question_id');
 
-    // Build per-question option order mapping
     $optionsOrder = [];
     foreach ($questionIds as $qid) {
         $answers = $answersByQ[$qid] ?? collect();
@@ -208,10 +332,9 @@ public function start(Request $request)
             continue;
         }
 
-        $answerIds = $answers->pluck('id')->map(fn($v) => (int)$v)->all();
+        $answerIds = $answers->pluck('id')->map(fn($v)=> (int)$v)->all();
         $qType     = $qTypes[$qid] ?? '';
 
-        // Optional: randomize options for non-FIB questions
         if (($quiz->is_option_random ?? 'no') === 'yes' && $qType !== 'fill_in_the_blank') {
             shuffle($answerIds);
         }
@@ -219,7 +342,9 @@ public function start(Request $request)
         $optionsOrder[$qid] = $answerIds;
     }
 
-    // Insert attempt with frozen layout
+    // ============================================
+    //  Insert attempt row
+    // ============================================
     $attemptUuid = (string) Str::uuid();
     $attemptId = DB::table('quizz_attempts')->insertGetId([
         'uuid'                => $attemptUuid,
@@ -239,6 +364,29 @@ public function start(Request $request)
         'updated_at'          => $now,
     ]);
 
+    // ============================================
+    //  Link attempt to batch (if any)
+    // ============================================
+if ($batchQuiz) {
+    DB::table('quizz_attempt_batch')->insert([
+        'uuid'          => (string) Str::uuid(),
+        'quiz_id'       => (int) $quiz->id,
+        'batch_id'      => (int) $batchQuiz->batch_id,
+        'batch_quiz_id' => (int) $batchQuiz->id,
+        'attempt_id'    => (int) $attemptId,
+        'user_id'       => (int) $user->id,
+        'came_from'     => 'batch',
+        'metadata'      => json_encode([
+            'batch_quiz_uuid' => $batchQuiz->uuid ?? null,
+            'quiz_uuid'       => $quiz->uuid ?? null,
+            'ip'              => $request->ip(),   // store IP inside JSON if you want
+        ], JSON_UNESCAPED_UNICODE),
+        'created_at'    => $now,
+        'updated_at'    => $now,
+    ]);
+}
+
+
     return response()->json([
         'success'=>true,
         'attempt'=>[
@@ -250,6 +398,11 @@ public function start(Request $request)
             'total_time_sec'     => $durationMin * 60,
             'server_end_at'      => (string)$deadline,
             'time_left_sec'      => max(0, $deadline->diffInSeconds($now, false) * -1),
+
+            // extra info (safe to ignore on UI)
+            'batch_quiz_id'      => $batchQuiz->id ?? null,
+            'batch_attempt_used' => $batchUsed,
+            'batch_attempt_allowed' => $batchAllowed,
         ]
     ], 201);
 }
@@ -540,6 +693,7 @@ public function saveAnswer(Request $request, string $attemptUuid)
     $v = Validator::make($request->all(), [
         'question_id' => ['required','integer','min:1'],
         'selected'    => ['nullable'],
+        'time_spent'  => ['nullable','integer','min:0'], // 🔹 NEW
     ]);
     if ($v->fails()) return response()->json(['success'=>false,'errors'=>$v->errors()], 422);
 
@@ -572,22 +726,56 @@ public function saveAnswer(Request $request, string $attemptUuid)
 
     $qType = (string)($qRow->question_type ?? '');
 
+    // 🔹 time slice sent from frontend
+    $sliceFromClient = (int) $request->input('time_spent', 0);
+    if ($sliceFromClient < 0) $sliceFromClient = 0;
+
     DB::beginTransaction();
     try {
-        // Attribute elapsed time to previous open question
-        if ($attempt->current_question_id && $attempt->current_q_started_at) {
+        /* ============================================
+         * 1) Apply client-reported time to THIS question
+         * ============================================ */
+        if ($sliceFromClient > 0) {
+            $rowTime = DB::table('quizz_attempt_answers')
+                ->where('attempt_id', $attempt->id)
+                ->where('question_id', $questionId)
+                ->lockForUpdate()
+                ->first();
+
+            if ($rowTime) {
+                DB::table('quizz_attempt_answers')->where('id', $rowTime->id)->update([
+                    'time_spent_sec' => (int)$rowTime->time_spent_sec + $sliceFromClient,
+                    'updated_at'     => $now,
+                ]);
+            } else {
+                DB::table('quizz_attempt_answers')->insert([
+                    'attempt_id'     => $attempt->id,
+                    'question_id'    => $questionId,
+                    'question_type'  => $qType ?: $this->questionType($questionId),
+                    'selected_raw'   => json_encode(null),
+                    'time_spent_sec' => $sliceFromClient,
+                    'created_at'     => $now,
+                    'updated_at'     => $now,
+                ]);
+            }
+        }
+
+        /* =================================================
+         * 2) (fallback) server-side slice ONLY if no client
+         * ================================================= */
+        if ($sliceFromClient === 0 && $attempt->current_question_id && $attempt->current_q_started_at) {
             $prevQ  = (int)$attempt->current_question_id;
             $slice  = max(0, $now->diffInSeconds(Carbon::parse($attempt->current_q_started_at)));
             if ($slice > 0) {
-                $row = DB::table('quizz_attempt_answers')
+                $rowPrev = DB::table('quizz_attempt_answers')
                     ->where('attempt_id', $attempt->id)
                     ->where('question_id', $prevQ)
                     ->lockForUpdate()
                     ->first();
 
-                if ($row) {
-                    DB::table('quizz_attempt_answers')->where('id', $row->id)->update([
-                        'time_spent_sec' => (int)$row->time_spent_sec + $slice,
+                if ($rowPrev) {
+                    DB::table('quizz_attempt_answers')->where('id', $rowPrev->id)->update([
+                        'time_spent_sec' => (int)$rowPrev->time_spent_sec + $slice,
                         'updated_at'     => $now,
                     ]);
                 } else {
@@ -604,9 +792,10 @@ public function saveAnswer(Request $request, string $attemptUuid)
             }
         }
 
-        // Upsert current selection — ALWAYS set question_type
+        /* ============================================
+         * 3) Upsert current selection (your original code)
+         * ============================================ */
         $selectedJson = json_encode($request->input('selected', null), JSON_UNESCAPED_UNICODE);
-
 
         $row = DB::table('quizz_attempt_answers')
             ->where('attempt_id', $attempt->id)
@@ -622,7 +811,7 @@ public function saveAnswer(Request $request, string $attemptUuid)
             DB::table('quizz_attempt_answers')->insert([
                 'attempt_id'     => $attempt->id,
                 'question_id'    => $questionId,
-                  'question_type'  => $this->questionType($questionId),
+                'question_type'  => $qType ?: $this->questionType($questionId),
                 'selected_raw'   => $selectedJson,
                 'time_spent_sec' => 0,
                 'created_at'     => $now,
@@ -630,7 +819,7 @@ public function saveAnswer(Request $request, string $attemptUuid)
             ]);
         }
 
-        // Switch current question
+        // 4) Switch current question
         DB::table('quizz_attempts')->where('id', $attempt->id)->update([
             'current_question_id'  => $questionId,
             'current_q_started_at' => $now,

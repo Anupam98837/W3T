@@ -1,11 +1,18 @@
 @php
   $quizKey = $quizKey ?? request()->route('quiz');
 @endphp
+
+@php
+  // batch quiz key from ?batch=... (if present)
+  $batchKey = request()->query('batch');
+@endphp
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8"/>
   <meta name="quiz-key" content="{{ $quizKey }}">
+  <meta name="batch-key" content="{{ $batchKey }}">
   <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
   <title>Exam • W3Techiez</title>
 
@@ -160,9 +167,20 @@ const $  = s => document.querySelector(s);
 const $$ = s => Array.from(document.querySelectorAll(s));
 
 const token = sessionStorage.student_token || sessionStorage.token || '';
+
 const QUIZ_KEY =
   (document.querySelector('meta[name="quiz-key"]')?.content || '').trim()
   || new URLSearchParams(location.search).get('quiz') || '';
+
+// optional batch context: /exam/{quiz}?batch={batch_quiz_uuid}
+const BATCH_KEY =
+  (document.querySelector('meta[name="batch-key"]')?.content || '').trim()
+  || new URLSearchParams(location.search).get('batch') || '';
+
+// scope for localStorage – so same quiz in different batches
+// doesn't reuse the same attempt UUID
+const EXAM_SCOPE  = BATCH_KEY ? `${QUIZ_KEY}::${BATCH_KEY}` : QUIZ_KEY;
+const STORAGE_KEY = 'attempt_uuid:' + EXAM_SCOPE;
 
 if (!QUIZ_KEY) {
   document.addEventListener('DOMContentLoaded', () => {
@@ -171,7 +189,7 @@ if (!QUIZ_KEY) {
   });
 }
 
-let ATTEMPT_UUID = localStorage.getItem('attempt_uuid:'+QUIZ_KEY) || null;
+let ATTEMPT_UUID = localStorage.getItem(STORAGE_KEY) || null;
 let questions = [];
 let selections = {};   // qid -> int | int[] | string | string[]
 let reviews = {};
@@ -181,6 +199,7 @@ let timeLeft = 0;
 let timerHandle = null;
 let isSubmitting = false;
 let navLock = false;
+let qStartedAt = null; 
 
 /* ===== Helpers ===== */
 async function api(path, opts={}){
@@ -243,13 +262,18 @@ document.addEventListener('DOMContentLoaded', init);
 async function init(){
   try{
     const started = await api('/api/exam/start', {
-      method:'POST',
-      body: JSON.stringify({ quiz: QUIZ_KEY })
-    });
+    method:'POST',
+    body: JSON.stringify({
+    quiz: QUIZ_KEY,
+    batch_quiz: BATCH_KEY || null
+  })
+});
+
 
     const attempt = started.attempt || {};
     ATTEMPT_UUID = attempt.attempt_uuid || ATTEMPT_UUID;
-    localStorage.setItem('attempt_uuid:'+QUIZ_KEY, ATTEMPT_UUID);
+localStorage.setItem(STORAGE_KEY, ATTEMPT_UUID);
+
 
     $('#exam-title').textContent = attempt.quiz_name || 'Exam';
     startTimer(attempt.time_left_sec ?? attempt.total_time_sec ?? 0);
@@ -481,6 +505,10 @@ async function focusQuestion(questionId){
       timeLeft = res.attempt.time_left_sec;
       $('#time-left').textContent = mmss(timeLeft);
     }
+
+    // 🔹 start local timer for this question
+    qStartedAt = Date.now();
+
   }catch(e){
     console.warn('focus failed:', e.message);
     if ((e.message||'').toLowerCase().includes('time over')) {
@@ -489,14 +517,29 @@ async function focusQuestion(questionId){
   }
 }
 
+
 async function saveCurrent(){
   const q = questions[currentIndex];
   if (!q) return;
+
   const selected = collectSelectionFor(q);  // read from DOM to be safe
+
+  // 🔹 Calculate elapsed time in seconds for THIS question
+  let timeSpent = 0;
+  if (qStartedAt) {
+    const diffMs = Date.now() - qStartedAt;
+    // at least 1 second if the user actually saw the question
+    timeSpent = Math.max(1, Math.round(diffMs / 1000));
+  }
+
   try{
     await api(`/api/exam/attempts/${ATTEMPT_UUID}/answer`, {
       method:'POST',
-      body: JSON.stringify({ question_id: Number(q.question_id), selected: selected ?? null })
+      body: JSON.stringify({
+        question_id: Number(q.question_id),
+        selected: selected ?? null,
+        time_spent: timeSpent    // 🔹 NEW
+      })
     });
     selections[q.question_id] = selected ?? null;  // commit locally after success
   }catch(e){
@@ -506,6 +549,7 @@ async function saveCurrent(){
     }
   }
 }
+
 
 /* ===== Nav buttons ===== */
 async function onPrev(){
@@ -590,8 +634,9 @@ async function doSubmit(auto){
       await Swal.fire({icon:'success', title:'Submitted', text:'Your attempt has been submitted. Results will be released later.'});
     }
     let userRole = sessionStorage.getItem('role');
-    localStorage.removeItem('attempt_uuid:'+QUIZ_KEY);
-    location.href = `/${userRole}/dashboard`;
+localStorage.removeItem(STORAGE_KEY);
+location.href = `/${userRole}/dashboard`;
+
   }catch(e){
     console.error(e);
     Swal.fire({icon:'error', title:'Submit failed', text: e.message || 'Please try again.'});
