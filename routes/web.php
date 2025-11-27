@@ -150,6 +150,13 @@ Route::get('/admin/privilege/manage', function () {
         return view('modules.privileges.assignPrivileges', compact('userId'));
     })->where('userId','[0-9]+')->name('admin.privileges.assign.user');
 
+
+
+
+
+
+
+
 // Student Routes
 Route::get('/student/dashboard', function () {
     return view('pages.users.student.pages.common.dashboard');
@@ -162,6 +169,18 @@ Route::get('/student/courses', function () {
 Route::get('/courses/{batch}/view', function($batchUuid) {
     return view('modules.course.viewCourse.viewCourseLayout', ['batchUuid' => $batchUuid]);
 })->name('student.course.view');
+
+Route::get('/exam/results/{resultId}/view', function ($resultId) {
+    return view('modules.course.viewCourse.viewCourseTabs.examResult', ['resultId' => $resultId]);
+});
+
+
+
+
+
+
+
+
 
 
 // Instructor Routes

@@ -408,6 +408,163 @@ if ($batchQuiz) {
 }
 
 
+public function myAttemptsForQuiz(Request $request, string $quizKey)
+{
+    // ---------- 1. Auth: only students via personal token ----------
+    $user = $this->getUserFromToken($request);
+    if (!$user || !$this->isStudent($user)) {
+        return response()->json([
+            'success' => false,
+            'message' => 'Unauthorized (student token required)'
+        ], 401);
+    }
+
+    // ---------- 2. Resolve quiz (id | uuid) ----------
+    $quiz = $this->quizByKey($quizKey);
+    if (!$quiz) {
+        return response()->json([
+            'success' => false,
+            'message' => 'Quiz not found'
+        ], 404);
+    }
+
+    // ---------- 3. Optional batch_quiz context ----------
+    $batchKey  = $request->query('batch_quiz');   // id | uuid | null
+    $batchQuiz = null;
+
+    if (!empty($batchKey)) {
+        $batchQuiz = $this->batchQuizByKey($batchKey, (int) $quiz->id);
+        if (!$batchQuiz) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Batch quiz not found for this quiz'
+            ], 404);
+        }
+
+        // Guard: student must belong to that batch
+        if (!$this->isStudentInBatch((int)$batchQuiz->batch_id, (int)$user->id)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'You are not enrolled in this batch'
+            ], 403);
+        }
+    }
+
+    // ---------- 4. Build query: attempts (+ results) ----------
+    $q = DB::table('quizz_attempts as qa')
+        ->where('qa.quiz_id', $quiz->id)
+        ->where('qa.user_id', $user->id);
+
+    if ($batchQuiz) {
+        // Attempts linked to this batch_quiz
+        $q->join('quizz_attempt_batch as qab', function ($join) use ($batchQuiz, $user) {
+            $join->on('qab.attempt_id', '=', 'qa.id')
+                 ->where('qab.batch_quiz_id', (int)$batchQuiz->id)
+                 ->where('qab.user_id', (int)$user->id);
+        });
+    } else {
+        // Standalone quiz: attempts NOT linked to any batch for this user
+        $q->leftJoin('quizz_attempt_batch as qab', function ($join) use ($user) {
+            $join->on('qab.attempt_id', '=', 'qa.id')
+                 ->where('qab.user_id', (int)$user->id);
+        })->whereNull('qab.id');
+    }
+
+    // Attach results (if any)
+    $q->leftJoin('quizz_results as qr', 'qr.attempt_id', '=', 'qa.id');
+
+    $rows = $q->orderByDesc('qa.created_at')
+        ->orderByDesc('qa.id')
+        ->select([
+            'qa.id as attempt_id',
+            'qa.uuid as attempt_uuid',
+            'qa.status',
+            'qa.started_at',
+            'qa.finished_at',
+            'qa.server_deadline_at',
+            'qa.total_time_sec',
+            'qa.created_at',
+            'qa.updated_at',
+
+            'qr.id as result_id',
+            'qr.marks_obtained',
+            'qr.total_marks',
+            'qr.percentage',
+            'qr.attempt_number',
+            'qr.publish_to_student',
+        ])
+        ->get();
+
+    // Whether, *right now*, results are allowed to be visible (immediately / scheduled)
+    $allowViewNow = $this->shouldPublishToStudent((int)$quiz->id);
+
+    // ---------- 5. Map to clean payload ----------
+    $attempts = $rows->map(function ($row) use ($allowViewNow) {
+        $canView = false;
+        if ($row->result_id) {
+            $canView = ((int)$row->publish_to_student === 1) || $allowViewNow;
+        }
+
+        return [
+            'attempt_id'         => (int) $row->attempt_id,
+            'attempt_uuid'       => (string) $row->attempt_uuid,
+            'status'             => (string) $row->status,
+            'started_at'         => $row->started_at
+                                    ? Carbon::parse($row->started_at)->toDateTimeString()
+                                    : null,
+            'finished_at'        => $row->finished_at
+                                    ? Carbon::parse($row->finished_at)->toDateTimeString()
+                                    : null,
+            'created_at'         => $row->created_at
+                                    ? Carbon::parse($row->created_at)->toDateTimeString()
+                                    : null,
+            'server_deadline_at' => $row->server_deadline_at
+                                    ? Carbon::parse($row->server_deadline_at)->toDateTimeString()
+                                    : null,
+            'total_time_sec'     => (int) ($row->total_time_sec ?? 0),
+
+            'result' => $row->result_id ? [
+                'result_id'          => (int) $row->result_id,
+                'marks_obtained'     => (int) $row->marks_obtained,
+                'total_marks'        => (int) $row->total_marks,
+                'percentage'         => $row->total_marks
+                    ? (float) ($row->percentage ?? round(
+                        $row->marks_obtained / max(1, $row->total_marks) * 100,
+                        2
+                    ))
+                    : 0.0,
+                'attempt_number'     => (int) ($row->attempt_number ?? 0),
+                'publish_to_student' => (int) $row->publish_to_student,
+                'can_view_detail'    => $canView,
+            ] : null,
+        ];
+    })->values();
+
+    // Quiz meta (helps UI)
+    $totalMarks = (int) DB::table('quizz_questions')
+        ->where('quiz_id', $quiz->id)
+        ->sum('question_mark');
+
+    return response()->json([
+        'success'  => true,
+        'quiz'     => [
+            'id'                     => (int) $quiz->id,
+            'uuid'                   => (string) $quiz->uuid,
+            'name'                   => (string) ($quiz->quiz_name ?? 'Quiz'),
+            'total_marks'            => $totalMarks,
+            'total_attempts_allowed' => (int) ($quiz->total_attempts ?? 1),
+        ],
+        'batch'    => $batchQuiz ? [
+            'batch_quiz_id'   => (int) $batchQuiz->id,
+            'batch_quiz_uuid' => (string) $batchQuiz->uuid,
+            'batch_id'        => (int) $batchQuiz->batch_id,
+        ] : null,
+        'attempts' => $attempts,
+    ], 200);
+}
+
+
+
     /* ============================================
      | GET /api/exam/attempts/{attempt}/questions
      | Returns all questions (without is_correct)
@@ -1488,4 +1645,314 @@ private function fibExplain(object $q, $answers, $selRaw): array
             ] : null,
         ];
     }
+
+    public function resultDetail(Request $request, int $resultId)
+{
+    // ---------- 1. Auth ----------
+    $user = $this->getUserFromToken($request);
+    if (!$user || !$this->isStudent($user)) {
+        return response()->json([
+            'success' => false,
+            'message' => 'Unauthorized (student token required)'
+        ], 401);
+    }
+
+    // ---------- 2. Load result + attempt + quiz ----------
+    $row = DB::table('quizz_results as r')
+        ->join('quizz_attempts as a', 'a.id', '=', 'r.attempt_id')
+        ->join('quizz as q', 'q.id', '=', 'r.quiz_id')
+        ->where('r.id', $resultId)
+        ->where('r.user_id', $user->id)          // ensure this result belongs to this student
+        ->select([
+            'r.id as result_id',
+            'r.quiz_id',
+            'r.attempt_id',
+            'r.user_id',
+            'r.marks_obtained',
+            'r.total_marks',
+            'r.total_questions',
+            'r.total_correct',
+            'r.total_incorrect',
+            'r.total_skipped',
+            'r.percentage',
+            'r.attempt_number',
+            'r.students_answer',
+            'r.publish_to_student',
+            'r.result_set_up_type',
+            'r.result_release_date',
+            'r.created_at as result_created_at',
+
+            'a.uuid as attempt_uuid',
+            'a.status as attempt_status',
+            'a.started_at',
+            'a.finished_at',
+            'a.total_time_sec',
+            'a.server_deadline_at',
+
+            'q.quiz_name',
+            'q.quiz_description',
+            'q.total_time',
+            'q.total_questions as quiz_total_questions',
+        ])
+        ->first();
+
+    if (!$row) {
+        return response()->json([
+            'success' => false,
+            'message' => 'Result not found'
+        ], 404);
+    }
+
+    // ---------- 3. Check if result is viewable now ----------
+    $allowViewNow = $this->shouldPublishToStudent((int) $row->quiz_id);
+    if (!( (int)$row->publish_to_student === 1 || $allowViewNow )) {
+        return response()->json([
+            'success' => false,
+            'message' => 'Result is not yet published for students'
+        ], 403);
+    }
+
+    // ---------- 4. Decode stored per-question snapshot ----------
+    try {
+        $snapshot = json_decode($row->students_answer ?? '[]', true) ?: [];
+    } catch (\Throwable $e) {
+        $snapshot = [];
+    }
+    $snapByQ = [];
+    foreach ($snapshot as $s) {
+        if (isset($s['question_id'])) {
+            $snapByQ[(int)$s['question_id']] = $s;
+        }
+    }
+
+    // ---------- 5. Load questions + answer options ----------
+    $questions = DB::table('quizz_questions')
+        ->where('quiz_id', $row->quiz_id)
+        ->orderBy('question_order')
+        ->get();
+
+    $answerRows = DB::table('quizz_question_answers')
+        ->whereIn('belongs_question_id', $questions->pluck('id'))
+        ->orderBy('belongs_question_id')
+        ->orderBy('answer_order')
+        ->get()
+        ->groupBy('belongs_question_id');
+
+    // time_spent per question
+    $timeRows = DB::table('quizz_attempt_answers')
+        ->where('attempt_id', $row->attempt_id)
+        ->get()
+        ->keyBy('question_id');
+
+    $questionPayload = [];
+    $totalTimeUsed = 0;
+
+    foreach ($questions as $q) {
+        $qid      = (int) $q->id;
+        $ansRows  = $answerRows[$qid] ?? collect();
+        $snap     = $snapByQ[$qid] ?? null;
+        $timeRow  = $timeRows[$qid] ?? null;
+
+        if ($timeRow) {
+            $totalTimeUsed += (int) $timeRow->time_spent_sec;
+        }
+
+        $questionPayload[] = [
+            'question_id'         => $qid,
+            'order'               => (int) $q->question_order,
+            'title'               => $q->question_title,
+            'description'         => $q->question_description,
+            'type'                => $q->question_type,
+            'mark'                => (int) $q->question_mark,
+            'time_spent_sec'      => $timeRow ? (int) $timeRow->time_spent_sec : 0,
+            'is_correct'          => $snap ? (int) ($snap['is_correct'] ?? 0) : 0,
+            'awarded_mark'        => $snap ? (int) ($snap['awarded_mark'] ?? 0) : 0,
+            'selected_answer_ids' => $snap['selected_answer_ids'] ?? null,
+            'selected_text'       => $snap['selected_text'] ?? null,
+
+            'answers'             => $ansRows->map(function ($a) {
+                return [
+                    'answer_id'    => (int) $a->id,
+                    'title'        => $a->answer_title,
+                    'is_correct'   => (int) $a->is_correct,
+                    'answer_order' => (int) ($a->answer_order ?? 0),
+                ];
+            })->values(),
+        ];
+    }
+
+    // ---------- 6. Response payload ----------
+    return response()->json([
+        'success'  => true,
+        'quiz'     => [
+            'id'               => (int) $row->quiz_id,
+            'name'             => $row->quiz_name,
+            'description'      => $row->quiz_description,
+            'total_questions'  => (int) ($row->quiz_total_questions ?? $row->total_questions),
+            'total_time'       => (int) ($row->total_time ?? 0), // minutes
+        ],
+        'attempt'  => [
+            'attempt_id'         => (int) $row->attempt_id,
+            'attempt_uuid'       => (string) $row->attempt_uuid,
+            'status'             => $row->attempt_status,
+            'started_at'         => $row->started_at
+                                     ? Carbon::parse($row->started_at)->toDateTimeString()
+                                     : null,
+            'finished_at'        => $row->finished_at
+                                     ? Carbon::parse($row->finished_at)->toDateTimeString()
+                                     : null,
+            'total_time_sec'     => (int) $row->total_time_sec,
+            'server_deadline_at' => $row->server_deadline_at
+                                     ? Carbon::parse($row->server_deadline_at)->toDateTimeString()
+                                     : null,
+            'time_used_sec'      => $totalTimeUsed,
+        ],
+        'result'   => [
+            'result_id'       => (int) $row->result_id,
+            'marks_obtained'  => (int) $row->marks_obtained,
+            'total_marks'     => (int) $row->total_marks,
+            'percentage'      => $row->total_marks
+                ? (float) round($row->marks_obtained / max(1, $row->total_marks) * 100, 2)
+                : 0.0,
+            'attempt_number'  => (int) ($row->attempt_number ?? 0),
+            'total_questions' => (int) $row->total_questions,
+            'total_correct'   => (int) $row->total_correct,
+            'total_incorrect' => (int) $row->total_incorrect,
+            'total_skipped'   => (int) $row->total_skipped,
+        ],
+        'questions' => $questionPayload,
+    ], 200);
+}
+
+public function export(Request $request, int $resultId)
+{
+    // Auth (same as resultDetail)
+    $user = $this->getUserFromToken($request);
+    if (!$user || !$this->isStudent($user)) {
+        return response()->json(['success'=>false,'message'=>'Unauthorized (student token required)'], 401);
+    }
+
+    // Load row & enforce ownership
+    $row = DB::table('quizz_results as r')
+        ->join('quizz as q', 'q.id', '=', 'r.quiz_id')
+        ->join('quizz_attempts as a', 'a.id', '=', 'r.attempt_id')
+        ->where('r.id', $resultId)
+        ->where('r.user_id', $user->id)
+        ->select([
+            'r.*',
+            'a.started_at','a.finished_at','a.total_time_sec',
+            'q.quiz_name','q.quiz_description','q.total_time'
+        ])->first();
+
+    if (!$row) {
+        return response()->json(['success'=>false,'message'=>'Result not found'], 404);
+    }
+
+    // respect publish logic
+    $allowViewNow = $this->shouldPublishToStudent((int)$row->quiz_id);
+    if (!((int)$row->publish_to_student === 1 || $allowViewNow)) {
+        return response()->json(['success'=>false,'message'=>'Result is not yet published for students'], 403);
+    }
+
+    // Load question snapshot for the document (optional/simple)
+    $answers = json_decode($row->students_answer ?? '[]', true) ?: [];
+    $questions = DB::table('quizz_questions')
+        ->where('quiz_id', $row->quiz_id)
+        ->orderBy('question_order')
+        ->get();
+    $answerRows = DB::table('quizz_question_answers')
+        ->whereIn('belongs_question_id', $questions->pluck('id'))
+        ->orderBy('belongs_question_id')->orderBy('answer_order')
+        ->get()->groupBy('belongs_question_id');
+
+    // Build a minimal normalized structure for export
+    $mapSnap = [];
+    foreach ($answers as $a) if (isset($a['question_id'])) $mapSnap[(int)$a['question_id']] = $a;
+
+    $items = [];
+    foreach ($questions as $q) {
+        $qid = (int)$q->id;
+        $snap = $mapSnap[$qid] ?? null;
+        $corr = $answerRows[$qid] ?? collect();
+        $correctLabels = $corr->where('is_correct',1)->pluck('answer_title')->values()->all();
+        $items[] = [
+            'no'         => (int)$q->question_order,
+            'title'      => (string)$q->question_title,
+            'mark'       => (int)$q->question_mark,
+            'is_correct' => (int)($snap['is_correct'] ?? 0),
+            'awarded'    => (int)($snap['awarded_mark'] ?? 0),
+            'your'       => isset($snap['selected_text']) ? (string)$snap['selected_text'] : '',
+            'correct'    => implode(', ', $correctLabels),
+        ];
+    }
+
+    $format = strtolower($request->query('format','docx'));
+    $safeName = 'exam_result_'.$resultId;
+
+    if ($format === 'docx') {
+        // Prefer PhpWord if available
+        if (class_exists(\PhpOffice\PhpWord\PhpWord::class)) {
+            $phpWord  = new \PhpOffice\PhpWord\PhpWord();
+            $section  = $phpWord->addSection();
+            $fontH    = ['bold' => true, 'size' => 16];
+            $fontB    = ['bold' => true];
+            $fontM    = ['size' => 11];
+
+            $section->addText('Exam Result', $fontH);
+            $section->addTextBreak(1);
+
+            $section->addText('Quiz: '.$row->quiz_name, $fontB);
+            $section->addText('Student: '.($user->name ?? ('#'.$user->id)), $fontM);
+            $section->addText('Score: '.$row->marks_obtained.' / '.$row->total_marks.'  ('.($row->total_marks ? round($row->marks_obtained/max(1,$row->total_marks)*100,2) : 0).'%)', $fontM);
+            if ($row->started_at)  $section->addText('Started at: '.\Carbon\Carbon::parse($row->started_at)->toDayDateTimeString(), $fontM);
+            if ($row->finished_at) $section->addText('Finished at: '.\Carbon\Carbon::parse($row->finished_at)->toDayDateTimeString(), $fontM);
+            $section->addTextBreak(1);
+
+            // Table
+            $table = $section->addTable(['borderSize' => 6, 'borderColor' => 'cccccc', 'cellMargin' => 60]);
+            $table->addRow();
+            foreach (['Q#','Question','Your Answer','Correct Answer','Marks'] as $col) {
+                $table->addCell(2000)->addText($col, ['bold'=>true]);
+            }
+            foreach ($items as $it) {
+                $table->addRow();
+                $table->addCell(800)->addText((string)$it['no']);
+                $table->addCell(7000)->addText(strip_tags((string)$it['title']));
+                $table->addCell(4000)->addText($it['your'] !== '' ? $it['your'] : '—');
+                $table->addCell(4000)->addText($it['correct'] !== '' ? $it['correct'] : '—');
+                $table->addCell(1800)->addText($it['awarded'].' / '.$it['mark']);
+            }
+
+            $tmp = tempnam(sys_get_temp_dir(), 'res_').'.docx';
+            $phpWord->save($tmp, 'Word2007');
+
+            return response()->download($tmp, $safeName.'.docx')->deleteFileAfterSend(true);
+        }
+
+        // Fallback: Word-compatible HTML (.doc)
+        $html = view('exports.result_doc_fallback', [
+            'row' => $row, 'user' => $user, 'items' => $items
+        ])->render();
+
+        return response($html, 200, [
+            'Content-Type' => 'application/msword',
+            'Content-Disposition' => 'attachment; filename="'.$safeName.'.doc"',
+        ]);
+    }
+
+    // PDF: simple HTML fallback (users can “Save as PDF”)
+    $html = view('exports.result_pdf_fallback', [
+        'row' => $row, 'user' => $user, 'items' => $items
+    ])->render();
+
+    // If you use dompdf, replace the below with real PDF generation.
+    return response($html, 200, [
+        'Content-Type' => 'text/html',
+        'Content-Disposition' => 'attachment; filename="'.$safeName.'.html"',
+    ]);
+}
+
+
+
+
 }

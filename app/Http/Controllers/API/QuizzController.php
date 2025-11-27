@@ -601,6 +601,8 @@ class QuizzController extends Controller
 
         return response()->json(['status'=>'success','message'=>'Note added','data'=>$note]);
     }
+
+
 public function viewQuizzesByBatch(Request $r, string $batchKey)
 {
     $role = (string) ($r->attributes->get('auth_role') ?? '');
@@ -622,7 +624,9 @@ public function viewQuizzesByBatch(Request $r, string $batchKey)
         $bq->where('slug', $batchKey);
     }
     $batch = $bq->first();
-    if (!$batch) return response()->json(['error' => 'Batch not found'], 404);
+    if (!$batch) {
+        return response()->json(['error' => 'Batch not found'], 404);
+    }
 
     // student must be enrolled
     if ($isStudent) {
@@ -640,7 +644,9 @@ public function viewQuizzesByBatch(Request $r, string $batchKey)
             ->where($bsUserCol, $uid)
             ->exists();
 
-        if (!$enrolled) return response()->json(['error' => 'Forbidden'], 403);
+        if (!$enrolled) {
+            return response()->json(['error' => 'Forbidden'], 403);
+        }
     }
 
     $now = now();
@@ -661,10 +667,12 @@ public function viewQuizzesByBatch(Request $r, string $batchKey)
         $query->where('q.status', 'active');
 
         $query->where(function ($qb) use ($now) {
-            $qb->whereNull('bq.available_from')->orWhere('bq.available_from', '<=', $now);
+            $qb->whereNull('bq.available_from')
+               ->orWhere('bq.available_from', '<=', $now);
         });
         $query->where(function ($qb) use ($now) {
-            $qb->whereNull('bq.available_until')->orWhere('bq.available_until', '>=', $now);
+            $qb->whereNull('bq.available_until')
+               ->orWhere('bq.available_until', '>=', $now);
         });
     }
 
@@ -693,7 +701,7 @@ public function viewQuizzesByBatch(Request $r, string $batchKey)
 
         // Batch quiz relationship info
         'bq.id as batch_quiz_id',
-        'bq.uuid as batch_quizzes_uuid',   // <-- ADDED: send batch_quizzes UUID
+        'bq.uuid as batch_quizzes_uuid',
         'bq.display_order',
         'bq.available_from',
         'bq.available_until',
@@ -714,55 +722,141 @@ public function viewQuizzesByBatch(Request $r, string $batchKey)
 
     $paginator = $query->paginate($perPage, ['*'], 'page', $page);
 
+    // Work on the raw items collection
+    $rawItems = collect($paginator->items());
+
+    // =======================
+    // attempt usage maps
+    // =======================
+    $attemptUsageByQuiz       = [];
+    $attemptUsageByBatchQuiz  = [];
+
+    if ($isStudent && $rawItems->isNotEmpty()) {
+        $quizIds      = $rawItems->pluck('id')->filter()->unique()->all();
+        $batchQuizIds = $rawItems->pluck('batch_quiz_id')->filter()->unique()->all();
+
+        if (!empty($quizIds)) {
+            // how many results this user has per quiz (global)
+            $attemptUsageByQuiz = DB::table('quizz_results')
+                ->select('quiz_id', DB::raw('COUNT(*) as used'))
+                ->where('user_id', $uid)
+                ->whereIn('quiz_id', $quizIds)
+                ->groupBy('quiz_id')
+                ->pluck('used', 'quiz_id')
+                ->toArray();
+        }
+
+        if (!empty($batchQuizIds)) {
+            // how many results this user has per batch_quiz
+            $attemptUsageByBatchQuiz = DB::table('quizz_attempt_batch as qab')
+                ->join('quizz_results as r', 'r.attempt_id', '=', 'qab.attempt_id')
+                ->select('qab.batch_quiz_id', DB::raw('COUNT(*) as used'))
+                ->where('qab.user_id', $uid)
+                ->whereIn('qab.batch_quiz_id', $batchQuizIds)
+                ->groupBy('qab.batch_quiz_id')
+                ->pluck('used', 'batch_quiz_id')
+                ->toArray();
+        }
+    }
+
     // Map items
-    $items = collect($paginator->items())->map(function ($quiz) {
+    $items = $rawItems->map(function ($quiz) use ($isStudent, $attemptUsageByQuiz, $attemptUsageByBatchQuiz) {
+
+        // ==========================
+        // attempts (allowed/used/rem)
+        // ==========================
+        $attemptAllowed   = null;
+        $attemptUsed      = null;
+        $attemptRemaining = null;
+
+        if ($isStudent) {
+            // batch-level configured limit
+            $configuredAllowed = $quiz->attempt_allowed !== null
+                ? (int) $quiz->attempt_allowed
+                : 0;
+
+            // how many attempts already used in this batch
+            $attemptUsed = isset($attemptUsageByBatchQuiz[$quiz->batch_quiz_id])
+                ? (int) $attemptUsageByBatchQuiz[$quiz->batch_quiz_id]
+                : 0;
+
+            if ($configuredAllowed > 0) {
+                // finite limit for this batch
+                $attemptAllowed   = $configuredAllowed;
+                $attemptRemaining = max(0, $attemptAllowed - $attemptUsed);
+            } else {
+                // treat 0 / null as "unlimited" for now
+                $attemptAllowed   = null;
+                $attemptRemaining = null;
+            }
+        } else {
+            // for admin/instructor just expose the configured value
+            $attemptAllowed = $quiz->attempt_allowed !== null
+                ? (int) $quiz->attempt_allowed
+                : null;
+        }
+
         return [
-            'id' => $quiz->id,
-            'uuid' => $quiz->uuid,
+            'id'    => $quiz->id,
+            'uuid'  => $quiz->uuid,
             'title' => $quiz->title,
             'excerpt' => $quiz->excerpt,
+
             // Quiz details
-            'quiz_img' => $quiz->quiz_img,
-            'instructions' => $quiz->instructions,
-            'note' => $quiz->note,
-            'is_public' => $quiz->is_public === 'yes' || $quiz->is_public === 1 || $quiz->is_public === true,
+            'quiz_img'           => $quiz->quiz_img,
+            'instructions'       => $quiz->instructions,
+            'note'               => $quiz->note,
+            'is_public'          => $quiz->is_public === 'yes' || $quiz->is_public === 1 || $quiz->is_public === true,
             'result_set_up_type' => $quiz->result_set_up_type,
-            'result_release_date' => $quiz->result_release_date ? \Carbon\Carbon::parse($quiz->result_release_date)->toDateTimeString() : null,
-            'total_time' => $quiz->total_time !== null ? (int)$quiz->total_time : null,
-            'total_questions' => $quiz->total_questions !== null ? (int)$quiz->total_questions : null,
+            'result_release_date'=> $quiz->result_release_date
+                ? \Carbon\Carbon::parse($quiz->result_release_date)->toDateTimeString()
+                : null,
+            'total_time'         => $quiz->total_time !== null ? (int)$quiz->total_time : null,
+            'total_questions'    => $quiz->total_questions !== null ? (int)$quiz->total_questions : null,
             'is_question_random' => isset($quiz->is_question_random) ? (bool)$quiz->is_question_random : null,
-            'is_option_random' => isset($quiz->is_option_random) ? (bool)$quiz->is_option_random : null,
-            'quiz_status' => $quiz->quiz_status,
+            'is_option_random'   => isset($quiz->is_option_random) ? (bool)$quiz->is_option_random : null,
+            'quiz_status'        => $quiz->quiz_status,
 
             // Creator information
-            'created_by' => $quiz->created_by ? (int)$quiz->created_by : null,
-            'created_by_name' => $quiz->created_by_name, // Add creator's name
+            'created_by'      => $quiz->created_by ? (int)$quiz->created_by : null,
+            'created_by_name' => $quiz->created_by_name,
 
             // Batch quiz fields
-            'assigned' => (bool) $quiz->assign_status_flag,
-            'batch_quiz_id' => $quiz->batch_quiz_id !== null ? (int)$quiz->batch_quiz_id : null,
-            'batch_quizzes_uuid' => isset($quiz->batch_quizzes_uuid) ? (string)$quiz->batch_quizzes_uuid : null, // <-- ADDED
-            'display_order' => $quiz->display_order !== null ? (int)$quiz->display_order : null,
-            'batch_status' => $quiz->batch_status ?? null,
+            'assigned'            => (bool) $quiz->assign_status_flag,
+            'batch_quiz_id'       => $quiz->batch_quiz_id !== null ? (int)$quiz->batch_quiz_id : null,
+            'batch_quizzes_uuid'  => isset($quiz->batch_quizzes_uuid) ? (string)$quiz->batch_quizzes_uuid : null,
+            'display_order'       => $quiz->display_order !== null ? (int)$quiz->display_order : null,
+            'batch_status'        => $quiz->batch_status ?? null,
             'publish_to_students' => (bool)$quiz->publish_to_students,
-            'available_from' => $quiz->available_from ? \Carbon\Carbon::parse($quiz->available_from)->toDateTimeString() : null,
-            'available_until' => $quiz->available_until ? \Carbon\Carbon::parse($quiz->available_until)->toDateTimeString() : null,
-            'assigned_at' => $quiz->assigned_at ? \Carbon\Carbon::parse($quiz->assigned_at)->toDateTimeString() : null,
-            'attempt_allowed' => $quiz->attempt_allowed !== null ? (int)$quiz->attempt_allowed : 1,
+            'available_from'      => $quiz->available_from
+                ? \Carbon\Carbon::parse($quiz->available_from)->toDateTimeString()
+                : null,
+            'available_until'     => $quiz->available_until
+                ? \Carbon\Carbon::parse($quiz->available_until)->toDateTimeString()
+                : null,
+            'assigned_at'         => $quiz->assigned_at
+                ? \Carbon\Carbon::parse($quiz->assigned_at)->toDateTimeString()
+                : null,
+
+            // Attempts info (for UI)
+            'attempt_allowed'   => $attemptAllowed,
+            'attempt_used'      => $attemptUsed,
+            'attempt_remaining' => $attemptRemaining,
         ];
     });
 
     return response()->json([
         'success' => true,
-        'data' => $items->values(),
+        'data'    => $items->values(),
         'pagination' => [
-            'total' => (int)$paginator->total(),
-            'per_page' => (int)$paginator->perPage(),
-            'current_page' => (int)$paginator->currentPage(),
-            'last_page' => (int)$paginator->lastPage(),
+            'total'         => (int)$paginator->total(),
+            'per_page'      => (int)$paginator->perPage(),
+            'current_page'  => (int)$paginator->currentPage(),
+            'last_page'     => (int)$paginator->lastPage(),
         ],
     ]);
 }
+
 
 /**
  * DELETED INDEX (GET /api/quizz/deleted)

@@ -19,6 +19,7 @@ use App\Http\Controllers\API\NoticeController;
 use App\Http\Controllers\API\ModuleController;
 use App\Http\Controllers\API\PrivilegeController;
 use App\Http\Controllers\API\UserPrivilegeController;
+use App\Http\Controllers\API\BatchMessageController;
 
 Route::get('/user', function (Request $request) {
     return $request->user();
@@ -65,6 +66,8 @@ Route::middleware('checkRole:admin,super_admin,student,instructor')->group(funct
     Route::delete('/courses/{course}',     [CourseController::class, 'destroy']);
     Route::get('/courses/{course}/view', [CourseController::class, 'viewCourse']);
     Route::get('/courses/by-batch/{batch}/view', [CourseController::class, 'viewCourseByBatch']);
+    Route::get ('/batches/{batch}/messages',  [BatchMessageController::class, 'index']);
+Route::post('/batches/{batch}/messages',  [BatchMessageController::class, 'store']);
     
 
     // Featured media
@@ -346,6 +349,9 @@ Route::middleware(['checkRole:student,admin'])->prefix('exam')->group(function (
     Route::post('/attempts/{attempt}/submit',       [ExamController::class, 'submit']);
     Route::get ('/attempts/{attempt}/status',       [ExamController::class, 'status']);
     Route::post('/attempts/{attempt}/focus', [ExamController::class, 'focus']);
+    Route::get('/quizzes/{quizKey}/my-attempts', [ExamController::class, 'myAttemptsForQuiz']);
+    Route::get('/results/{resultId}', [ExamController::class, 'resultDetail']);
+    Route::get('/results/{resultId}/export', [ExamController::class, 'export']);
 
 });
 
@@ -425,3 +431,7 @@ Route::post('/user-privileges/unassign', [UserPrivilegeController::class, 'unass
 
 
 });
+
+
+// Batch Message Routes 
+

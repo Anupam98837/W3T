@@ -27,6 +27,31 @@
 .modal.show .modal-dialog { max-height: calc(100vh - 48px); }
 .modal.show .modal-content { display: flex; flex-direction: column; }
 .modal.show .modal-body { overflow: auto; max-height: calc(100vh - 200px); -webkit-overflow-scrolling: touch; }
+.qa-status-pill {
+  display:inline-flex;
+  align-items:center;
+  padding:2px 8px;
+  border-radius:999px;
+  font-size:11px;
+  font-weight:500;
+}
+.qa-status-pill.in-progress {
+  background:rgba(59,130,246,.1);
+  color:#1d4ed8;
+}
+.qa-status-pill.submitted {
+  background:rgba(22,163,74,.08);
+  color:#166534;
+}
+.qa-status-pill.auto_submitted {
+  background:rgba(249,115,22,.08);
+  color:#c2410c;
+}
+.qa-status-pill.other {
+  background:rgba(148,163,184,.15);
+  color:#475569;
+}
+
 </style>
 
 <div class="crs-wrap">
@@ -274,6 +299,47 @@
     </div>
   </div>
 </div>
+
+<!-- Quiz Attempts / Results Modal (student) -->
+<div class="modal fade" id="quizAttemptsModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">
+          <i class="fa fa-clipboard-check me-2"></i>
+          Quiz Attempts
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+
+      <div class="modal-body">
+        <div id="qa_attempts_header" class="mb-3 small text-muted"></div>
+
+        <div class="table-responsive">
+          <table class="table table-sm align-middle mb-0">
+            <thead class="table-light">
+              <tr>
+                <th style="width:60px;">#</th>
+                <th>Attempted On</th>
+                <th>Status</th>
+                <th>Score</th>
+                <th class="text-end" style="width:140px;">Action</th>
+              </tr>
+            </thead>
+            <tbody id="qa_attempt_rows">
+              <!-- filled by JS -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn btn-light" data-bs-dismiss="modal">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script>
 (function(){
   // ----------------------------
@@ -341,6 +407,11 @@
   const detailsBody = document.getElementById('qz-details-body');
   const detailsClose = document.getElementById('qz-details-close');
   const detailsFooter = document.getElementById('qz-details-footer');
+  // Attempts / Results modal elems
+const attemptsModalEl   = document.getElementById('quizAttemptsModal');
+const attemptsHeaderEl  = document.getElementById('qa_attempts_header');
+const attemptsRowsEl    = document.getElementById('qa_attempt_rows');
+
 
   // NEW EDIT MODAL ELEMENTS
   const editModalEl = document.getElementById('editQuizModal');
@@ -529,25 +600,58 @@
     datePill.textContent = row.assigned_at ? new Date(row.assigned_at).toLocaleDateString() : '';
     right.appendChild(datePill);
 
-    // START QUIZ button (replaces Details)
-    const startBtn = document.createElement('button');
-    startBtn.className = 'btn btn-primary';
-    startBtn.style.minWidth = '80px';
-    startBtn.textContent = 'Start Quiz';
-    startBtn.title = 'Start this quiz';
-    startBtn.addEventListener('click', ()=> startQuiz(row));
-    right.appendChild(startBtn);
+    // --- NEW: attempts pill (used/allowed) ---
+let attemptsAllowed = null;
+let attemptsUsed = null;
+
+if (typeof row.attempt_allowed === 'number' || typeof row.attempt_used === 'number') {
+  attemptsAllowed = Number(row.attempt_allowed ?? 0);
+  attemptsUsed    = Number(row.attempt_used ?? 0);
+}
+
+let canAttemptMore = true;
+
+if (attemptsAllowed && attemptsAllowed > 0) {
+  const attemptsPill = document.createElement('div');
+  attemptsPill.className = 'duration-pill';
+  attemptsPill.textContent = `${attemptsUsed || 0}/${attemptsAllowed}`;
+  attemptsPill.title = 'Attempts used / allowed';
+  right.appendChild(attemptsPill);
+
+  canAttemptMore = (attemptsUsed || 0) < attemptsAllowed;
+}
+
+
+// START QUIZ button – only if attempts remain OR no data
+const shouldShowStart =
+  (attemptsAllowed === null || attemptsAllowed === 0) || canAttemptMore;
+
+if (shouldShowStart) {
+  const startBtn = document.createElement('button');
+  startBtn.className = 'btn btn-primary';
+  startBtn.style.minWidth = '80px';
+  startBtn.textContent = 'Start Quiz';
+  startBtn.title = 'Start this quiz';
+  startBtn.addEventListener('click', ()=> startQuiz(row));
+  right.appendChild(startBtn);
+}
+
 
     const moreWrap = document.createElement('div');
     moreWrap.className='qz-more';
-    moreWrap.innerHTML = `
-      <button class="qz-dd-btn" aria-haspopup="true" aria-expanded="false" title="More">⋮</button>
-      <div class="qz-dd" role="menu" aria-hidden="true">
-        <a href="#" data-action="view"><i class="fa fa-eye"></i><span>View</span></a>
-        ${canEdit ? `<a href="#" data-action="edit"><i class="fa fa-pen"></i><span>Edit</span></a>` : ''}
-        ${canDelete ? `<div class="divider"></div><a href="#" data-action="delete" class="text-danger"><i class="fa fa-trash"></i><span>Move to Bin</span></a>` : ''}
-      </div>
-    `;
+    // treat non-admin roles as "students" for showing Results
+const canSeeResults = !isAdmin && !isInstructor;
+
+moreWrap.innerHTML = `
+  <button class="qz-dd-btn" aria-haspopup="true" aria-expanded="false" title="More">⋮</button>
+  <div class="qz-dd" role="menu" aria-hidden="true">
+    <a href="#" data-action="view"><i class="fa fa-eye"></i><span>View</span></a>
+    ${canSeeResults ? `<a href="#" data-action="results"><i class="fa fa-clipboard-check"></i><span>Result</span></a>` : ''}
+    ${canEdit ? `<a href="#" data-action="edit"><i class="fa fa-pen"></i><span>Edit</span></a>` : ''}
+    ${canDelete ? `<div class="divider"></div><a href="#" data-action="delete" class="text-danger"><i class="fa fa-trash"></i><span>Move to Bin</span></a>` : ''}
+  </div>
+`;
+
     right.appendChild(moreWrap);
 
     // dropdown wiring
@@ -572,6 +676,17 @@
 
     const editBtn = moreWrap.querySelector('[data-action="edit"]');
     if (editBtn) editBtn.addEventListener('click', (ev)=>{ ev.preventDefault(); enterQzEditMode(row); closeAllDropdowns(); });
+    
+    const resultBtn = moreWrap.querySelector('[data-action="results"]');
+if (resultBtn) {
+  resultBtn.addEventListener('click', (ev) => {
+    ev.preventDefault();
+    ev.stopPropagation();
+    closeAllDropdowns();
+    openQuizResults(row);
+  });
+}
+
 
     const delBtn = moreWrap.querySelector('[data-action="delete"]');
     if (delBtn) {
@@ -777,6 +892,182 @@
     if (detailsFooter) detailsFooter.innerHTML='';
   }
   detailsClose?.addEventListener('click', closeQzDetails);
+
+  async function openQuizResults(row) {
+  try {
+    // Resolve quiz key (uuid or id)
+    const quizKey =
+      row.uuid ||
+      row.quiz?.uuid ||
+      row.quiz_id ||
+      row.quiz?.id ||
+      row.id;
+
+    if (!quizKey) {
+      showErr('Missing quiz reference for results.');
+      console.warn('openQuizResults: row has no quiz key', row);
+      return;
+    }
+
+    // Resolve batch_quiz UUID (same logic we used in startQuiz)
+    const batchQuizUuid =
+      row.batch_quizzes_uuid ||
+      row.batch_quiz_uuid ||
+      row.batch_quiz?.uuid ||
+      null;
+
+    if (!batchQuizUuid) {
+      // we can still show attempts if your endpoint supports non-batch quizzes;
+      // if you want to make it mandatory, uncomment the error below.
+      // showErr('Missing batch quiz UUID for results.');
+      // return;
+    }
+
+    // Build endpoint URL
+    let url = `/api/exam/quizzes/${encodeURIComponent(quizKey)}/my-attempts`;
+    if (batchQuizUuid) {
+      url += `?batch_quiz=${encodeURIComponent(batchQuizUuid)}`;
+    }
+
+    const res = await apiFetch(url);
+    const json = await res.json().catch(() => ({}));
+
+    if (!res.ok || json.success === false) {
+      showErr(json.message || 'Failed to load results.');
+      console.error('openQuizResults error', res.status, json);
+      return;
+    }
+
+    const attempts = Array.isArray(json.attempts) ? json.attempts : [];
+
+    // No attempts => just show info message
+    if (!attempts.length) {
+      Swal.fire({
+        icon: 'info',
+        title: 'No result available',
+        text: 'You have not attempted this quiz yet.'
+      });
+      return;
+    }
+
+    // Fill header (quiz info summary)
+    if (attemptsHeaderEl) {
+      const q = json.quiz || {};
+      const totalMarks =
+        q.total_marks ??
+        (attempts[0]?.result?.total_marks ?? null);
+
+      const title =
+        q.name ||
+        row.title ||
+        row.quiz?.quiz_name ||
+        row.quiz?.title ||
+        'Quiz';
+
+      attemptsHeaderEl.innerHTML = `
+        <div class="fw-semibold">${escapeHtml(title)}</div>
+        <div class="small text-muted mt-1">
+          Attempts allowed: ${q.total_attempts_allowed ?? '—'}
+          ${totalMarks ? ` • Total marks: ${totalMarks}` : ''}
+        </div>
+      `;
+    }
+
+    // Build table rows
+    if (attemptsRowsEl) {
+      attemptsRowsEl.innerHTML = '';
+
+      attempts.forEach((a, index) => {
+        const tr = document.createElement('tr');
+
+        const r = a.result || null;
+        const canView = !!(r && r.can_view_detail && r.result_id);
+
+        const attemptNo = r?.attempt_number || (index + 1);
+
+        const dt =
+          a.started_at ||
+          a.created_at ||
+          a.finished_at ||
+          null;
+
+        const dtText = dt ? new Date(dt).toLocaleString() : '—';
+
+        let statusClass = 'other';
+        const status = String(a.status || '').toLowerCase();
+        if (status === 'in_progress') statusClass = 'in-progress';
+        else if (status === 'submitted') statusClass = 'submitted';
+        else if (status === 'auto_submitted') statusClass = 'auto_submitted';
+
+        const scoreText = r
+          ? `${r.marks_obtained}/${r.total_marks} (${Number(r.percentage || 0).toFixed(2)}%)`
+          : '—';
+
+        tr.innerHTML = `
+          <td>${attemptNo}</td>
+          <td>${escapeHtml(dtText)}</td>
+          <td>
+            <span class="qa-status-pill ${statusClass}">
+              ${escapeHtml(a.status || '—')}
+            </span>
+          </td>
+          <td>${scoreText}</td>
+          <td class="text-end">
+            ${
+              canView
+                ? `<button type="button" class="btn btn-sm btn-outline-primary qa-view-result" data-result-id="${r.result_id}">
+                      <i class="fa fa-eye me-1"></i>View Result
+                   </button>`
+                : `<span class="text-muted small">Not published</span>`
+            }
+          </td>
+        `;
+
+        attemptsRowsEl.appendChild(tr);
+      });
+
+      // Attach click events for "View Result"
+      attemptsRowsEl.querySelectorAll('.qa-view-result').forEach(btn => {
+        btn.addEventListener('click', (ev) => {
+          ev.preventDefault();
+          ev.stopPropagation();
+          const resultId = btn.getAttribute('data-result-id');
+          if (!resultId) return;
+
+            // Send token ONCE via ?t= and the result id via ?result=
+    // The page will store it to storage and strip it from the URL.
+    const next = new URL('/exam/results/view', location.origin);
+    next.searchParams.set('result', resultId);
+    if (window.TOKEN) next.searchParams.set('t', window.TOKEN);
+
+          // Redirect to result page; you will create this route + view.
+          // Example front-end route: GET /exam/results/{id}
+          window.location.href = `/exam/results/${encodeURIComponent(resultId)}/view`;
+        });
+      });
+    }
+
+    // Show modal
+    if (attemptsModalEl) {
+      try {
+        if (window.bootstrap && typeof bootstrap.Modal === 'function') {
+          bootstrap.Modal.getOrCreateInstance(attemptsModalEl).show();
+        } else {
+          attemptsModalEl.classList.add('show');
+          attemptsModalEl.style.display = 'block';
+        }
+      } catch (e) {
+        attemptsModalEl.classList.add('show');
+        attemptsModalEl.style.display = 'block';
+      }
+    }
+
+  } catch (e) {
+    console.error('openQuizResults exception', e);
+    showErr('Failed to load results.');
+  }
+}
+
 
   // ---------- NEW EDIT MODAL (from manageQuizz.blade.php) ----------
   function enterQzEditMode(row){
