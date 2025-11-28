@@ -142,6 +142,21 @@ Route::get('/admin/notice/create', function () {
 Route::get('/admin/module/manage', function () {
     return view('modules.module.manageModule');
 });
+
+Route::get('/admin/privilege/manage', function () {
+    return view('modules.privileges.managePrivileges');
+});
+  // Accept either numeric ID OR UUID via query params
+Route::get('/user-privileges/manage', function () {
+    $userUuid = request('user_uuid');
+    $userId   = request('user_id'); // fallback
+    
+    return view('modules.privileges.assignPrivileges', [
+        'userUuid' => $userUuid,
+        'userId'   => $userId,
+    ]);
+})->name('admin.privileges.assign.user');
+
 // Student Routes
 Route::get('/student/dashboard', function () {
     return view('pages.users.student.pages.common.dashboard');

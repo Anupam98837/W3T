@@ -36,17 +36,12 @@ class ModuleController extends Controller
             $q->whereNull('deleted_at');
         }
 
-        // optional course_id filter
-        if ($request->filled('course_id')) {
-            $q->where('course_id', $request->query('course_id'));
-        }
-
-        // search q -> title or short_description
+        // search q -> name or description
         if ($request->filled('q')) {
             $term = '%' . trim($request->query('q')) . '%';
             $q->where(function ($sub) use ($term) {
-                $sub->where('title', 'like', $term)
-                    ->orWhere('short_description', 'like', $term);
+                $sub->where('name', 'like', $term)
+                    ->orWhere('description', 'like', $term);
             });
         }
 
@@ -59,12 +54,15 @@ class ModuleController extends Controller
         $sort = $request->query('sort', '-created_at');
         $dir = 'desc';
         $col = 'created_at';
-        if ($sort[0] === '-') {
-            $col = ltrim($sort, '-'); $dir = 'desc';
-        } else { $col = $sort; $dir = 'asc'; }
+        if (is_string($sort) && $sort !== '') {
+            if ($sort[0] === '-') {
+                $col = ltrim($sort, '-'); $dir = 'desc';
+            } else { $col = $sort; $dir = 'asc'; }
+        }
+
         // whitelist sortable columns
-        $allowed = ['created_at','order_no','title','id'];
-        if (! in_array($col, $allowed)) { $col = 'created_at'; }
+        $allowed = ['created_at','name','id'];
+        if (! in_array($col, $allowed, true)) { $col = 'created_at'; }
         $q->orderBy($col, $dir);
 
         return $q;
@@ -87,14 +85,16 @@ class ModuleController extends Controller
     }
 
     /**
-     * List modules (active / all non-deleted). Accepts: per_page, page, q, course_id, status, sort, with_privileges
+     * List modules (active / all non-deleted). Accepts: per_page, page, q, status, sort, with_privileges
      */
     public function index(Request $request)
     {
         $perPage = max(1, min(200, (int) $request->query('per_page', 20)));
         $includePrivileges = filter_var($request->query('with_privileges', false), FILTER_VALIDATE_BOOLEAN);
 
-        $query = $this->baseQuery($request, false)->select('id','uuid','course_id','title','short_description','order_no','status','created_at','updated_at');
+        // select columns present in your migration
+        $query = $this->baseQuery($request, false)
+            ->select('id','uuid','name','description','status','created_by','created_at_ip','created_at','updated_at');
 
         $paginator = $query->paginate($perPage);
         $out = $this->paginatorToArray($paginator);
@@ -111,11 +111,12 @@ class ModuleController extends Controller
     }
 
     /**
-     * Archived list (status = 'archived')
+     * Archived list (status = 'archived' or 'Archived')
      */
     public function archived(Request $request)
     {
-        $request->merge(['status' => 'archived']);
+        // we let caller pass archived value, but default to 'archived' for convenience
+        $request->merge(['status' => $request->query('status', 'archived')]);
         return $this->index($request);
     }
 
@@ -128,7 +129,7 @@ class ModuleController extends Controller
         $includePrivileges = filter_var($request->query('with_privileges', false), FILTER_VALIDATE_BOOLEAN);
 
         $query = $this->baseQuery($request, true)->whereNotNull('modules.deleted_at')
-            ->select('id','uuid','course_id','title','short_description','order_no','status','created_at','updated_at','deleted_at');
+            ->select('id','uuid','name','description','status','created_by','created_at_ip','created_at','updated_at','deleted_at');
 
         $paginator = $query->paginate($perPage);
         $out = $this->paginatorToArray($paginator);
@@ -150,13 +151,10 @@ class ModuleController extends Controller
     public function store(Request $request)
     {
         $v = Validator::make($request->all(), [
-            'title' => 'required|string|max:255|unique:modules,title,NULL,id,deleted_at,NULL',
-            'short_description' => 'nullable|string',
-            'long_description' => 'nullable|string',
-            'metadata' => 'nullable|string',
-            'order_no' => 'nullable|integer',
-            'status' => ['nullable', Rule::in(['draft','published','archived'])],
-            'course_id' => 'nullable|integer',
+            'name' => 'required|string|max:150|unique:modules,name,NULL,id,deleted_at,NULL',
+            'description' => 'nullable|string',
+            'status' => 'nullable|string|max:20',
+            // we ignore fields not present in migration
         ]);
 
         if ($v->fails()) {
@@ -170,13 +168,9 @@ class ModuleController extends Controller
             $id = DB::transaction(function () use ($request, $actor, $ip) {
                 $payload = [
                     'uuid' => (string) Str::uuid(),
-                    'course_id' => $request->input('course_id'),
-                    'title' => $request->input('title'),
-                    'short_description' => $request->input('short_description'),
-                    'long_description' => $request->input('long_description'),
-                    'metadata' => $request->input('metadata'),
-                    'order_no' => $request->input('order_no', 0),
-                    'status' => $request->input('status', 'draft'),
+                    'name' => $request->input('name'),
+                    'description' => $request->input('description'),
+                    'status' => $request->input('status', 'Active'),
                     'created_at' => now(),
                     'updated_at' => now(),
                     'created_by' => $actor['id'] ?: null,
@@ -252,16 +246,12 @@ class ModuleController extends Controller
         if (! $module) return response()->json(['message' => 'Module not found'], 404);
 
         $v = Validator::make($request->all(), [
-            'title' => [
-                'sometimes','required','string','max:255',
+            'name' => [
+                'sometimes','required','string','max:150',
                 Rule::unique('modules')->ignore($module->id)->whereNull('deleted_at'),
             ],
-            'short_description' => 'nullable|string',
-            'long_description' => 'nullable|string',
-            'metadata' => 'nullable|string',
-            'order_no' => 'nullable|integer',
-            'status' => ['nullable', Rule::in(['draft','published','archived'])],
-            'course_id' => 'nullable|integer',
+            'description' => 'nullable|string',
+            'status' => 'nullable|string|max:20',
         ]);
 
         if ($v->fails()) return response()->json(['errors' => $v->errors()], 422);
@@ -269,12 +259,8 @@ class ModuleController extends Controller
         $actor = $this->actor($request);
 
         $update = array_filter([
-            'course_id' => $request->has('course_id') ? $request->input('course_id') : null,
-            'title' => $request->has('title') ? $request->input('title') : null,
-            'short_description' => $request->has('short_description') ? $request->input('short_description') : null,
-            'long_description' => $request->has('long_description') ? $request->input('long_description') : null,
-            'metadata' => $request->has('metadata') ? $request->input('metadata') : null,
-            'order_no' => $request->has('order_no') ? $request->input('order_no') : null,
+            'name' => $request->has('name') ? $request->input('name') : null,
+            'description' => $request->has('description') ? $request->input('description') : null,
             'status' => $request->has('status') ? $request->input('status') : null,
             'updated_at' => now(),
         ], function ($v) { return $v !== null; });
@@ -324,7 +310,7 @@ class ModuleController extends Controller
     }
 
     /**
-     * Unarchive (set status to draft)
+     * Unarchive (set status to 'Active' / default)
      */
     public function unarchive(Request $request, $identifier)
     {
@@ -332,7 +318,7 @@ class ModuleController extends Controller
         if (! $module) return response()->json(['message' => 'Module not found'], 404);
 
         try {
-            DB::table('modules')->where('id', $module->id)->update(['status' => 'draft', 'updated_at' => now()]);
+            DB::table('modules')->where('id', $module->id)->update(['status' => 'Active', 'updated_at' => now()]);
             return response()->json(['message' => 'Module unarchived']);
         } catch (Exception $e) {
             return response()->json(['message' => 'Could not unarchive', 'error' => $e->getMessage()], 500);
@@ -423,7 +409,10 @@ class ModuleController extends Controller
 
     /**
      * Reorder modules — expects { ids: [id1,id2,id3,...] }
-     * It will update order_no according to array position (0..n-1)
+     * It will update order according to array position (0..n-1)
+     *
+     * Note: your migration doesn't include an order_no column. If you add it later,
+     * enable the update code below. For now this will return an error if order_no doesn't exist.
      */
     public function reorder(Request $request)
     {
@@ -438,7 +427,10 @@ class ModuleController extends Controller
         try {
             DB::transaction(function () use ($ids) {
                 foreach ($ids as $idx => $id) {
-                    DB::table('modules')->where('id', $id)->update(['order_no' => $idx, 'updated_at' => now()]);
+                    // only update if column exists
+                    if (Schema::hasColumn('modules', 'order_no')) {
+                        DB::table('modules')->where('id', $id)->update(['order_no' => $idx, 'updated_at' => now()]);
+                    }
                 }
             });
             return response()->json(['message' => 'Order updated']);
@@ -446,4 +438,40 @@ class ModuleController extends Controller
             return response()->json(['message' => 'Could not update order', 'error' => $e->getMessage()], 500);
         }
     }
+    /**
+ * Return all modules with their active privileges (no pagination).
+ */
+public function allWithPrivileges(Request $request)
+{
+    // fetch modules (non-deleted)
+    $modules = DB::table('modules')
+        ->whereNull('deleted_at')
+        ->select('id','uuid','name','description','status','created_by','created_at','updated_at')
+        ->orderBy('name', 'asc')
+        ->get();
+
+    if ($modules->isEmpty()) {
+        return response()->json(['data' => []]);
+    }
+
+    $ids = $modules->pluck('id')->filter()->all();
+
+    // fetch active privileges for these modules
+    // NOTE: alias `action` -> `name` so frontend expecting `name` keeps working
+    $privileges = DB::table('privileges')
+        ->whereIn('module_id', $ids)
+        ->whereNull('deleted_at')
+        ->select('id','uuid','module_id', DB::raw('action as name'), 'action','description','created_at')
+        ->orderBy('action','asc') // order by the actual column
+        ->get()
+        ->groupBy('module_id');
+
+    // attach privileges (empty array when none)
+    $out = $modules->map(function ($m) use ($privileges) {
+        $m->privileges = $privileges->has($m->id) ? $privileges[$m->id]->values() : collect([]);
+        return $m;
+    });
+
+    return response()->json(['data' => $out->values()]);
+}
 }
