@@ -1,29 +1,3 @@
-<<<<<<< HEAD
-{{-- resources/views/users/managePrivileges.blade.php --}}
-@extends('pages.users.admin.layout.structure')
-
-@section('title', 'Manage User Privileges')
-
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"/>
-<link rel="stylesheet" href="{{ asset('assets/css/common/main.css') }}"/>
-
-@push('styles')
-<style>
-/* reuse look and feel from modules page with minor tweaks */
-.cm-wrap{max-width:1140px;margin:16px auto 40px}
-.panel{background:var(--surface);border:1px solid var(--line-strong);border-radius:12px;padding:12px}
-.module-card{border:1px solid var(--line-strong);border-radius:12px;padding:12px;margin-bottom:12px;background:var(--surface);box-shadow:var(--shadow-1)}
-.module-head{display:flex;align-items:center;justify-content:space-between;gap:12px}
-.module-title{font-weight:700}
-.priv-list{margin-top:10px}
-.priv-item{display:flex;align-items:center;justify-content:space-between;padding:8px;border-radius:8px;border:1px solid var(--line-soft);margin-bottom:6px;background:transparent}
-.priv-left{display:flex;align-items:center;gap:10px}
-.priv-action{font-family:monospace; font-size:0.95rem; color:var(--ink)}
-.priv-desc{font-size:0.85rem;color:var(--muted-color)}
-.card-empty{padding:18px;text-align:center;color:var(--muted-color)}
-.assign-actions{display:flex;gap:8px;align-items:center}
-.small-muted{font-size:13px;color:var(--muted-color)}
-=======
 {{-- resources/views/users/assignPrivileges.blade.php --}}
 @extends('pages.users.admin.layout.structure')
 <link rel="stylesheet" href="{{ asset('assets/css/common/main.css') }}"/>
@@ -70,25 +44,16 @@ input:disabled + .sm-toggle-slider{opacity:0.6;cursor:not-allowed}
 
 /* small helper for active state if needed */
 .sm-privilege-item.active{box-shadow:0 0 0 2px rgba(0,0,0,0.03)}
->>>>>>> c91667b7c50beb5791b8e3fbcbc07f95ef790c11
 </style>
 @endpush
 
 @section('content')
-<<<<<<< HEAD
-<div class="cm-wrap">
-  <div class="row g-2 mb-3 align-items-center panel">
-    <div class="col">
-      <h4 class="mb-0">Manage Privileges for User</h4>
-      <div id="userSummary" class="small-muted">Loading user…</div>
-=======
 <div class="sm-cm-wrap">
   <!-- Header panel remains the same -->
   <div class="row g-2 mb-3 align-items-center sm-panel">
     <div class="col">
       <h4 class="mb-0">Manage Privileges for User</h4>
       <div id="userSummary" class="sm-small-muted">Loading user…</div>
->>>>>>> c91667b7c50beb5791b8e3fbcbc07f95ef790c11
     </div>
     <div class="col-auto d-flex gap-2">
       <a href="javascript:history.back()" class="btn btn-light"><i class="fa fa-arrow-left me-1"></i>Back</a>
@@ -97,15 +62,6 @@ input:disabled + .sm-toggle-slider{opacity:0.6;cursor:not-allowed}
     </div>
   </div>
 
-<<<<<<< HEAD
-  <div id="modulesContainer">
-    <div class="card-empty">Loading modules & privileges…</div>
-  </div>
-
-  <div class="small-muted mt-3">Tip: check/uncheck privileges and press <b>Save</b>. Unchecking removes privilege (will be synced).</div>
-</div>
-
-=======
   <!-- Updated Modules Container Structure -->
   <div id="modulesContainer">
     <!-- Each module card will have this structure: -->
@@ -138,28 +94,16 @@ input:disabled + .sm-toggle-slider{opacity:0.6;cursor:not-allowed}
 
   <div class="sm-small-muted mt-3">Tip: toggle privileges on/off and press <b>Save</b>. Checked = assigned; unchecked = unassigned.</div>
 </div>
->>>>>>> c91667b7c50beb5791b8e3fbcbc07f95ef790c11
 {{-- Toasts --}}
 <div class="toast-container position-fixed top-0 end-0 p-3" style="z-index:1200">
   <div id="toastOk" class="toast text-bg-success border-0"><div class="d-flex"><div id="toastOkMsg" class="toast-body">Done</div><button class="btn-close btn-close-white m-auto me-2" data-bs-dismiss="toast"></button></div></div>
   <div id="toastErr" class="toast text-bg-danger border-0 mt-2"><div class="d-flex"><div id="toastErrMsg" class="toast-body">Something went wrong</div><button class="btn-close btn-close-white m-auto me-2" data-bs-dismiss="toast"></button></div></div>
 </div>
 @endsection
-<<<<<<< HEAD
-
-=======
->>>>>>> c91667b7c50beb5791b8e3fbcbc07f95ef790c11
 @push('scripts')
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 <script>
 document.addEventListener('DOMContentLoaded', ()=> {
-<<<<<<< HEAD
-  const params = new URLSearchParams(location.search);
-  const userId = params.get('user_id') || params.get('id') || '';
-  const token = localStorage.getItem('token') || sessionStorage.getItem('token') || '';
-  if(!token) { Swal.fire('Login required','Please login again','warning').then(()=>location.href='/'); return; }
-  if(!userId){ Swal.fire('Missing user','No user specified.','error'); return; }
-=======
 
   const deriveCourseKey = () => {
     const parts = location.pathname.split('/').filter(Boolean);
@@ -179,7 +123,6 @@ document.addEventListener('DOMContentLoaded', ()=> {
 
   const token = localStorage.getItem('token') || sessionStorage.getItem('token') || '';
   if(!token) { Swal.fire('Login required','Please login again','warning').then(()=>location.href='/'); return; }
->>>>>>> c91667b7c50beb5791b8e3fbcbc07f95ef790c11
 
   const authHeaders = (extra={}) => Object.assign({'Authorization':'Bearer '+token, 'Accept':'application/json'}, extra);
   const toastOk = new bootstrap.Toast(document.getElementById('toastOk'));
@@ -195,21 +138,6 @@ document.addEventListener('DOMContentLoaded', ()=> {
   // local state
   let modules = [];                 // array of modules {id, uuid, name, privileges: [ {id, uuid, action, description} ]}
   let assignedPrivIds = new Set();  // privilege_id integers (or uuids depending on your api) currently assigned to user
-<<<<<<< HEAD
-  let isSaving = false;
-
-  // load user basic info (optional, just for header)
-  async function loadUserInfo(){
-    try {
-      const res = await fetch(`/api/users/${encodeURIComponent(userId)}`, { headers: authHeaders() });
-      const js = await res.json().catch(()=>({}));
-      if(res.ok && js.user){
-        const u = js.user;
-        userSummary.innerHTML = `<strong>${escapeHtml(u.name || u.email || ('#'+u.id))}</strong> — ${escapeHtml(u.email || '')}`;
-      } else {
-        userSummary.textContent = 'User information not available';
-      }
-=======
   let mappingByPriv = {};           // map: privilege_id_or_uuid -> mapping_uuid (for fast unassign)
   let isSaving = false;
   let resolvedUserId = null;        // numeric id we will resolve and use for API calls
@@ -285,7 +213,6 @@ document.addEventListener('DOMContentLoaded', ()=> {
 
       // fallback text if fetch didn't populate UI
       userSummary.textContent = 'User information not available';
->>>>>>> c91667b7c50beb5791b8e3fbcbc07f95ef790c11
     } catch(e){
       userSummary.textContent = 'Failed to load user';
     }
@@ -293,49 +220,20 @@ document.addEventListener('DOMContentLoaded', ()=> {
 
   // load all modules with privileges (non-deleted)
   async function loadModulesWithPrivileges(){
-<<<<<<< HEAD
-    modulesContainer.innerHTML = `<div class="card-empty">Loading modules & privileges…</div>`;
-=======
     modulesContainer.innerHTML = `<div class="sm-card-empty">Loading modules & privileges…</div>`;
->>>>>>> c91667b7c50beb5791b8e3fbcbc07f95ef790c11
     try {
       const res = await fetch('/api/modules/all-with-privileges', { headers: authHeaders() });
       const js = await res.json().catch(()=>({}));
       if(!res.ok) throw new Error(js.message || 'Failed to load modules');
       modules = Array.isArray(js.data) ? js.data : (js.data?.length ? js.data : []);
       if(!modules.length){
-<<<<<<< HEAD
-        modulesContainer.innerHTML = `<div class="card-empty">No modules or privileges found.</div>`;
-=======
         modulesContainer.innerHTML = `<div class="sm-card-empty">No modules or privileges found.</div>`;
->>>>>>> c91667b7c50beb5791b8e3fbcbc07f95ef790c11
         return;
       }
       await loadAssignedPrivileges();
       renderModules();
     } catch(e){
       console.error(e);
-<<<<<<< HEAD
-      modulesContainer.innerHTML = `<div class="card-empty text-danger">Failed to load modules: ${escapeHtml(e.message || '')}</div>`;
-    }
-  }
-
-  // load assigned privileges for this user
-  async function loadAssignedPrivileges(){
-    assignedPrivIds = new Set();
-    try {
-      // we expect endpoint: GET /api/user-privileges/list?user_id=ID
-      const res = await fetch(`/api/user-privileges/list?user_id=${encodeURIComponent(userId)}`, { headers: authHeaders() });
-      const js = await res.json().catch(()=>({}));
-      if(!res.ok) throw new Error(js.message || 'Failed to load assigned privileges');
-      const data = Array.isArray(js.data) ? js.data : (js.data?.length ? js.data : []);
-      // the user_privileges list returns rows with privilege_id (int) or uuid depending on your schema.
-      // prefer numeric id if present
-      for(const r of data){
-        if(r.privilege_id != null) assignedPrivIds.add(String(r.privilege_id));
-        else if(r.id != null) assignedPrivIds.add(String(r.id));
-        else if(r.uuid) assignedPrivIds.add(String(r.uuid));
-=======
       modulesContainer.innerHTML = `<div class="sm-card-empty text-danger">Failed to load modules: ${escapeHtml(e.message || '')}</div>`;
     }
   }
@@ -365,105 +263,12 @@ document.addEventListener('DOMContentLoaded', ()=> {
           // fallback: store mapping by the mapping uuid itself to allow lookup if needed
           mappingByPriv[r.mapping_uuid] = String(r.mapping_uuid);
         }
->>>>>>> c91667b7c50beb5791b8e3fbcbc07f95ef790c11
       }
     } catch(e){
       console.warn('Could not load assigned privileges', e);
     }
   }
 
-<<<<<<< HEAD
-  function escapeHtml(s){ return (s||'').toString().replace(/[&<>"'`]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;','`':'&#96;'}[ch])); }
-
-  // Render modules -> privs tree
-  function renderModules(){
-    modulesContainer.innerHTML = '';
-    modules.forEach(m => {
-      const card = document.createElement('div');
-      card.className = 'module-card';
-
-      const head = document.createElement('div');
-      head.className = 'module-head';
-      head.innerHTML = `<div>
-        <div class="module-title">${escapeHtml(m.name || ('#'+m.id))}</div>
-        <div class="small-muted">${escapeHtml(m.description || '')}</div>
-      </div>
-      <div class="small-muted">Privileges: ${ (m.privileges?.length || 0) }</div>`;
-
-      card.appendChild(head);
-
-      const list = document.createElement('div');
-      list.className = 'priv-list';
-
-      if(!m.privileges || !m.privileges.length){
-        list.innerHTML = `<div class="card-empty small-muted">No privileges for this module.</div>`;
-      } else {
-        m.privileges.forEach(p => {
-          // p: id, uuid, action, description
-          const pid = String(p.id ?? p.uuid ?? '');
-          const checked = assignedPrivIds.has(pid) ? 'checked' : '';
-          const row = document.createElement('div');
-          row.className = 'priv-item';
-          row.dataset.privId = pid;
-
-          row.innerHTML = `
-            <div class="priv-left">
-              <input type="checkbox" class="priv-checkbox" ${checked} />
-              <div>
-                <div class="priv-action">${escapeHtml(p.action || p.name || '')}</div>
-                <div class="priv-desc">${escapeHtml(p.description || '')}</div>
-              </div>
-            </div>
-            <div class="assign-actions">
-              <button class="btn btn-sm btn-light btn-unassign" title="Unassign"><i class="fa fa-ban"></i></button>
-            </div>
-          `;
-
-          // toggle checkbox handler
-          row.querySelector('.priv-checkbox').addEventListener('change', (ev)=>{
-            // visually update set only; final commit on Save; or we can do immediate sync on uncheck if desired
-            const cb = ev.target;
-            if(cb.checked) assignedPrivIds.add(pid);
-            else assignedPrivIds.delete(pid);
-          });
-
-          // single unassign button (per privilege) - calls delete endpoint immediately
-          row.querySelector('.btn-unassign').addEventListener('click', async ()=>{
-            if(!confirm('Unassign this privilege from user?')) return;
-            try {
-              const body = { user_id: Number(userId), privilege_id: Number(p.id ?? 0) };
-              // if your API expects uuid, send privilege_id as uuid string instead
-              if(!p.id && p.uuid) body.privilege_id = p.uuid;
-              const res = await fetch('/user-privileges/delete', {
-                method: 'POST',
-                headers: authHeaders({'Content-Type':'application/json'}),
-                body: JSON.stringify(body)
-              });
-              const js = await res.json().catch(()=>({}));
-              if(!res.ok) throw new Error(js.message || 'Unassign failed');
-              // reflect locally
-              assignedPrivIds.delete(pid);
-              row.querySelector('.priv-checkbox').checked = false;
-              ok('Privilege unassigned');
-            } catch(e){
-              console.error(e);
-              err(e.message || 'Failed to unassign');
-            }
-          });
-
-          list.appendChild(row);
-        });
-      }
-
-      card.appendChild(list);
-      modulesContainer.appendChild(card);
-    });
-  }
-
-  // Save all changes (sync)
-  btnSaveAll.addEventListener('click', async ()=>{
-    if(isSaving) return;
-=======
 function renderModules(){
   modulesContainer.innerHTML = '';
   
@@ -633,41 +438,25 @@ m.privileges.forEach(p => {
     if(isSaving) return;
     if (!resolvedUserId && !resolvedUserUuid) { err('User not resolved'); return; }
 
->>>>>>> c91667b7c50beb5791b8e3fbcbc07f95ef790c11
     isSaving = true;
     btnSaveAll.disabled = true;
     btnSaveAll.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Saving';
 
     try {
-<<<<<<< HEAD
-      // prepare array of privilege ids (prefer numeric ids if available)
-      // We need to gather actual numeric IDs — modules[].privileges[].id
-      // Our assignedPrivIds set contains string ids (either numeric or uuid). We'll send numeric ones preferentially.
-=======
       // gather selected privilege ids - prefer numeric where present
->>>>>>> c91667b7c50beb5791b8e3fbcbc07f95ef790c11
       const currentIds = [];
       modules.forEach(m=>{
         (m.privileges || []).forEach(p=>{
           const pid = String(p.id ?? p.uuid ?? '');
           if(assignedPrivIds.has(pid)){
-<<<<<<< HEAD
-            // push numeric id if available, else uuid
-            currentIds.push( p.id ? Number(p.id) : String(p.uuid) );
-=======
             currentIds.push(p.id ? Number(p.id) : String(p.uuid));
->>>>>>> c91667b7c50beb5791b8e3fbcbc07f95ef790c11
           }
         });
       });
 
-<<<<<<< HEAD
-      const payload = { user_id: Number(userId), privileges: Array.from(new Set(currentIds)) };
-=======
       const payload = { privileges: Array.from(new Set(currentIds)) };
       if (resolvedUserId) payload.user_id = Number(resolvedUserId);
       else payload.user_uuid = String(resolvedUserUuid);
->>>>>>> c91667b7c50beb5791b8e3fbcbc07f95ef790c11
 
       const res = await fetch('/api/user-privileges/sync', {
         method: 'POST',
@@ -678,10 +467,6 @@ m.privileges.forEach(p => {
       if(!res.ok) throw new Error(js.message || 'Sync failed');
 
       ok('Privileges synced');
-<<<<<<< HEAD
-      // refresh assigned list from server
-=======
->>>>>>> c91667b7c50beb5791b8e3fbcbc07f95ef790c11
       await loadAssignedPrivileges();
       renderModules();
     } catch(e){
@@ -695,21 +480,12 @@ m.privileges.forEach(p => {
   });
 
   btnRefresh.addEventListener('click', async ()=> {
-<<<<<<< HEAD
-=======
     if (!resolvedUserId && !resolvedUserUuid) { err('User not resolved'); return; }
->>>>>>> c91667b7c50beb5791b8e3fbcbc07f95ef790c11
     await loadAssignedPrivileges();
     renderModules();
     ok('Refreshed');
   });
 
-<<<<<<< HEAD
-  // initial load
-  (async ()=>{
-    await loadUserInfo();
-    await loadModulesWithPrivileges();
-=======
   // boot sequence: resolve identity then load data
   (async ()=>{
     try {
@@ -724,7 +500,6 @@ m.privileges.forEach(p => {
       Swal.fire('Cannot continue', e.message || 'Missing or invalid user identifier', 'error');
       modulesContainer.innerHTML = `<div class="sm-card-empty text-danger">Cannot load privileges: ${escapeHtml(e.message || '')}</div>`;
     }
->>>>>>> c91667b7c50beb5791b8e3fbcbc07f95ef790c11
   })();
 
 });

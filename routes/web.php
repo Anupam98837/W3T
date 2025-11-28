@@ -146,15 +146,9 @@ Route::get('/admin/module/manage', function () {
 Route::get('/admin/privilege/manage', function () {
     return view('modules.privileges.managePrivileges');
 });
-  Route::get('/admin/privilege/assign/{userId?}', function ($userId = null) {
-        return view('modules.privileges.assignPrivileges', compact('userId'));
-    })->where('userId','[0-9]+')->name('admin.privileges.assign.user');
-
-
-
-
-
-
+//   Route::get('/admin/privilege/assign/{userId?}', function ($userId = null) {
+//         return view('modules.privileges.assignPrivileges', compact('userId'));
+//     })->where('userId','[0-9]+')->name('admin.privileges.assign.user');
 
   // Accept either numeric ID OR UUID via query params
 Route::get('/user-privileges/manage', function () {

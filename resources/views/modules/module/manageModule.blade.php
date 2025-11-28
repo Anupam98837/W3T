@@ -200,15 +200,9 @@ html.theme-dark .dropdown-menu{background:#0f172a;border-color:var(--line-strong
       </button>
 
       {{-- New: Privileges button --}}
-<<<<<<< HEAD
-      <button id="btnPrivilege" class="btn btn-light">
-        <i class="fa fa-shield-alt me-1"></i>+ Privilege
-      </button>
-=======
       <!-- <button id="btnPrivilege" class="btn btn-light">
         <i class="fa fa-shield-alt me-1"></i>+ Privilege
       </button> -->
->>>>>>> c91667b7c50beb5791b8e3fbcbc07f95ef790c11
 
       <button id="btnCreate" class="btn btn-primary">
         <i class="fa fa-plus me-1"></i>New Module
@@ -640,13 +634,10 @@ document.addEventListener('click',(e)=>{
           </button>
           <ul class="dropdown-menu dropdown-menu-end">
             <li><button class="dropdown-item" data-act="edit" data-key="${key}" data-name="${esc(r.name||'')}"><i class="fa fa-pen-to-square"></i> Edit</button></li>
-<<<<<<< HEAD
-=======
 
             <!-- + Privilege entry for this module -->
             <li><button class="dropdown-item" data-act="privileges" data-key="${key}" data-name="${esc(r.name||'')}"><i class="fa fa-shield-alt"></i> + Privilege</button></li>
 
->>>>>>> c91667b7c50beb5791b8e3fbcbc07f95ef790c11
             <li><hr class="dropdown-divider"></li>
             ${archived
               ? `<li><button class="dropdown-item" data-act="unarchive" data-key="${key}" data-name="${esc(r.name||'')}"><i class="fa fa-box-open"></i> Unarchive</button></li>`
@@ -915,11 +906,7 @@ document.addEventListener('click',(e)=>{
     finally{ mm.save.disabled = false; }
   });
 
-<<<<<<< HEAD
-  /* ========== Row actions (archive/delete/restore/force) ========= */
-=======
   /* ========== Row actions (archive/delete/restore/force & privileges) ========= */
->>>>>>> c91667b7c50beb5791b8e3fbcbc07f95ef790c11
   document.addEventListener('click', async (e)=>{
     const it = e.target.closest('.dropdown-item[data-act]');
     if(!it) return;
@@ -1181,18 +1168,6 @@ document.addEventListener('click',(e)=>{
     }
   }
 
-<<<<<<< HEAD
-  // open privilege modal (update: keep behaviour, but load modules and respect preloaded privileges)
-  btnPrivilege && btnPrivilege.addEventListener('click', async ()=>{
-    priv.rowsContainer.innerHTML = '';
-    // add initial row until modules load completes
-    priv.rowsContainer.appendChild(createPrivRow());
-    await loadModulesForSelect();
-    priv.modal.show();
-  });
-
-=======
->>>>>>> c91667b7c50beb5791b8e3fbcbc07f95ef790c11
   // add row button
   priv.addRowBtn && priv.addRowBtn.addEventListener('click', ()=>{
     priv.rowsContainer.appendChild(createPrivRow());

@@ -87,29 +87,54 @@ class ModuleController extends Controller
     /**
      * List modules (active / all non-deleted). Accepts: per_page, page, q, status, sort, with_privileges
      */
-    public function index(Request $request)
-    {
-        $perPage = max(1, min(200, (int) $request->query('per_page', 20)));
-        $includePrivileges = filter_var($request->query('with_privileges', false), FILTER_VALIDATE_BOOLEAN);
+   public function index(Request $request)
+{
+    $perPage = max(1, min(200, (int) $request->query('per_page', 20)));
+    $includePrivileges = filter_var($request->query('with_privileges', false), FILTER_VALIDATE_BOOLEAN);
 
-        // select columns present in your migration
-        $query = $this->baseQuery($request, false)
-            ->select('id','uuid','name','description','status','created_by','created_at_ip','created_at','updated_at');
+    // build base query (your baseQuery likely has joins/filters)
+    $query = $this->baseQuery($request, false);
 
-        $paginator = $query->paginate($perPage);
-        $out = $this->paginatorToArray($paginator);
-
-        if ($includePrivileges && !empty($out['data'])) {
-            $ids = collect($out['data'])->pluck('id')->filter()->all();
-            $privs = DB::table('privileges')->whereIn('module_id', $ids)->whereNull('deleted_at')->get()->groupBy('module_id');
-            foreach ($out['data'] as &$m) {
-                $m->privileges = $privs->has($m->id) ? $privs[$m->id] : [];
-            }
+    // STATUS handling:
+    // - if caller passed ?status=... we respect it (including ?status=archived)
+    // - if no status provided, exclude archived rows by default
+    if ($request->filled('status')) {
+        $status = $request->query('status');
+        if ($status === 'archived') {
+            $query->where('status', 'archived');
+        } else {
+            $query->where('status', $status);
         }
-
-        return response()->json($out);
+    } else {
+        // default: exclude archived
+        $query->where(function ($q) {
+            $q->whereNull('status')
+              ->orWhere('status', '!=', 'archived');
+        });
     }
 
+    // select columns present in your migration
+    $query = $query->select('id','uuid','name','description','status','created_by','created_at_ip','created_at','updated_at');
+
+    $paginator = $query->paginate($perPage);
+    $out = $this->paginatorToArray($paginator);
+
+    if ($includePrivileges && !empty($out['data'])) {
+        $ids = collect($out['data'])->pluck('id')->filter()->all();
+        // ensure privileges for these module ids (adjust column names if different)
+        $privs = DB::table('privileges')
+            ->whereIn('module_id', $ids)
+            ->whereNull('deleted_at')
+            ->get()
+            ->groupBy('module_id');
+
+        foreach ($out['data'] as &$m) {
+            $m->privileges = $privs->has($m->id) ? $privs[$m->id] : [];
+        }
+    }
+
+    return response()->json($out);
+}
     /**
      * Archived list (status = 'archived' or 'Archived')
      */
@@ -457,20 +482,12 @@ public function allWithPrivileges(Request $request)
     $ids = $modules->pluck('id')->filter()->all();
 
     // fetch active privileges for these modules
-<<<<<<< HEAD
-    $privileges = DB::table('privileges')
-        ->whereIn('module_id', $ids)
-        ->whereNull('deleted_at')
-        ->select('id','uuid','module_id','name','action','description','created_at')
-        ->orderBy('name','asc')
-=======
     // NOTE: alias `action` -> `name` so frontend expecting `name` keeps working
     $privileges = DB::table('privileges')
         ->whereIn('module_id', $ids)
         ->whereNull('deleted_at')
         ->select('id','uuid','module_id', DB::raw('action as name'), 'action','description','created_at')
         ->orderBy('action','asc') // order by the actual column
->>>>>>> c91667b7c50beb5791b8e3fbcbc07f95ef790c11
         ->get()
         ->groupBy('module_id');
 
@@ -481,10 +498,5 @@ public function allWithPrivileges(Request $request)
     });
 
     return response()->json(['data' => $out->values()]);
-<<<<<<< HEAD
-}
-
-=======
->>>>>>> c91667b7c50beb5791b8e3fbcbc07f95ef790c11
 }
 }
