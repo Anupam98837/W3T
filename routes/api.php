@@ -433,5 +433,3 @@ Route::post('/user-privileges/unassign', [UserPrivilegeController::class, 'unass
 });
 
 
-// Batch Message Routes 
-
