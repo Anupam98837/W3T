@@ -155,11 +155,11 @@ Route::get('/user-privileges/manage', function () {
     $userUuid = request('user_uuid');
     $userId   = request('user_id'); // fallback
     
-    return view('modules.privileges.assignPrivileges', [
+    return view('pages.users.admin.pages.privileges.assignPrivileges', [
         'userUuid' => $userUuid,
         'userId'   => $userId,
     ]);
-})->name('admin.privileges.assign.user');
+})->name('modules.privileges.assign.user');
 
 // Student Routes
 Route::get('/student/dashboard', function () {

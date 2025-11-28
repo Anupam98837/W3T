@@ -1,10 +1,13 @@
 {{-- resources/views/users/assignPrivileges.blade.php --}}
-@extends('pages.users.admin.layout.structure')
+
 <link rel="stylesheet" href="{{ asset('assets/css/common/main.css') }}"/>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"/>
 @push('styles')
 <style>
 /* prefixed with sm- */
+body{
+background: red;
+}
 .sm-cm-wrap{max-width:1140px;margin:16px auto 40px; background: var(--primary-color)}
 .sm-panel{background:var(--surface);border:1px solid var(--line-strong);border-radius:12px;padding:12px}
 
