@@ -253,10 +253,9 @@
 {{-- Dependencies (SweetAlert2 + jQuery for convenience) --}}
 <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.all.min.js"></script>
-<!-- Ensure Bootstrap JS is loaded before our inline script -->
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 <script>
-// Delegated handler for dropdown toggles - safer version
+// Delegated handler for dropdown toggles
 document.addEventListener('click', (e) => {
   const btn = e.target.closest('.dd-toggle');
   if (!btn) return;
@@ -272,40 +271,47 @@ document.addEventListener('click', (e) => {
   }
 });
 
+
 document.addEventListener('DOMContentLoaded', function(){
-  // Guard: must have token in sessionStorage or localStorage
+
+  /* ==========================================================
+      AUTH / ROLE CHECK
+  ========================================================== */
   const token = sessionStorage.getItem('token') || localStorage.getItem('token') || '';
   if (!token) { window.location.href = '/'; return; }
 
-  // Current actor role from storage (lowercased)
   const roleStored = (sessionStorage.getItem('role') || localStorage.getItem('role') || '').toLowerCase();
   const canWrite   = (roleStored === 'admin' || roleStored === 'super_admin');
-  const canDelete  = (roleStored === 'super_admin'); // Admins cannot delete
+  const canDelete  = (roleStored === 'super_admin');
 
-  if (canWrite) document.getElementById('writeControls').style.display = 'flex';
+  try { if (canWrite) document.getElementById('writeControls').style.display = 'flex'; } catch(e){}
 
-  // UI elements - REMOVED countEl since the page header was deleted
+
+  /* ==========================================================
+      DOM ELEMENTS
+  ========================================================== */
   const tbody     = document.getElementById('usersTbody');
   const pager     = document.getElementById('pager');
   const info      = document.getElementById('resultsInfo');
 
   const perPageSel  = document.getElementById('perPage');
   const searchInput = document.getElementById('searchInput');
-  
-  // Filter modal elements
-  const modalStatus = document.getElementById('modal_status');
-  const modalRole = document.getElementById('modal_role');
-  const modalSort = document.getElementById('modal_sort');
-  const btnApplyFilters = document.getElementById('btnApplyFilters');
-  const btnReset = document.getElementById('btnReset');
 
-  // Modal elements
+  // Filter modal
+  const modalStatus = document.getElementById('modal_status');
+  const modalRole   = document.getElementById('modal_role');
+  const modalSort   = document.getElementById('modal_sort');
+  const btnApplyFilters = document.getElementById('btnApplyFilters');
+  const btnReset        = document.getElementById('btnReset');
+
+  // User modal
   const userModalEl = document.getElementById('userModal');
-  const userModal   = new bootstrap.Modal(userModalEl);
+  const userModal   = userModalEl ? new bootstrap.Modal(userModalEl) : null;
   const form        = document.getElementById('userForm');
   const modalTitle  = document.getElementById('userModalTitle');
   const saveBtn     = document.getElementById('saveUserBtn');
 
+  // Inputs
   const idInput     = document.getElementById('userId');
   const nameInput   = document.getElementById('userName');
   const emailInput  = document.getElementById('userEmail');
@@ -320,83 +326,76 @@ document.addEventListener('DOMContentLoaded', function(){
   const pwdHelp     = document.getElementById('passwordHelp');
   const btnAdd      = document.getElementById('btnAddUser');
 
-  // NEW: extra field refs
+  // Extra fields
   const altEmailInput = document.getElementById('userAltEmail');
   const altPhoneInput = document.getElementById('userAltPhone');
   const waInput       = document.getElementById('userWhatsApp');
   const addrInput     = document.getElementById('userAddress');
 
-  // Toast helpers
+  // Toasts
   const toastOk  = new bootstrap.Toast(document.getElementById('toastSuccess'));
   const toastErr = new bootstrap.Toast(document.getElementById('toastError'));
   const okTxt    = document.getElementById('toastSuccessText');
   const errTxt   = document.getElementById('toastErrorText');
-  const ok  = m => { okTxt.textContent = m || 'Done'; toastOk.show(); };
-  const err = m => { errTxt.textContent = m || 'Something went wrong'; toastErr.show(); };
+  const ok = m => { okTxt.textContent = m || 'Done'; toastOk.show(); };
+  const err= m => { errTxt.textContent = m || 'Something went wrong'; toastErr.show(); };
 
-  const ROLE_LABEL = {
-    super_admin: 'Super Admin',
-    admin: 'Admin',
-    instructor: 'Instructor',
-    student: 'Student',
-    author: 'Author'
-  };
-  const roleLabel = v => ROLE_LABEL[(v||'').toLowerCase()] || (v||'');
 
+  /* ==========================================================
+      HELPERS
+  ========================================================== */
   function authHeaders(extra={}){ return Object.assign({'Authorization':'Bearer '+token}, extra); }
-  function escapeHtml(str){ return (str ?? '').toString().replace(/[&<>"']/g, s => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[s])); }
-  function debounce(fn,ms=350){ let t; return (...a)=>{ clearTimeout(t); t=setTimeout(()=>fn(...a),ms); }; }
 
-  // Fix for image URLs - ensure they're absolute
-  function fixImageUrl(url) {
+  function escapeHtml(str){
+    return (str ?? '').toString().replace(/[&<>"']/g,
+      s => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[s])
+    );
+  }
+  function debounce(fn,ms=350){ let t; return (...a)=>{ clearTimeout(t); t=setTimeout(()=>fn(...a),ms); }; }
+  function fixImageUrl(url){
     if (!url) return null;
-    // If it's already a full URL, return as is
-    if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('//')) {
-      return url;
-    }
-    // If it starts with /, it's already relative to root
-    if (url.startsWith('/')) {
-      return url;
-    }
-    // Otherwise, prepend with / to make it root-relative
+    url = String(url).trim();
+    if (!url) return null;
+    if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('//')) return url;
+    if (url.startsWith('/')) return url;
     return '/' + url;
   }
 
-  // State
-  let page=1, perPage=10, q='', statusFilter='all', roleFilter='', sort='-created_at', totalPages=1, totalCount=0;
+
+  /* ==========================================================
+      STATE
+  ========================================================== */
+  let page=1, perPage=10, q='', statusFilter='all', roleFilter='', sort='-created_at';
+  let totalPages=1, totalCount=0;
   let lastRows = [];
 
-  // Initial control values
-  perPage = parseInt(perPageSel.value,10) || 10;
+  if (perPageSel) perPage = parseInt(perPageSel.value,10) || 10;
 
-  // Fetch + render
+
+  /* ==========================================================
+      FETCH USERS
+  ========================================================== */
   async function fetchUsers(){
     tbody.innerHTML = `<tr><td colspan="6" class="text-center text-muted" style="padding:38px;">Loading…</td></tr>`;
     const params = new URLSearchParams({
       page:String(page),
       per_page:String(perPage),
       q:q,
-      sort: sort
+      sort:sort
     });
-    
-    // Only add status if not 'all'
-    if (statusFilter && statusFilter !== 'all') {
-      params.set('status', statusFilter);
-    }
-    
-    // Only add role if not empty
-    if (roleFilter) {
-      params.set('role', roleFilter);
-    }
-    
+
+    if (statusFilter !== 'all') params.set('status', statusFilter);
+    if (roleFilter) params.set('role', roleFilter);
+
     const res = await fetch(`/api/users?${params.toString()}`, { headers: authHeaders() });
     if (res.status === 401) { window.location.href='/'; return; }
-    let json; try{ json = await res.json(); }catch{ json = {}; }
+
+    let json = await res.json().catch(()=>({}));
     if (!res.ok) throw new Error(json.message || 'Failed to load users');
 
     lastRows   = Array.isArray(json.data) ? json.data : [];
     totalPages = json.meta?.total_pages || 1;
-    totalCount = json.meta?.total || (lastRows.length || 0);
+    totalCount = json.meta?.total || 0;
 
     renderTable(lastRows);
     renderPager();
@@ -405,362 +404,455 @@ document.addEventListener('DOMContentLoaded', function(){
     info.textContent = shown
       ? `Showing ${(page-1)*perPage + 1} to ${(page-1)*perPage + shown} of ${totalCount} entries`
       : `0 of ${totalCount}`;
-    // REMOVED: countEl.textContent update since the element was deleted
   }
 
+
+  /* ==========================================================
+      RENDER USERS TABLE
+  ========================================================== */
   function renderTable(rows){
     if (!rows.length){
       tbody.innerHTML = `<tr><td colspan="6" class="text-center text-muted" style="padding:38px;">No users found</td></tr>`;
       return;
     }
 
-    tbody.innerHTML = rows.map(row => {
+    tbody.innerHTML = rows.map(row=>{
       const r = (row.role||'').toLowerCase();
       const active = row.status === 'active';
-      
-      // Fixed image URL handling with error fallback
+
+      // Safely extract UUID (backend may return uuid or user_uuid)
+      const userUuid = row.uuid || row.user_uuid || '';
+
       const fixedImageUrl = fixImageUrl(row.image);
       const avatar = fixedImageUrl
-        ? `<img src="${escapeHtml(fixedImageUrl)}" alt="avatar" style="width:40px;height:40px;border-radius:10px;object-fit:cover;border:1px solid var(--line-strong);" loading="lazy" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">`
+        ? `<img src="${escapeHtml(fixedImageUrl)}" style="width:40px;height:40px;border-radius:10px;object-fit:cover;border:1px solid var(--line-strong);" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">`
         : '';
 
-      const avatarFallback = `<div style="width:40px;height:40px;border-radius:10px;border:1px solid var(--line-strong);display:${fixedImageUrl ? 'none' : 'flex'};align-items:center;justify-content:center;color:#9aa3b2;">—</div>`;
+      const avatarFallback =
+        `<div style="width:40px;height:40px;border-radius:10px;border:1px solid var(--line-strong);display:${fixedImageUrl?'none':'flex'};align-items:center;justify-content:center;color:#9aa3b2;">—</div>`;
 
       const toggle = canWrite
         ? `<div class="form-check form-switch m-0">
-             <input class="form-check-input js-toggle" type="checkbox" ${active?'checked':''} title="Toggle Active">
+            <input class="form-check-input js-toggle" type="checkbox" ${active?'checked':''}>
            </div>`
         : `<span class="badge ${active?'badge-soft-success':'badge-soft-danger'}">${active?'Active':'Inactive'}</span>`;
 
-      // Action dropdown - improved to include explicit type attributes
-      let actionHtml = `
-        <div class="dropdown text-end" data-bs-display="static">
-          <button type="button" class="btn btn-light btn-sm dd-toggle" data-bs-toggle="dropdown" data-bs-auto-close="outside" data-bs-boundary="viewport" aria-expanded="false" title="Actions">
-            <i class="fa fa-ellipsis-vertical"></i>
-          </button>
-          <ul class="dropdown-menu dropdown-menu-end">
-            <li><button type="button" class="dropdown-item" data-action="view" title="View"><i class="fa fa-eye"></i> View</button></li>`;
-
-      if (canWrite) {
-        actionHtml += `<li><button type="button" class="dropdown-item" data-action="edit" title="Edit"><i class="fa fa-pen-to-square"></i> Edit</button></li>`;
-      }
-
-      // NEW: Manage privileges menu item
-      actionHtml += `<li><button type="button" class="dropdown-item" data-action="manage-privileges" title="Manage Privileges"><i class="fa fa-shield-alt"></i> Manage privileges</button></li>`;
-
-      if (canDelete) {
-        actionHtml += `<li><hr class="dropdown-divider"></li>
-            <li><button type="button" class="dropdown-item text-danger" data-action="delete" title="Delete"><i class="fa fa-trash"></i> Delete</button></li>`;
-      }
-
-      actionHtml += `</ul></div>`;
-
       return `
-        <tr data-id="${row.id}">
-          <td>${toggle}</td>
-          <td style="position:relative">${avatar}${avatarFallback}</td>
-          <td class="fw-semibold">${escapeHtml(row.name || '')}</td>
-          <td>${row.email ? `<a href="mailto:${escapeHtml(row.email)}">${escapeHtml(row.email)}</a>` : '<span class="text-muted">—</span>'}</td>
-          <td><span class="badge badge-soft-primary"><i class="fa fa-user-shield me-1"></i>${escapeHtml(roleLabel(r))}</span></td>
-          <td class="text-end">${actionHtml}</td>
-        </tr>`;
+<tr data-id="${escapeHtml(String(row.id))}" data-uuid="${escapeHtml(String(userUuid))}">
+  <td>${toggle}</td>
+  <td>${avatar}${avatarFallback}</td>
+  <td class="fw-semibold">${escapeHtml(row.name)}</td>
+  <td>${row.email?`<a href="mailto:${escapeHtml(row.email)}">${escapeHtml(row.email)}</a>`:'<span class="text-muted">—</span>'}</td>
+  <td><span class="badge badge-soft-primary">${escapeHtml(r)}</span></td>
+  <td class="text-end">
+    <div class="dropdown">
+      <button type="button" class="btn btn-light btn-sm dd-toggle" data-bs-toggle="dropdown">
+        <i class="fa fa-ellipsis-vertical"></i>
+      </button>
+      <ul class="dropdown-menu dropdown-menu-end">
+        <li><button type="button" class="dropdown-item" data-action="view"><i class="fa fa-eye"></i> View</button></li>
+        ${canWrite?`<li><button type="button" class="dropdown-item" data-action="edit"><i class="fa fa-pen"></i> Edit</button></li>`:''}
+        <li><button type="button" class="dropdown-item" data-action="manage-privileges"><i class="fa fa-shield-alt"></i> Manage Privileges</button></li>
+        ${canDelete?`<li><hr class="dropdown-divider"></li><li><button type="button" class="dropdown-item text-danger" data-action="delete"><i class="fa fa-trash"></i> Delete</button></li>`:''}
+      </ul>
+    </div>
+  </td>
+</tr>`;
     }).join('');
   }
 
+
+  /* ==========================================================
+      PAGER
+  ========================================================== */
   function renderPager(){
-    let html = '';
-    function item(p, label, dis = false, act = false){
-      if (dis) return `<li class="page-item disabled"><span class="page-link">${label}</span></li>`;
-      if (act) return `<li class="page-item active"><span class="page-link">${label}</span></li>`;
-      return `<li class="page-item"><a class="page-link" href="#" data-page="${p}">${label}</a></li>`;
-    }
-    html += item(Math.max(1, page-1), 'Previous', page<=1);
-    const st = Math.max(1, page-2), en = Math.min(totalPages, page+2);
-    for (let p = st; p <= en; p++) html += item(p, p, false, p===page);
-    html += item(Math.min(totalPages, page+1), 'Next', page>=totalPages);
-    pager.innerHTML = html;
+    let html='';
+    const item=(p,l,dis=false,act=false)=>{
+      if(dis) return `<li class="page-item disabled"><span class="page-link">${l}</span></li>`;
+      if(act) return `<li class="page-item active"><span class="page-link">${l}</span></li>`;
+      return `<li class="page-item"><a class="page-link" data-page="${p}" href="#">${l}</a></li>`;
+    };
+    html+=item(Math.max(1,page-1),'Previous',page<=1);
+    const st=Math.max(1,page-2), en=Math.min(totalPages,page+2);
+    for(let p=st;p<=en;p++) html+=item(p,p,false,p===page);
+    html+=item(Math.min(totalPages,page+1),'Next',page>=totalPages);
+    pager.innerHTML=html;
   }
 
-  // Events: pager/search/filters
-  pager.addEventListener('click', e=>{
-    const a = e.target.closest('a.page-link'); if (!a) return;
+
+  /* ==========================================================
+      PAGER CLICK
+  ========================================================== */
+  pager.addEventListener('click',e=>{
+    const a=e.target.closest('a.page-link'); if(!a) return;
     e.preventDefault();
-    const p = parseInt(a.dataset.page,10);
-    if (!Number.isNaN(p) && p !== page){ page=p; fetchUsers().catch(ex=>err(ex.message)); window.scrollTo({top:0,behavior:'smooth'}); }
+    const p=parseInt(a.dataset.page,10);
+    if(p!==page){ page=p; fetchUsers(); }
   });
 
-  const onSearch = debounce(()=>{ q = searchInput.value.trim(); page=1; fetchUsers().catch(ex=>err(ex.message)); }, 320);
-  searchInput.addEventListener('input', onSearch);
 
-  perPageSel.addEventListener('change', ()=>{ perPage=parseInt(perPageSel.value,10)||10; page=1; fetchUsers().catch(ex=>err(ex.message)); });
+  /* ==========================================================
+      SEARCH
+  ========================================================== */
+  searchInput.addEventListener('input', debounce(()=>{
+    q=searchInput.value.trim();
+    page=1;
+    fetchUsers();
+  },320));
 
-  // Filter modal functionality - FIXED: Update modal with current filter values when opened
+
+  /* ==========================================================
+      PER PAGE
+  ========================================================== */
+  perPageSel.addEventListener('change',()=>{
+    perPage=parseInt(perPageSel.value,10)||10;
+    page=1;
+    fetchUsers();
+  });
+
+
+  /* ==========================================================
+      FILTERS
+  ========================================================== */
   const filterModalEl = document.getElementById('filterModal');
   const filterModal = new bootstrap.Modal(filterModalEl);
-  
-  // Update modal inputs with current filter values when modal is shown
-  filterModalEl.addEventListener('show.bs.modal', () => {
+
+  filterModalEl.addEventListener('show.bs.modal',()=>{
     modalStatus.value = statusFilter;
-    modalRole.value = roleFilter;
-    modalSort.value = sort;
+    modalRole.value   = roleFilter;
+    modalSort.value   = sort;
   });
-  
-  btnApplyFilters.addEventListener('click', () => {
+
+  btnApplyFilters.addEventListener('click',()=>{
     statusFilter = modalStatus.value;
-    roleFilter = modalRole.value;
-    sort = modalSort.value;
-    page = 1;
-    
-    // Close modal properly
+    roleFilter   = modalRole.value;
+    sort         = modalSort.value;
+    page=1;
     filterModal.hide();
-    
-    fetchUsers().catch(ex => err(ex.message));
+    fetchUsers();
   });
 
-  // Reset filters - FIXED: Reset all filter states properly
-  btnReset.addEventListener('click', () => {
-    statusFilter = 'all';
-    roleFilter = '';
-    sort = '-created_at';
-    q = '';
-    page = 1;
-    perPage = 10;
-    
-    // Reset all controls
-    searchInput.value = '';
-    perPageSel.value = '10';
-    modalStatus.value = 'all';
-    modalRole.value = '';
-    modalSort.value = '-created_at';
-    
-    fetchUsers().catch(ex => err(ex.message));
+  btnReset.addEventListener('click',()=>{
+    statusFilter='all';
+    roleFilter='';
+    sort='-created_at';
+    q='';
+    page=1;
+    perPage=10;
+
+    searchInput.value='';
+    perPageSel.value='10';
+    modalStatus.value='all';
+    modalRole.value='';
+    modalSort.value='-created_at';
+
+    fetchUsers();
   });
 
-  // Row: toggle active
+
+  /* ==========================================================
+      TOGGLE ACTIVE
+  ========================================================== */
   tbody.addEventListener('change', async (e)=>{
-    const sw = e.target.closest('.js-toggle'); if (!sw) return;
-    if (!canWrite){ sw.checked = !sw.checked; return; }
-    const tr = sw.closest('tr'); const id = tr?.dataset?.id; if(!id) return;
-    const willActive = sw.checked;
+    const sw=e.target.closest('.js-toggle'); if(!sw) return;
+    if(!canWrite){ sw.checked=!sw.checked; return; }
 
-    const conf = await Swal.fire({
+    const tr=sw.closest('tr');
+    const id=tr.dataset.id;
+
+    const willActive=sw.checked;
+
+    const conf=await Swal.fire({
       title:'Confirm',
-      text: willActive ? 'Activate this user?' : 'Deactivate this user?',
-      icon:'question', showCancelButton:true, confirmButtonText:'Yes'
+      text:willActive?'Activate user?':'Deactivate user?',
+      icon:'question',showCancelButton:true
     });
-    if (!conf.isConfirmed){ sw.checked = !willActive; return; }
+
+    if(!conf.isConfirmed){
+      sw.checked=!willActive;
+      return;
+    }
 
     try{
-      const res = await fetch(`/api/users/${id}`, {
+      const res=await fetch(`/api/users/${id}`,{
         method:'PATCH',
-        headers: { ...authHeaders({'Content-Type':'application/json'}) },
-        body: JSON.stringify({ status: willActive ? 'active' : 'inactive' })
+        headers:{ ...authHeaders({'Content-Type':'application/json'}) },
+        body:JSON.stringify({ status: willActive?'active':'inactive' })
       });
-      const js = await res.json().catch(()=>({}));
-      if (!res.ok) throw new Error(js.message || 'Status update failed');
+      const js=await res.json().catch(()=>({}));
+      if(!res.ok) throw new Error(js.message||'Status update failed');
       ok('Status updated');
-      fetchUsers().catch(()=>{});
-    }catch(ex){ err(ex.message); sw.checked = !sw.checked; }
+      fetchUsers();
+    }catch(ex){
+      err(ex.message);
+      sw.checked=!sw.checked;
+    }
   });
 
-  // Row: dropdown actions
+
+  /* ==========================================================
+      ROW ACTIONS (Edit, View, Delete, Manage Privileges)
+  ========================================================== */
   tbody.addEventListener('click', (e)=>{
-    const btn = e.target.closest('button[data-action]'); if(!btn) return;
-    const tr = btn.closest('tr'); const id = tr?.dataset?.id; if(!id) return;
+    const btn=e.target.closest('button[data-action]'); if(!btn) return;
 
-    const spin=()=>{ btn.disabled=true; btn.dataset._old = btn.innerHTML; btn.innerHTML='<span class="spinner-border spinner-border-sm"></span>'; }
-    const un  =()=>{ btn.disabled=false; btn.innerHTML = btn.dataset._old || btn.innerHTML; }
+    const tr=btn.closest('tr');
+    const id=tr.dataset.id;
+    const rowUuid = tr.dataset.uuid || "";
 
-    const act = btn.dataset.action;
-    if (act==='view'){
-      spin(); openEdit(id, true).catch(ex=>err(ex.message)).finally(un);
-    } else if (act==='edit'){
+    const spin=()=>{ btn.disabled=true; btn.dataset._old=btn.innerHTML; btn.innerHTML='<span class="spinner-border spinner-border-sm"></span>'; }
+    const un  =()=>{ btn.disabled=false; btn.innerHTML=btn.dataset._old; }
+
+    const act=btn.dataset.action;
+
+    /* ---------- VIEW ---------- */
+    if(act==='view'){
+      spin(); openEdit(id,true).finally(un);
+    }
+
+    /* ---------- EDIT ---------- */
+    else if(act==='edit'){
       if(!canWrite) return;
-      spin(); openEdit(id, false).catch(ex=>err(ex.message)).finally(un);
-    } else if (act === 'manage-privileges') {
-      // Redirect to manage privileges page for this user
-      // Use query param user_id; adjust path if your route is different (e.g., prefix /admin)
-      try {
-        // Close dropdown first
-        const toggle = btn.closest('.dropdown')?.querySelector('.dd-toggle');
-        if (toggle) {
-          try { bootstrap.Dropdown.getOrCreateInstance(toggle).hide(); } catch(e) { /* ignore */ }
-        }
-      } catch(e){ /* ignore */ }
+      spin(); openEdit(id,false).finally(un);
+    }
 
-      // navigate
-      window.location.href = `/user-privileges/manage?user_id=${encodeURIComponent(id)}`;
+    /* ---------- MANAGE PRIVILEGES: ALWAYS USE UUID ---------- */
+    else if(act==='manage-privileges'){
+      spin();
+
+      (async ()=>{
+
+        // 1) If the row already has a real UUID → redirect immediately
+        if (rowUuid && rowUuid.includes("-")) {
+          closeDropdown(btn);
+          window.location.href = `/user-privileges/manage?user_uuid=${encodeURIComponent(rowUuid)}`;
+          return;
+        }
+
+        // 2) Otherwise fetch user details to extract UUID
+        try {
+          const uRes = await fetch(`/api/users/${id}`, { headers:authHeaders() });
+          let uJson = await uRes.json().catch(()=>({}));
+          const uObj = uJson.user || uJson.data || {};
+          const serverUuid = (uObj.uuid || uObj.user_uuid || '').trim();
+
+          if (serverUuid) {
+            closeDropdown(btn);
+            window.location.href = `/user-privileges/manage?user_uuid=${encodeURIComponent(serverUuid)}`;
+            return;
+          }
+        } catch (ex) {
+          console.warn("UUID fetch failed → fallback to user_id");
+        }
+
+        // 3) FINAL fallback → numeric ID
+        closeDropdown(btn);
+        window.location.href = `/user-privileges/manage?user_id=${encodeURIComponent(id)}`;
+      })()
+      .catch(()=>{})
+      .finally(un);
+
       return;
-    } else if (act==='delete'){
+    }
+
+    /* ---------- DELETE ---------- */
+    else if(act==='delete'){
       if(!canDelete) return;
+
       Swal.fire({
         title:'Delete user?',
-        text:'This performs a soft delete (removes from list).',
-        icon:'warning', showCancelButton:true,
-        confirmButtonText:'Delete', confirmButtonColor:'#ef4444'
+        text:'This performs soft delete.',
+        icon:'warning',showCancelButton:true,confirmButtonColor:'#ef4444'
       }).then(async r=>{
         if(!r.isConfirmed) return;
         try{
           spin();
-          const res = await fetch(`/api/users/${id}`, { method:'DELETE', headers: authHeaders() });
-          const js = await res.json().catch(()=>({}));
-          if(!res.ok) throw new Error(js.message || 'Delete failed');
+          const res=await fetch(`/api/users/${id}`,{ method:'DELETE',headers:authHeaders() });
+          const js=await res.json().catch(()=>({}));
+          if(!res.ok) throw new Error(js.message||'Delete failed');
           ok('User deleted');
-          fetchUsers().catch(()=>{});
-        }catch(ex){ err(ex.message); } finally{ un(); }
+          fetchUsers();
+        }catch(ex){ err(ex.message); }finally{ un(); }
       });
     }
 
-    // Close the dropdown after other actions (safe)
-    const toggle = btn.closest('.dropdown')?.querySelector('.dd-toggle');
-    if (toggle) {
-      try { bootstrap.Dropdown.getOrCreateInstance(toggle).hide(); } catch(e) { /* ignore */ }
-    }
+    closeDropdown(btn);
   });
 
-  // Add user
-  btnAdd?.addEventListener('click', ()=>{
+  function closeDropdown(btn){
+    try{
+      const toggleBtn=btn.closest('.dropdown')?.querySelector('.dd-toggle');
+      if(toggleBtn){
+        bootstrap.Dropdown.getOrCreateInstance(toggleBtn).hide();
+      }
+    }catch(e){}
+  }
+
+
+  /* ==========================================================
+      ADD USER
+  ========================================================== */
+  btnAdd.addEventListener('click',()=>{
     resetForm();
-    modalTitle.textContent = 'Add User';
-    pwdReq.style.display = 'inline';
-    pwdHelp.textContent = 'Enter password for new user';
+    modalTitle.textContent='Add User';
+    pwdReq.style.display='inline';
+    pwdHelp.textContent='Enter password for new user';
     userModal.show();
   });
 
-  // Image preview
-  imgInp.addEventListener('change', ()=>{
-    const f = imgInp.files?.[0];
-    if (!f){ imgPrev.style.display='none'; imgPrev.src=''; return; }
-    const reader = new FileReader();
-    reader.onload = e => { imgPrev.src = e.target.result; imgPrev.style.display='block'; };
+
+  /* ==========================================================
+      IMAGE PREVIEW
+  ========================================================== */
+  imgInp.addEventListener('change',()=>{
+    const f=imgInp.files?.[0];
+    if(!f){ imgPrev.style.display='none'; imgPrev.src=''; return; }
+    const reader=new FileReader();
+    reader.onload=e=>{ imgPrev.src=e.target.result; imgPrev.style.display='block'; };
     reader.readAsDataURL(f);
   });
 
-  // Submit (create/update)
-  form.addEventListener('submit', async (e)=>{
+
+  /* ==========================================================
+      CREATE / UPDATE USER
+  ========================================================== */
+  form.addEventListener('submit',async e=>{
     e.preventDefault();
-    if (!canWrite) return;
+    if(!canWrite) return;
 
-    // Basic validations
-    if (!nameInput.value.trim()) return nameInput.focus();
-    if (!emailInput.value.trim()) return emailInput.focus();
-    if (!roleInput.value) return roleInput.focus();
+    if(!nameInput.value.trim()) return nameInput.focus();
+    if(!emailInput.value.trim()) return emailInput.focus();
+    if(!roleInput.value.trim()) return roleInput.focus();
 
-    const isEdit = !!idInput.value;
+    const isEdit=!!idInput.value;
 
-    if (!isEdit && !pwdInput.value.trim()){
-      pwdInput.focus(); return;
-    }
-    if (pwdInput.value.trim() && pwdInput.value !== pwd2Input.value){
-      err('Passwords do not match'); pwd2Input.focus(); return;
+    if(!isEdit && !pwdInput.value.trim()) return pwdInput.focus();
+    if(pwdInput.value && pwdInput.value!==pwd2Input.value){
+      err('Passwords do not match'); return pwd2Input.focus();
     }
 
-    const url = isEdit ? `/api/users/${idInput.value}` : '/api/users';
-    const fd = new FormData();
-    if (isEdit) fd.append('_method','PUT');
+    const url=isEdit?`/api/users/${idInput.value}`:'/api/users';
+    const fd=new FormData();
+    if(isEdit) fd.append('_method','PUT');
 
-    fd.append('name', nameInput.value.trim());
-    fd.append('email', emailInput.value.trim());
-    if (phoneInput.value) fd.append('phone_number', phoneInput.value.trim());
-    if (altEmailInput.value) fd.append('alternative_email', altEmailInput.value.trim());
-    if (altPhoneInput.value) fd.append('alternative_phone_number', altPhoneInput.value.trim());
-    if (waInput.value)       fd.append('whatsapp_number', waInput.value.trim());
-    if (addrInput.value)     fd.append('address', addrInput.value.trim());
-    fd.append('role', roleInput.value);
-    if (statusInput.value) fd.append('status', statusInput.value);
-    if (!isEdit && pwdInput.value.trim()) fd.append('password', pwdInput.value.trim());
-    if (imgInp.files?.[0]) fd.append('image', imgInp.files[0]);
+    fd.append('name',nameInput.value.trim());
+    fd.append('email',emailInput.value.trim());
+    if(phoneInput.value) fd.append('phone_number',phoneInput.value.trim());
+    if(altEmailInput.value) fd.append('alternative_email',altEmailInput.value.trim());
+    if(altPhoneInput.value) fd.append('alternative_phone_number',altPhoneInput.value.trim());
+    if(waInput.value) fd.append('whatsapp_number',waInput.value.trim());
+    if(addrInput.value) fd.append('address',addrInput.value.trim());
+    fd.append('role',roleInput.value);
+    fd.append('status',statusInput.value);
+    if(!isEdit) fd.append('password',pwdInput.value.trim());
+    if(imgInp.files[0]) fd.append('image',imgInp.files[0]);
 
     try{
-      saveBtn.disabled = true;
-      saveBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Saving';
-      const res = await fetch(url, { method:'POST', headers: authHeaders(), body: fd });
-      let js  = await res.json().catch(()=>({}));
-      if (!res.ok){
-        let msg = js.message || 'Save failed';
-        if (js.errors){
-          const k = Object.keys(js.errors)[0];
-          if (k && js.errors[k] && js.errors[k][0]) msg = js.errors[k][0];
+      saveBtn.disabled=true;
+      saveBtn.innerHTML='<span class="spinner-border spinner-border-sm me-2"></span>Saving';
+
+      const res=await fetch(url,{ method:'POST',headers:authHeaders(),body:fd });
+      const js=await res.json().catch(()=>({}));
+      if(!res.ok){
+        let msg=js.message||'Save failed';
+        if(js.errors){
+          const k=Object.keys(js.errors)[0];
+          if(k) msg=js.errors[k][0];
         }
         throw new Error(msg);
       }
 
-      // If editing and password provided -> separate endpoint
-      if (isEdit && pwdInput.value.trim()){
-        const res2 = await fetch(`/api/users/${idInput.value}/password`, {
+      // Update password if changed while editing
+      if(isEdit && pwdInput.value){
+        const res2=await fetch(`/api/users/${idInput.value}/password`,{
           method:'PATCH',
-          headers: { ...authHeaders({'Content-Type':'application/json'}) },
-          body: JSON.stringify({ password: pwdInput.value.trim() })
+          headers:authHeaders({'Content-Type':'application/json'}),
+          body:JSON.stringify({password:pwdInput.value})
         });
-        const js2 = await res2.json().catch(()=>({}));
-        if (!res2.ok) throw new Error(js2.message || 'Password update failed');
+        const js2=await res2.json().catch(()=>({}));
+        if(!res2.ok) throw new Error(js2.message||'Password update failed');
       }
 
       userModal.hide();
-      ok(isEdit ? 'User updated' : 'User created');
-      fetchUsers().catch(()=>{});
-    }catch(ex){
-      err(ex.message);
-    }finally{
-      saveBtn.disabled = false;
-      saveBtn.innerHTML = '<i class="fa fa-floppy-disk me-1"></i> Save';
+      ok(isEdit?'User updated':'User created');
+      fetchUsers();
+    }
+    catch(ex){ err(ex.message); }
+    finally{
+      saveBtn.disabled=false;
+      saveBtn.innerHTML='<i class="fa fa-floppy-disk me-1"></i> Save';
     }
   });
 
-  async function openEdit(id, viewOnly=false){
-    const res = await fetch(`/api/users/${id}`, { headers: authHeaders() });
-    if (res.status === 401) { window.location.href='/'; return; }
-    const js = await res.json().catch(()=>({}));
-    if (!res.ok) throw new Error(js.message || 'Failed to fetch user');
 
-    const u = js.user || {};
+
+  /* ==========================================================
+      OPEN EDIT
+  ========================================================== */
+  async function openEdit(id,viewOnly=false){
+    const res=await fetch(`/api/users/${id}`,{ headers:authHeaders() });
+    if(res.status===401){ window.location.href='/'; return; }
+    const js=await res.json().catch(()=>({}));
+    if(!res.ok) throw new Error(js.message||'Failed to fetch');
+
+    const u=js.user||{};
+
     resetForm();
 
-    idInput.value     = u.id || '';
-    nameInput.value   = u.name || '';
-    emailInput.value  = u.email || '';
-    phoneInput.value  = u.phone_number || '';
-    altEmailInput.value = u.alternative_email || '';
-    altPhoneInput.value = u.alternative_phone_number || '';
-    waInput.value       = u.whatsapp_number || '';
-    addrInput.value     = u.address || '';
-    roleInput.value   = (u.role || '').toLowerCase();
-    statusInput.value = u.status || 'active';
+    idInput.value=u.id||'';
+    nameInput.value=u.name||'';
+    emailInput.value=u.email||'';
+    phoneInput.value=u.phone_number||'';
+    altEmailInput.value=u.alternative_email||'';
+    altPhoneInput.value=u.alternative_phone_number||'';
+    waInput.value=u.whatsapp_number||'';
+    addrInput.value=u.address||'';
+    roleInput.value=(u.role||'').toLowerCase();
+    statusInput.value=u.status||'active';
 
-    if (u.image){ 
-      imgPrev.src = fixImageUrl(u.image) || u.image; 
-      imgPrev.style.display='block'; 
+    if(u.image){
+      imgPrev.src = fixImageUrl(u.image);
+      imgPrev.style.display='block';
     }
 
     modalTitle.textContent = viewOnly ? 'View User' : 'Edit User';
-    saveBtn.style.display  = viewOnly ? 'none' : '';
+    saveBtn.style.display = viewOnly ? 'none' : '';
 
-    // Lock fields for viewOnly
+    // Lock fields
     Array.from(form.querySelectorAll('input,select,textarea')).forEach(el=>{
-      if (el === imgInp) el.disabled = viewOnly;
-      if (el.tagName === 'SELECT') el.disabled = viewOnly;
-      if (el.tagName !== 'SELECT') el.readOnly = viewOnly;
+      if(el===imgInp) el.disabled=viewOnly;
+      if(el.tagName==='SELECT') el.disabled=viewOnly;
+      if(el.tagName!=='SELECT') el.readOnly=viewOnly;
     });
-    pwdReq.style.display = 'none';
-    pwdHelp.textContent = 'Leave blank to keep current password';
+
+    pwdReq.style.display='none';
+    pwdHelp.textContent='Leave blank to keep current password';
 
     userModal.show();
   }
 
-  function resetForm(){
-    form.reset(); idInput.value=''; imgPrev.src=''; imgPrev.style.display='none';
-    saveBtn.style.display='';
-    Array.from(form.querySelectorAll('input,select,textarea')).forEach(el=>{
-      if (el === imgInp) el.disabled = false;
-      if (el.tagName === 'SELECT') el.disabled = false;
-      if (el.tagName !== 'SELECT') el.readOnly = false;
-    });
-    statusInput.value = 'active';
-    pwdReq.style.display = 'inline';
-    pwdHelp.textContent = 'Enter password for new user';
-  }
 
-  // Kick off
+  /* ==========================================================
+      RESET FORM
+  ========================================================== */
+  function resetForm(){
+    form.reset();
+    idInput.value='';
+    imgPrev.style.display='none';
+    imgPrev.src='';
+    saveBtn.style.display='';
+
+    Array.from(form.querySelectorAll('input,select,textarea')).forEach(el=>{
+      if(el===imgInp) el.disabled=false;
+      if(el.tagName==='SELECT') el.disabled=false;
+      if(el.tagName!=='SELECT') el.readOnly=false;
+    });
+
+    statusInput.value='active';
+    pwdReq.style.display='inline';
+    pwdHelp.textContent='Enter password for new user';
+  }
   fetchUsers().catch(ex=>err(ex.message));
+
 });
 </script>

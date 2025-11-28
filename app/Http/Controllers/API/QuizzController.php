@@ -601,8 +601,11 @@ class QuizzController extends Controller
 
         return response()->json(['status'=>'success','message'=>'Note added','data'=>$note]);
     }
+<<<<<<< HEAD
 
 
+=======
+>>>>>>> c91667b7c50beb5791b8e3fbcbc07f95ef790c11
 public function viewQuizzesByBatch(Request $r, string $batchKey)
 {
     $role = (string) ($r->attributes->get('auth_role') ?? '');
@@ -701,7 +704,11 @@ public function viewQuizzesByBatch(Request $r, string $batchKey)
 
         // Batch quiz relationship info
         'bq.id as batch_quiz_id',
+<<<<<<< HEAD
         'bq.uuid as batch_quizzes_uuid',
+=======
+        'bq.uuid as batch_quizzes_uuid',   // <-- ADDED: send batch_quizzes UUID
+>>>>>>> c91667b7c50beb5791b8e3fbcbc07f95ef790c11
         'bq.display_order',
         'bq.available_from',
         'bq.available_until',
@@ -822,11 +829,19 @@ public function viewQuizzesByBatch(Request $r, string $batchKey)
             'created_by_name' => $quiz->created_by_name,
 
             // Batch quiz fields
+<<<<<<< HEAD
             'assigned'            => (bool) $quiz->assign_status_flag,
             'batch_quiz_id'       => $quiz->batch_quiz_id !== null ? (int)$quiz->batch_quiz_id : null,
             'batch_quizzes_uuid'  => isset($quiz->batch_quizzes_uuid) ? (string)$quiz->batch_quizzes_uuid : null,
             'display_order'       => $quiz->display_order !== null ? (int)$quiz->display_order : null,
             'batch_status'        => $quiz->batch_status ?? null,
+=======
+            'assigned' => (bool) $quiz->assign_status_flag,
+            'batch_quiz_id' => $quiz->batch_quiz_id !== null ? (int)$quiz->batch_quiz_id : null,
+            'batch_quizzes_uuid' => isset($quiz->batch_quizzes_uuid) ? (string)$quiz->batch_quizzes_uuid : null, // <-- ADDED
+            'display_order' => $quiz->display_order !== null ? (int)$quiz->display_order : null,
+            'batch_status' => $quiz->batch_status ?? null,
+>>>>>>> c91667b7c50beb5791b8e3fbcbc07f95ef790c11
             'publish_to_students' => (bool)$quiz->publish_to_students,
             'available_from'      => $quiz->available_from
                 ? \Carbon\Carbon::parse($quiz->available_from)->toDateTimeString()
@@ -857,7 +872,10 @@ public function viewQuizzesByBatch(Request $r, string $batchKey)
     ]);
 }
 
+<<<<<<< HEAD
 
+=======
+>>>>>>> c91667b7c50beb5791b8e3fbcbc07f95ef790c11
 /**
  * DELETED INDEX (GET /api/quizz/deleted)
  * Lists soft-deleted quizzes (supports ?q=search, ?per_page=, ?page=, ?batch_uuid=, ?batch_id=)

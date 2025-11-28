@@ -6,9 +6,12 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
-use Illuminate\Validation\Rule;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Schema;
+<<<<<<< HEAD
+=======
+use Illuminate\Support\Arr;
+>>>>>>> c91667b7c50beb5791b8e3fbcbc07f95ef790c11
 use Exception;
 
 class PrivilegeController extends Controller
@@ -16,13 +19,95 @@ class PrivilegeController extends Controller
     /**
      * List privileges (filter by module_id optional - accepts module id or uuid)
      */
-    public function index(Request $request)
+     public function index(Request $request)
+    {
+        try {
+            $perPage = max(1, min(200, (int) $request->query('per_page', 20)));
+            $moduleKey = $request->query('module_id');
+
+            // Build select columns defensively (include module name)
+            $cols = [
+                'privileges.id',
+                'privileges.uuid',
+                'privileges.module_id',
+                'privileges.action',
+                'privileges.description',
+                'privileges.created_at',
+                'privileges.updated_at',
+                'modules.name as module_name',
+            ];
+            if (Schema::hasColumn('privileges', 'order_no')) {
+                $cols[] = 'privileges.order_no';
+            }
+            if (Schema::hasColumn('privileges', 'status')) {
+                $cols[] = 'privileges.status';
+            }
+
+            $query = DB::table('privileges')
+                ->leftJoin('modules', 'modules.id', '=', 'privileges.module_id')
+                ->whereNull('privileges.deleted_at')
+                ->select($cols);
+
+            if ($moduleKey) {
+                if (ctype_digit((string)$moduleKey)) {
+                    $query->where('privileges.module_id', (int)$moduleKey);
+                } elseif (Str::isUuid((string)$moduleKey)) {
+                    $module = DB::table('modules')->where('uuid', (string)$moduleKey)->whereNull('deleted_at')->first();
+                    if ($module) {
+                        $query->where('privileges.module_id', $module->id);
+                    } else {
+                        return response()->json([
+                            'data' => [],
+                            'pagination' => ['page' => 1, 'per_page' => $perPage, 'total' => 0, 'last_page' => 1],
+                        ]);
+                    }
+                } else {
+                    // ignore invalid moduleKey
+                }
+            }
+
+            // stable order for pagination
+            $paginator = $query->orderBy('privileges.id', 'desc')->paginate($perPage);
+
+            return response()->json([
+                'data' => $paginator->items(),
+                'pagination' => [
+                    'page' => $paginator->currentPage(),
+                    'per_page' => $paginator->perPage(),
+                    'total' => $paginator->total(),
+                    'last_page' => $paginator->lastPage(),
+                ],
+            ]);
+        } catch (\Throwable $e) {
+            // Log error
+            try {
+                \Log::error('PrivilegeController::index exception: '.$e->getMessage().' in '.$e->getFile().':'.$e->getLine());
+            } catch (\Throwable $inner) {
+                // ignore logging failure
+            }
+
+            // DEBUG INFO: include message and short trace (remove in production)
+            $trace = collect($e->getTrace())->map(function ($t) {
+                return Arr::only($t, ['file', 'line', 'function', 'class']);
+            })->all();
+
+            return response()->json([
+                'message' => 'Server error fetching privileges (see logs)',
+                'error' => $e->getMessage(),
+                'trace' => $trace,
+            ], 500);
+        }
+    }
+    /**
+     * Bin (soft-deleted privileges)
+     */
+    public function bin(Request $request)
     {
         $perPage = max(1, min(200, (int) $request->query('per_page', 20)));
-        $moduleKey = $request->query('module_id');
 
-        $query = DB::table('privileges')->whereNull('deleted_at');
+        $query = DB::table('privileges')->whereNotNull('deleted_at')->orderBy('deleted_at', 'desc');
 
+<<<<<<< HEAD
         if ($moduleKey) {
             // moduleKey can be numeric id or uuid
             if (ctype_digit((string)$moduleKey)) {
@@ -66,6 +151,10 @@ class PrivilegeController extends Controller
 
         $paginator = $query->paginate($perPage);
 
+=======
+        $paginator = $query->paginate($perPage);
+
+>>>>>>> c91667b7c50beb5791b8e3fbcbc07f95ef790c11
         return response()->json([
             'data' => $paginator->items(),
             'pagination' => [
@@ -138,7 +227,10 @@ class PrivilegeController extends Controller
                     'deleted_at' => null,
                 ];
 
+<<<<<<< HEAD
                 // add order_no if the schema supports it and request provided one
+=======
+>>>>>>> c91667b7c50beb5791b8e3fbcbc07f95ef790c11
                 if (Schema::hasColumn('privileges', 'order_no') && $request->has('order_no')) {
                     $payload['order_no'] = (int) $request->input('order_no');
                 }
@@ -166,7 +258,6 @@ class PrivilegeController extends Controller
         } elseif (Str::isUuid((string)$identifier)) {
             $q->where('uuid', (string)$identifier);
         } else {
-            // fallback: if slug exists you can attempt that here; default: no match
             return null;
         }
 
@@ -298,6 +389,64 @@ class PrivilegeController extends Controller
     }
 
     /**
+<<<<<<< HEAD
+=======
+     * Archived privileges (status = 'archived', not soft-deleted)
+     */
+    public function archived(Request $request)
+    {
+        try {
+            $perPage = max(1, min(200, (int) $request->query('per_page', 20)));
+
+            // ensure we select only existing columns to avoid "unknown column" issues
+            $cols = [
+                'privileges.id',
+                'privileges.uuid',
+                'privileges.module_id',
+                'privileges.action',
+                'privileges.description',
+                'privileges.created_at',
+                'privileges.updated_at'
+            ];
+            if (Schema::hasColumn('privileges', 'order_no')) {
+                $cols[] = 'privileges.order_no';
+            }
+            if (Schema::hasColumn('privileges', 'status')) {
+                $cols[] = 'privileges.status';
+            }
+
+            $query = DB::table('privileges')
+                ->whereNull('deleted_at')
+                ->select($cols)
+                ->where(function ($q) {
+                    if (Schema::hasColumn('privileges', 'status')) {
+                        $q->where('privileges.status', 'archived');
+                    } else {
+                        // no status column -> return empty
+                        $q->whereRaw('0 = 1');
+                    }
+                })
+                ->orderBy('privileges.id', 'desc');
+
+            $paginator = $query->paginate($perPage);
+
+            return response()->json([
+                'data' => $paginator->items(),
+                'pagination' => [
+                    'page' => $paginator->currentPage(),
+                    'per_page' => $paginator->perPage(),
+                    'total' => $paginator->total(),
+                    'last_page' => $paginator->lastPage(),
+                ],
+            ], 200);
+        } catch (\Throwable $e) {
+            \Log::error('PrivilegeController::archived exception: '.$e->getMessage().' in '.$e->getFile().':'.$e->getLine());
+            return response()->json(['message' => 'Server error fetching archived privileges'], 500);
+        }
+    }
+
+    /**
+>>>>>>> c91667b7c50beb5791b8e3fbcbc07f95ef790c11
      * Archive a privilege (set status = 'archived') - only if `status` column exists
      */
     public function archive(Request $request, $identifier)
@@ -391,4 +540,52 @@ class PrivilegeController extends Controller
             return response()->json(['message' => 'Could not update order', 'error' => $e->getMessage()], 500);
         }
     }
+<<<<<<< HEAD
+=======
+
+    /**
+     * Return privileges for a specific module (accepts numeric id or uuid)
+     */
+    public function forModule($identifier, Request $request = null)
+    {
+        try {
+            // resolve module id
+            $module = null;
+            if (ctype_digit((string)$identifier)) {
+                $module = DB::table('modules')->where('id', (int)$identifier)->whereNull('deleted_at')->first();
+            } elseif (Str::isUuid((string)$identifier)) {
+                $module = DB::table('modules')->where('uuid', (string)$identifier)->whereNull('deleted_at')->first();
+            }
+
+            if (!$module) {
+                return response()->json([
+                    'data' => [],
+                    'pagination' => ['page' => 1, 'per_page' => 20, 'total' => 0, 'last_page' => 1],
+                ], 200);
+            }
+
+            $perPage = max(1, min(200, (int) request()->query('per_page', 20)));
+
+            $query = DB::table('privileges')
+                ->whereNull('deleted_at')
+                ->where('module_id', $module->id)
+                ->orderBy('id', 'desc');
+
+            $paginator = $query->paginate($perPage);
+
+            return response()->json([
+                'data' => $paginator->items(),
+                'pagination' => [
+                    'page' => $paginator->currentPage(),
+                    'per_page' => $paginator->perPage(),
+                    'total' => $paginator->total(),
+                    'last_page' => $paginator->lastPage(),
+                ],
+            ], 200);
+        } catch (\Throwable $e) {
+            \Log::error('PrivilegeController::forModule error: '.$e->getMessage().' in '.$e->getFile().':'.$e->getLine());
+            return response()->json(['message' => 'Unable to fetch privileges for module'], 500);
+        }
+    }
+>>>>>>> c91667b7c50beb5791b8e3fbcbc07f95ef790c11
 }

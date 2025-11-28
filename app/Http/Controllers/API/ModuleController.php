@@ -457,11 +457,20 @@ public function allWithPrivileges(Request $request)
     $ids = $modules->pluck('id')->filter()->all();
 
     // fetch active privileges for these modules
+<<<<<<< HEAD
     $privileges = DB::table('privileges')
         ->whereIn('module_id', $ids)
         ->whereNull('deleted_at')
         ->select('id','uuid','module_id','name','action','description','created_at')
         ->orderBy('name','asc')
+=======
+    // NOTE: alias `action` -> `name` so frontend expecting `name` keeps working
+    $privileges = DB::table('privileges')
+        ->whereIn('module_id', $ids)
+        ->whereNull('deleted_at')
+        ->select('id','uuid','module_id', DB::raw('action as name'), 'action','description','created_at')
+        ->orderBy('action','asc') // order by the actual column
+>>>>>>> c91667b7c50beb5791b8e3fbcbc07f95ef790c11
         ->get()
         ->groupBy('module_id');
 
@@ -472,6 +481,10 @@ public function allWithPrivileges(Request $request)
     });
 
     return response()->json(['data' => $out->values()]);
+<<<<<<< HEAD
 }
 
+=======
+>>>>>>> c91667b7c50beb5791b8e3fbcbc07f95ef790c11
+}
 }

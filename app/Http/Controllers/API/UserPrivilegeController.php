@@ -9,21 +9,56 @@ use Illuminate\Support\Str;
 
 class UserPrivilegeController extends Controller
 {
+<<<<<<< HEAD
     /**
      * Sync privileges for a user.
      * Expects:
      *  user_id: int
      *  privileges: array of privilege_id integers
+=======
+     private function actor(Request $request): array
+    {
+        return [
+            'role' => $request->attributes->get('auth_role'),
+            'type' => $request->attributes->get('auth_tokenable_type'),
+            'id'   => (int) ($request->attributes->get('auth_tokenable_id') ?? 0),
+        ];
+    }
+    /**
+     * Sync privileges for a user.
+     * Accepts:
+     *  - user_id (int) OR user_uuid (uuid)
+     *  - privileges: array of privilege_id integers
+>>>>>>> c91667b7c50beb5791b8e3fbcbc07f95ef790c11
      */
     public function sync(Request $r)
     {
         $data = $r->validate([
+<<<<<<< HEAD
             'user_id'       => 'required|integer|exists:users,id',
+=======
+            'user_id'       => 'sometimes|integer|exists:users,id',
+            'user_uuid'     => 'sometimes|uuid|exists:users,uuid',
+>>>>>>> c91667b7c50beb5791b8e3fbcbc07f95ef790c11
             'privileges'    => 'required|array',
             'privileges.*'  => 'integer|exists:privileges,id',
         ]);
 
+<<<<<<< HEAD
         $userId = (int) $data['user_id'];
+=======
+        // Resolve numeric user id if only uuid provided
+        if (empty($data['user_id']) && !empty($data['user_uuid'])) {
+            $userId = (int) DB::table('users')->where('uuid', $data['user_uuid'])->value('id');
+        } else {
+            $userId = (int) ($data['user_id'] ?? 0);
+        }
+
+        if (! $userId) {
+            return response()->json(['error' => 'User not found'], 404);
+        }
+
+>>>>>>> c91667b7c50beb5791b8e3fbcbc07f95ef790c11
         $newPrivileges = array_values(array_unique($data['privileges']));
         $now = now();
 
@@ -102,8 +137,17 @@ class UserPrivilegeController extends Controller
                 ];
             });
 
+<<<<<<< HEAD
             return response()->json([
                 'message' => 'Privileges synced successfully.',
+=======
+            // Fetch user uuid for response
+            $userUuid = DB::table('users')->where('id', $userId)->value('uuid');
+
+            return response()->json([
+                'message' => 'Privileges synced successfully.',
+                'user_uuid' => $userUuid,
+>>>>>>> c91667b7c50beb5791b8e3fbcbc07f95ef790c11
                 'revived' => $result['revived'],
                 'added'   => $result['inserted'],
                 'removed' => $result['removed'],
@@ -116,29 +160,61 @@ class UserPrivilegeController extends Controller
     /**
      * Assign a single privilege to a user.
      * Accepts:
+<<<<<<< HEAD
      *   - user_id + privilege_id
      *   - user_id + privilege_uuid
+=======
+     *   - user_id OR user_uuid
+     *   - privilege_id OR privilege_uuid
+>>>>>>> c91667b7c50beb5791b8e3fbcbc07f95ef790c11
      *
      * Revives a soft-deleted mapping if present, otherwise inserts new.
      */
     public function assign(Request $r)
     {
         $data = $r->validate([
+<<<<<<< HEAD
             'user_id'        => 'required|integer|exists:users,id',
+=======
+            'user_id'        => 'sometimes|integer|exists:users,id',
+            'user_uuid'      => 'sometimes|uuid|exists:users,uuid',
+>>>>>>> c91667b7c50beb5791b8e3fbcbc07f95ef790c11
             'privilege_id'   => 'sometimes|integer|exists:privileges,id',
             'privilege_uuid' => 'sometimes|uuid|exists:privileges,uuid',
         ]);
 
+<<<<<<< HEAD
         $userId = (int) $data['user_id'];
+=======
+        // Resolve user id
+        if (empty($data['user_id']) && !empty($data['user_uuid'])) {
+            $userId = (int) DB::table('users')->where('uuid', $data['user_uuid'])->value('id');
+        } else {
+            $userId = (int) ($data['user_id'] ?? 0);
+        }
+
+        if (! $userId) {
+            return response()->json(['message' => 'User not found'], 404);
+        }
+>>>>>>> c91667b7c50beb5791b8e3fbcbc07f95ef790c11
 
         // Resolve privilege id
         if (!empty($data['privilege_id'])) {
             $privId = (int) $data['privilege_id'];
+<<<<<<< HEAD
         } else {
+=======
+        } elseif (!empty($data['privilege_uuid'])) {
+>>>>>>> c91667b7c50beb5791b8e3fbcbc07f95ef790c11
             $privId = DB::table('privileges')
                 ->where('uuid', $data['privilege_uuid'])
                 ->whereNull('deleted_at')
                 ->value('id');
+<<<<<<< HEAD
+=======
+        } else {
+            return response()->json(['message' => 'privilege_id or privilege_uuid is required'], 422);
+>>>>>>> c91667b7c50beb5791b8e3fbcbc07f95ef790c11
         }
 
         if (! $privId) {
@@ -174,7 +250,13 @@ class UserPrivilegeController extends Controller
                 }
             });
 
+<<<<<<< HEAD
             return response()->json(['message' => 'Privilege assigned'], 201);
+=======
+            $userUuid = DB::table('users')->where('id', $userId)->value('uuid');
+
+            return response()->json(['message' => 'Privilege assigned', 'user_uuid' => $userUuid], 201);
+>>>>>>> c91667b7c50beb5791b8e3fbcbc07f95ef790c11
         } catch (\Throwable $e) {
             return response()->json(['message' => 'Could not assign privilege', 'detail' => $e->getMessage()], 500);
         }
@@ -183,24 +265,66 @@ class UserPrivilegeController extends Controller
     /**
      * Soft-delete a single privilege row.
      * Accepts either:
+<<<<<<< HEAD
      *   - uuid
      *   - user_id + privilege_id
+=======
+     *   - uuid (mapping uuid)
+     *   OR
+     *   - user_id OR user_uuid + privilege_id
+>>>>>>> c91667b7c50beb5791b8e3fbcbc07f95ef790c11
      */
     public function destroy(Request $r)
     {
         $r->validate([
+<<<<<<< HEAD
             'uuid'         => 'sometimes|uuid|exists:user_privileges,uuid',
             'user_id'      => 'sometimes|integer|exists:users,id',
             'privilege_id' => 'sometimes|required_with:user_id|integer|exists:privileges,id',
+=======
+            'uuid'          => 'sometimes|uuid|exists:user_privileges,uuid',
+            'user_id'       => 'sometimes|integer|exists:users,id',
+            'user_uuid'     => 'sometimes|uuid|exists:users,uuid',
+            'privilege_id'  => 'sometimes|required_with:user_id|integer|exists:privileges,id',
+>>>>>>> c91667b7c50beb5791b8e3fbcbc07f95ef790c11
         ]);
 
         $query = DB::table('user_privileges')->whereNull('deleted_at');
         $now = now();
 
+<<<<<<< HEAD
         if ($r->filled('uuid')) {
             $query->where('uuid', $r->input('uuid'));
         } else {
             $query->where('user_id', $r->input('user_id'))
+=======
+        $userUuid = null;
+
+        if ($r->filled('uuid')) {
+            // Try to discover the user id for the mapping so we can return the user's uuid
+            $mapping = DB::table('user_privileges')->where('uuid', $r->input('uuid'))->first();
+            if ($mapping) {
+                $userUuid = DB::table('users')->where('id', $mapping->user_id)->value('uuid');
+            }
+
+            $query->where('uuid', $r->input('uuid'));
+        } else {
+            // Resolve numeric user id either by user_id or user_uuid
+            if ($r->filled('user_id')) {
+                $userId = (int) $r->input('user_id');
+            } elseif ($r->filled('user_uuid')) {
+                $userId = (int) DB::table('users')->where('uuid', $r->input('user_uuid'))->value('id');
+                if (!$userId) {
+                    return response()->json(['message' => 'User not found'], 404);
+                }
+            } else {
+                return response()->json(['message' => 'user_id or user_uuid is required'], 422);
+            }
+
+            $userUuid = DB::table('users')->where('id', $userId)->value('uuid');
+
+            $query->where('user_id', $userId)
+>>>>>>> c91667b7c50beb5791b8e3fbcbc07f95ef790c11
                   ->where('privilege_id', $r->input('privilege_id'));
         }
 
@@ -213,29 +337,62 @@ class UserPrivilegeController extends Controller
             return response()->json(['message' => 'Privilege mapping not found.'], 404);
         }
 
+<<<<<<< HEAD
         return response()->json(['message' => 'Privilege removed successfully.']);
+=======
+        return response()->json(['message' => 'Privilege removed successfully.', 'user_uuid' => $userUuid]);
+>>>>>>> c91667b7c50beb5791b8e3fbcbc07f95ef790c11
     }
 
     /**
      * List all active privileges for a user.
      * Returns user_privileges joined with privileges table for convenience.
+<<<<<<< HEAD
+=======
+     * Accepts user_id OR user_uuid
+>>>>>>> c91667b7c50beb5791b8e3fbcbc07f95ef790c11
      */
     public function list(Request $r)
     {
         $r->validate([
+<<<<<<< HEAD
             'user_id' => 'required|integer|exists:users,id',
         ]);
 
         $rows = DB::table('user_privileges as up')
             ->join('privileges as p', 'p.id', '=', 'up.privilege_id')
             ->where('up.user_id', $r->user_id)
+=======
+            'user_id'   => 'sometimes|integer|exists:users,id',
+            'user_uuid' => 'sometimes|uuid|exists:users,uuid',
+        ]);
+
+        if ($r->filled('user_id')) {
+            $userId = (int) $r->user_id;
+        } elseif ($r->filled('user_uuid')) {
+            $userId = (int) DB::table('users')->where('uuid', $r->user_uuid)->value('id');
+            if (!$userId) {
+                return response()->json(['message' => 'User not found'], 404);
+            }
+        } else {
+            return response()->json(['message' => 'user_id or user_uuid is required'], 422);
+        }
+
+        $rows = DB::table('user_privileges as up')
+            ->join('privileges as p', 'p.id', '=', 'up.privilege_id')
+            ->where('up.user_id', $userId)
+>>>>>>> c91667b7c50beb5791b8e3fbcbc07f95ef790c11
             ->whereNull('up.deleted_at')
             ->whereNull('p.deleted_at')
             ->select([
                 'up.uuid as mapping_uuid',
                 'up.privilege_id',
                 'p.uuid as privilege_uuid',
+<<<<<<< HEAD
                 'p.name as privilege_name',
+=======
+                DB::raw('p.action as privilege_name'),
+>>>>>>> c91667b7c50beb5791b8e3fbcbc07f95ef790c11
                 'p.action as privilege_action',
                 'p.description as privilege_description',
                 'up.created_at'
@@ -243,6 +400,7 @@ class UserPrivilegeController extends Controller
             ->orderBy('up.created_at', 'desc')
             ->get();
 
+<<<<<<< HEAD
         return response()->json([
             'data' => $rows,
         ]);
@@ -271,10 +429,95 @@ public function unassign(Request $r)
     if ($r->filled('mapping_uuid')) {
         $affected = DB::table('user_privileges')
             ->where('uuid', $r->mapping_uuid)
+=======
+        $userUuid = DB::table('users')->where('id', $userId)->value('uuid');
+
+        return response()->json([
+            'user_uuid' => $userUuid,
+            'data' => $rows,
+        ]);
+    }
+
+    /**
+     * Unassign (soft-delete) a single privilege from a user.
+     * Accepts:
+     *   - mapping_uuid
+     *   OR
+     *   - user_id OR user_uuid + privilege_id OR privilege_uuid
+     */
+    public function unassign(Request $r)
+    {
+        $data = $r->validate([
+            'mapping_uuid'   => 'sometimes|uuid|exists:user_privileges,uuid',
+            'user_id'        => 'sometimes|integer|exists:users,id',
+            'user_uuid'      => 'sometimes|uuid|exists:users,uuid',
+            'privilege_id'   => 'sometimes|integer|exists:privileges,id',
+            'privilege_uuid' => 'sometimes|uuid|exists:privileges,uuid',
+        ]);
+
+        $now = now();
+
+        // --- Case 1: Directly via mapping UUID ---
+        if ($r->filled('mapping_uuid')) {
+            $mapping = DB::table('user_privileges')->where('uuid', $r->mapping_uuid)->first();
+            $userUuid = null;
+            if ($mapping) {
+                $userUuid = DB::table('users')->where('id', $mapping->user_id)->value('uuid');
+            }
+
+            $affected = DB::table('user_privileges')
+                ->where('uuid', $r->mapping_uuid)
+                ->whereNull('deleted_at')
+                ->update(['deleted_at' => $now, 'updated_at' => $now]);
+
+            return $affected
+                ? response()->json(['message' => 'Privilege unassigned.', 'user_uuid' => $userUuid])
+                : response()->json(['message' => 'Privilege not found.'], 404);
+        }
+
+        // --- Case 2: Using user_id/user_uuid + privilege_id/privilege_uuid ---
+        if (!$r->filled('user_id') && !$r->filled('user_uuid')) {
+            return response()->json(['message' => 'user_id or user_uuid is required when mapping_uuid is not provided'], 422);
+        }
+
+        // Resolve user id
+        if ($r->filled('user_id')) {
+            $userId = (int) $r->user_id;
+        } else {
+            $userId = (int) DB::table('users')->where('uuid', $r->user_uuid)->value('id');
+            if (!$userId) {
+                return response()->json(['message' => 'User not found'], 404);
+            }
+        }
+
+        // Resolve privilege id
+        if ($r->filled('privilege_id')) {
+            $privId = (int) $r->privilege_id;
+        } elseif ($r->filled('privilege_uuid')) {
+            $privId = DB::table('privileges')
+                ->where('uuid', $r->privilege_uuid)
+                ->whereNull('deleted_at')
+                ->value('id');
+
+            if (!$privId) {
+                return response()->json(['message' => 'Privilege not found'], 404);
+            }
+        } else {
+            return response()->json(['message' => 'Either privilege_id or privilege_uuid is required'], 422);
+        }
+
+        $userUuid = DB::table('users')->where('id', $userId)->value('uuid');
+
+        // Perform soft-delete
+        $affected = DB::table('user_privileges')
+            ->where('user_id', $userId)
+            ->where('privilege_id', $privId)
+>>>>>>> c91667b7c50beb5791b8e3fbcbc07f95ef790c11
             ->whereNull('deleted_at')
             ->update(['deleted_at' => $now, 'updated_at' => $now]);
 
         return $affected
+<<<<<<< HEAD
             ? response()->json(['message' => 'Privilege unassigned.'])
             : response()->json(['message' => 'Privilege not found.'], 404);
     }
@@ -315,3 +558,47 @@ public function unassign(Request $r)
 }
 
 }
+=======
+            ? response()->json(['message' => 'Privilege unassigned.', 'user_uuid' => $userUuid])
+            : response()->json(['message' => 'Privilege mapping not found.'], 404);
+    }
+
+    /**
+     * GET /api/users/{idOrUuid}
+     * Accept numeric ID OR UUID
+     */
+     public function show($idOrUuid)
+{
+    if (is_numeric($idOrUuid)) {
+        $user = DB::table('users')->where('id', $idOrUuid)->whereNull('deleted_at')->first();
+    } else {
+        $user = DB::table('users')->where('uuid', $idOrUuid)->whereNull('deleted_at')->first();
+    }
+
+    if (! $user) {
+        return response()->json(['message' => 'User not found'], 404);
+    }
+
+    return response()->json(['user' => $user]);
+}
+
+    /**
+     * GET /api/users/by-uuid?uuid=...
+     */
+    public function byUuid(Request $request)
+    {
+        $request->validate(['uuid' => 'required|uuid']);
+
+        $user = DB::table('users')
+            ->where('uuid', $request->uuid)
+            ->whereNull('deleted_at')
+            ->first();
+
+        if (! $user) {
+            return response()->json(['message' => 'User not found'], 404);
+        }
+
+        return response()->json(['user' => $user]);
+    }
+}
+>>>>>>> c91667b7c50beb5791b8e3fbcbc07f95ef790c11
