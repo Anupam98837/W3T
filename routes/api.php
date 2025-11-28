@@ -66,8 +66,6 @@ Route::middleware('checkRole:admin,super_admin,student,instructor')->group(funct
     Route::delete('/courses/{course}',     [CourseController::class, 'destroy']);
     Route::get('/courses/{course}/view', [CourseController::class, 'viewCourse']);
     Route::get('/courses/by-batch/{batch}/view', [CourseController::class, 'viewCourseByBatch']);
-    Route::get ('/batches/{batch}/messages',  [BatchMessageController::class, 'index']);
-Route::post('/batches/{batch}/messages',  [BatchMessageController::class, 'store']);
     
 
     // Featured media
@@ -435,3 +433,18 @@ Route::post('/user-privileges/unassign', [UserPrivilegeController::class, 'unass
 
 // Batch Message Routes 
 
+Route::middleware(['checkRole:student,instructor,admin,superadmin'])
+    ->prefix('batches')
+    ->group(function () {
+        // List / load more / poll newer
+        // GET /api/batches/{batchKey}/messages?limit=&before_id=&after_id=
+        Route::get ('/{batchKey}/messages',        [BatchMessageController::class, 'index']);
+
+        // Send message with optional attachments
+        // POST /api/batches/{batchKey}/messages
+        Route::post('/{batchKey}/messages',        [BatchMessageController::class, 'store']);
+
+        // Mark messages as read
+        // POST /api/batches/{batchKey}/messages/read
+        Route::post('/{batchKey}/messages/read',   [BatchMessageController::class, 'markRead']);
+    });
