@@ -19,10 +19,7 @@ use App\Http\Controllers\API\NoticeController;
 use App\Http\Controllers\API\ModuleController;
 use App\Http\Controllers\API\PrivilegeController;
 use App\Http\Controllers\API\UserPrivilegeController;
-<<<<<<< HEAD
 use App\Http\Controllers\API\BatchMessageController;
-=======
->>>>>>> c91667b7c50beb5791b8e3fbcbc07f95ef790c11
 
 Route::get('/user', function (Request $request) {
     return $request->user();
@@ -368,7 +365,6 @@ Route::middleware('checkRole:admin,super_admin,instructor')->group(function () {
     Route::get('modules/archived', [ModuleController::class, 'archived'])->name('modules.archived');
     Route::get('modules/bin', [ModuleController::class, 'bin'])->name('modules.bin');
     Route::post('modules', [ModuleController::class, 'store'])->name('modules.store');
-<<<<<<< HEAD
 
     // single module (constrain id to number or UUID to avoid collisions)
     Route::get('modules/{id}', [ModuleController::class, 'show'])
@@ -430,8 +426,6 @@ Route::post('/user-privileges/assign', [UserPrivilegeController::class, 'assign'
 Route::post('/user-privileges/delete', [UserPrivilegeController::class, 'destroy']); // revoke (soft-delete) mapping
 Route::get( '/user-privileges/list',   [UserPrivilegeController::class, 'list']);   // list active privileges for a user
 Route::post('/user-privileges/unassign', [UserPrivilegeController::class, 'unassign']);
-=======
->>>>>>> c91667b7c50beb5791b8e3fbcbc07f95ef790c11
 
     // single module (constrain id to number or UUID to avoid collisions)
     Route::get('modules/{id}', [ModuleController::class, 'show'])
@@ -444,28 +438,6 @@ Route::post('/user-privileges/unassign', [UserPrivilegeController::class, 'unass
         ->where('id', '[0-9]+|[0-9a-fA-F\-]{36}')
         ->name('modules.destroy');
 
-<<<<<<< HEAD
-});
-
-
-// Batch Message Routes 
-
-Route::middleware(['checkRole:student,instructor,admin,superadmin'])
-    ->prefix('batches')
-    ->group(function () {
-        // List / load more / poll newer
-        // GET /api/batches/{batchKey}/messages?limit=&before_id=&after_id=
-        Route::get ('/{batchKey}/messages',        [BatchMessageController::class, 'index']);
-
-        // Send message with optional attachments
-        // POST /api/batches/{batchKey}/messages
-        Route::post('/{batchKey}/messages',        [BatchMessageController::class, 'store']);
-
-        // Mark messages as read
-        // POST /api/batches/{batchKey}/messages/read
-        Route::post('/{batchKey}/messages/read',   [BatchMessageController::class, 'markRead']);
-    });
-=======
     // actions
     Route::post('modules/{id}/restore', [ModuleController::class, 'restore'])
         ->where('id', '[0-9]+|[0-9a-fA-F\-]{36}')
@@ -521,4 +493,3 @@ Route::get( '/user-privileges/list',     [UserPrivilegeController::class, 'list'
 Route::post('/user-privileges/unassign', [UserPrivilegeController::class, 'unassign']);
 
 });
->>>>>>> c91667b7c50beb5791b8e3fbcbc07f95ef790c11
