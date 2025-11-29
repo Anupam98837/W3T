@@ -812,7 +812,7 @@ if (resultBtn) {
 
     // Build correct URL
     const finalUrl =
-      `/exam/${encodeURIComponent(quizUuid)}/batch?=${encodeURIComponent(batchQuizUuid)}`;
+      `/exam/${encodeURIComponent(quizUuid)}?batch=${encodeURIComponent(batchQuizUuid)}`;
 
     window.location.href = finalUrl;
   } catch (e) {

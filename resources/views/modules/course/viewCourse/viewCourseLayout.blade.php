@@ -265,11 +265,18 @@
               <div class="text-muted" id="courseShort">—</div>
             </div>
 
-            {{-- Back button inside aside --}}
-          <a href="{{ url('/student/courses') }}" class="aside-back-btn">
-            <i class="fa fa-arrow-left"></i>
-            <span>Back to Courses</span>
-          </a>
+         <a href="#" class="aside-back-btn" onclick="
+    if (document.referrer) {
+        window.location = document.referrer;
+    } else {
+        history.back();
+    }
+    return false;
+">
+    <i class="fa fa-arrow-left"></i>
+    <span>Back To Courses</span>
+</a>
+
           </div>
 
           <div class="vc-cover rounded-1 shadow-1 mb-2" id="mediaCover">

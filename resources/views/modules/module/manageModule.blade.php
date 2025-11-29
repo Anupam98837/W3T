@@ -139,7 +139,7 @@ html.theme-dark .dropdown-menu{background:#0f172a;border-color:var(--line-strong
     <div class="col-12 col-xxl d-flex align-items-center flex-wrap gap-2">
 
       <div class="d-flex align-items-center gap-2">
-        <label class="text-muted small mb-0">My Modules</label>
+        <label class="text-muted medium mb-0">My Modules</label>
       </div>
 
     </div>
@@ -394,6 +394,63 @@ html.theme-dark .dropdown-menu{background:#0f172a;border-color:var(--line-strong
       <div class="modal-footer">
         <button class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
         <button id="mm_save" class="btn btn-primary"><i class="fa fa-save me-1"></i>Save</button>
+      </div>
+    </div>
+  </div>
+</div>
+{{-- ===== Filter Modal ===== --}}
+<div class="modal fade" id="filterModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-sm modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="fa fa-filter me-2"></i>Filters</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+
+      <div class="modal-body">
+        <div class="row g-3">
+          <div class="col-12">
+            <label class="form-label">Status</label>
+            <select id="modal_status" class="form-select">
+              <option value="">Any</option>
+              <option value="Active">Active</option>
+              <option value="Draft">Draft</option>
+              <option value="Published">Published</option>
+              <option value="Archived">Archived</option>
+            </select>
+          </div>
+
+          <div class="col-md-6">
+            <label class="form-label">Per page</label>
+            <select id="modal_per_page" class="form-select">
+              <option value="10">10</option>
+              <option value="20" selected>20</option>
+              <option value="30">30</option>
+              <option value="50">50</option>
+            </select>
+          </div>
+
+          <div class="col-md-6">
+            <label class="form-label">Sort</label>
+            <select id="modal_sort" class="form-select">
+              <option value="-created_at" selected>Newest first</option>
+              <option value="created_at">Oldest first</option>
+              <option value="name">Name (A → Z)</option>
+              <option value="-name">Name (Z → A)</option>
+            </select>
+          </div>
+
+          <div class="col-12">
+            <label class="form-label">Search</label>
+            <input id="modal_q" type="text" class="form-control" placeholder="Search name/description… (optional)">
+            <div class="small text-muted mt-1">Note: main search box will still be used if you type there.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button id="btnClearFilters" type="button" class="btn btn-light">Clear</button>
+        <button id="btnApplyFilters" type="button" class="btn btn-primary">Apply</button>
       </div>
     </div>
   </div>

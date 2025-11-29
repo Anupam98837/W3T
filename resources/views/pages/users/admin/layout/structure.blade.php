@@ -343,7 +343,7 @@ html.theme-dark .w3-sidebar-scroll::-webkit-scrollbar-thumb {
         </a>
         <div id="sm-courses" class="w3-submenu" role="group" aria-label="Courses submenu">
           <a href="/admin/courses/manage" class="w3-link">All Courses</a>
-          <a href="/admin/courses/create" class="w3-link">Create Course</a>
+          <a href="/admin/courses/create" class="w3-link" style="display:none">Create Course</a>
           <a href="/admin/courses" class="w3-link">Running Courses</a>
         </div>
       </div>
@@ -417,6 +417,34 @@ html.theme-dark .w3-sidebar-scroll::-webkit-scrollbar-thumb {
         </div>
       </div>
     </nav>
+    <!-- Privileges -->
+<div class="w3-nav-section">
+  <div class="w3-section-title"><i class="fa-solid fa-shield-halved"></i>
+</i> PRIVILEGES</div>
+  <div class="w3-section-rule"></div>
+</div>
+<nav class="w3-menu" aria-label="Privileges">
+  <div class="w3-group">
+    <a href="#" class="w3-link w3-toggle" data-target="sm-priv-modules" aria-expanded="false">
+      <i class="fa-solid fa-layer-group"></i><span>Modules</span>
+      <i class="fa fa-chevron-down w3-chev"></i>
+    </a>
+    <div id="sm-priv-modules" class="w3-submenu" role="group" aria-label="Modules submenu">
+      <a href="/admin/module/manage" class="w3-link">Manage Modules</a>
+    </div>
+  </div>
+
+  <div class="w3-group">
+    <a href="#" class="w3-link w3-toggle" data-target="sm-priv-privs" aria-expanded="false">
+      <i class="fa-solid fa-key"></i><span>Privileges</span>
+      <i class="fa fa-chevron-down w3-chev"></i>
+    </a>
+    <div id="sm-priv-privs" class="w3-submenu" role="group" aria-label="Privileges submenu">
+      <a href="/admin/privilege/manage" class="w3-link">Manage Privileges</a>
+    </div>
+  </div>
+</nav>
+
  
     <!-- Operations -->
     <div class="w3-nav-section">
