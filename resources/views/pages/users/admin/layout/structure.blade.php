@@ -417,32 +417,25 @@ html.theme-dark .w3-sidebar-scroll::-webkit-scrollbar-thumb {
         </div>
       </div>
     </nav>
-    <!-- Privileges -->
+<!-- Privileges-->
 <div class="w3-nav-section">
-  <div class="w3-section-title"><i class="fa-solid fa-shield-halved"></i>
-</i> PRIVILEGES</div>
+  <div class="w3-section-title">
+    <i class="fa-solid fa-shield-halved" aria-hidden="true"></i>
+    <span class="ms-1">PRIVILEGES</span>
+  </div>
   <div class="w3-section-rule"></div>
 </div>
-<nav class="w3-menu" aria-label="Privileges">
-  <div class="w3-group">
-    <a href="#" class="w3-link w3-toggle" data-target="sm-priv-modules" aria-expanded="false">
-      <i class="fa-solid fa-layer-group"></i><span>Modules</span>
-      <i class="fa fa-chevron-down w3-chev"></i>
-    </a>
-    <div id="sm-priv-modules" class="w3-submenu" role="group" aria-label="Modules submenu">
-      <a href="/admin/module/manage" class="w3-link">Manage Modules</a>
-    </div>
-  </div>
 
-  <div class="w3-group">
-    <a href="#" class="w3-link w3-toggle" data-target="sm-priv-privs" aria-expanded="false">
-      <i class="fa-solid fa-key"></i><span>Privileges</span>
-      <i class="fa fa-chevron-down w3-chev"></i>
-    </a>
-    <div id="sm-priv-privs" class="w3-submenu" role="group" aria-label="Privileges submenu">
-      <a href="/admin/privilege/manage" class="w3-link">Manage Privileges</a>
-    </div>
-  </div>
+<nav class="w3-menu" aria-label="Privileges">
+  <a href="/admin/module/manage" class="w3-link">
+    <i class="fa-solid fa-layer-group" aria-hidden="true"></i>
+    <span>Modules</span>
+  </a>
+
+  <a href="/admin/privilege/manage" class="w3-link">
+    <i class="fa-solid fa-key" aria-hidden="true"></i>
+    <span>Privileges</span>
+  </a>
 </nav>
 
  

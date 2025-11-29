@@ -414,13 +414,13 @@ html.theme-dark .dropdown-menu{background:#0f172a;border-color:var(--line-strong
             <select id="modal_status" class="form-select">
               <option value="">Any</option>
               <option value="Active">Active</option>
-              <option value="Draft">Draft</option>
-              <option value="Published">Published</option>
+              <option value="Draft" style="display:none" >Draft</option>
+              <option value="Published" style="display:none" >Published</option>
               <option value="Archived">Archived</option>
             </select>
           </div>
 
-          <div class="col-md-6">
+          <div class="col-md-6" style="display:none">
             <label class="form-label">Per page</label>
             <select id="modal_per_page" class="form-select">
               <option value="10">10</option>
@@ -430,7 +430,7 @@ html.theme-dark .dropdown-menu{background:#0f172a;border-color:var(--line-strong
             </select>
           </div>
 
-          <div class="col-md-6">
+          <div class="col-md-12">
             <label class="form-label">Sort</label>
             <select id="modal_sort" class="form-select">
               <option value="-created_at" selected>Newest first</option>
@@ -440,7 +440,7 @@ html.theme-dark .dropdown-menu{background:#0f172a;border-color:var(--line-strong
             </select>
           </div>
 
-          <div class="col-12">
+          <div class="col-12" style="display:none">
             <label class="form-label">Search</label>
             <input id="modal_q" type="text" class="form-control" placeholder="Search name/description… (optional)">
             <div class="small text-muted mt-1">Note: main search box will still be used if you type there.</div>
