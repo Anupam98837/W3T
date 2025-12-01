@@ -130,7 +130,6 @@ html.theme-dark .dropdown-menu{background:#0f172a;border-color:var(--line-strong
 .priv-rows .col-remove { flex: 0 0 48px; text-align: right; }
 </style>
 @endpush
-
 @section('content')
 <div class="cm-wrap">
 
@@ -388,6 +387,12 @@ html.theme-dark .dropdown-menu{background:#0f172a;border-color:var(--line-strong
             </select>
           </div>
 
+          {{-- NEW: href input --}}
+          <div class="col-md-8">
+            <label class="form-label">Href (route or URL)<span class="text-danger">*</span></label>
+            <input id="mm_href" class="form-control" maxlength="255" placeholder="e.g. /modules/intro or https://example.com/path">
+          </div>
+
         </div>
       </div>
 
@@ -602,6 +607,7 @@ document.addEventListener('click',(e)=>{
     name   : document.getElementById('mm_name'),
     description: document.getElementById('mm_description'),
     status : document.getElementById('mm_status'),
+    href   : document.getElementById('mm_href'),
     save   : document.getElementById('mm_save'),
   };
 
@@ -725,6 +731,14 @@ document.addEventListener('click',(e)=>{
     if(isArchived && scope!=='bin') tr.classList.add('state-archived');
     if(isDeleted  || scope==='bin') tr.classList.add('state-deleted');
 
+    // small helper to render href: show a small link under name when present
+    const renderHref = (href) => {
+      if(!href) return '';
+      // sanitize and ensure visible: allow relative or absolute
+      const safeHref = esc(href);
+      return `<div class="small"><a href="${safeHref}" target="_blank" rel="noopener noreferrer" class="text-decoration-none"><i class="fa fa-up-right-from-square me-1"></i>${safeHref}</a></div>`;
+    };
+
     if(scope==='active'){
       tr.draggable = reorderMode;
       tr.dataset.key = r.uuid || r.id;
@@ -734,6 +748,7 @@ document.addEventListener('click',(e)=>{
         <td class="text-center"><i class="fa fa-grip-lines-vertical drag-handle"></i></td>
         <td>
           <div class="fw-semibold">${esc(r.name || '-')}</div>
+          ${renderHref(r.href)}
           <div class="small text-muted">${esc((desc || '').slice(0,100))}${desc && desc.length>100 ? '…' : ''}</div>
         </td>
         <td>${esc((desc || '').slice(0,140))}${desc && desc.length>140 ? '…' : ''}</td>
@@ -758,6 +773,7 @@ document.addEventListener('click',(e)=>{
       tr.innerHTML = `
         <td>
           <div class="fw-semibold">${esc(r.name || '-')}</div>
+          ${renderHref(r.href)}
           <div class="small text-muted">${esc((desc || '').slice(0,100))}${desc && desc.length>100 ? '…' : ''}</div>
         </td>
         <td>${esc((desc || '').slice(0,140))}${desc && desc.length>140 ? '…' : ''}</td>
@@ -770,6 +786,7 @@ document.addEventListener('click',(e)=>{
     tr.innerHTML = `
       <td>
         <div class="fw-semibold">${esc(r.name || '-')}</div>
+        ${renderHref(r.href)}
         <div class="small text-muted">${esc((desc || '').slice(0,100))}${desc && desc.length>100 ? '…' : ''}</div>
       </td>
       <td>${esc((desc || '').slice(0,140))}${desc && desc.length>140 ? '…' : ''}</td>
@@ -919,6 +936,7 @@ document.addEventListener('click',(e)=>{
   function openCreate(){
     mm.mode.value='create'; mm.key.value=''; mm.title.textContent='Create Module';
     if(mm.name) mm.name.value=''; if(mm.description) mm.description.value=''; if(mm.status) mm.status.value='Active';
+    if(mm.href) mm.href.value = '';
     mm.modal.show();
     setTimeout(()=> { mm.name && mm.name.focus && mm.name.focus(); }, 150);
   }
@@ -933,6 +951,7 @@ document.addEventListener('click',(e)=>{
       if(mm.name) mm.name.value    = r.name || '';
       if(mm.description) mm.description.value = r.description || '';
       if(mm.status) mm.status.value  = (r.status || 'Active');
+      if(mm.href) mm.href.value = r.href || '';
       mm.modal.show();
     }catch(e){ err(e.message||'Failed to open'); }
   }
@@ -944,7 +963,8 @@ document.addEventListener('click',(e)=>{
     const payload = {
       name: mm.name.value.trim(),
       description: mm.description.value.trim() || null,
-      status: mm.status && mm.status.value ? mm.status.value : 'Active'
+      status: mm.status && mm.status.value ? mm.status.value : 'Active',
+      href: (mm.href && mm.href.value) ? mm.href.value.trim() : '' // include href (empty string default)
     };
 
     const isEdit = (mm.mode.value==='edit' && mm.key.value);

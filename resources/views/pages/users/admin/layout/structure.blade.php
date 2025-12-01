@@ -445,7 +445,7 @@ html.theme-dark .w3-sidebar-scroll::-webkit-scrollbar-thumb {
       <div class="w3-section-rule"></div>
     </div>
     <nav class="w3-menu" aria-label="Operations">
-      <div class="w3-group">
+      <div class="w3-group" style="display:none">
         <a href="#" class="w3-link w3-toggle" data-target="sm-schedule" aria-expanded="false">
           <i class="fa-solid fa-calendar-days"></i><span>Schedule</span>
           <i class="fa fa-chevron-down w3-chev"></i>
@@ -457,7 +457,7 @@ html.theme-dark .w3-sidebar-scroll::-webkit-scrollbar-thumb {
         </div>
       </div>
  
-      <div class="w3-group">
+      <div class="w3-group"  style="display:none">
         <a href="#" class="w3-link w3-toggle" data-target="sm-fin" aria-expanded="false">
           <i class="fa-solid fa-rupee-sign"></i><span>Finance</span>
           <i class="fa fa-chevron-down w3-chev"></i>
