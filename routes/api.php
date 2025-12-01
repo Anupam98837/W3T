@@ -230,28 +230,18 @@ Route::get   ('/batches/{batchKey}/assignments/bin',      [AssignmentController:
 });
 
 Route::middleware('checkRole:admin,super_admin,instructor,student')->prefix('assignments')->group(function () {
-
     Route::post('{assignmentId}/submit', [AssignmentSubmissionController::class,'uploadByAssignment'])->name('assignments.submit')->where('assignmentId','[0-9]+');
-
     Route::post('submit', [AssignmentSubmissionController::class,'upload'])->name('assignments.submit.generic');
-
     Route::get('{assignmentId}/submit-info', [AssignmentSubmissionController::class,'assignmentInfo'])->name('assignments.submit.info')->where('assignmentId','[0-9]+');
-
     Route::get('my-submissions/{assignmentKey}', [AssignmentSubmissionController::class,'mySubmissions'])->name('assignments.submissions.my')->where('assignmentKey','[A-Za-z0-9\-_]+');
-
     Route::get('my-submission/{submissionKey}', [AssignmentSubmissionController::class,'mySubmissionDetail'])->name('assignments.submission.my_detail')->where('submissionKey','[A-Za-z0-9\-_]+');
-
     Route::get('submission/uuid/{uuid}', [AssignmentSubmissionController::class,'show'])->name('assignments.submission.show')->whereUuid('uuid');
-
     Route::delete('submission/key/{submissionKey}', [AssignmentSubmissionController::class,'softDeleteSubmission'])->name('assignments.submission.soft_delete')->where('submissionKey','[A-Za-z0-9\-_]+');
-
     Route::post('submission/key/{submissionKey}/restore', [AssignmentSubmissionController::class,'restoreSubmission'])->name('assignments.submission.restore')->where('submissionKey','[A-Za-z0-9\-_]+');
-
     Route::delete('submission/key/{submissionKey}/force', [AssignmentSubmissionController::class,'forceDeleteSubmission'])->name('assignments.submission.force_delete')->where('submissionKey','[A-Za-z0-9\-_]+');
     Route::get('/{assignmentKey}/student/marks', [AssignmentSubmissionController::class, 'getMyAssignmentMarks']);
 
 });
-
 // Instructor-only routes
 Route::middleware('checkRole:admin,super_admin,instructor,student')
     ->prefix('assignments')

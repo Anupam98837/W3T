@@ -634,26 +634,108 @@ function normalizeAttachments(row) {
     document.body.classList.add('modal-open');
     backdrop.addEventListener('click', closeDetailsModal);
 
-    const attachments = row.attachment && Array.isArray(row.attachment) ? row.attachment : [];
-    const attachList = attachments.length ? attachments.map(a => {
-      const name = a.name || (a.url || a.path || '').split('/').pop();
-      const size = a.size ? ` (${formatSize(a.size)})` : '';
-      return `<div style="display:flex; justify-content:space-between; gap:8px;"><div>${escapeHtml(name)}</div><div style="color:var(--muted-color); font-size:13px;">${escapeHtml(a.mime || a.ext || '')}${size}</div></div>`;
-    }).join('') : '<div style="color:var(--muted-color)">No attachments</div>';
+    // ---------- REPLACE WITH THIS ----------
+const attachments = row.attachment && Array.isArray(row.attachment) ? row.attachment : [];
+
+let attachList = '';
+if (!attachments.length) {
+  attachList = '<div style="color:var(--muted-color)">No attachments</div>';
+} else {
+  // Build clickable rows (will attach event listeners after we insert into DOM)
+  attachList = attachments.map((a, idx) => {
+    const name = a.name || (a.url || a.path || '').split('/').pop() || `file-${idx+1}`;
+    const size = a.size ? ` (${formatSize(a.size)})` : '';
+    const type = escapeHtml(a.mime || a.ext || '');
+    // data-idx used to identify attachment index
+    return `
+      <div class="sm-attach-row" style="display:flex; justify-content:space-between; gap:8px; align-items:center; padding:6px 0; border-bottom:1px solid rgba(0,0,0,0.04);">
+        <div style="min-width:0;">
+          <a href="#" class="sm-attach-link" data-idx="${idx}" style="font-weight:600; text-decoration:none;">${escapeHtml(name)}${escapeHtml(size)}</a>
+          <div class="small text-muted" style="margin-top:4px;">${type}</div>
+        </div>
+        <div style="flex:0 0 auto;">
+          <button class="btn btn-sm btn-outline-primary sm-attach-preview" data-idx="${idx}" type="button">Preview</button>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
 
     if (detailsBody) {
-      detailsBody.innerHTML = `
-        <div style="display:flex; flex-direction:column; gap:12px; font-size:15px;">
-          <div><strong>Title:</strong> ${escapeHtml(row.title || 'Untitled')}</div>
-          <div><strong>Description:</strong> ${escapeHtml(row.description || '—')}</div>
-          <div><strong>Created At:</strong> ${row.created_at ? new Date(row.created_at).toLocaleString() : '—'}</div>
-          <div><strong>Created By:</strong> ${escapeHtml(row.creator_name || row.created_by_name || '—')}</div>
-          <div><strong>Attachments:</strong> ${attachments.length} file(s)</div>
-          <div style="margin-top:6px;">${attachList}</div>
-          <div style="color:var(--muted-color); font-size:13px; margin-top:6px;"><strong>ID:</strong> ${escapeHtml(String(row.id || ''))}</div>
-        </div>
-      `;
+
+    // Build clickable attachment list
+    let attachList = "";
+    if (!attachments.length) {
+        attachList = `<div style="color:var(--muted-color)">No attachments</div>`;
+    } else {
+        attachList = attachments.map((a, idx) => {
+            const name = a.name || (a.url || a.path || "").split("/").pop() || `file-${idx+1}`;
+            const size = a.size ? ` (${formatSize(a.size)})` : "";
+            const type = escapeHtml(a.mime || a.ext || "");
+
+            return `
+                <div class="sm-attach-row" 
+                     style="display:flex; justify-content:space-between; gap:8px; align-items:center; padding:6px 0; border-bottom:1px solid rgba(0,0,0,0.05);">
+
+                    <div style="min-width:0;">
+                        <a href="#" class="sm-attach-link" data-idx="${idx}"
+                           style="font-weight:600; text-decoration:none;">
+                           ${escapeHtml(name)}${escapeHtml(size)}
+                        </a>
+                        <div class="small text-muted" style="margin-top:4px;">${type}</div>
+                    </div>
+
+                    <div>
+                        <button class="btn btn-sm btn-outline-primary sm-attach-preview" 
+                                type="button" data-idx="${idx}">
+                            Preview
+                        </button>
+                    </div>
+
+                </div>
+            `;
+        }).join("");
     }
+
+    // Build full modal HTML
+    detailsBody.innerHTML = `
+        <div style="display:flex; flex-direction:column; gap:12px; font-size:15px;">
+          
+          <div><strong>Title:</strong> ${escapeHtml(row.title || "Untitled")}</div>
+          <div><strong>Description:</strong> ${escapeHtml(row.description || "—")}</div>
+          <div><strong>Created At:</strong> ${row.created_at ? new Date(row.created_at).toLocaleString() : "—"}</div>
+          <div><strong>Created By:</strong> ${escapeHtml(row.creator_name || row.created_by_name || "—")}</div>
+
+          <div><strong>Attachments:</strong> ${attachments.length} file(s)</div>
+
+          <div style="margin-top:6px;">
+            ${attachList}
+          </div>
+
+          <div style="color:var(--muted-color); font-size:13px; margin-top:6px;">
+            <strong>ID:</strong> ${escapeHtml(String(row.id || ""))}
+          </div>
+
+        </div>
+    `;
+
+    // After HTML is injected → add preview event listeners
+    const links = detailsBody.querySelectorAll(".sm-attach-link, .sm-attach-preview");
+
+    links.forEach(el => {
+        el.addEventListener("click", (ev) => {
+            ev.preventDefault();
+
+            const idx = Number(el.dataset.idx);
+
+            // Close the details modal first to avoid stacked backdrops
+            try { closeDetailsModal(); } catch(e){}
+
+            // Open fullscreen preview (your existing function)
+            openFullscreenPreview(row, attachments, idx);
+        });
+    });
+}
 
     if (detailsFooter) {
       detailsFooter.innerHTML = '';

@@ -729,10 +729,6 @@ public function restore(Request $r, string $assignment)
  * View assignments for a batch (RBAC aware)
  * Route example: GET /api/batches/{batchKey}/assignments
  */
-/**
- * View assignments for a batch (RBAC aware)
- * Route example: GET /api/batches/{batchKey}/assignments
- */
 public function viewAssignmentByBatch(Request $r, string $batchKey)
 {
     // allow super_admin/admin/instructor/student (with checks)

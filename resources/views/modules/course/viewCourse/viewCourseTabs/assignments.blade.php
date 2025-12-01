@@ -826,21 +826,65 @@ function createItemRow(row){
                 else dd.appendChild(vm);
 
                 vm.addEventListener('click', async (ev) => {
-                    ev.preventDefault();
-                    ev.stopPropagation();
-                    closeAllDropdowns();
+  ev.preventDefault();
+  ev.stopPropagation();
+  closeAllDropdowns();
 
-                    // Your existing view marks logic here...
-                    const assignKey = row.uuid || row.assignment_uuid || row.assignmentUuid || '';
+  // Determine assignment identifier (prefer assignmentKey if present on the row)
+  const assignKey = row.uuid || row.assignment_uuid || row.assignmentUuid || '';
 
-                    if (!assignKey) {
-                        if (typeof showErr === 'function') showErr('Cannot determine assignment.');
-                        else alert('Cannot determine assignment.');
-                        return;
-                    }
+  if (!assignKey) {
+    if (typeof showErr === 'function') showErr('Cannot determine assignment.');
+    else alert('Cannot determine assignment.');
+    return;
+  }
 
-                    // ... rest of your view marks code
-                });
+  // 🔹 Always fetch current student (id + uuid) from API for logged-in student
+  let studentUuid = '';
+  let studentId   = '';
+
+  try {
+    const res = await fetch('/api/student/uuid', {
+      method: 'GET',
+      headers: {
+        'Accept': 'application/json',
+        'Authorization': `Bearer ${TOKEN}`, // or your custom header if you use one
+      },
+    });
+
+    if (!res.ok) {
+      const errText = await res.text();
+      console.warn('getStudentUuid failed', res.status, errText);
+      if (typeof showErr === 'function') showErr('Failed to fetch your student identity.');
+      else alert('Failed to fetch your student identity.');
+      return;
+    }
+
+    const data = await res.json();
+    studentUuid = data.student_uuid || data.studentUuid || '';
+    studentId   = data.student_id   || data.studentId   || '';
+
+  } catch (e) {
+    console.warn('Error calling /api/students/uuid', e);
+    if (typeof showErr === 'function') showErr('Error while fetching your student identity.');
+    else alert('Error while fetching your student identity.');
+    return;
+  }
+
+  // 🔹 Use UUID if available, otherwise fall back to ID
+  const a = encodeURIComponent(String(assignKey));
+  const s = encodeURIComponent(String(studentUuid || studentId || ''));
+
+  if (!s) {
+    if (typeof showErr === 'function') showErr('Could not resolve your student identifier.');
+    else alert('Could not resolve your student identifier.');
+    return;
+  }
+
+  // Final redirect: backend accepts id/uuid/email for {student}
+  window.location.href = `/assignments/${a}/students/${s}/documents`;
+});
+
             }
         } catch (ex) {
             console.warn('attach submit/view-marks action failed', ex);
@@ -1381,8 +1425,8 @@ wrap.addEventListener('contextmenu', (e) => {
       if (!submissionId) return false;
       const candidates = [
         `/api/assignments/submission/key/${encodeURIComponent(submissionId)}`,
-        `/api/assignments/submission/${encodeURIComponent(submissionId)}`,
-        `/api/submissions/${encodeURIComponent(submissionId)}`,
+        // `/api/assignments/submission/${encodeURIComponent(submissionId)}`,
+        // `/api/submissions/${encodeURIComponent(submissionId)}`,
       ];
       for (const url of candidates) {
         try {
@@ -1449,8 +1493,6 @@ function setFileInputVisibility(show) {
   }
 }
 
-  // Render assignment info (allowed types + attempts)
-// Replace your existing renderAssignmentInfo with this function
 function renderAssignmentInfo(info) {
   // defensive defaults
   const noteDefault = 'Unable to load submission info';
