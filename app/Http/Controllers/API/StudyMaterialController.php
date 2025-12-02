@@ -100,6 +100,106 @@ class StudyMaterialController extends Controller
             'actor_role' => $actor['role'],
         ], $context));
     }
+     /* =========================================================
+     |  Create
+     |  - saves files under storage/app/batchStudyMaterial/{batch_id}
+     |  - stores full streaming URL in attachment JSON
+     * ========================================================= */
+    public function store(Request $r)
+    {
+        if ($res = $this->requireRole($r, ['admin','superadmin'])) return $res;
+        $actor = $this->actor($r);
+
+        $v = Validator::make($r->all(), [
+            'course_id'         => 'required|integer|exists:courses,id',
+            'course_module_id'  => 'required|integer|exists:course_modules,id',
+            'batch_id'          => 'required|integer|exists:batches,id',
+            'title'             => 'required|string|max:255',
+            'description'       => 'nullable|string',
+            'view_policy'       => 'nullable|in:inline_only,downloadable',
+            // accept multiple inputs: attachments[] or attachments
+            'attachments.*'     => 'nullable|file|max:51200', // 50MB each
+        ], [
+            'attachments.*.max' => 'Each attachment must be <= 50 MB.'
+        ]);
+
+        if ($v->fails()) {
+            return response()->json(['errors'=>$v->errors()], 422);
+        }
+
+        $uuid = $this->genUuid();
+        $slug = $this->uniqueSlug($r->title);
+        $policy = $r->input('view_policy', 'inline_only');
+
+        // Collect files (support both "attachments" and "attachments[]")
+        $files = [];
+        if ($r->hasFile('attachments')) {
+            $files = is_array($r->file('attachments')) ? $r->file('attachments') : [$r->file('attachments')];
+        }
+
+        $stored = [];
+        if (!empty($files)) {
+            $root = $this->ensureDir(storage_path('app/batchStudyMaterial/'.(int)$r->batch_id));
+            foreach ($files as $file) {
+                if (!$file || !$file->isValid()) continue;
+
+                $ext  = strtolower($file->getClientOriginalExtension() ?: 'bin');
+                $fid  = Str::lower(Str::random(10));
+                $name = $fid.'.'.$ext;
+
+                // move uploaded file to our private folder
+                $file->move($root, $name);
+
+                $absPath = $root.DIRECTORY_SEPARATOR.$name;
+                $relPath = 'batchStudyMaterial/'.(int)$r->batch_id.'/'.$name;
+
+                // mime detection (fallback)
+                $mime = $file->getClientMimeType() ?: mime_content_type($absPath) ?: 'application/octet-stream';
+                $size = @filesize($absPath) ?: 0;
+                $sha  = hash_file('sha256', $absPath);
+
+                // full streaming URL that frontend will use in <iframe>/<img>/<video>
+                $url  = $this->appUrl()."/api/study-materials/stream/{$uuid}/{$fid}";
+
+                $stored[] = [
+                    'id'          => $fid,
+                    'disk'        => 'local',
+                    'path'        => $relPath,                // relative to storage/app
+                    'url'         => $url,                    // full link (stream)
+                    'mime'        => $mime,
+                    'ext'         => $ext,
+                    'size'        => $size,
+                    'sha256'      => $sha,
+                    'uploaded_at' => Carbon::now()->toIso8601String(),
+                ];
+            }
+        }
+
+        $now = Carbon::now();
+        $id = DB::table('study_materials')->insertGetId([
+            'uuid'               => $uuid,
+            'course_id'          => (int)$r->course_id,
+            'course_module_id'   => (int)$r->course_module_id,
+            'batch_id'           => (int)$r->batch_id,
+            'title'              => $r->title,
+            'slug'               => $slug,
+            'description'        => $r->input('description'),
+            'attachment'         => $stored ? json_encode($stored) : null,
+            'attachment_count'   => count($stored),
+            'view_policy'        => $policy,
+            'created_by'         => $actor['id'] ?: 0,
+            'created_at'         => $now,
+            'updated_at'         => $now,
+        ]);
+
+        return response()->json([
+            'message' => 'Study material created',
+            'id'      => $id,
+            'uuid'    => $uuid,
+            'slug'    => $slug,
+            'attachments' => $stored,
+        ], 201);
+    }
 
     /* =========================================================
      |  View assignments for a batch (RBAC aware) — unchanged
@@ -278,163 +378,120 @@ class StudyMaterialController extends Controller
         return response()->json(['data' => $payload]);
     }
 
-    /* =========================================================
-     |  Update basic fields and (optionally) add more files
-     * ========================================================= */
-    /**
+       /**
      * Update basic fields and (optionally) add more files / remove selected files
      */
     public function update(Request $r, $id)
-    {
-        // permission check (kept as in original)
-        if ($res = $this->requireRole($r, ['admin','superadmin','instructor'])) return $res;
+{
+    // permission check (kept as in original)
+    if ($res = $this->requireRole($r, ['admin','superadmin','instructor'])) return $res;
 
-        $row = DB::table('study_materials')->where('id', (int)$id)->whereNull('deleted_at')->first();
-        if (!$row) return response()->json(['error' => 'Not found'], 404);
+    $row = DB::table('study_materials')->where('id', (int)$id)->whereNull('deleted_at')->first();
+    if (!$row) return response()->json(['error' => 'Not found'], 404);
 
-        // validation: note remove_attachments is optional array of strings
-        $v = Validator::make($r->all(), [
-            'title'               => 'sometimes|required|string|max:255',
-            'description'         => 'nullable|string',
-            'view_policy'         => 'nullable|in:inline_only,downloadable',
-            'attachments.*'       => 'nullable|file|max:51200',
-            'remove_attachments'  => 'sometimes|array',
-            'remove_attachments.*'=> 'string',
-        ]);
+    // validation: note remove_attachments is optional array of strings; allow library_urls
+    $v = Validator::make($r->all(), [
+        'title'               => 'sometimes|required|string|max:255',
+        'description'         => 'nullable|string',
+        'view_policy'         => 'nullable|in:inline_only,downloadable',
+        'attachments.*'       => 'nullable|file|max:51200',
+        'library_urls.*'      => 'nullable|url',
+        'remove_attachments'  => 'sometimes|array',
+        'remove_attachments.*'=> 'string',
+    ]);
 
-        if ($v->fails()) return response()->json(['errors' => $v->errors()], 422);
+    if ($v->fails()) return response()->json(['errors' => $v->errors()], 422);
 
-        $update = [];
+    $update = [];
 
-        if ($r->filled('title')) {
-            $update['title'] = $r->title;
-            // If title changes, keep slug stable unless asked
-            if ($r->boolean('regenerate_slug', false)) {
-                $update['slug'] = $this->uniqueSlug($r->title);
-            }
+    if ($r->filled('title')) {
+        $update['title'] = $r->title;
+        // If title changes, keep slug stable unless asked
+        if ($r->boolean('regenerate_slug', false)) {
+            $update['slug'] = $this->uniqueSlug($r->title);
         }
-
-        if ($r->exists('description')) $update['description'] = $r->input('description');
-        if ($r->filled('view_policy')) $update['view_policy'] = $r->input('view_policy');
-
-        // decode existing attachments (may be null)
-        $stored = $this->jsonDecode($row->attachment);
-        if (!is_array($stored)) $stored = [];
-
-        //
-        // Handle removals first (if any)
-        //
-        $toRemove = $r->input('remove_attachments', []);
-        if (!is_array($toRemove)) $toRemove = [$toRemove];
-
-        if (!empty($toRemove)) {
-            // normalize lookup set
-            $remSet = array_flip(array_map('strval', $toRemove));
-
-            $kept = [];
-            foreach ($stored as $att) {
-                // determine identifier used by frontend (your code uses 'id' => $fid)
-                $attId = '';
-                if (isset($att['id'])) $attId = (string)$att['id'];
-                elseif (isset($att['attachment_id'])) $attId = (string)$att['attachment_id'];
-                elseif (isset($att['file_id'])) $attId = (string)$att['file_id'];
-                elseif (isset($att['storage_key'])) $attId = (string)$att['storage_key'];
-                elseif (isset($att['key'])) $attId = (string)$att['key'];
-                else $attId = (string)($att['path'] ?? ($att['url'] ?? ''));
-
-                if ($attId !== '' && isset($remSet[$attId])) {
-                    // attempt to remove local file if appropriate
-                    try {
-                        // In the new flow attachments are stored under public/ assets media or local storage path.
-                        if (!empty($att['path'])) {
-                            // if path looks like relative public assets (assets/media/...) delete from public
-                            $p = $att['path'];
-                            if (strpos($p, 'assets/media') === 0 || strpos($p, 'batchStudyMaterial') === 0) {
-                                $candidate = $this->mediaBasePublicPath() . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, ltrim($p, '/'));
-                            } else {
-                                // fallback: previous behavior used storage_path('app/...')
-                                $candidate = storage_path('app/' . ltrim($p, '/'));
-                            }
-                            if (File::exists($candidate) && is_file($candidate)) {
-                                File::delete($candidate);
-                            }
-                        }
-                    } catch (\Throwable $ex) {
-                        // ignore deletion errors; optionally log
-                        Log::warning('Failed to delete attachment during update remove_attachments: '.$ex->getMessage(), ['att'=>$att]);
-                    }
-                    // skip adding to $kept -> effectively removed
-                    continue;
-                }
-
-                // keep this attachment
-                $kept[] = $att;
-            }
-
-            // replace stored with kept
-            $stored = $kept;
-        }
-
-        //
-        // Append newly uploaded files (same logic as original but store publicly)
-        //
-        if ($r->hasFile('attachments')) {
-            $files = is_array($r->file('attachments')) ? $r->file('attachments') : [$r->file('attachments')];
-
-            // Use public assets dir under MEDIA_SUBDIR, grouped by batch
-            $batchId = (int)$row->batch_id;
-            $folder = "batchStudyMaterial/{$batchId}";
-            $destBase = $this->mediaBasePublicPath() . DIRECTORY_SEPARATOR . self::MEDIA_SUBDIR . DIRECTORY_SEPARATOR . $folder;
-            $this->ensureDir($destBase);
-
-            foreach ($files as $file) {
-                if (!$file || !$file->isValid()) continue;
-
-                $ext  = strtolower($file->getClientOriginalExtension() ?: 'bin');
-                $fid  = Str::lower(Str::random(10));
-                $name = $fid . '.' . $ext;
-
-                try {
-                    $file->move($destBase, $name);
-                } catch (\Throwable $e) {
-                    Log::error('Failed to move uploaded study material file: '.$e->getMessage(), ['dest'=>$destBase,'file'=>$name]);
-                    continue;
-                }
-
-                $absPath = $destBase . DIRECTORY_SEPARATOR . $name;
-                $relPath = self::MEDIA_SUBDIR . '/' . $folder . '/' . $name; // relative to public/
-                $mime = $file->getClientMimeType() ?: mime_content_type($absPath) ?: 'application/octet-stream';
-                $size = @filesize($absPath) ?: 0;
-                $sha  = @hash_file('sha256', $absPath) ?: null;
-                $url  = $this->toPublicUrl($relPath);
-
-                $stored[] = [
-                    'id'          => $fid,
-                    'disk'        => 'public',
-                    'path'        => $relPath,
-                    'url'         => $url,
-                    'mime'        => $mime,
-                    'ext'         => $ext,
-                    'size'        => $size,
-                    'sha256'      => $sha,
-                    'uploaded_at' => Carbon::now()->toIso8601String(),
-                ];
-            }
-        }
-
-        // persist updated attachments and counts
-        $update['attachment'] = $stored ? json_encode($stored) : null;
-        $update['attachment_count'] = count($stored);
-        $update['updated_at'] = Carbon::now();
-
-        DB::table('study_materials')->where('id', (int)$id)->update($update);
-
-        return response()->json([
-            'message' => 'Study material updated',
-            'id'      => (int)$id,
-            'attachments' => $stored,
-        ]);
     }
+
+    if ($r->exists('description')) $update['description'] = $r->input('description');
+    if ($r->filled('view_policy')) $update['view_policy'] = $r->input('view_policy');
+
+    // decode existing attachments (may be null)
+    $stored = $this->jsonDecode($row->attachment);
+    if (!is_array($stored)) $stored = [];
+
+    //
+    // Handle removals first (if any)
+    //
+    $toRemove = $r->input('remove_attachments', []);
+    if (!is_array($toRemove)) $toRemove = [$toRemove];
+
+    if (!empty($toRemove)) {
+        // normalize lookup set
+        $remSet = array_flip(array_map('strval', $toRemove));
+
+        $kept = [];
+        foreach ($stored as $att) {
+            // determine identifier used by frontend (your code uses 'id' => $fid)
+            $attId = '';
+            if (isset($att['id'])) $attId = (string)$att['id'];
+            elseif (isset($att['attachment_id'])) $attId = (string)$att['attachment_id'];
+            elseif (isset($att['file_id'])) $attId = (string)$att['file_id'];
+            elseif (isset($att['storage_key'])) $attId = (string)$att['storage_key'];
+            elseif (isset($att['key'])) $attId = (string)$att['key'];
+            else $attId = (string)($att['path'] ?? ($att['url'] ?? ''));
+
+            if ($attId !== '' && isset($remSet[$attId])) {
+                // attempt to remove local file if appropriate
+                try {
+                    // In the new flow attachments are stored under public/ assets media or local storage path.
+                    if (!empty($att['path'])) {
+                        // if path looks like relative public assets (assets/media/...) delete from public
+                        $p = $att['path'];
+                        if (strpos($p, 'assets/media') === 0 || strpos($p, 'batchStudyMaterial') === 0) {
+                            $candidate = $this->mediaBasePublicPath() . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, ltrim($p, '/'));
+                        } else {
+                            // fallback: previous behavior used storage_path('app/...')
+                            $candidate = storage_path('app/' . ltrim($p, '/'));
+                        }
+                        if (File::exists($candidate) && is_file($candidate)) {
+                            File::delete($candidate);
+                        }
+                    }
+                } catch (\Throwable $ex) {
+                    // ignore deletion errors; optionally log
+                    Log::warning('Failed to delete attachment during update remove_attachments: '.$ex->getMessage(), ['att'=>$att]);
+                }
+                // skip adding to $kept -> effectively removed
+                continue;
+            }
+
+            // keep this attachment
+            $kept[] = $att;
+        }
+
+        // replace stored with kept
+        $stored = $kept;
+    }
+
+    //
+    // Append newly uploaded files and library URLs using helper
+    //
+    $batchId = (int)$row->batch_id;
+    $stored = $this->appendFilesAndLibraryUrls($r, $batchId, $stored);
+
+    // persist updated attachments and counts
+    $update['attachment'] = $stored ? json_encode($stored) : null;
+    $update['attachment_count'] = count($stored);
+    $update['updated_at'] = Carbon::now();
+
+    DB::table('study_materials')->where('id', (int)$id)->update($update);
+
+    return response()->json([
+        'message' => 'Study material updated',
+        'id'      => (int)$id,
+        'attachments' => $stored,
+    ]);
+}
 
     /* =========================================================
      |  Soft delete
@@ -842,185 +899,140 @@ class StudyMaterialController extends Controller
      * Roles allowed: admin, superadmin, instructor
      */
     public function storeByBatch(Request $r, string $batchKey)
-    {
-        // permission (admin/superadmin/instructor)
-        if ($res = $this->requireRole($r, ['admin','superadmin','instructor'])) return $res;
-        $actor = $this->actor($r);
-        $role = $actor['role'];
-        $uid  = $actor['id'];
+{
+    // permission (admin/superadmin/instructor)
+    if ($res = $this->requireRole($r, ['admin','superadmin','instructor'])) return $res;
+    $actor = $this->actor($r);
+    $role = $actor['role'];
+    $uid  = $actor['id'];
 
-        // resolve batch (id | uuid | slug)
-        $bq = DB::table('batches')->whereNull('deleted_at');
-        if (ctype_digit($batchKey)) {
-            $bq->where('id', (int)$batchKey);
-        } elseif (\Illuminate\Support\Str::isUuid($batchKey)) {
-            $bq->where('uuid', $batchKey);
-        } elseif (\Illuminate\Support\Facades\Schema::hasColumn('batches', 'slug')) {
-            $bq->where('slug', $batchKey);
-        } else {
-            return response()->json(['error' => 'Batch not found'], 404);
+    // resolve batch (id | uuid | slug)
+    $bq = DB::table('batches')->whereNull('deleted_at');
+    if (ctype_digit($batchKey)) {
+        $bq->where('id', (int)$batchKey);
+    } elseif (\Illuminate\Support\Str::isUuid($batchKey)) {
+        $bq->where('uuid', $batchKey);
+    } elseif (\Illuminate\Support\Facades\Schema::hasColumn('batches', 'slug')) {
+        $bq->where('slug', $batchKey);
+    } else {
+        return response()->json(['error' => 'Batch not found'], 404);
+    }
+    $batch = $bq->first();
+    if (!$batch) return response()->json(['error' => 'Batch not found'], 404);
+
+    // If instructor, must be assigned to this batch
+    if ($role === 'instructor') {
+        $biUserCol = \Illuminate\Support\Facades\Schema::hasColumn('batch_instructors','user_id')
+            ? 'user_id'
+            : (\Illuminate\Support\Facades\Schema::hasColumn('batch_instructors','instructor_id') ? 'instructor_id' : null);
+        if (!$biUserCol) {
+            return response()->json(['error'=>'Schema issue: batch_instructors needs user_id OR instructor_id'], 500);
         }
-        $batch = $bq->first();
-        if (!$batch) return response()->json(['error' => 'Batch not found'], 404);
+        $assigned = DB::table('batch_instructors')
+            ->where('batch_id', $batch->id)
+            ->whereNull('deleted_at')
+            ->where($biUserCol, $uid)
+            ->exists();
+        if (!$assigned) return response()->json(['error' => 'Forbidden'], 403);
+    }
 
-        // If instructor, must be assigned to this batch
-        if ($role === 'instructor') {
-            $biUserCol = \Illuminate\Support\Facades\Schema::hasColumn('batch_instructors','user_id')
-                ? 'user_id'
-                : (\Illuminate\Support\Facades\Schema::hasColumn('batch_instructors','instructor_id') ? 'instructor_id' : null);
-            if (!$biUserCol) {
-                return response()->json(['error'=>'Schema issue: batch_instructors needs user_id OR instructor_id'], 500);
-            }
-            $assigned = DB::table('batch_instructors')
-                ->where('batch_id', $batch->id)
-                ->whereNull('deleted_at')
-                ->where($biUserCol, $uid)
-                ->exists();
-            if (!$assigned) return response()->json(['error' => 'Forbidden'], 403);
+    // infer course_id from batch (safer for consistency)
+    $courseId = (int) ($batch->course_id ?? 0);
+
+    // validation (added library_urls.*)
+    $v = Validator::make($r->all(), [
+        'course_module_id' => 'sometimes|nullable|integer|exists:course_modules,id',
+        'module_uuid'      => 'sometimes|nullable|uuid|exists:course_modules,uuid',
+        'module'           => 'sometimes|nullable',
+        'title'            => 'required|string|max:255',
+        'description'      => 'nullable|string',
+        'view_policy'      => 'nullable|in:inline_only,downloadable',
+        'attachments.*'    => 'nullable|file|max:51200',
+        'library_urls.*'   => 'nullable|url',
+    ], [
+        'attachments.*.max' => 'Each attachment must be <= 50 MB.'
+    ]);
+    if ($v->fails()) return response()->json(['errors' => $v->errors()], 422);
+
+    // Resolve module (same logic as earlier)
+    $moduleId = null;
+    if ($r->filled('course_module_id')) {
+        $module = DB::table('course_modules')->where('id', (int)$r->course_module_id)->whereNull('deleted_at')->first();
+        if (!$module) {
+            return response()->json(['errors' => ['course_module_id' => ['Course module not found']]], 422);
         }
-
-        // infer course_id from batch (safer for consistency)
-        $courseId = (int) ($batch->course_id ?? 0);
-
-        // validation
-        $v = Validator::make($r->all(), [
-            'course_module_id' => 'sometimes|nullable|integer|exists:course_modules,id',
-            'module_uuid'      => 'sometimes|nullable|uuid|exists:course_modules,uuid',
-            'module'           => 'sometimes|nullable',
-            'title'            => 'required|string|max:255',
-            'description'      => 'nullable|string',
-            'view_policy'      => 'nullable|in:inline_only,downloadable',
-            'attachments.*'    => 'nullable|file|max:51200',
-        ], [
-            'attachments.*.max' => 'Each attachment must be <= 50 MB.'
-        ]);
-        if ($v->fails()) return response()->json(['errors' => $v->errors()], 422);
-
-        // Resolve module (same logic as earlier)
-        $moduleId = null;
-        if ($r->filled('course_module_id')) {
-            $module = DB::table('course_modules')->where('id', (int)$r->course_module_id)->whereNull('deleted_at')->first();
+        $moduleId = (int)$module->id;
+    } elseif ($r->filled('module_uuid') || $r->filled('module')) {
+        $modUuid = $r->input('module_uuid') ?: $r->input('module');
+        if ($modUuid && \Illuminate\Support\Str::isUuid($modUuid)) {
+            $module = DB::table('course_modules')->where('uuid', $modUuid)->whereNull('deleted_at')->first();
             if (!$module) {
-                return response()->json(['errors' => ['course_module_id' => ['Course module not found']]], 422);
+                return response()->json(['errors' => ['module_uuid' => ['Course module (uuid) not found']]], 422);
             }
             $moduleId = (int)$module->id;
-        } elseif ($r->filled('module_uuid') || $r->filled('module')) {
-            $modUuid = $r->input('module_uuid') ?: $r->input('module');
-            if ($modUuid && \Illuminate\Support\Str::isUuid($modUuid)) {
-                $module = DB::table('course_modules')->where('uuid', $modUuid)->whereNull('deleted_at')->first();
-                if (!$module) {
-                    return response()->json(['errors' => ['module_uuid' => ['Course module (uuid) not found']]], 422);
-                }
-                $moduleId = (int)$module->id;
+        } else {
+            $moduleId = null;
+        }
+    } else {
+        $modsQuery = DB::table('course_modules')
+            ->where('course_id', $courseId)
+            ->whereNull('deleted_at')
+            ->orderBy('order_no')->orderBy('id');
+
+        $modules = $modsQuery->get();
+
+        if ($modules->count() === 1) {
+            $moduleId = (int)$modules->first()->id;
+        } else {
+            $published = $modules->firstWhere('status', 'published');
+            if ($published) {
+                $moduleId = (int)$published->id;
             } else {
                 $moduleId = null;
             }
-        } else {
-            $modsQuery = DB::table('course_modules')
-                ->where('course_id', $courseId)
-                ->whereNull('deleted_at')
-                ->orderBy('order_no')->orderBy('id');
-
-            $modules = $modsQuery->get();
-
-            if ($modules->count() === 1) {
-                $moduleId = (int)$modules->first()->id;
-            } else {
-                $published = $modules->firstWhere('status', 'published');
-                if ($published) {
-                    $moduleId = (int)$published->id;
-                } else {
-                    $moduleId = null;
-                }
-            }
         }
-
-        if ($moduleId !== null) {
-            $moduleCheck = DB::table('course_modules')->where('id', $moduleId)->whereNull('deleted_at')->first();
-            if (!$moduleCheck || (int)$moduleCheck->course_id !== $courseId) {
-                return response()->json(['errors' => ['course_module_id' => ['Course module does not belong to this batch\'s course']]], 422);
-            }
-        }
-
-        // build identifiers
-        $uuid = $this->genUuid();
-        $slug = $this->uniqueSlug($r->title);
-        $policy = $r->input('view_policy', 'inline_only');
-
-        // collect files (support attachments or attachments[])
-        $files = [];
-        if ($r->hasFile('attachments')) {
-            $files = is_array($r->file('attachments')) ? $r->file('attachments') : [$r->file('attachments')];
-        }
-
-        $stored = [];
-        if (!empty($files)) {
-            // store under public/assets/media/study_materials/batchStudyMaterial/{batchId}/...
-            $folder = "batchStudyMaterial/".(int)$batch->id;
-            $destBase = $this->mediaBasePublicPath() . DIRECTORY_SEPARATOR . self::MEDIA_SUBDIR . DIRECTORY_SEPARATOR . $folder;
-            $this->ensureDir($destBase);
-
-            foreach ($files as $file) {
-                if (!$file || !$file->isValid()) continue;
-
-                $ext  = strtolower($file->getClientOriginalExtension() ?: 'bin');
-                $fid  = Str::lower(Str::random(10));
-                $name = $fid.'.'.$ext;
-
-                try {
-                    $file->move($destBase, $name);
-                } catch (\Throwable $e) {
-                    Log::error('Failed to move uploaded study material file (storeByBatch): '.$e->getMessage(), ['dest'=>$destBase,'file'=>$name]);
-                    continue;
-                }
-
-                $absPath = $destBase.DIRECTORY_SEPARATOR.$name;
-                $relPath = self::MEDIA_SUBDIR . '/' . $folder . '/' . $name;
-                $mime = $file->getClientMimeType() ?: mime_content_type($absPath) ?: 'application/octet-stream';
-                $size = @filesize($absPath) ?: 0;
-                $sha  = @hash_file('sha256', $absPath) ?: null;
-
-                $url  = $this->toPublicUrl($relPath);
-
-                $stored[] = [
-                    'id'          => $fid,
-                    'disk'        => 'public',
-                    'path'        => $relPath,
-                    'url'         => $url,
-                    'mime'        => $mime,
-                    'ext'         => $ext,
-                    'size'        => $size,
-                    'sha256'      => $sha,
-                    'uploaded_at' => Carbon::now()->toIso8601String(),
-                ];
-            }
-        }
-
-        $now = Carbon::now();
-        $id = DB::table('study_materials')->insertGetId([
-            'uuid'               => $uuid,
-            'course_id'          => $courseId,
-            'course_module_id'   => $moduleId !== null ? $moduleId : null,
-            'batch_id'           => (int)$batch->id,
-            'title'              => $r->title,
-            'slug'               => $slug,
-            'description'        => $r->input('description'),
-            'attachment'         => $stored ? json_encode($stored) : null,
-            'attachment_count'   => count($stored),
-            'view_policy'        => $policy,
-            'created_by'         => $actor['id'] ?: 0,
-            'created_at'         => $now,
-            'updated_at'         => $now,
-        ]);
-
-        return response()->json([
-            'message' => 'Study material created',
-            'id'      => $id,
-            'uuid'    => $uuid,
-            'slug'    => $slug,
-            'attachments' => $stored,
-        ], 201);
     }
+
+    if ($moduleId !== null) {
+        $moduleCheck = DB::table('course_modules')->where('id', $moduleId)->whereNull('deleted_at')->first();
+        if (!$moduleCheck || (int)$moduleCheck->course_id !== $courseId) {
+            return response()->json(['errors' => ['course_module_id' => ['Course module does not belong to this batch\'s course']]], 422);
+        }
+    }
+
+    // build identifiers
+    $uuid = $this->genUuid();
+    $slug = $this->uniqueSlug($r->title);
+    $policy = $r->input('view_policy', 'inline_only');
+
+    // Build attachments using helper (handles uploaded files + library_urls)
+    $stored = $this->appendFilesAndLibraryUrls($r, (int)$batch->id, []);
+
+    $now = Carbon::now();
+    $id = DB::table('study_materials')->insertGetId([
+        'uuid'               => $uuid,
+        'course_id'          => $courseId,
+        'course_module_id'   => $moduleId !== null ? $moduleId : null,
+        'batch_id'           => (int)$batch->id,
+        'title'              => $r->title,
+        'slug'               => $slug,
+        'description'        => $r->input('description'),
+        'attachment'         => $stored ? json_encode($stored) : null,
+        'attachment_count'   => count($stored),
+        'view_policy'        => $policy,
+        'created_by'         => $actor['id'] ?: 0,
+        'created_at'         => $now,
+        'updated_at'         => $now,
+    ]);
+
+    return response()->json([
+        'message' => 'Study material created',
+        'id'      => $id,
+        'uuid'    => $uuid,
+        'slug'    => $slug,
+        'attachments' => $stored,
+    ], 201);
+}
 
     /* =========================================================
      |  BIN (deleted items) by Batch
@@ -1087,4 +1099,154 @@ class StudyMaterialController extends Controller
             'data' => $items,
         ], 200);
     }
+    /**
+ * Append uploaded files AND library_urls[] (remote URL attachments) to existing stored attachments.
+ *
+ * @param Request $r
+ * @param int $batchId
+ * @param array $stored  Existing decoded attachments array (will be appended to)
+ * @return array        Merged stored attachments array
+ */
+protected function appendFilesAndLibraryUrls(Request $r, int $batchId, array $existing = []): array
+{
+    // normalize existing attachments to array
+    $stored = $existing ?: [];
+    if (!is_array($stored)) $stored = [];
+
+    // Build dedupe keys set (by url or sha256)
+    $seenUrl = [];
+    $seenSha = [];
+
+    foreach ($stored as $att) {
+        if (!empty($att['url'])) $seenUrl[(string)$att['url']] = true;
+        if (!empty($att['sha256'])) $seenSha[(string)$att['sha256']] = true;
+    }
+
+    // 1) Handle uploaded files (attachments[] / attachments)
+    $files = [];
+    if ($r->hasFile('attachments')) {
+        $files = is_array($r->file('attachments')) ? $r->file('attachments') : [$r->file('attachments')];
+    }
+
+    if (!empty($files)) {
+        // store under public/assets/media/study_materials/batchStudyMaterial/{batchId}/...
+        $folder = "batchStudyMaterial/".(int)$batchId;
+        $destBase = $this->mediaBasePublicPath() . DIRECTORY_SEPARATOR . self::MEDIA_SUBDIR . DIRECTORY_SEPARATOR . $folder;
+        $this->ensureDir($destBase);
+
+        foreach ($files as $file) {
+            if (!$file || !$file->isValid()) continue;
+
+            // move & compute metadata
+            $ext  = strtolower($file->getClientOriginalExtension() ?: 'bin');
+            $fid  = \Illuminate\Support\Str::lower(\Illuminate\Support\Str::random(10));
+            $name = $fid.'.'.$ext;
+
+            try {
+                $file->move($destBase, $name);
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::error('Failed to move uploaded study material file (append helper): '.$e->getMessage(), ['dest'=>$destBase,'file'=>$name]);
+                continue;
+            }
+
+            $absPath = $destBase.DIRECTORY_SEPARATOR.$name;
+            $relPath = self::MEDIA_SUBDIR . '/' . $folder . '/' . $name;
+            $mime = $file->getClientMimeType() ?: (@function_exists('mime_content_type') ? mime_content_type($absPath) : 'application/octet-stream');
+            $size = @filesize($absPath) ?: 0;
+            $sha  = @hash_file('sha256', $absPath) ?: null;
+            $url  = $this->toPublicUrl($relPath);
+
+            // dedupe by sha if present
+            if ($sha && isset($seenSha[$sha])) {
+                // already present, skip
+                continue;
+            }
+            if ($url && isset($seenUrl[$url])) {
+                // exact same URL already present, skip
+                continue;
+            }
+
+            // register seen keys
+            if ($sha) $seenSha[$sha] = true;
+            if ($url) $seenUrl[$url] = true;
+
+            $stored[] = [
+                'id'          => $fid,
+                'disk'        => 'public',
+                'path'        => $relPath,
+                'url'         => $url,
+                'mime'        => $mime,
+                'ext'         => $ext,
+                'size'        => $size,
+                'sha256'      => $sha,
+                'uploaded_at' => \Carbon\Carbon::now()->toIso8601String(),
+            ];
+        }
+    }
+
+    // 2) Handle library_urls[] (URL-based attachments)
+    $libUrls = $r->input('library_urls', []);
+    if ($libUrls && !is_array($libUrls)) $libUrls = [$libUrls];
+
+    foreach ($libUrls as $u) {
+        if (!$u || !is_string($u)) continue;
+        $u = trim($u);
+        if ($u === '') continue;
+
+        // Normalize URL (avoid duplicates by exact URL)
+        if (isset($seenUrl[$u])) continue;
+
+        // Create id from hash of URL so it's stable and unique-ish
+        $id = 'lib-' . substr(hash('sha256', $u), 0, 12);
+
+        // attempt to detect extension/mime (best-effort)
+        $ext = pathinfo(parse_url($u, PHP_URL_PATH) ?: '', PATHINFO_EXTENSION);
+        $ext = strtolower((string)$ext);
+        $mime = '';
+        if ($ext) {
+            // best-effort mime map for common types (optional)
+            $map = [
+                'pdf'=>'application/pdf',
+                'png'=>'image/png',
+                'jpg'=>'image/jpeg','jpeg'=>'image/jpeg',
+                'mp4'=>'video/mp4','webm'=>'video/webm',
+                'gif'=>'image/gif'
+            ];
+            if (isset($map[$ext])) $mime = $map[$ext];
+        }
+
+        $stored[] = [
+            'id'          => $id,
+            'disk'        => 'external',
+            'path'        => $u,
+            'url'         => $u,
+            'mime'        => $mime,
+            'ext'         => $ext,
+            'size'        => null,
+            'sha256'      => null,
+            'uploaded_at' => \Carbon\Carbon::now()->toIso8601String(),
+        ];
+
+        // mark seen
+        $seenUrl[$u] = true;
+    }
+
+    // Final: ensure uniqueness in $stored by url then by sha (stable)
+    $uniq = [];
+    $out = [];
+    foreach ($stored as $att) {
+        $key = '';
+        if (!empty($att['url'])) $key = 'u:'.(string)$att['url'];
+        elseif (!empty($att['sha256'])) $key = 's:'.(string)$att['sha256'];
+        elseif (!empty($att['path'])) $key = 'p:'.(string)$att['path'];
+        else $key = 'i:'.(string)($att['id'] ?? \Illuminate\Support\Str::random(6));
+
+        if (isset($uniq[$key])) continue;
+        $uniq[$key] = true;
+        $out[] = $att;
+    }
+
+    return $out;
+}
+
 }

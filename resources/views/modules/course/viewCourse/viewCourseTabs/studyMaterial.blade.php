@@ -233,7 +233,9 @@
       <i class="fa fa-file-upload"></i>
       <span>Choose Files</span>
     </label>
-
+    <!-- <button type="button" id="sm_choose_library" class="sm-choose-library btn btn-outline-secondary" style="display:inline-flex; align-items:center; gap:8px; padding:8px 12px; border-radius:8px;">
+      <i class="fa fa-book"></i> <span>Choose from Library</span>
+    </button> -->
     <button type="button" id="sm_clear_files" class="sm-clear-btn btn btn-light">Clear All</button>
   </div>
 
@@ -278,6 +280,27 @@
 </div>
 </div>
 </div>
+<!-- Study Material Library Modal -->
+<div class="modal fade" id="smLibraryModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="fa fa-book me-2"></i>Choose from Library</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div id="smLibraryNotice" class="small text-muted mb-2">Select files from this course's study material library. Selected items are URL-based links (no file upload).</div>
+        <div id="smLibraryLoader" style="display:none;" class="d-flex align-items-center gap-2"><div class="spin" aria-hidden="true"></div><div>Loading library…</div></div>
+        <div id="smLibraryEmpty" style="display:none;" class="text-muted">No library items found for this course.</div>
+        <div id="smLibraryList" class="list-group" style="max-height:50vh; overflow:auto;"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" id="smLibraryCancel" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" id="smLibraryConfirm" class="btn btn-primary">Add selected</button>
+      </div>
+    </div>
+  </div>
+</div>
 
 {{-- Details Modal (shows study material metadata — opens when user clicks View in ⋮ menu) --}}
 <div id="details-modal" class="modal" style="display:none;" aria-hidden="true">
@@ -301,13 +324,7 @@
   const role = (sessionStorage.getItem('role') || localStorage.getItem('role') || '').toLowerCase();
   const TOKEN = localStorage.getItem('token') || sessionStorage.getItem('token') || '';
   if (!TOKEN) {
-    Swal.fire({
-      icon: 'warning',
-      title: 'Login required',
-      text: 'Please sign in to continue.',
-      allowOutsideClick: false,
-      allowEscapeKey: false
-    }).then(() => { window.location.href = '/'; });
+    Swal.fire({ icon: 'warning', title: 'Login required', text: 'Please sign in to continue.', allowOutsideClick: false, allowEscapeKey: false }).then(() => { window.location.href = '/'; });
     return;
   }
 
@@ -354,7 +371,6 @@
   // ---------------------
   // URL / page context extraction
   // ---------------------
-  // Use the deriveCourseKey approach you provided:
   const deriveCourseKey = () => {
     const parts = location.pathname.split('/').filter(Boolean);
     const last = parts.at(-1)?.toLowerCase();
@@ -366,7 +382,6 @@
     try { return (new URL(window.location.href)).searchParams.get(name); } catch(e) { return null; }
   }
 
-  // Ensure .crs-wrap dataset contains batch id if we can get it from URL (only set when not present)
   (function ensureBatchInDomFromUrl() {
     const host = document.querySelector('.crs-wrap');
     if (!host) return;
@@ -385,20 +400,18 @@
     }
   })();
 
-  // read context (prefer DOM dataset, fallback to URL-derived batch + query module)
-  // read context (prefer DOM dataset, fallback to URL-derived batch + query module)
-function readContext() {
+  function readContext() {
     const host = document.querySelector('.crs-wrap');
     if (host) {
-        const batchId = host.dataset.batchId ?? host.dataset.batch_id ?? '';
-        const moduleId = host.dataset.moduleId ?? host.dataset.module_id ?? '';
-        if (batchId) return { batch_id: String(batchId) || null, module_id: moduleId || null };
+      const batchId = host.dataset.batchId ?? host.dataset.batch_id ?? '';
+      const moduleId = host.dataset.moduleId ?? host.dataset.module_id ?? '';
+      if (batchId) return { batch_id: String(batchId) || null, module_id: moduleId || null };
     }
-    // fallback: derive from path and query
     const pathBatch = deriveCourseKey() || null;
     const qModule = getQueryParam('module') || getQueryParam('course_module_id') || null;
     return { batch_id: pathBatch || null, module_id: qModule || null };
-}
+  }
+
   // ---------------------
   // small UI helpers
   // ---------------------
@@ -439,180 +452,187 @@ function readContext() {
   function closeAllDropdowns(){ document.querySelectorAll('.sm-more .sm-dd.show').forEach(d => { d.classList.remove('show'); d.setAttribute('aria-hidden', 'true'); }); }
   document.addEventListener('click', () => closeAllDropdowns());
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeAllDropdowns(); });
-function normalizeAttachments(row) {
-  let raw = row.attachment ?? row.attachments ?? [];
-  // If server returned a JSON string like "[]"
-  if (typeof raw === 'string' && raw.trim() !== '') {
-    try {
-      raw = JSON.parse(raw);
-    } catch (e) {
-      // try fallback: maybe comma separated URLs
-      const possibleUrls = raw.split(/\s*,\s*|\s*\|\|\s*/).filter(Boolean);
-      if (possibleUrls.length) raw = possibleUrls;
-      else raw = [];
-    }
-  }
-  // if a single object was returned
-  if (raw && !Array.isArray(raw)) raw = [raw];
 
-  const arr = (raw || []).map((a, idx) => {
-    // if a is string -> treat it as url/path
-    if (typeof a === 'string') {
-      const url = a;
-      const ext = (url.split('?')[0].split('.').pop() || '').toLowerCase();
-      return { id: `s-${idx}`, url, path: url, name: url.split('/').pop(), mime: '', ext };
-    }
-    // if object, map common keys
-    const url = a.signed_url || a.url || a.path || a.file_url || a.storage_url || null;
-    const name = a.name || a.label || (url ? url.split('/').pop() : (a.original_name || `file-${idx}`));
-    const mime = a.mime || a.content_type || a.contentType || '';
-    let ext = (a.ext || a.extension || '').toLowerCase();
-    if (!ext && url) ext = (url.split('?')[0].split('.').pop() || '').toLowerCase();
-    return {
-      id: a.id || a.attachment_id || a.file_id || a.storage_key || (`o-${idx}`),
-      url,
-      signed_url: a.signed_url,
-      path: a.path,
-      name,
-      mime,
-      ext,
-      size: a.size || a.file_size || a.filesize || 0,
-      raw: a
-    };
-  });
-
-  // filter out null-ish entries
-  return arr.filter(it => it && (it.url || it.path || it.signed_url));
-}
-
-  // ---------------------
-  // UI builders (unchanged)
-  // ---------------------
- function createItemRow(row) {
-  // ensure attachments normalized for later use
-  const attachments = normalizeAttachments(row);
-  // If the API used 'attachment_count' not matching actual array, keep it
-  row.attachment = attachments;
-  if (typeof row.attachment_count === 'undefined') row.attachment_count = attachments.length;
-
-  const wrapper = document.createElement('div'); wrapper.className = 'sm-item';
-
-  const left = document.createElement('div'); left.className = 'left';
-  const icon = document.createElement('div'); icon.className = 'icon';
-  icon.style.width = '44px'; icon.style.height = '44px'; icon.style.borderRadius = '10px';
-  icon.style.display = 'flex'; icon.style.alignItems = 'center'; icon.style.justifyContent = 'center';
-  icon.style.border = '1px solid var(--line-strong)';
-  icon.style.background = 'linear-gradient(180deg, rgba(0,0,0,0.02), transparent)';
-  icon.innerHTML = '<i class="fa fa-file" style="color:var(--secondary-color)"></i>';
-
-  const meta = document.createElement('div'); meta.className = 'meta';
-  const title = document.createElement('div'); title.className = 'title'; title.textContent = row.title || 'Untitled';
-  
-  const sub = document.createElement('div'); sub.className = 'sub';
-  sub.textContent = row.description ? row.description : (row.attachment_count ? `${row.attachment_count} attachment(s)` : '—');
-  
-  // ADD CREATOR INFO HERE
-  const creatorInfo = document.createElement('div'); 
-  creatorInfo.className = 'creator-info';
-  creatorInfo.style.fontSize = '12px';
-  creatorInfo.style.color = 'var(--muted-color)';
-  creatorInfo.style.marginTop = '4px';
-  creatorInfo.style.display = 'flex';
-  creatorInfo.style.alignItems = 'center';
-  creatorInfo.style.gap = '6px';
-  
-  // Add user icon and creator name
-  creatorInfo.innerHTML = `
-    <i class="fa fa-user" style="font-size:10px;"></i>
-    <span>${escapeHtml(row.created_by_name || 'Unknown')}</span>
-  `;
-  
-  meta.appendChild(title); 
-  meta.appendChild(sub);
-  meta.appendChild(creatorInfo); // Add creator info to meta section
-  
-  left.appendChild(icon); 
-  left.appendChild(meta);
-
-  const right = document.createElement('div'); right.className = 'right';
-  right.style.display = 'flex'; right.style.alignItems = 'center'; right.style.gap = '8px';
-  const datePill = document.createElement('div'); datePill.className = 'duration-pill';
-  datePill.textContent = row.created_at ? new Date(row.created_at).toLocaleDateString() : '';
-  right.appendChild(datePill);
-
-  const previewBtn = document.createElement('button');
-  previewBtn.className = 'btn btn-outline-primary'; previewBtn.style.minWidth = '80px';
-  previewBtn.textContent = 'Preview'; previewBtn.type = 'button';
-  if (Array.isArray(row.attachment) && row.attachment.length > 0) {
-    previewBtn.addEventListener('click', () => openFullscreenPreview(row, row.attachment || [], 0));
-    if (row.attachment.length > 1) {
-      const badge = document.createElement('span');
-      badge.className = 'small text-muted';
-      badge.style.marginLeft = '6px';
-      badge.textContent = `(${row.attachment.length})`;
-      previewBtn.appendChild(badge);
-    }
-  } else {
-    previewBtn.disabled = true; previewBtn.classList.add('btn-light');
-  }
-  right.appendChild(previewBtn);
-
-  const moreWrap = document.createElement('div'); moreWrap.className = 'sm-more';
-  moreWrap.innerHTML = `
-    <button class="sm-dd-btn" aria-haspopup="true" aria-expanded="false" title="More">⋮</button>
-    <div class="sm-dd" role="menu" aria-hidden="true">
-      <a href="#" data-action="view"><i class="fa fa-eye sm-icon-purple"></i><span>View</span></a>
-      ${canEdit ? `<a href="#" data-action="edit"><i class="fa fa-pen sm-icon-black"></i><span>Edit</span></a>` : ''}
-      ${canDelete ? `<div class="divider"></div><a href="#" data-action="delete" class="text-danger"><i class="fa fa-trash sm-icon-red"></i><span>Delete</span></a>` : ''}
-    </div>
-  `;
-  right.appendChild(moreWrap);
-  wrapper.appendChild(left); wrapper.appendChild(right);
-
-  // dropdown wiring (unchanged)
-  const ddBtn = moreWrap.querySelector('.sm-dd-btn');
-  const dd = moreWrap.querySelector('.sm-dd');
-  if (ddBtn && dd) {
-    ddBtn.addEventListener('click', (ev) => {
-      ev.stopPropagation();
-      const isOpen = dd.classList.contains('show');
-      closeAllDropdowns();
-      if (!isOpen) { dd.classList.add('show'); dd.setAttribute('aria-hidden', 'false'); ddBtn.setAttribute('aria-expanded','true'); }
-    });
-  }
-
-  const viewBtn = moreWrap.querySelector('[data-action="view"]');
-  if (viewBtn) viewBtn.addEventListener('click', (ev) => { ev.preventDefault(); ev.stopPropagation(); openDetailsModal(row); closeAllDropdowns(); });
-
-  const editBtn = moreWrap.querySelector('[data-action="edit"]');
-  if (editBtn) editBtn.addEventListener('click', (ev) => { ev.preventDefault(); ev.stopPropagation(); enterEditMode(row); closeAllDropdowns(); });
-
-  const delBtn = moreWrap.querySelector('[data-action="delete"]');
-  if (delBtn) {
-    delBtn.addEventListener('click', async (ev) => {
-      ev.preventDefault(); ev.stopPropagation();
-      const r = await Swal.fire({
-        title: 'Move to Bin?',
-        text: `Move "${row.title || 'this item'}" to Bin?`,
-        icon: 'warning',
-        showCancelButton: true,
-        confirmButtonText: 'Yes, move it',
-        cancelButtonText: 'Cancel'
-      });
-      if (!r.isConfirmed) { closeAllDropdowns(); return; }
-
+  function normalizeAttachments(row) {
+    let raw = row.attachment ?? row.attachments ?? [];
+    if (typeof raw === 'string' && raw.trim() !== '') {
       try {
-        const res = await apiFetch(`${apiBase}/${encodeURIComponent(row.id)}`, { method: 'DELETE' });
-        if (!res.ok) throw new Error('Delete failed: ' + res.status);
-        showOk('Moved to Bin');
-        await loadMaterials();
-      } catch (e) { console.error(e); showErr('Delete failed'); }
-      finally { closeAllDropdowns(); }
+        raw = JSON.parse(raw);
+      } catch (e) {
+        const possibleUrls = raw.split(/\s*,\s*|\s*\|\|\s*/).filter(Boolean);
+        if (possibleUrls.length) raw = possibleUrls;
+        else raw = [];
+      }
+    }
+    if (raw && !Array.isArray(raw)) raw = [raw];
+
+    const arr = (raw || []).map((a, idx) => {
+      if (typeof a === 'string') {
+        const url = a;
+        const ext = (url.split('?')[0].split('.').pop() || '').toLowerCase();
+        return { id: `s-${idx}`, url, path: url, name: url.split('/').pop(), mime: '', ext };
+      }
+      const url = a.signed_url || a.url || a.path || a.file_url || a.storage_url || null;
+      const name = a.name || a.label || (url ? url.split('/').pop() : (a.original_name || `file-${idx}`));
+      const mime = a.mime || a.content_type || a.contentType || '';
+      let ext = (a.ext || a.extension || '').toLowerCase();
+      if (!ext && url) ext = (url.split('?')[0].split('.').pop() || '').toLowerCase();
+      return {
+        id: a.id || a.attachment_id || a.file_id || a.storage_key || (`o-${idx}`),
+        url,
+        signed_url: a.signed_url,
+        path: a.path,
+        name,
+        mime,
+        ext,
+        size: a.size || a.file_size || a.filesize || 0,
+        raw: a
+      };
     });
+
+    return arr.filter(it => it && (it.url || it.path || it.signed_url));
   }
 
-  return wrapper;
-}
+  // ---------------------
+  // Preview helpers for library URLs
+  // ---------------------
+  function normalizeAttachmentForPreview(a){
+    if (!a) return null;
+    if (typeof a === 'string') return { url: a, name: (a||'').split('/').pop() || a };
+    // object with url-like keys
+    const url = a.signed_url || a.url || a.path || null;
+    if (!url) return null;
+    return { url, name: a.name || a.original_name || url.split('/').pop(), mime: a.mime || a.content_type || '' };
+  }
+  function openAttachmentPreview(attachment, title){
+    if (!attachment || !attachment.url) { Swal.fire({ icon:'info', title:'No preview', text:'Unable to preview this item.' }); return; }
+    try { openFullscreenPreview({ title: title || (attachment.name || '') }, [attachment], 0); } catch(e) { console.error('Preview open failed', e); Swal.fire({ icon:'error', title:'Preview failed' }); }
+  }
+
+  // ---------------------
+  // UI builders
+  // ---------------------
+  function createItemRow(row) {
+    const attachments = normalizeAttachments(row);
+    row.attachment = attachments;
+    if (typeof row.attachment_count === 'undefined') row.attachment_count = attachments.length;
+
+    const wrapper = document.createElement('div'); wrapper.className = 'sm-item';
+
+    const left = document.createElement('div'); left.className = 'left';
+    const icon = document.createElement('div'); icon.className = 'icon';
+    icon.style.width = '44px'; icon.style.height = '44px'; icon.style.borderRadius = '10px';
+    icon.style.display = 'flex'; icon.style.alignItems = 'center'; icon.style.justifyContent = 'center';
+    icon.style.border = '1px solid var(--line-strong)';
+    icon.style.background = 'linear-gradient(180deg, rgba(0,0,0,0.02), transparent)';
+    icon.innerHTML = '<i class="fa fa-file" style="color:var(--secondary-color)"></i>';
+
+    const meta = document.createElement('div'); meta.className = 'meta';
+    const title = document.createElement('div'); title.className = 'title'; title.textContent = row.title || 'Untitled';
+
+    const sub = document.createElement('div'); sub.className = 'sub';
+    sub.textContent = row.description ? row.description : (row.attachment_count ? `${row.attachment_count} attachment(s)` : '—');
+
+    const creatorInfo = document.createElement('div');
+    creatorInfo.className = 'creator-info';
+    creatorInfo.style.fontSize = '12px';
+    creatorInfo.style.color = 'var(--muted-color)';
+    creatorInfo.style.marginTop = '4px';
+    creatorInfo.style.display = 'flex';
+    creatorInfo.style.alignItems = 'center';
+    creatorInfo.style.gap = '6px';
+
+    creatorInfo.innerHTML = `
+      <i class="fa fa-user" style="font-size:10px;"></i>
+      <span>${escapeHtml(row.created_by_name || 'Unknown')}</span>
+    `;
+
+    meta.appendChild(title);
+    meta.appendChild(sub);
+    meta.appendChild(creatorInfo);
+
+    left.appendChild(icon);
+    left.appendChild(meta);
+
+    const right = document.createElement('div'); right.className = 'right';
+    right.style.display = 'flex'; right.style.alignItems = 'center'; right.style.gap = '8px';
+    const datePill = document.createElement('div'); datePill.className = 'duration-pill';
+    datePill.textContent = row.created_at ? new Date(row.created_at).toLocaleDateString() : '';
+    right.appendChild(datePill);
+
+    const previewBtn = document.createElement('button');
+    previewBtn.className = 'btn btn-outline-primary'; previewBtn.style.minWidth = '80px';
+    previewBtn.textContent = 'Preview'; previewBtn.type = 'button';
+    if (Array.isArray(row.attachment) && row.attachment.length > 0) {
+      previewBtn.addEventListener('click', () => openFullscreenPreview(row, row.attachment || [], 0));
+      if (row.attachment.length > 1) {
+        const badge = document.createElement('span');
+        badge.className = 'small text-muted';
+        badge.style.marginLeft = '6px';
+        badge.textContent = `(${row.attachment.length})`;
+        previewBtn.appendChild(badge);
+      }
+    } else {
+      previewBtn.disabled = true; previewBtn.classList.add('btn-light');
+    }
+    right.appendChild(previewBtn);
+
+    const moreWrap = document.createElement('div'); moreWrap.className = 'sm-more';
+    moreWrap.innerHTML = `
+      <button class="sm-dd-btn" aria-haspopup="true" aria-expanded="false" title="More">⋮</button>
+      <div class="sm-dd" role="menu" aria-hidden="true">
+        <a href="#" data-action="view"><i class="fa fa-eye sm-icon-purple"></i><span>View</span></a>
+        ${canEdit ? `<a href="#" data-action="edit"><i class="fa fa-pen sm-icon-black"></i><span>Edit</span></a>` : ''}
+        ${canDelete ? `<div class="divider"></div><a href="#" data-action="delete" class="text-danger"><i class="fa fa-trash sm-icon-red"></i><span>Delete</span></a>` : ''}
+      </div>
+    `;
+    right.appendChild(moreWrap);
+    wrapper.appendChild(left); wrapper.appendChild(right);
+
+    const ddBtn = moreWrap.querySelector('.sm-dd-btn');
+    const dd = moreWrap.querySelector('.sm-dd');
+    if (ddBtn && dd) {
+      ddBtn.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        const isOpen = dd.classList.contains('show');
+        closeAllDropdowns();
+        if (!isOpen) { dd.classList.add('show'); dd.setAttribute('aria-hidden', 'false'); ddBtn.setAttribute('aria-expanded','true'); }
+      });
+    }
+
+    const viewBtn = moreWrap.querySelector('[data-action="view"]');
+    if (viewBtn) viewBtn.addEventListener('click', (ev) => { ev.preventDefault(); ev.stopPropagation(); openDetailsModal(row); closeAllDropdowns(); });
+
+    const editBtn = moreWrap.querySelector('[data-action="edit"]');
+    if (editBtn) editBtn.addEventListener('click', (ev) => { ev.preventDefault(); ev.stopPropagation(); enterEditMode(row); closeAllDropdowns(); });
+
+    const delBtn = moreWrap.querySelector('[data-action="delete"]');
+    if (delBtn) {
+      delBtn.addEventListener('click', async (ev) => {
+        ev.preventDefault(); ev.stopPropagation();
+        const r = await Swal.fire({
+          title: 'Move to Bin?',
+          text: `Move "${row.title || 'this item'}" to Bin?`,
+          icon: 'warning',
+          showCancelButton: true,
+          confirmButtonText: 'Yes, move it',
+          cancelButtonText: 'Cancel'
+        });
+        if (!r.isConfirmed) { closeAllDropdowns(); return; }
+
+        try {
+          const res = await apiFetch(`${apiBase}/${encodeURIComponent(row.id)}`, { method: 'DELETE' });
+          if (!res.ok) throw new Error('Delete failed: ' + res.status);
+          showOk('Moved to Bin');
+          await loadMaterials();
+        } catch (e) { console.error(e); showErr('Delete failed'); }
+        finally { closeAllDropdowns(); }
+      });
+    }
+
+    return wrapper;
+  }
+
   function renderList(items){
     if (!$items) return;
     $items.innerHTML = '';
@@ -621,7 +641,9 @@ function normalizeAttachments(row) {
     items.forEach(it => $items.appendChild(createItemRow(it)));
   }
 
+  // details modal (unchanged except small cleanups)
   function openDetailsModal(row) {
+    if (!detailsModal) return;
     detailsModal.style.display = 'block';
     detailsModal.classList.add('show');
     detailsModal.setAttribute('aria-hidden', 'false');
@@ -634,108 +656,53 @@ function normalizeAttachments(row) {
     document.body.classList.add('modal-open');
     backdrop.addEventListener('click', closeDetailsModal);
 
-    // ---------- REPLACE WITH THIS ----------
-const attachments = row.attachment && Array.isArray(row.attachment) ? row.attachment : [];
+    const attachments = row.attachment && Array.isArray(row.attachment) ? row.attachment : [];
 
-let attachList = '';
-if (!attachments.length) {
-  attachList = '<div style="color:var(--muted-color)">No attachments</div>';
-} else {
-  // Build clickable rows (will attach event listeners after we insert into DOM)
-  attachList = attachments.map((a, idx) => {
-    const name = a.name || (a.url || a.path || '').split('/').pop() || `file-${idx+1}`;
-    const size = a.size ? ` (${formatSize(a.size)})` : '';
-    const type = escapeHtml(a.mime || a.ext || '');
-    // data-idx used to identify attachment index
-    return `
-      <div class="sm-attach-row" style="display:flex; justify-content:space-between; gap:8px; align-items:center; padding:6px 0; border-bottom:1px solid rgba(0,0,0,0.04);">
-        <div style="min-width:0;">
-          <a href="#" class="sm-attach-link" data-idx="${idx}" style="font-weight:600; text-decoration:none;">${escapeHtml(name)}${escapeHtml(size)}</a>
-          <div class="small text-muted" style="margin-top:4px;">${type}</div>
-        </div>
-        <div style="flex:0 0 auto;">
-          <button class="btn btn-sm btn-outline-primary sm-attach-preview" data-idx="${idx}" type="button">Preview</button>
-        </div>
-      </div>
-    `;
-  }).join('');
-}
-
-    if (detailsBody) {
-
-    // Build clickable attachment list
-    let attachList = "";
+    let attachList = '';
     if (!attachments.length) {
-        attachList = `<div style="color:var(--muted-color)">No attachments</div>`;
+      attachList = '<div style="color:var(--muted-color)">No attachments</div>';
     } else {
-        attachList = attachments.map((a, idx) => {
-            const name = a.name || (a.url || a.path || "").split("/").pop() || `file-${idx+1}`;
-            const size = a.size ? ` (${formatSize(a.size)})` : "";
-            const type = escapeHtml(a.mime || a.ext || "");
-
-            return `
-                <div class="sm-attach-row" 
-                     style="display:flex; justify-content:space-between; gap:8px; align-items:center; padding:6px 0; border-bottom:1px solid rgba(0,0,0,0.05);">
-
-                    <div style="min-width:0;">
-                        <a href="#" class="sm-attach-link" data-idx="${idx}"
-                           style="font-weight:600; text-decoration:none;">
-                           ${escapeHtml(name)}${escapeHtml(size)}
-                        </a>
-                        <div class="small text-muted" style="margin-top:4px;">${type}</div>
-                    </div>
-
-                    <div>
-                        <button class="btn btn-sm btn-outline-primary sm-attach-preview" 
-                                type="button" data-idx="${idx}">
-                            Preview
-                        </button>
-                    </div>
-
-                </div>
-            `;
-        }).join("");
+      attachList = attachments.map((a, idx) => {
+        const name = a.name || (a.url || a.path || '').split('/').pop() || `file-${idx+1}`;
+        const size = a.size ? ` (${formatSize(a.size)})` : '';
+        const type = escapeHtml(a.mime || a.ext || '');
+        return `
+          <div class="sm-attach-row" style="display:flex; justify-content:space-between; gap:8px; align-items:center; padding:6px 0; border-bottom:1px solid rgba(0,0,0,0.04);">
+            <div style="min-width:0;">
+              <a href="#" class="sm-attach-link" data-idx="${idx}" style="font-weight:600; text-decoration:none;">${escapeHtml(name)}${escapeHtml(size)}</a>
+              <div class="small text-muted" style="margin-top:4px;">${type}</div>
+            </div>
+            <div style="flex:0 0 auto;">
+              <button class="btn btn-sm btn-outline-primary sm-attach-preview" data-idx="${idx}" type="button">Preview</button>
+            </div>
+          </div>
+        `;
+      }).join('');
     }
 
-    // Build full modal HTML
-    detailsBody.innerHTML = `
+    if (detailsBody) {
+      detailsBody.innerHTML = `
         <div style="display:flex; flex-direction:column; gap:12px; font-size:15px;">
-          
           <div><strong>Title:</strong> ${escapeHtml(row.title || "Untitled")}</div>
           <div><strong>Description:</strong> ${escapeHtml(row.description || "—")}</div>
           <div><strong>Created At:</strong> ${row.created_at ? new Date(row.created_at).toLocaleString() : "—"}</div>
           <div><strong>Created By:</strong> ${escapeHtml(row.creator_name || row.created_by_name || "—")}</div>
-
           <div><strong>Attachments:</strong> ${attachments.length} file(s)</div>
-
-          <div style="margin-top:6px;">
-            ${attachList}
-          </div>
-
-          <div style="color:var(--muted-color); font-size:13px; margin-top:6px;">
-            <strong>ID:</strong> ${escapeHtml(String(row.id || ""))}
-          </div>
-
+          <div style="margin-top:6px;">${attachList}</div>
+          <div style="color:var(--muted-color); font-size:13px; margin-top:6px;"><strong>ID:</strong> ${escapeHtml(String(row.id || ""))}</div>
         </div>
-    `;
+      `;
 
-    // After HTML is injected → add preview event listeners
-    const links = detailsBody.querySelectorAll(".sm-attach-link, .sm-attach-preview");
-
-    links.forEach(el => {
+      const links = detailsBody.querySelectorAll(".sm-attach-link, .sm-attach-preview");
+      links.forEach(el => {
         el.addEventListener("click", (ev) => {
-            ev.preventDefault();
-
-            const idx = Number(el.dataset.idx);
-
-            // Close the details modal first to avoid stacked backdrops
-            try { closeDetailsModal(); } catch(e){}
-
-            // Open fullscreen preview (your existing function)
-            openFullscreenPreview(row, attachments, idx);
+          ev.preventDefault();
+          const idx = Number(el.dataset.idx);
+          try { closeDetailsModal(); } catch(e){}
+          openFullscreenPreview(row, attachments, idx);
         });
-    });
-}
+      });
+    }
 
     if (detailsFooter) {
       detailsFooter.innerHTML = '';
@@ -748,14 +715,14 @@ if (!attachments.length) {
       }
     }
   }
+
   function closeDetailsModal() {
+    if (!detailsModal) return;
     detailsModal.classList.remove('show');
     detailsModal.style.display = 'none';
     detailsModal.setAttribute('aria-hidden', 'true');
-
     const bd = document.getElementById('detailsBackdrop'); if (bd) bd.remove();
     document.body.classList.remove('modal-open');
-
     if (detailsBody) detailsBody.innerHTML = '';
     if (detailsFooter) detailsFooter.innerHTML = '';
   }
@@ -925,76 +892,59 @@ if (!attachments.length) {
   // -------------------------
   // loadMaterials (uses batch_id/module_id filters)
   // -------------------------
-  // -------------------------
-// loadMaterials (uses the new batch endpoint)
-// -------------------------
-async function loadMaterials(){
+  async function loadMaterials(){
     showLoader(true); showItems(false); showEmpty(false);
     try {
-        const ctx = readContext();
-        if (!ctx || !ctx.batch_id) {
-            throw new Error('Batch context required');
-        }
+      const ctx = readContext();
+      if (!ctx || !ctx.batch_id) throw new Error('Batch context required');
 
-        // Use the new batch endpoint
-        const url = `${apiBase}/batch/${encodeURIComponent(ctx.batch_id)}`;
-        const res = await apiFetch(url);
-        if (!res.ok) throw new Error('HTTP ' + res.status);
-        const json = await res.json().catch(()=>null);
-        
-        if (!json || !json.data) {
-            throw new Error('Invalid response format');
-        }
+      const url = `${apiBase}/batch/${encodeURIComponent(ctx.batch_id)}`;
+      const res = await apiFetch(url);
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const json = await res.json().catch(()=>null);
+      if (!json || !json.data) throw new Error('Invalid response format');
 
-        // Extract and flatten materials from the new response structure
-        const modulesWithMaterials = json.data.modules_with_materials || [];
-        let allMaterials = [];
-        
-        modulesWithMaterials.forEach(moduleGroup => {
-            if (moduleGroup.materials && Array.isArray(moduleGroup.materials)) {
-                moduleGroup.materials.forEach(material => {
-                    // Add module info to each material for display
-                    material.module_title = moduleGroup.module?.title || 'Unknown Module';
-                    material.module_uuid = moduleGroup.module?.uuid || '';
-                    allMaterials.push(material);
-                });
-            }
-        });
+      const modulesWithMaterials = json.data.modules_with_materials || [];
+      let allMaterials = [];
 
-        // Apply sorting
-        const sortVal = $sort ? $sort.value : 'created_desc';
-        allMaterials.sort((a,b)=>{
-            const da = a.created_at ? new Date(a.created_at) : new Date(0);
-            const db = b.created_at ? new Date(b.created_at) : new Date(0);
-            if (sortVal === 'created_desc') return db - da;
-            if (sortVal === 'created_asc') return da - db;
-            if (sortVal === 'title_asc') return (a.title||'').localeCompare(b.title||'');
-            return 0;
-        });
-        
-        renderList(allMaterials);
-        
-        // Store batch context for later use
-        if (json.data.batch) {
-            window.currentBatchContext = json.data.batch;
+      modulesWithMaterials.forEach(moduleGroup => {
+        if (moduleGroup.materials && Array.isArray(moduleGroup.materials)) {
+          moduleGroup.materials.forEach(material => {
+            material.module_title = moduleGroup.module?.title || 'Unknown Module';
+            material.module_uuid = moduleGroup.module?.uuid || '';
+            allMaterials.push(material);
+          });
         }
-        
+      });
+
+      const sortVal = $sort ? $sort.value : 'created_desc';
+      allMaterials.sort((a,b)=>{
+        const da = a.created_at ? new Date(a.created_at) : new Date(0);
+        const db = b.created_at ? new Date(b.created_at) : new Date(0);
+        if (sortVal === 'created_desc') return db - da;
+        if (sortVal === 'created_asc') return da - db;
+        if (sortVal === 'title_asc') return (a.title||'').localeCompare(b.title||'');
+        return 0;
+      });
+
+      renderList(allMaterials);
+
+      if (json.data.batch) window.currentBatchContext = json.data.batch;
     } catch (e) {
-        console.error('Load materials error:', e);
-        if ($items) $items.innerHTML = '<div class="sm-empty">Unable to load study materials — please refresh.</div>';
-        showItems(true);
-        showErr('Failed to load study materials: ' + (e.message || 'Unknown error'));
+      console.error('Load materials error:', e);
+      if ($items) $items.innerHTML = '<div class="sm-empty">Unable to load study materials — please refresh.</div>';
+      showItems(true);
+      showErr('Failed to load study materials: ' + (e.message || 'Unknown error'));
     } finally { showLoader(false); }
-}
+  }
+
   if ($refresh) $refresh.addEventListener('click', loadMaterials);
   if ($search) $search.addEventListener('keyup', (e)=> { if (e.key === 'Enter') loadMaterials(); });
   if ($sort) $sort.addEventListener('change', loadMaterials);
 
-  // Try to initialize bootstrap modal instance if available
   let createModalInstance = null;
   try { if (window.bootstrap && typeof window.bootstrap.Modal === 'function' && createModalEl) createModalInstance = new bootstrap.Modal(createModalEl); } catch(e){ createModalInstance = null; }
 
-  // Upload button handling
   if ($uploadBtn) {
     $uploadBtn.type = 'button';
     if (canCreate) {
@@ -1015,11 +965,11 @@ async function loadMaterials(){
       if (!isEditing) {
         smFormEl.reset();
         smFormEl.classList.remove('was-validated');
+        if (createModalEl) createModalEl._selectedLibraryUrls = [];
       } else {
         smFormEl.classList.remove('was-validated');
       }
     }
-
     const smAlert = document.getElementById('smCreateAlert'); if (smAlert) smAlert.style.display = 'none';
     updateContextDisplay();
 
@@ -1039,33 +989,20 @@ async function loadMaterials(){
       createModalEl._fallbackHooksAdded = true;
     }
   }
-    // ---------- Modal cleanup helper ----------
+
   function cleanupModalBackdrops() {
-    // remove any stray backdrops
-    document.querySelectorAll('.modal-backdrop').forEach(b => {
-      try { b.remove(); } catch(e){}
-    });
-    // remove modal-open class and restore overflow
+    document.querySelectorAll('.modal-backdrop').forEach(b => { try { b.remove(); } catch(e){} });
     document.body.classList.remove('modal-open');
     try { document.documentElement.style.overflow = ''; document.body.style.overflow = ''; } catch(e){}
   }
 
-
-    function hideCreateModal() {
-    // prefer bootstrap instance hide if available
+  function hideCreateModal() {
     if (createModalInstance && typeof createModalInstance.hide === 'function') {
-      try {
-        createModalInstance.hide();
-      } catch(e) {
-        // fall back to manual cleanup below
-      }
-      // give bootstrap a moment then ensure no leftover backdrop
+      try { createModalInstance.hide(); } catch(e) {}
       setTimeout(cleanupModalBackdrops, 50);
       exitEditMode();
       return;
     }
-
-    // manual fallback removal (existing logic)
     if (!createModalEl) return;
     createModalEl.classList.remove('show');
     createModalEl.style.display = 'none';
@@ -1191,6 +1128,10 @@ async function loadMaterials(){
     const modalTitle = createModalEl.querySelector('.modal-title');
     if (modalTitle) modalTitle.innerHTML = '<i class="fa fa-plus me-2"></i> Add Study Material';
     if (smCreateSubmitBtn) smCreateSubmitBtn.innerHTML = '<i class="fa fa-save me-1"></i> Create';
+    // clear transient library selection state
+    if (createModalEl) createModalEl._selectedLibraryUrls = [];
+    const fileList = createModalEl?.querySelector('#sm_fileList');
+    if (fileList) fileList.innerHTML = '';
   }
 
   try { if (createModalEl) createModalEl.addEventListener('hidden.bs.modal', exitEditMode); } catch(e){}
@@ -1209,64 +1150,71 @@ async function loadMaterials(){
       if (!smForm.checkValidity()) return;
 
       const editingId = smIdInput && smIdInput.value ? smIdInput.value.trim() : '';
-const ctx = readContext();
-// use batch_id (what readContext returns); accept either for safety
-const batchKey = ctx?.batch_id ?? ctx?.batch_uuid ?? null;
-if (!editingId && !batchKey) {
-  if (smAlert) { smAlert.innerHTML = 'Missing Batch context — cannot create study material here.'; smAlert.style.display = ''; }
-  return;
-}
+      const ctx = readContext();
+      const batchKey = ctx?.batch_id ?? ctx?.batch_uuid ?? null;
+      if (!editingId && !batchKey) {
+        if (smAlert) { smAlert.innerHTML = 'Missing Batch context — cannot create study material here.'; smAlert.style.display = ''; }
+        return;
+      }
 
-      // build FormData (inside submit handler) — replace existing fd append for module
-const fd = new FormData();
-if (ctx && ctx.batch_id) fd.append('batch_uuid', ctx.batch_id);
+      // build FormData (inside submit handler)
+      const fd = new FormData();
+      if (ctx && ctx.batch_id) fd.append('batch_uuid', ctx.batch_id);
 
-// MODULE: try to send numeric id as course_module_id; fall back to module_uuid
-const mod = ctx && ctx.module_id ? String(ctx.module_id).trim() : '';
-if (mod) {
-  if (/^\d+$/.test(mod)) {
-    fd.append('course_module_id', mod);           // integer id - preferred
-  } else {
-    fd.append('module_uuid', mod);                // uuid fallback (server must accept it)
-  }
-}
+      const mod = ctx && ctx.module_id ? String(ctx.module_id).trim() : '';
+      if (mod) {
+        if (/^\d+$/.test(mod)) {
+          fd.append('course_module_id', mod);
+        } else {
+          fd.append('module_uuid', mod);
+        }
+      }
 
-fd.append('title', smTitleInput ? smTitleInput.value.trim() : '');
-fd.append('description', smDescInput ? smDescInput.value.trim() : '');
-fd.append('view_policy', smViewPolicy ? smViewPolicy.value : 'inline_only');
+      fd.append('title', smTitleInput ? smTitleInput.value.trim() : '');
+      fd.append('description', smDescInput ? smDescInput.value.trim() : '');
+      fd.append('view_policy', smViewPolicy ? smViewPolicy.value : 'inline_only');
 
-// Prefer files added via DnD (createModalEl._getSelectedSmFiles), fallback to native input files
-let files = [];
-if (createModalEl && typeof createModalEl._getSelectedSmFiles === 'function') {
-  files = createModalEl._getSelectedSmFiles() || [];
-}
-if ((!files || files.length === 0) && smAttachmentsInput && smAttachmentsInput.files) {
-  files = Array.from(smAttachmentsInput.files);
-}
-for (let i = 0; i < (files || []).length; i++) {
-  fd.append('attachments[]', files[i]);
-}
+      // files from DnD/native input
+      let files = [];
+      if (createModalEl && typeof createModalEl._getSelectedSmFiles === 'function') {
+        files = createModalEl._getSelectedSmFiles() || [];
+      }
+      if ((!files || files.length === 0) && smAttachmentsInput && smAttachmentsInput.files) {
+        files = Array.from(smAttachmentsInput.files);
+      }
+      for (let i = 0; i < (files || []).length; i++) {
+        fd.append('attachments[]', files[i]);
+      }
 
+      // append library URLs if any (added via Choose from Library)
+      const libUrls = (createModalEl && Array.isArray(createModalEl._selectedLibraryUrls)) ? createModalEl._selectedLibraryUrls : [];
+      if (libUrls && libUrls.length) {
+        // dedupe
+        const seen = {};
+        libUrls.forEach(u => {
+          if (!u) return;
+          if (typeof u !== 'string') u = String(u);
+          if (seen[u]) return;
+          seen[u] = true;
+          fd.append('library_urls[]', u);
+        });
+      }
 
-const toRemove = Array.from(smForm.querySelectorAll('input[name="remove_attachments[]"]:checked')).map(n => n.value);
-toRemove.forEach(v => fd.append('remove_attachments[]', v));
-
+      const toRemove = Array.from(smForm.querySelectorAll('input[name="remove_attachments[]"]:checked')).map(n => n.value);
+      toRemove.forEach(v => fd.append('remove_attachments[]', v));
 
       const prevHtml = smSubmit ? smSubmit.innerHTML : (editingId ? 'Update' : 'Create');
       if (smSubmit) { smSubmit.disabled = true; smSubmit.innerHTML = `<i class="fa fa-spinner fa-spin me-1"></i> ${editingId ? 'Updating...' : 'Creating...'}`; }
       try {
-        // determine endpoint & method: creating -> use batch endpoint; editing -> existing item endpoint
         let endpoint = apiBase;
         let method = 'POST';
 
         if (editingId) {
-          // Edit path: use PATCH to /api/study-materials/{id} (via _method form override)
           fd.append('_method', 'PATCH');
           fd.append('id', editingId);
           endpoint = `${apiBase}/${encodeURIComponent(editingId)}`;
-          method = 'POST'; // using POST + _method=PATCH (keeps existing server expectations)
+          method = 'POST';
         } else {
-          // Create path: use storeByBatch API which expects a batchKey in URL
           const ctxBatch = ctx && ctx.batch_id ? ctx.batch_id : null;
           if (!ctxBatch) {
             if (smAlert) { smAlert.innerHTML = 'Missing Batch context — cannot create study material here.'; smAlert.style.display = ''; }
@@ -1274,8 +1222,6 @@ toRemove.forEach(v => fd.append('remove_attachments[]', v));
           }
           endpoint = `${apiBase}/batch/${encodeURIComponent(ctxBatch)}`;
           method = 'POST';
-          // Note: server infers course_id from the batch; we optionally include module_uuid
-          // fd.append('batch_uuid', ctx.batch_id); // optional; already appended above
         }
 
         const res = await apiFetch(endpoint, { method: method, body: fd });
@@ -1295,8 +1241,7 @@ toRemove.forEach(v => fd.append('remove_attachments[]', v));
         }
 
         try { if (createModalInstance && typeof createModalInstance.hide === 'function') createModalInstance.hide(); else hideCreateModal(); } catch(e){ hideCreateModal(); }
-        // safety guard for race conditions: ensure backdrop removed
-setTimeout(cleanupModalBackdrops, 60);
+        setTimeout(cleanupModalBackdrops, 60);
 
         exitEditMode();
         showOk(json.message || (editingId ? 'Updated' : 'Created'));
@@ -1308,7 +1253,6 @@ setTimeout(cleanupModalBackdrops, 60);
     if (createModalEl) { try { createModalEl.addEventListener('show.bs.modal', () => updateContextDisplay()); } catch(e){} }
   })();
 
-  // context UI update
   function updateContextDisplay() {
     const ctx = readContext();
     const ctxText = document.getElementById('smContextText');
@@ -1345,41 +1289,33 @@ setTimeout(cleanupModalBackdrops, 60);
       $btnBin.style.display = 'inline-block';
     }
 
-    // REPLACE your existing fetchDeletedMaterials(...) with this:
-async function fetchDeletedMaterials(params = '') {
-  // prefer using a dedicated batch endpoint when batch context available
-  try {
-    const ctx = readContext();
-    let url;
-    if (ctx && ctx.batch_id) {
-      // call the new bin-by-batch endpoint
-      url = `${apiBase}/bin/batch/${encodeURIComponent(ctx.batch_id)}`;
-      // optional: include module filter as query param if module present
-      if (ctx.module_id) url += `?module_uuid=${encodeURIComponent(ctx.module_id)}`;
-    } else {
-      // fallback: generic deleted endpoint with optional params
-      url = '/api/study-materials/deleted' + (params ? ('?' + params) : '');
-    }
+    async function fetchDeletedMaterials(params = '') {
+      try {
+        const ctx = readContext();
+        let url;
+        if (ctx && ctx.batch_id) {
+          url = `${apiBase}/bin/batch/${encodeURIComponent(ctx.batch_id)}`;
+          if (ctx.module_id) url += `?module_uuid=${encodeURIComponent(ctx.module_id)}`;
+        } else {
+          url = '/api/study-materials/deleted' + (params ? ('?' + params) : '');
+        }
 
-    const r = await apiFetch(url);
-    if (!r.ok) throw new Error('HTTP ' + r.status);
-    const j = await r.json().catch(() => null);
+        const r = await apiFetch(url);
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        const j = await r.json().catch(() => null);
 
-    // support both styles: { data: [...] } or direct array / items
-    const items = j && (j.data || j.items) ? (j.data || j.items) : (Array.isArray(j) ? j : []);
-    // filter to only entries with deleted_at AND ensure attachments parsed
-    return (items || []).map(it => {
-      if (typeof it.attachment === 'string' && it.attachment) {
-        try { it.attachment = JSON.parse(it.attachment); } catch { /* leave as-is */ }
+        const items = j && (j.data || j.items) ? (j.data || j.items) : (Array.isArray(j) ? j : []);
+        return (items || []).map(it => {
+          if (typeof it.attachment === 'string' && it.attachment) {
+            try { it.attachment = JSON.parse(it.attachment); } catch { /* leave as-is */ }
+          }
+          return it;
+        }).filter(it => !!(it && (it.deleted_at || it.deletedAt)));
+      } catch (e) {
+        console.error('fetchDeletedMaterials failed', e);
+        return [];
       }
-      return it;
-    }).filter(it => !!(it && (it.deleted_at || it.deletedAt)));
-  } catch (e) {
-    console.error('fetchDeletedMaterials failed', e);
-    return [];
-  }
-}
-
+    }
 
     function buildBinTable(items) {
       if (!document.getElementById('bin-overflow-css')) {
@@ -1534,118 +1470,441 @@ async function fetchDeletedMaterials(params = '') {
 
     $btnBin.addEventListener('click', (ev) => { ev.preventDefault(); openBin(); });
   })();
-  /* ===== scoped drag & drop for Study Material modal =====
-   Paste this inside the same (function(){ ... })(); IIFE before updateContextDisplay()
-*/
-(function wireSmAttachments(){
-  if (!createModalEl) return;
 
-  // helpers to query inside modal only
-  const $in = (sel) => createModalEl.querySelector(sel);
+  /* ===== scoped drag & drop + Library picker for Study Material modal =====
+     Inserts a "Choose from Library" button and implements the picker modal,
+     selection storage, and rendering of library selections into #sm_fileList.
+  */
+  (function wireSmAttachments(){
+    if (!createModalEl) return;
 
-  const dropzone = $in('#sm_dropzone');
-  const fileInput = $in('#sm_attachments');
-  const fileListWrap = $in('#sm_fileList');
-  const chooseLabel = $in('#sm_choose_label');
-  const clearBtn = $in('#sm_clear_files');
+    const $in = (sel) => createModalEl.querySelector(sel);
 
-  let selectedFiles = [];
+    const dropzone = $in('#sm_dropzone');
+    const fileInput = $in('#sm_attachments');
+    const fileListWrap = $in('#sm_fileList');
+    const chooseLabel = $in('#sm_choose_label');
+    const clearBtn = $in('#sm_clear_files');
 
-  function escapeHtml(str){ return String(str||'').replace(/[&<>"'`=\/]/g, s=> ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;","/":"&#x2F;","`":"&#x60","=":"&#x3D;"}[s])); }
-  function formatFileSize(bytes){
-    if(bytes==null) return '';
-    if(bytes < 1024) return bytes + ' B';
-    if(bytes < 1024*1024) return (bytes/1024).toFixed(1) + ' KB';
-    return (bytes/(1024*1024)).toFixed(1) + ' MB';
-  }
+    // store selected files (File objects) and selected library URLs (strings)
+    let selectedFiles = [];
+    if (!createModalEl._selectedLibraryUrls) createModalEl._selectedLibraryUrls = [];
 
-  function renderFileList(){
-    if(!fileListWrap) return;
-    fileListWrap.innerHTML = '';
-    if (selectedFiles.length === 0) return;
-    selectedFiles.forEach((f, idx) => {
-      const item = document.createElement('div');
-      item.className = 'sm-file-item';
-      item.innerHTML = `
-        <div class="meta">
-          <i class="fa fa-file fa-fw" style="opacity:.6"></i>
-          <div style="min-width:0">
-            <div class="name" title="${escapeHtml(f.name)}">${escapeHtml(f.name)}</div>
-            <div class="size">${formatFileSize(f.size)}</div>
+    function escapeHtmlLocal(str){ return String(str||'').replace(/[&<>"'`=\/]/g, s=> ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;","/":"&#x2F;","`":"&#x60","=":"&#x3D;"}[s])); }
+    function formatFileSize(bytes){
+      if(bytes==null) return '';
+      if(bytes < 1024) return bytes + ' B';
+      if(bytes < 1024*1024) return (bytes/1024).toFixed(1) + ' KB';
+      return (bytes/(1024*1024)).toFixed(1) + ' MB';
+    }
+
+    function renderFileList(){
+      if(!fileListWrap) return;
+      fileListWrap.innerHTML = '';
+
+      // first: render file objects
+      selectedFiles.forEach((f, idx) => {
+        const item = document.createElement('div');
+        item.className = 'sm-file-item';
+        item.innerHTML = `
+          <div class="meta">
+            <i class="fa fa-file fa-fw" style="opacity:.6"></i>
+            <div style="min-width:0">
+              <div class="name" title="${escapeHtmlLocal(f.name)}">${escapeHtmlLocal(f.name)}</div>
+              <div class="size">${formatFileSize(f.size)}</div>
+            </div>
           </div>
-        </div>
-        <div style="display:flex; gap:8px; align-items:center">
-          <button type="button" class="sm-file-remove btn btn-sm" data-idx="${idx}" title="Remove"><i class="fa fa-xmark"></i></button>
-        </div>
-      `;
-      fileListWrap.appendChild(item);
-    });
+          <div style="display:flex; gap:8px; align-items:center">
+            <button type="button" class="sm-file-remove btn btn-sm" data-idx="${idx}" title="Remove"><i class="fa fa-xmark"></i></button>
+          </div>
+        `;
+        fileListWrap.appendChild(item);
+      });
 
-    fileListWrap.querySelectorAll('.sm-file-remove').forEach(btn => {
-      btn.addEventListener('click', ()=> {
-        const i = Number(btn.dataset.idx);
-        if (!Number.isNaN(i)) {
-          selectedFiles.splice(i, 1);
+      // second: render library selections (with Preview + Remove buttons)
+      const libs = createModalEl._selectedLibraryUrls || [];
+      libs.forEach((u, idx) => {
+        const name = (u || '').split('/').pop() || u;
+        const item = document.createElement('div');
+        item.className = 'sm-file-item sm-library-item';
+        item.innerHTML = `
+          <div class="meta">
+            <i class="fa fa-link fa-fw" style="opacity:.6"></i>
+            <div style="min-width:0">
+              <div class="name" title="${escapeHtmlLocal(name)}">${escapeHtmlLocal(name)}</div>
+              <div class="size small text-muted" title="${escapeHtmlLocal(u)}">${escapeHtmlLocal(u)}</div>
+            </div>
+          </div>
+          <div style="display:flex; gap:8px; align-items:center">
+            <button type="button" class="sm-lib-preview btn btn-sm btn-outline-primary" data-idx="${idx}" data-url="${escapeHtmlLocal(u)}" title="Preview"><i class="fa fa-eye"></i></button>
+            <button type="button" class="sm-lib-remove btn btn-sm btn-outline-danger" data-idx="${idx}" title="Remove"><i class="fa fa-trash"></i></button>
+          </div>
+        `;
+        fileListWrap.appendChild(item);
+      });
+
+      fileListWrap.querySelectorAll('.sm-file-remove').forEach(btn => {
+        btn.addEventListener('click', ()=> {
+          const i = Number(btn.dataset.idx);
+          if (!Number.isNaN(i)) {
+            selectedFiles.splice(i, 1);
+            renderFileList();
+          }
+        });
+      });
+
+      fileListWrap.querySelectorAll('.sm-lib-remove').forEach(btn => {
+        btn.addEventListener('click', ()=> {
+          const i = Number(btn.dataset.idx);
+          if (!Number.isNaN(i)) {
+            createModalEl._selectedLibraryUrls.splice(i, 1);
+            renderFileList();
+          }
+        });
+      });
+
+      fileListWrap.querySelectorAll('.sm-lib-preview').forEach(btn => {
+        btn.addEventListener('click', (ev) => {
+          ev.preventDefault();
+          const url = btn.dataset.url;
+          const at = normalizeAttachmentForPreview(url);
+          openAttachmentPreview(at, 'Preview');
+        });
+      });
+    }
+
+    function addFiles(files){
+      Array.from(files || []).forEach(f => {
+        if (!f) return;
+        if (f.size > 50 * 1024 * 1024) {
+          Swal.fire({ icon:'warning', title:'File too large', text: `File "${f.name}" exceeds 50MB.` });
+          return;
+        }
+        selectedFiles.push(f);
+      });
+      renderFileList();
+    }
+
+    // ---------- Add "Choose from Library" button next to the native choose label ----------
+    if (chooseLabel && !createModalEl.querySelector('#sm_choose_from_library')) {
+      const libBtn = document.createElement('button');
+      libBtn.type = 'button';
+      libBtn.id = 'sm_choose_from_library';
+      libBtn.className = 'sm-choose-btn btn btn-outline-secondary';
+      libBtn.style.marginLeft = '8px';
+      libBtn.innerHTML = `<i class="fa fa-book"></i> <span style="margin-left:6px">Choose from Library</span>`;
+      chooseLabel.parentNode.insertBefore(libBtn, chooseLabel.nextSibling);
+
+      libBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        openLibraryPicker();
+      });
+    }
+
+    // drag/drop handlers
+    if (dropzone) {
+      ['dragenter','dragover'].forEach(ev => dropzone.addEventListener(ev, (e) => { e.preventDefault(); e.stopPropagation(); dropzone.classList.add('dragover'); }));
+      ['dragleave','dragend','drop'].forEach(ev => dropzone.addEventListener(ev, (e) => { e.preventDefault(); e.stopPropagation(); dropzone.classList.remove('dragover'); }));
+      dropzone.addEventListener('drop', (e) => {
+        e.preventDefault(); e.stopPropagation();
+        const files = (e.dataTransfer && e.dataTransfer.files) ? e.dataTransfer.files : null;
+        if (files) addFiles(files);
+      });
+    }
+
+    if (fileInput) {
+      fileInput.addEventListener('change', ()=> {
+        if (fileInput.files) addFiles(fileInput.files);
+        fileInput.value = '';
+      });
+    }
+
+    if (chooseLabel && fileInput) {
+      chooseLabel.addEventListener('keydown', (e)=> { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fileInput.click(); }});
+    }
+
+    if (clearBtn) clearBtn.addEventListener('click', ()=> { selectedFiles = []; createModalEl._selectedLibraryUrls = []; renderFileList(); });
+
+    // expose getter so submit handler may read files appended by DnD
+    createModalEl._getSelectedSmFiles = ()=> selectedFiles.slice();
+    // ensure selectedLibraryUrls exists
+    if (!Array.isArray(createModalEl._selectedLibraryUrls)) createModalEl._selectedLibraryUrls = [];
+
+    // reset on modal show/hidden
+    try {
+      createModalEl.addEventListener('show.bs.modal', ()=> {
+        const isEditing = (smIdInput && smIdInput.value && smIdInput.value.trim() !== '');
+        if (!isEditing) { selectedFiles = []; createModalEl._selectedLibraryUrls = []; renderFileList(); }
+        else {
           renderFileList();
         }
       });
-    });
-  }
+      createModalEl.addEventListener('hidden.bs.modal', ()=> { /* keep selection until explicitly cleared */ });
+    } catch(e){}
 
-  function addFiles(files){
-    Array.from(files || []).forEach(f => {
-      if (!f) return;
-      if (f.size > 50 * 1024 * 1024) {
-        Swal.fire({ icon:'warning', title:'File too large', text: `File "${f.name}" exceeds 50MB.` });
-        return;
-      }
-      selectedFiles.push(f);
-    });
-    renderFileList();
-  }
+    // ---------------------------
+    // Library picker implementation (with Preview per-row)
+    // ---------------------------
+    let _libModal = null;
+    function ensureLibraryModal() {
+      if (_libModal) return _libModal;
+      const m = document.createElement('div');
+      m.className = 'modal fade';
+      m.id = 'smLibraryModal';
+      m.tabIndex = -1;
+      m.innerHTML = `
+        <div class="modal-dialog modal-lg modal-dialog-scrollable">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h5 class="modal-title"><i class="fa fa-book me-2"></i>Choose from Library</h5>
+              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" style="min-height:160px;">
+             <div id="smLibLoader" style="display:none; padding:18px;">
+  <div style="display:flex; align-items:center; gap:8px;">
+    <div class="spin" aria-hidden="true"></div>
+    <div class="text-muted">Loading library…</div>
+  </div>
+</div>
 
-  // drag/drop handlers
-  if (dropzone) {
-    ['dragenter','dragover'].forEach(ev => dropzone.addEventListener(ev, (e) => { e.preventDefault(); e.stopPropagation(); dropzone.classList.add('dragover'); }));
-    ['dragleave','dragend','drop'].forEach(ev => dropzone.addEventListener(ev, (e) => { e.preventDefault(); e.stopPropagation(); dropzone.classList.remove('dragover'); }));
-    dropzone.addEventListener('drop', (e) => {
-      e.preventDefault(); e.stopPropagation();
-      const files = (e.dataTransfer && e.dataTransfer.files) ? e.dataTransfer.files : null;
-      if (files) addFiles(files);
-    });
+              <div id="smLibEmpty" style="display:none;" class="text-muted small p-3;">No library items found for this batch.</div>
+              <div id="smLibList" style="display:none;"></div>
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+              <button id="smLibConfirm" type="button" class="btn btn-primary">Add selected</button>
+            </div>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(m);
+      _libModal = m;
+      return _libModal;
+    }
 
-    // dropzone.addEventListener('click', ()=> { if (fileInput)
-    //    fileInput.click();
-    //    }
-    //   );
-  }
+      // ---------- Replace your existing openLibraryPicker() with this version ----------
+  async function openLibraryPicker() {
+  const modalEl = ensureLibraryModal();
+  const libList = modalEl.querySelector('#smLibList');
+  const libLoader = modalEl.querySelector('#smLibLoader');
+  const libEmpty = modalEl.querySelector('#smLibEmpty');
+  const libConfirm = modalEl.querySelector('#smLibConfirm');
 
-  if (fileInput) {
-    fileInput.addEventListener('change', ()=> {
-      if (fileInput.files) addFiles(fileInput.files);
-      fileInput.value = '';
-    });
-  }
+  // reset UI
+  libList.innerHTML = '';
+  libLoader.style.display = '';
+  libList.style.display = 'none';
+  libEmpty.style.display = 'none';
+  libConfirm.disabled = true;
 
-  if (chooseLabel && fileInput) {
-    chooseLabel.addEventListener('keydown', (e)=> { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fileInput.click(); }});
-  }
-
-  if (clearBtn) clearBtn.addEventListener('click', ()=> { selectedFiles = []; renderFileList(); });
-
-  // expose getter so submit handler may read files appended by DnD
-  createModalEl._getSelectedSmFiles = ()=> selectedFiles.slice();
-
-  // reset on modal show/hidden
+  // show modal (bootstrap if available)
   try {
-    createModalEl.addEventListener('show.bs.modal', ()=> {
-      // fresh create -> clear selected files; when editing you may want to keep state
-      const isEditing = (smIdInput && smIdInput.value && smIdInput.value.trim() !== '');
-      if (!isEditing) { selectedFiles = []; renderFileList(); }
+    if (window.bootstrap && typeof window.bootstrap.Modal === 'function') {
+      bootstrap.Modal.getOrCreateInstance(modalEl).show();
+    } else {
+      modalEl.style.display = 'block';
+      modalEl.classList.add('show');
+      document.body.classList.add('modal-open');
+    }
+  } catch (e) {}
+
+  // inject grid/card styles (3 per row on wide screens)
+  if (!document.getElementById('sm-lib-card-styles')) {
+    const style = document.createElement('style');
+    style.id = 'sm-lib-card-styles';
+    style.textContent = `
+      /* grid */
+      #smLibList .sm-lib-grid { display: grid; gap: 12px; grid-template-columns: repeat(3, 1fr); }
+      @media (max-width: 1024px) { #smLibList .sm-lib-grid { grid-template-columns: repeat(2, 1fr); } }
+      @media (max-width: 640px) { #smLibList .sm-lib-grid { grid-template-columns: repeat(1, 1fr); } }
+
+      /* card */
+      .sm-lib-card { display:flex; flex-direction:column; gap:8px; padding:10px; border-radius:10px; border:1px solid rgba(0,0,0,0.06); background:#fff; min-height:160px; position:relative; overflow:hidden; }
+      .sm-lib-thumb { height:120px; display:block; width:100%; object-fit:cover; border-radius:8px; background: linear-gradient(180deg,#f7f7f7,#fff); box-shadow: inset 0 0 0 1px rgba(0,0,0,0.02); }
+      .sm-lib-card .card-head { display:flex; align-items:center; gap:10px; }
+      .sm-lib-card .card-title { font-weight:600; font-size:14px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+      .sm-lib-card .card-meta { font-size:12px; color:var(--muted-color); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+      .sm-lib-card .card-refs { font-size:12px; color:var(--muted-color); margin-top:6px; max-height:3.6em; overflow:hidden; }
+      .sm-lib-card .card-actions { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-top:auto; }
+      .sm-lib-card .overlay-checkbox { position:absolute; top:10px; left:10px; z-index:5; background:rgba(255,255,255,0.9); padding:6px; border-radius:6px; box-shadow:0 1px 3px rgba(0,0,0,0.06); }
+      .sm-lib-placeholder-icon { width:100%; height:120px; display:flex; align-items:center; justify-content:center; font-size:36px; color:rgba(0,0,0,0.35); border-radius:8px; background: linear-gradient(180deg,#fafafa,#fff); }
+      .sm-lib-badge { font-size:11px; padding:4px 6px; border-radius:6px; background:rgba(0,0,0,0.05); }
+      .sm-lib-card .card-name { margin-top:6px; font-weight:600; font-size:13px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    `;
+    document.head.appendChild(style);
+  }
+
+  try {
+    const ctx = readContext();
+    if (!ctx || !ctx.batch_id) throw new Error('Missing batch context');
+
+    const url = `${apiBase}/batch/${encodeURIComponent(ctx.batch_id)}`;
+    const res = await apiFetch(url);
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const json = await res.json().catch(() => null);
+    if (!json || !json.data) throw new Error('Invalid response');
+
+    const modulesWithMaterials = json.data.modules_with_materials || [];
+
+    // dedupe docs by url (strip query string for key)
+    const docMap = new Map();
+    modulesWithMaterials.forEach(mg => {
+      const moduleTitle = mg.module?.title || '';
+      (mg.materials || []).forEach(mat => {
+        const materialTitle = mat.title || 'Untitled';
+        const materialId = mat.id || mat.uuid || '';
+        const atts = Array.isArray(mat.attachment) ? mat.attachment : (mat.attachments || []);
+        (atts || []).forEach(a => {
+          const normalized = (typeof a === 'string') ? { url: a, name: (a||'').split('/').pop() } : a;
+          const urlCandidate = (normalized.signed_url || normalized.url || normalized.path || '') + '';
+          if (!urlCandidate) return;
+          const key = urlCandidate.split('?')[0];
+          if (!docMap.has(key)) {
+            docMap.set(key, {
+              url: urlCandidate,
+              name: normalized.name || (urlCandidate.split('/').pop() || 'file'),
+              refs: [{ materialTitle, moduleTitle, materialId }],
+              sample: normalized
+            });
+          } else {
+            const entry = docMap.get(key);
+            const hasRef = entry.refs.some(r => String(r.materialId) === String(materialId) && r.materialTitle === materialTitle);
+            if (!hasRef) entry.refs.push({ materialTitle, moduleTitle, materialId });
+          }
+        });
+      });
     });
-    createModalEl.addEventListener('hidden.bs.modal', ()=> { selectedFiles = []; renderFileList(); });
-  } catch(e){}
-})();
+
+    libLoader.style.display = 'none';
+
+    const items = Array.from(docMap.values());
+    if (!items.length) {
+      libEmpty.style.display = '';
+      libList.style.display = 'none';
+      libConfirm.disabled = true;
+      return;
+    }
+
+    // helper: detect type by extension
+    function extOf(u){ try { return (u || '').split('?')[0].split('.').pop().toLowerCase(); } catch(e){ return ''; } }
+    function isImageExt(e){ return ['png','jpg','jpeg','webp','gif','svg'].includes(e); }
+    function isPdfExt(e){ return e === 'pdf'; }
+    function isVideoExt(e){ return ['mp4','webm','ogg','mov'].includes(e); }
+
+    // build cards
+    const selectedSet = new Set((createModalEl._selectedLibraryUrls || []).map(u => String(u)));
+    const cardHtml = items.map((it, idx) => {
+      const url = it.url || '';
+      const name = it.name || (url||'').split('/').pop() || `file-${idx+1}`;
+      const ext = extOf(url);
+      const isImg = isImageExt(ext);
+      const isPdf = isPdfExt(ext);
+      const isVid = isVideoExt(ext);
+      const refs = it.refs.map(r => (r.moduleTitle ? `${r.materialTitle} • ${r.moduleTitle}` : r.materialTitle));
+      const refsShort = refs.slice(0,3).join(', ');
+      const more = Math.max(0, refs.length - 3);
+      const refsDisplay = refsShort + (more ? `, +${more} more` : '');
+      const checked = selectedSet.has(url) ? 'checked' : '';
+
+      // thumbnail markup: if image -> <img>, if pdf/video -> placeholder with icon
+      let thumbHtml = '';
+      if (isImg) {
+        thumbHtml = `<img loading="lazy" class="sm-lib-thumb" src="${escapeHtml(url)}" alt="${escapeHtml(name)}" />`;
+      } else if (isPdf) {
+        thumbHtml = `<div class="sm-lib-placeholder-icon"><i class="fa fa-file-pdf"></i></div>`;
+      } else if (isVid) {
+        thumbHtml = `<div class="sm-lib-placeholder-icon"><i class="fa fa-video"></i></div>`;
+      } else {
+        thumbHtml = `<div class="sm-lib-placeholder-icon"><i class="fa fa-file"></i></div>`;
+      }
+
+      return `
+        <div class="sm-lib-card" data-url="${escapeHtml(url)}" data-ext="${escapeHtml(ext)}">
+          <div class="overlay-checkbox">
+            <input class="sm-lib-checkbox" type="checkbox" data-url="${escapeHtml(url)}" ${checked} />
+          </div>
+
+          <div class="thumb-wrap">${thumbHtml}</div>
+
+          <div class="card-name" title="${escapeHtml(name)}">${escapeHtml(name)}</div>
+          <div class="card-refs" title="${escapeHtml(refs.join(' • '))}">${escapeHtml(refsDisplay || 'No references')}</div>
+
+          <div class="card-actions">
+            <div style="display:flex; gap:8px; align-items:center;">
+              <button type="button" class="sm-lib-preview-row btn btn-sm btn-outline-primary" data-url="${escapeHtml(url)}" title="Preview"><i class="fa fa-eye"></i> Preview</button>
+            </div>
+            <div style="font-size:12px; color:var(--muted-color);">${escapeHtml(String(it.refs.length))} ref(s)</div>
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    libList.innerHTML = `<div class="sm-lib-grid">${cardHtml}</div>`;
+    libList.style.display = '';
+    libEmpty.style.display = 'none';
+
+    // wire checkboxes: clicking the card (not the checkbox) will toggle selection for better UX
+    const grid = libList.querySelector('.sm-lib-grid');
+    grid.querySelectorAll('.sm-lib-card').forEach(card => {
+      const cb = card.querySelector('.sm-lib-checkbox');
+      // card click toggles checkbox unless click on interactive element
+      card.addEventListener('click', (ev) => {
+        if (ev.target.closest('.sm-lib-preview-row') || ev.target.tagName === 'INPUT' || ev.target.closest('.overlay-checkbox')) return;
+        cb.checked = !cb.checked;
+        const any = Array.from(grid.querySelectorAll('.sm-lib-checkbox')).some(n => n.checked);
+        libConfirm.disabled = !any;
+      });
+      // also update confirm state when checkbox changed directly
+      cb.addEventListener('change', () => {
+        const any = Array.from(grid.querySelectorAll('.sm-lib-checkbox')).some(n => n.checked);
+        libConfirm.disabled = !any;
+      });
+    });
+
+    // wire preview buttons
+    libList.querySelectorAll('.sm-lib-preview-row').forEach(btn => {
+      btn.addEventListener('click', (ev) => {
+        ev.preventDefault();
+        ev.stopPropagation();
+        const u = btn.dataset.url;
+        if (!u) return;
+
+        // build attachment object consistent with your previewer
+        const at = { url: u, name: (u||'').split('/').pop() };
+        // close library modal for cleaner UX prior to preview
+        try { if (window.bootstrap && typeof window.bootstrap.Modal === 'function') bootstrap.Modal.getInstance(modalEl)?.hide(); else { modalEl.classList.remove('show'); modalEl.style.display = 'none'; document.body.classList.remove('modal-open'); } } catch(e){}
+        // open existing preview helper
+        openAttachmentPreview(at, at.name || 'Preview');
+      });
+    });
+
+    // final confirm: collect selected card urls
+    libConfirm.onclick = () => {
+      const checked = Array.from(libList.querySelectorAll('.sm-lib-checkbox')).filter(n => n.checked).map(n => n.dataset.url);
+      const exist = createModalEl._selectedLibraryUrls || [];
+      const set = new Set(exist.concat([]));
+      checked.forEach(u => { if (u && !set.has(u)) set.add(u); });
+      createModalEl._selectedLibraryUrls = Array.from(set);
+      renderFileList();
+      // close modal
+      try {
+        if (window.bootstrap && typeof window.bootstrap.Modal === 'function') {
+          bootstrap.Modal.getInstance(modalEl)?.hide();
+        } else {
+          modalEl.classList.remove('show'); modalEl.style.display = 'none'; document.body.classList.remove('modal-open');
+        }
+      } catch (e) {}
+    };
+
+  } catch (err) {
+    console.error('Library picker error', err);
+    libLoader.style.display = 'none';
+    libList.style.display = 'none';
+    libEmpty.style.display = '';
+    libEmpty.textContent = 'Unable to load library items.';
+  }
+}
+  })();
 
   // initial UI and data load
   updateContextDisplay();

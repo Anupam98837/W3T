@@ -27,6 +27,37 @@ class ModuleController extends Controller
     }
 
     /**
+     * Normalize an incoming href for storage:
+     * - strip leading slashes
+     * - strip a leading 'admin' or 'admin/module' prefix (case-insensitive)
+     * - trim and limit to 255 chars
+     * Returns the normalized suffix (no leading slash).
+     */
+    private function normalizeHrefForStorage($rawHref)
+    {
+        $rawHref = (string) ($rawHref ?? '');
+        $normalized = preg_replace('#^/+#', '', trim($rawHref));
+        $normalized = preg_replace('#^admin(?:/module)?/?#i', '', $normalized);
+        return mb_substr($normalized, 0, 255);
+    }
+
+    /**
+     * Convert stored href suffix into a response-friendly href:
+     * - If empty -> return empty string
+     * - If absolute http(s) URL -> return as-is
+     * - Otherwise prepend a single leading slash so it's root-relative (e.g. "/coursesModule/manage")
+     */
+    private function normalizeHrefForResponse($href)
+    {
+        $href = (string) ($href ?? '');
+        if ($href === '') return '';
+        if (preg_match('#^https?://#i', $href)) {
+            return $href;
+        }
+        return '/' . ltrim($href, '/');
+    }
+
+    /**
      * Build base query for modules with common filters
      */
     protected function baseQuery(Request $request, $includeDeleted = false)
@@ -136,6 +167,13 @@ class ModuleController extends Controller
         $paginator = $query->paginate($perPage);
         $out = $this->paginatorToArray($paginator);
 
+        // normalize hrefs in returned data (if column exists)
+        if (Schema::hasColumn('modules', 'href') && !empty($out['data'])) {
+            foreach ($out['data'] as &$m) {
+                $m->href = $this->normalizeHrefForResponse($m->href ?? '');
+            }
+        }
+
         if ($includePrivileges && !empty($out['data'])) {
             $ids = collect($out['data'])->pluck('id')->filter()->all();
             // ensure privileges for these module ids (adjust column names if different)
@@ -176,6 +214,13 @@ class ModuleController extends Controller
 
         $paginator = $query->paginate($perPage);
         $out = $this->paginatorToArray($paginator);
+
+        // normalize hrefs in returned data (if column exists)
+        if (Schema::hasColumn('modules', 'href') && !empty($out['data'])) {
+            foreach ($out['data'] as &$m) {
+                $m->href = $this->normalizeHrefForResponse($m->href ?? '');
+            }
+        }
 
         if ($includePrivileges && !empty($out['data'])) {
             $ids = collect($out['data'])->pluck('id')->filter()->all();
@@ -224,14 +269,7 @@ class ModuleController extends Controller
                 // set href only if column exists — normalize to store only the suffix (no leading slash,
                 // and strip any leading 'admin' or 'admin/module' prefix). This keeps DB values consistent.
                 if (Schema::hasColumn('modules', 'href')) {
-                    $rawHref = (string) $request->input('href', '');
-                    // remove leading slashes
-                    $normalized = preg_replace('#^/+#', '', trim($rawHref));
-                    // strip leading admin or admin/module if present (case-insensitive)
-                    $normalized = preg_replace('#^admin(?:/module)?/?#i', '', $normalized);
-                    // ensure max length 255
-                    $normalized = mb_substr($normalized ?? '', 0, 255);
-                    $payload['href'] = $normalized;
+                    $payload['href'] = $this->normalizeHrefForStorage($request->input('href', ''));
                 }
 
                 if (Schema::hasColumn('modules', 'created_by_type')) {
@@ -248,6 +286,10 @@ class ModuleController extends Controller
             });
 
             $module = DB::table('modules')->where('id', $id)->first();
+            // normalize href for response
+            if (isset($module->href)) {
+                $module->href = $this->normalizeHrefForResponse($module->href);
+            }
             return response()->json(['module' => $module], 201);
         } catch (Exception $e) {
             return response()->json(['message' => 'Could not create module', 'error' => $e->getMessage()], 500);
@@ -285,6 +327,11 @@ class ModuleController extends Controller
         $module = $this->resolveModule($identifier, false);
         if (! $module) return response()->json(['message' => 'Module not found'], 404);
 
+        // normalize href for response
+        if (isset($module->href)) {
+            $module->href = $this->normalizeHrefForResponse($module->href);
+        }
+
         if (filter_var($request->query('with_privileges', false), FILTER_VALIDATE_BOOLEAN)) {
             $privileges = DB::table('privileges')->where('module_id', $module->id)->whereNull('deleted_at')->get();
             $module->privileges = $privileges;
@@ -308,7 +355,7 @@ class ModuleController extends Controller
             ],
             'description' => 'nullable|string',
             'status' => 'nullable|string|max:20',
-            'href' => 'sometimes|required|string|max:255',
+            'href' => 'sometimes|nullable|string|max:255',
         ]);
 
         if ($v->fails()) return response()->json(['errors' => $v->errors()], 422);
@@ -324,11 +371,7 @@ class ModuleController extends Controller
 
         // include href only when column exists and request has it — normalize same as store()
         if (Schema::hasColumn('modules', 'href') && $request->has('href')) {
-            $rawHref = (string) $request->input('href', '');
-            $normalized = preg_replace('#^/+#', '', trim($rawHref));
-            $normalized = preg_replace('#^admin(?:/module)?/?#i', '', $normalized);
-            $normalized = mb_substr($normalized ?? '', 0, 255);
-            $update['href'] = $normalized;
+            $update['href'] = $this->normalizeHrefForStorage($request->input('href', ''));
         }
 
         if (Schema::hasColumn('modules', 'updated_by')) {
@@ -353,6 +396,10 @@ class ModuleController extends Controller
                 DB::table('modules')->where('id', $module->id)->update($update);
             });
             $module = DB::table('modules')->where('id', $module->id)->first();
+            // normalize href for response
+            if (isset($module->href)) {
+                $module->href = $this->normalizeHrefForResponse($module->href);
+            }
             return response()->json(['module' => $module]);
         } catch (Exception $e) {
             return response()->json(['message' => 'Could not update module', 'error' => $e->getMessage()], 500);
@@ -448,6 +495,10 @@ class ModuleController extends Controller
             });
 
             $module = DB::table('modules')->where('id', $module->id)->first();
+            // normalize href for response
+            if (isset($module->href)) {
+                $module->href = $this->normalizeHrefForResponse($module->href);
+            }
             return response()->json(['module' => $module, 'message' => 'Module restored']);
         } catch (Exception $e) {
             return response()->json(['message' => 'Could not restore', 'error' => $e->getMessage()], 500);
@@ -533,9 +584,10 @@ class ModuleController extends Controller
             ->get()
             ->groupBy('module_id');
 
-        // attach privileges (empty array when none)
+        // attach privileges (empty array when none) and normalize hrefs
         $out = $modules->map(function ($m) use ($privileges) {
             $m->privileges = $privileges->has($m->id) ? $privileges[$m->id]->values() : collect([]);
+            $m->href = isset($m->href) ? $this->normalizeHrefForResponse($m->href) : '';
             return $m;
         });
 

@@ -265,17 +265,10 @@
               <div class="text-muted" id="courseShort">—</div>
             </div>
 
-         <a href="#" class="aside-back-btn" onclick="
-    if (document.referrer) {
-        window.location = document.referrer;
-    } else {
-        history.back();
-    }
-    return false;
-">
-    <i class="fa fa-arrow-left"></i>
-    <span>Back To Courses</span>
-</a>
+            <a href="#" class="aside-back-btn" onclick="return backToCourses(event)">
+              <i class="fa fa-arrow-left"></i>
+              <span>Back To Courses</span>
+            </a>
 
           </div>
 
@@ -347,222 +340,293 @@
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
   <script>
-  document.addEventListener('DOMContentLoaded', () => {
-    // ===== Derive {uuid} from /admin/courses/{uuid}/view
-    const deriveCourseKey = () => {
-      const parts = location.pathname.split('/').filter(Boolean);
-      const last = parts.at(-1)?.toLowerCase();
-      if (last === 'view' && parts.length >= 2) return parts.at(-2);
-      return parts.at(-1);
-    };
-    const courseKey = deriveCourseKey();
+document.addEventListener('DOMContentLoaded', () => {
+  // ===== Derive {uuid} from /.../courses/{uuid}/view OR /.../courses/{uuid}
+  const deriveCourseKey = () => {
+    const parts = location.pathname.split('/').filter(Boolean);
+    const last = parts.at(-1)?.toLowerCase();
+    if (last === 'view' && parts.length >= 2) return parts.at(-2);
+    if (last === 'courses') return null;
+    return parts.at(-1);
+  };
+  const courseKey = deriveCourseKey();
 
-    // ===== Elements
-    const el = {
-      title:  document.getElementById('courseTitle'),
-      short:  document.getElementById('courseShort'),
-      cover:  document.getElementById('mediaCover'),
-      thumbs: document.getElementById('mediaThumbs'),
-      chips:  document.getElementById('courseChips'),
-      mSearch:document.getElementById('moduleSearch'),
-      mList:  document.getElementById('modulesList'),
-      mEmpty: document.getElementById('modulesEmpty'),
-      mTitle: document.getElementById('moduleTitle'),
-      mShort: document.getElementById('moduleShort'),
-      price:  document.getElementById('pricePill'),
-      aside:  document.querySelector('.vc-aside'),
-      main:   document.querySelector('.vc-main'),
-      backBtn: document.getElementById('mobileBackBtn'),
-      batchDetails: document.getElementById('batchDetails'),
-      batchTitle: document.getElementById('batchTitle'),
-      batchDescription: document.getElementById('batchDescription'),
-      batchTagline: document.getElementById('batchTagline'),
-      batchInfo: document.getElementById('batchInfo'),
-    };
+  // ===== Elements
+  const el = {
+    title:  document.getElementById('courseTitle'),
+    short:  document.getElementById('courseShort'),
+    cover:  document.getElementById('mediaCover'),
+    thumbs: document.getElementById('mediaThumbs'),
+    chips:  document.getElementById('courseChips'),
+    mSearch:document.getElementById('moduleSearch'),
+    mList:  document.getElementById('modulesList'),
+    mEmpty: document.getElementById('modulesEmpty'),
+    mTitle: document.getElementById('moduleTitle'),
+    mShort: document.getElementById('moduleShort'),
+    price:  document.getElementById('pricePill'),
+    aside:  document.querySelector('.vc-aside'),
+    main:   document.querySelector('.vc-main'),
+    backBtn: document.getElementById('mobileBackBtn'),
+    batchDetails: document.getElementById('batchDetails'),
+    batchTitle: document.getElementById('batchTitle'),
+    batchDescription: document.getElementById('batchDescription'),
+    batchTagline: document.getElementById('batchTagline'),
+    batchInfo: document.getElementById('batchInfo'),
+    tabs:   document.getElementById('vcTabs'),
+    asideBackAnchor: document.querySelector('.aside-back-btn')
+  };
 
-    // ===== Mobile view toggle
+  // ===== Mobile view toggle (guard in case element missing)
+  if (el.backBtn) {
     el.backBtn.addEventListener('click', () => {
       el.aside.classList.remove('mobile-hidden');
       el.main.classList.add('mobile-hidden');
       // Deactivate all modules
       [...el.mList.children].forEach(c => c.classList.remove('active'));
     });
+  }
 
-    // ===== Token for protected API (admin/student/instructor later)
-    const tok = sessionStorage.getItem('token') || localStorage.getItem('token') || '';
-    const auth = tok ? { 'Authorization': 'Bearer '+tok } : {};
+  // ===== Token & role for protected API
+  const tok = sessionStorage.getItem('token') || localStorage.getItem('token') || '';
+  const auth = tok ? { 'Authorization': 'Bearer '+tok } : {};
 
-    // ===== Keep ?module in URL and on tab links
-    const qs = new URLSearchParams(location.search);
-    let selectedModuleUuid = qs.get('module') || null;
+  // ===== Module param handling: keep ?module in URL and on tab links
+  const qs = new URLSearchParams(location.search);
+  let selectedModuleUuid = qs.get('module') || null;
 
-    const updateQueryParam = (key, val) => {
-      const usp = new URLSearchParams(location.search);
-      if (!val) usp.delete(key); else usp.set(key, val);
-      history.pushState({}, '', `${location.pathname}?${usp.toString()}`);
-      document.querySelectorAll('#vcTabs .nav-link').forEach(a => {
+  // Update tab links to include (or remove) module param
+  const syncTabLinks = (moduleUuid) => {
+    const links = document.querySelectorAll('#vcTabs .nav-link');
+    links.forEach(a => {
+      try {
         const u = new URL(a.href, location.origin);
-        if (val) u.searchParams.set('module', val); else u.searchParams.delete('module');
+        if (moduleUuid) u.searchParams.set('module', moduleUuid);
+        else u.searchParams.delete('module');
         a.href = u.toString();
-      });
-    };
-
-    // ===== Small bus (tabs can listen later)
-    const bus = { emit(evt, detail){ document.dispatchEvent(new CustomEvent(evt, { detail })); } };
-    window.__VCBUS__ = bus;
-
-    // ===== Render helpers
-    const setCover = (m) => {
-      if (!m || !m.url) return;
-      el.cover.innerHTML = `<img src="${m.url}" alt="cover">`;
-    };
-
-    const renderThumbs = (gallery=[]) => {
-      el.thumbs.innerHTML = '';
-      (gallery || []).forEach(m => {
-        if (m.type !== 'image') return;
-        const d = document.createElement('div');
-        d.className = 'vc-thumb'; d.title = 'Cover';
-        d.innerHTML = `<img src="${m.url}" alt="">`;
-        d.addEventListener('click', () => setCover(m));
-        el.thumbs.appendChild(d);
-      });
-    };
-
-    const setModuleHeader = (m) => {
-      if (!m){
-        el.mTitle.textContent = 'Select a module';
-        el.mShort.textContent = 'Pick a module from the left to see its content.';
-        return;
-      }
-      el.mTitle.textContent = m.title || 'Module';
-      el.mShort.textContent = m.short_description || '';
-    };
-
-    const renderModules = (modules=[]) => {
-      el.mList.innerHTML = '';
-      el.mEmpty.style.display = modules.length ? 'none' : '';
-      const frag = document.createDocumentFragment();
-
-      modules.forEach(m => {
-        const div = document.createElement('div');
-        div.className = 'vc-module';
-        div.dataset.uuid = m.uuid;
-        div.innerHTML = `
-          <div class="module-content">
-            <div class="t">${m.title ?? 'Untitled module'}</div>
-            <div class="d">${m.short_description ?? ''}</div>
-          </div>
-          <div class="module-arrow">›</div>
-        `;
-        div.addEventListener('click', () => {
-          selectedModuleUuid = m.uuid;
-          [...el.mList.children].forEach(c => c.classList.toggle('active', c.dataset.uuid === selectedModuleUuid));
-          setModuleHeader(m);
-          updateQueryParam('module', selectedModuleUuid);
-          bus.emit('vc:module-changed', { moduleUuid: selectedModuleUuid, module: m });
-          
-          // Mobile: hide aside, show main
-          if (window.innerWidth <= 992) {
-            el.aside.classList.add('mobile-hidden');
-            el.main.classList.remove('mobile-hidden');
+      } catch (err) {
+        if (moduleUuid) {
+          if (a.href.includes('module=')) {
+            a.href = a.href.replace(/module=[^&]*/,'module=' + encodeURIComponent(moduleUuid));
+          } else {
+            a.href = a.href + (a.href.includes('?') ? '&' : '?') + 'module=' + encodeURIComponent(moduleUuid);
           }
-        });
-        frag.appendChild(div);
-      });
-      el.mList.appendChild(frag);
+        } else {
+          a.href = a.href.replace(/([?&])module=[^&]*(&?)/, (m, p1, p2) => p1 ? p1 : '');
+        }
+      }
+    });
+  };
 
-      // Preselect
-      let chosen = modules.find(x => x.uuid === selectedModuleUuid);
-      if (!chosen && modules.length){ chosen = modules[0]; selectedModuleUuid = chosen.uuid; updateQueryParam('module', selectedModuleUuid); }
-      if (chosen){
+  // Utility to update query param in the browser history (and update tab links)
+  const updateQueryParam = (key, val) => {
+    const usp = new URLSearchParams(location.search);
+    if (!val) usp.delete(key); else usp.set(key, val);
+    const qsString = usp.toString();
+    history.replaceState({}, '', `${location.pathname}${qsString ? ('?' + qsString) : ''}`);
+    if (key === 'module') syncTabLinks(val);
+  };
+
+  // initialize tab links on load
+  syncTabLinks(selectedModuleUuid);
+
+  // ===== Role: read from storage (session first, then local)
+  const USER_ROLE = (sessionStorage.getItem('role') || localStorage.getItem('role') || '').toLowerCase();
+  const derivedRole = (USER_ROLE && ['student','admin','instructor'].includes(USER_ROLE)) ? USER_ROLE : (USER_ROLE || '');
+
+  // ===== Back-to-courses: ALWAYS navigate to role-specific listing
+  (function setupBackToCourses() {
+    const roleCourses = {
+      student: "/student/courses",
+      admin: "/admin/courses",
+      instructor: "/instructor/courses"
+    };
+
+    function safeGoto(url) {
+      try { window.location.href = url; }
+      catch (e) { console.error('navigation failed', e); }
+    }
+
+    function backToCoursesHandler(e) {
+      if (e && typeof e.preventDefault === 'function') e.preventDefault();
+      const target = roleCourses[derivedRole] || '/courses';
+      safeGoto(target);
+      return false;
+    }
+
+    // Expose globally in case some code still calls it inline
+    window.backToCourses = backToCoursesHandler;
+
+    // Attach to the aside-back anchor (remove inline onclick if present)
+    if (el.asideBackAnchor) {
+      el.asideBackAnchor.setAttribute('href', 'javascript:void(0)');
+      el.asideBackAnchor.onclick = null;
+      el.asideBackAnchor.addEventListener('click', backToCoursesHandler);
+    }
+  })();
+
+  // ===== Small bus (tabs can listen later)
+  const bus = { emit(evt, detail){ document.dispatchEvent(new CustomEvent(evt, { detail })); } };
+  window.__VCBUS__ = bus;
+
+  // ===== Render helpers
+  const setCover = (m) => {
+    if (!m || !m.url) return;
+    el.cover.innerHTML = `<img src="${m.url}" alt="cover">`;
+  };
+
+  const renderThumbs = (gallery=[]) => {
+    el.thumbs.innerHTML = '';
+    (gallery || []).forEach(m => {
+      if (m.type !== 'image') return;
+      const d = document.createElement('div');
+      d.className = 'vc-thumb'; d.title = 'Cover';
+      d.innerHTML = `<img src="${m.url}" alt="">`;
+      d.addEventListener('click', () => setCover(m));
+      el.thumbs.appendChild(d);
+    });
+  };
+
+  const setModuleHeader = (m) => {
+    if (!m){
+      el.mTitle.textContent = 'Select a module';
+      el.mShort.textContent = 'Pick a module from the left to see its content.';
+      return;
+    }
+    el.mTitle.textContent = m.title || 'Module';
+    el.mShort.textContent = m.short_description || '';
+  };
+
+  const renderModules = (modules=[]) => {
+    el.mList.innerHTML = '';
+    el.mEmpty.style.display = modules.length ? 'none' : '';
+    const frag = document.createDocumentFragment();
+
+    modules.forEach(m => {
+      const div = document.createElement('div');
+      div.className = 'vc-module';
+      div.dataset.uuid = m.uuid;
+      div.innerHTML = `
+        <div class="module-content">
+          <div class="t">${m.title ?? 'Untitled module'}</div>
+          <div class="d">${m.short_description ?? ''}</div>
+        </div>
+        <div class="module-arrow">›</div>
+      `;
+      div.addEventListener('click', () => {
+        selectedModuleUuid = m.uuid;
         [...el.mList.children].forEach(c => c.classList.toggle('active', c.dataset.uuid === selectedModuleUuid));
-        setModuleHeader(chosen);
-        bus.emit('vc:module-changed', { moduleUuid: selectedModuleUuid, module: chosen });
-        
-        // Mobile: if module preselected, show main
+        setModuleHeader(m);
+        updateQueryParam('module', selectedModuleUuid);
+        bus.emit('vc:module-changed', { moduleUuid: selectedModuleUuid, module: m });
+
+        // Mobile: hide aside, show main
         if (window.innerWidth <= 992) {
           el.aside.classList.add('mobile-hidden');
           el.main.classList.remove('mobile-hidden');
         }
+      });
+      frag.appendChild(div);
+    });
+    el.mList.appendChild(frag);
+
+    // Preselect
+    let chosen = modules.find(x => x.uuid === selectedModuleUuid);
+    if (!chosen && modules.length){ chosen = modules[0]; selectedModuleUuid = chosen.uuid; updateQueryParam('module', selectedModuleUuid); }
+    if (chosen){
+      [...el.mList.children].forEach(c => c.classList.toggle('active', c.dataset.uuid === selectedModuleUuid));
+      setModuleHeader(chosen);
+      bus.emit('vc:module-changed', { moduleUuid: selectedModuleUuid, module: chosen });
+
+      // Mobile: if module preselected, show main
+      if (window.innerWidth <= 992) {
+        el.aside.classList.add('mobile-hidden');
+        el.main.classList.remove('mobile-hidden');
       }
-    };
+    }
+  };
 
-    const wireSearch = (modules=[]) => {
-      el.mSearch.addEventListener('input', (e) => {
-        const q = (e.target.value || '').toLowerCase();
-        [...el.mList.children].forEach(li => {
-          const m = modules.find(x => x.uuid === li.dataset.uuid);
-          const hay = `${m?.title ?? ''} ${m?.short_description ?? ''}`.toLowerCase();
-          li.style.display = hay.includes(q) ? '' : 'none';
-        });
+  const wireSearch = (modules=[]) => {
+    if (!el.mSearch) return;
+    el.mSearch.addEventListener('input', (e) => {
+      const q = (e.target.value || '').toLowerCase();
+      [...el.mList.children].forEach(li => {
+        const m = modules.find(x => x.uuid === li.dataset.uuid);
+        const hay = `${m?.title ?? ''} ${m?.short_description ?? ''}`.toLowerCase();
+        li.style.display = hay.includes(q) ? '' : 'none';
       });
-    };
+    });
+  };
 
-    // ===== Fetch course view payload
-    const api = `/api/courses/by-batch/${encodeURIComponent(courseKey)}/view`;
-    fetch(api, { headers: { 'Accept':'application/json', ...auth } })
-      .then(r => r.ok ? r.json() : r.json().then(j => Promise.reject(j)))
-      .then(({ data }) => {
-        const { course, pricing, media, modules, batch } = data;
+  // ===== Fetch course view payload
+  const api = courseKey ? `/api/courses/by-batch/${encodeURIComponent(courseKey)}/view` : null;
+  if (!api) {
+    el.title.textContent = 'Course';
+    el.short.textContent = '';
+    return;
+  }
 
-        el.title.textContent  = course.title || 'Course';
-        el.short.textContent  = course.short_description || '';
+  fetch(api, { headers: { 'Accept':'application/json', ...auth } })
+    .then(r => r.ok ? r.json() : r.json().then(j => Promise.reject(j)))
+    .then(({ data }) => {
+      const { course, pricing, media, modules, batch } = data;
 
-        if (pricing){
-          el.price.style.display = 'inline-flex';
-          el.price.innerHTML = pricing.is_free
-            ? `<i class="fa fa-badge-check"></i> Free`
-            : (pricing.has_discount
-                ? `<i class="fa fa-tags"></i> ${pricing.currency} ${pricing.final}
-                   <span class="text-muted" style="text-decoration:line-through">&nbsp;${pricing.currency} ${pricing.original}</span>`
-                : `<i class="fa fa-tag"></i> ${pricing.currency} ${pricing.original}`);
+      el.title.textContent  = course.title || 'Course';
+      el.short.textContent  = course.short_description || '';
+
+      if (pricing){
+        el.price.style.display = 'inline-flex';
+        el.price.innerHTML = pricing.is_free
+          ? `<i class="fa fa-badge-check"></i> Free`
+          : (pricing.has_discount
+              ? `<i class="fa fa-tags"></i> ${pricing.currency} ${pricing.final}
+                 <span class="text-muted" style="text-decoration:line-through">&nbsp;${pricing.currency} ${pricing.original}</span>`
+              : `<i class="fa fa-tag"></i> ${pricing.currency} ${pricing.original}`);
+      }
+
+      // chips
+      const chips = [];
+      if (course.difficulty)     chips.push(`<span class="vc-chip"><i class="fa fa-signal"></i>${course.difficulty}</span>`);
+      if (course.language)       chips.push(`<span class="vc-chip"><i class="fa fa-language"></i>${course.language}</span>`);
+      if (course.duration_hours) chips.push(`<span class="vc-chip"><i class="fa fa-clock"></i>${course.duration_hours} hrs</span>`);
+      el.chips.innerHTML = chips.join(' ');
+
+      // batch details - Use badge_description from API response
+      if (batch) {
+        el.batchDetails.style.display = 'block';
+        el.batchTitle.textContent = batch.badge_title || 'Batch';
+        el.batchDescription.textContent = batch.badge_description || batch.description || '';
+        el.batchTagline.textContent = batch.tagline || '';
+
+        const batchInfoItems = [];
+        if (batch.mode) {
+          const modeIcon = batch.mode === 'online' ? 'fa-globe' : batch.mode === 'offline' ? 'fa-location-dot' : 'fa-layer-group';
+          batchInfoItems.push(`<span class="vc-batch-info-item"><i class="fa ${modeIcon}"></i>${batch.mode.charAt(0).toUpperCase() + batch.mode.slice(1)}</span>`);
         }
-
-        // chips
-        const chips = [];
-        if (course.difficulty)     chips.push(`<span class="vc-chip"><i class="fa fa-signal"></i>${course.difficulty}</span>`);
-        if (course.language)       chips.push(`<span class="vc-chip"><i class="fa fa-language"></i>${course.language}</span>`);
-        if (course.duration_hours) chips.push(`<span class="vc-chip"><i class="fa fa-clock"></i>${course.duration_hours} hrs</span>`);
-        el.chips.innerHTML = chips.join(' ');
-
-        // batch details - FIXED: Use badge_description from API response
-        if (batch) {
-          el.batchDetails.style.display = 'block';
-          el.batchTitle.textContent = batch.badge_title || 'Batch';
-          // FIX: Use badge_description instead of description
-          el.batchDescription.textContent = batch.badge_description || batch.description || '';
-          el.batchTagline.textContent = batch.tagline || '';
-          
-          const batchInfoItems = [];
-          if (batch.mode) {
-            const modeIcon = batch.mode === 'online' ? 'fa-globe' : batch.mode === 'offline' ? 'fa-location-dot' : 'fa-layer-group';
-            batchInfoItems.push(`<span class="vc-batch-info-item"><i class="fa ${modeIcon}"></i>${batch.mode.charAt(0).toUpperCase() + batch.mode.slice(1)}</span>`);
-          }
-          if (batch.starts_at) {
-            const startDate = new Date(batch.starts_at).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
-            batchInfoItems.push(`<span class="vc-batch-info-item"><i class="fa fa-calendar-day"></i>Starts: ${startDate}</span>`);
-          }
-          if (batch.ends_at) {
-            const endDate = new Date(batch.ends_at).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
-            batchInfoItems.push(`<span class="vc-batch-info-item"><i class="fa fa-calendar-check"></i>Ends: ${endDate}</span>`);
-          }
-          el.batchInfo.innerHTML = batchInfoItems.join('');
+        if (batch.starts_at) {
+          const startDate = new Date(batch.starts_at).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+          batchInfoItems.push(`<span class="vc-batch-info-item"><i class="fa fa-calendar-day"></i>Starts: ${startDate}</span>`);
         }
+        if (batch.ends_at) {
+          const endDate = new Date(batch.ends_at).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+          batchInfoItems.push(`<span class="vc-batch-info-item"><i class="fa fa-calendar-check"></i>Ends: ${endDate}</span>`);
+        }
+        el.batchInfo.innerHTML = batchInfoItems.join('');
+      }
 
-        if (media?.cover) setCover(media.cover);
-        renderThumbs(media?.gallery || []);
+      if (media?.cover) setCover(media.cover);
+      renderThumbs(media?.gallery || []);
 
-        const sorted = (modules || []).slice().sort((a,b)=> (a.order_no ?? 0) - (b.order_no ?? 0));
-        renderModules(sorted);
-        wireSearch(sorted);
-      })
-      .catch(err => {
-        console.error('viewCourse.fetch', err);
-        el.title.textContent = 'Failed to load course';
-        el.short.textContent = 'Please check API or authentication.';
-      });
-  });
-  </script>
+      const sorted = (modules || []).slice().sort((a,b)=> (a.order_no ?? 0) - (b.order_no ?? 0));
+      renderModules(sorted);
+      wireSearch(sorted);
+    })
+    .catch(err => {
+      console.error('viewCourse.fetch', err);
+      if (el.title) el.title.textContent = 'Failed to load course';
+      if (el.short) el.short.textContent = 'Please check API or authentication.';
+    });
+});
+</script>
+
 </body>
 </html>

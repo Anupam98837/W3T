@@ -342,9 +342,11 @@ html.theme-dark .w3-sidebar-scroll::-webkit-scrollbar-thumb {
           <i class="fa fa-chevron-down w3-chev"></i>
         </a>
         <div id="sm-courses" class="w3-submenu" role="group" aria-label="Courses submenu">
+          
           <a href="/admin/courses/manage" class="w3-link">All Courses</a>
           <a href="/admin/courses/create" class="w3-link" style="display:none">Create Course</a>
           <a href="/admin/courses" class="w3-link">Running Courses</a>
+          <a href="/admin/batches/manage" class="w3-link">Batches</a>
         </div>
       </div>
 
@@ -356,31 +358,8 @@ html.theme-dark .w3-sidebar-scroll::-webkit-scrollbar-thumb {
         <div id="sm-course-modules" class="w3-submenu" role="group" aria-label="Course Modules submenu">
           <a href="/admin/coursesModule/manage" class="w3-link">All Course Modules</a>
         </div>
-      </div>
- 
-      <div class="w3-group">
-        <a href="#" class="w3-link w3-toggle" data-target="sm-faculty" aria-expanded="false">
-          <i class="fa-solid fa-user-tie"></i><span>Faculty</span>
-          <i class="fa fa-chevron-down w3-chev"></i>
-        </a>
-        <div id="sm-faculty" class="w3-submenu" role="group" aria-label="Faculty submenu">
-          <a href="/admin/faculty" class="w3-link">Manage Faculty</a>
-          <a href="/admin/faculty/hiring" class="w3-link">Hiring</a>
-        </div>
-      </div>
- 
-      <div class="w3-group">
-        <a href="#" class="w3-link w3-toggle" data-target="sm-students" aria-expanded="false">
-          <i class="fa-solid fa-user-graduate"></i><span>Users</span>
-          <i class="fa fa-chevron-down w3-chev"></i>
-        </a>
-        <div id="sm-students" class="w3-submenu" role="group" aria-label="Students submenu">
-          <a href="/admin/users/manage" class="w3-link">Manage Users</a>
-          <a href="/admin/batches/manage" class="w3-link">Batches</a>
-          <a href="/admin/enrolments" class="w3-link">Enrolments</a>
-        </div>
-      </div>
-
+      </div> 
+      
       <!-- Quiz Group Menu - Added -->
       <div class="w3-group">
         <a href="#" class="w3-link w3-toggle" data-target="sm-quiz" aria-expanded="false">
@@ -400,7 +379,7 @@ html.theme-dark .w3-sidebar-scroll::-webkit-scrollbar-thumb {
           <i class="fa fa-chevron-down w3-chev"></i>
         </a>
         <div id="sm-assignments" class="w3-submenu" role="group" aria-label="Assignments submenu">
-          <a href="/admin/assignments/manage" class="w3-link">All Assignments</a>
+          <!-- <a href="/admin/assignments/manage" class="w3-link">All Assignments</a> -->
           <a href="/admin/assignments/create" class="w3-link">Create Assignment</a>
         </div>
       </div>
@@ -417,6 +396,23 @@ html.theme-dark .w3-sidebar-scroll::-webkit-scrollbar-thumb {
         </div>
       </div>
     </nav>
+    <!-- Users (section header + menu) -->
+<!-- USERS SECTION -->
+<div class="w3-nav-section">
+  <div class="w3-section-title">
+    <i class="fa-solid fa-users"></i>
+    <span class="ms-1">USERS</span>
+  </div>
+  <div class="w3-section-rule"></div>
+</div>
+
+<nav class="w3-menu" aria-label="Users">
+  <a href="/admin/users/manage" class="w3-link">
+    <i class="fa-solid fa-user-pen" aria-hidden="true"></i>
+    <span>Users</span>
+  </a>
+</nav>
+
 <!-- Privileges-->
 <div class="w3-nav-section">
   <div class="w3-section-title">
@@ -445,29 +441,6 @@ html.theme-dark .w3-sidebar-scroll::-webkit-scrollbar-thumb {
       <div class="w3-section-rule"></div>
     </div>
     <nav class="w3-menu" aria-label="Operations">
-      <div class="w3-group" style="display:none">
-        <a href="#" class="w3-link w3-toggle" data-target="sm-schedule" aria-expanded="false">
-          <i class="fa-solid fa-calendar-days"></i><span>Schedule</span>
-          <i class="fa fa-chevron-down w3-chev"></i>
-        </a>
-        <div id="sm-schedule" class="w3-submenu" role="group" aria-label="Schedule submenu">
-          <a href="/admin/schedule" class="w3-link">Calendar</a>
-          <a href="/admin/exams" class="w3-link">Exams</a>
-          <a href="/admin/rooms" class="w3-link">Rooms</a>
-        </div>
-      </div>
- 
-      <div class="w3-group"  style="display:none">
-        <a href="#" class="w3-link w3-toggle" data-target="sm-fin" aria-expanded="false">
-          <i class="fa-solid fa-rupee-sign"></i><span>Finance</span>
-          <i class="fa fa-chevron-down w3-chev"></i>
-        </a>
-        <div id="sm-fin" class="w3-submenu" role="group" aria-label="Finance submenu">
-          <a href="/admin/finance" class="w3-link">Overview</a>
-          <a href="/admin/finance/invoices" class="w3-link">Invoices</a>
-          <a href="/admin/finance/scholarships" class="w3-link">Scholarships</a>
-        </div>
-      </div>
       <!-- Notices Group Menu -->
 <div class="w3-group">
   <a href="#" class="w3-link w3-toggle" data-target="sm-notices" aria-expanded="false">

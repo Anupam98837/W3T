@@ -732,12 +732,24 @@ document.addEventListener('click',(e)=>{
     if(isDeleted  || scope==='bin') tr.classList.add('state-deleted');
 
     // small helper to render href: show a small link under name when present
-    const renderHref = (href) => {
-      if(!href) return '';
-      // sanitize and ensure visible: allow relative or absolute
-      const safeHref = esc(href);
-      return `<div class="small"><a href="${safeHref}" target="_blank" rel="noopener noreferrer" class="text-decoration-none"><i class="fa fa-up-right-from-square me-1"></i>${safeHref}</a></div>`;
-    };
+   const renderHref = (href) => {
+  if (!href) return '';
+  const safeHref = esc(href);
+  const isExternal = /^https?:\/\//i.test(safeHref);
+
+  return `
+    <div class="small">
+      <a 
+        href="${safeHref}"
+        ${isExternal ? 'target="_blank" rel="noopener noreferrer"' : ''} 
+        class="text-decoration-none"
+      >
+        <i class="fa fa-up-right-from-square me-1"></i>${safeHref}
+      </a>
+    </div>
+  `;
+};
+
 
     if(scope==='active'){
       tr.draggable = reorderMode;
