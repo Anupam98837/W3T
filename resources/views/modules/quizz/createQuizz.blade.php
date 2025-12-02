@@ -167,6 +167,9 @@
                 <i class="fa fa-file-image me-1"></i>Select file
               </label>
               <input id="quiz_img_file" type="file" accept=".jpg,.jpeg,.png,.gif,.webp,.avif" hidden>
+              <button type="button" id="btnChooseImageFromLibrary" class="btn btn-outline-secondary ms-2">
+                <i class="fa fa-book me-1"></i> Choose from Library
+              </button>
               <button type="button" id="btnClearFile" class="btn btn-light">Clear</button>
             </div>
             <div id="filePrev" class="img-prev" aria-label="File preview"></div>
@@ -277,12 +280,26 @@
   const err = (m)=>{ $('errMsg').textContent = m||'Something went wrong'; errToast.show(); };
 
   const backList = '/admin/quizz/manage';
-  const API_BASE = '/api/quizz';
+  const API_BASE = '/api/quizz';              // quiz API (single + list)
+  // We will use API_BASE itself as the quiz image library source
 
   if(!TOKEN){
     Swal.fire('Login needed','Your session expired. Please login again.','warning')
       .then(()=> location.href='/');
     return;
+  }
+
+  // small helpers used by library picker
+  function escapeHtml(str){
+    return String(str || '').replace(/[&<>"'`=\/]/g, s => ({
+      '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;','/':'&#x2F;','`':'&#x60','=':'&#x3D;'
+    }[s] || s));
+  }
+  function extOf(u){
+    try { return (u || '').split('?')[0].split('.').pop().toLowerCase(); } catch(e){ return ''; }
+  }
+  function isImageExt(e){
+    return ['png','jpg','jpeg','gif','webp','avif','svg'].includes(e);
   }
 
   // detect Edit mode (?edit=<uuid or id>)
@@ -383,11 +400,19 @@
   });
   btnClear.addEventListener('click', clearFile);
 
-  btnUrlPreview.addEventListener('click', ()=>{
-    const u = (urlInput.value||'').trim();
-    if(!/^https?:\/\//i.test(u)){ err('Provide a valid http(s) image URL'); return; }
-    urlPrev.style.backgroundImage = `url('${u}')`;
-  });
+  btnUrlPreview.addEventListener('click', () => {
+  let u = (urlInput.value || '').trim();
+  if (!u) {
+    err('Provide an image path or URL'); 
+    return;
+  }
+
+  // if it's not http(s), treat as relative to the app origin
+  const hasHttp = /^https?:\/\//i.test(u);
+  const fullUrl = hasHttp ? u : new URL(u.replace(/^\/+/, ''), window.location.origin + '/').href;
+
+  urlPrev.style.backgroundImage = `url('${fullUrl}')`;
+});
 
   /* ===== Visibility/schedule wiring ===== */
   const resultType = $('result_set_up_type');
@@ -427,7 +452,7 @@
   async function loadQuiz(key){
     $('busy').classList.add('show');
     try{
-      const res = await fetch(`/api/quizz/${encodeURIComponent(key)}`, {
+      const res = await fetch(`${API_BASE}/${encodeURIComponent(key)}`, {
         headers:{ 'Authorization':'Bearer '+TOKEN, 'Accept':'application/json' }
       });
       const json = await res.json().catch(()=> ({}));
@@ -459,10 +484,17 @@
       $('status').value = q.status || 'active';
       $('note').value = q.note || '';
 
-      // Handle image preview if exists
-      if(q.quiz_img_url){
-        urlInput.value = q.quiz_img_url;
-        urlPrev.style.backgroundImage = `url('${q.quiz_img_url}')`;
+      // Handle image preview if exists (DB holds in quiz_img)
+      if(q.quiz_img){
+        urlInput.value = q.quiz_img;
+        urlPrev.style.backgroundImage = `url('${q.quiz_img}')`;
+        // optionally set URL tab as active
+        try{
+          const urlTab = document.getElementById('url-tab');
+          if (urlTab && window.bootstrap && bootstrap.Tab) {
+            bootstrap.Tab.getOrCreateInstance(urlTab).show();
+          }
+        }catch(e){}
       }
 
       // Update RTE placeholders
@@ -482,6 +514,263 @@
     }
   }
 
+  /* ============================
+   *   QUIZ IMAGE LIBRARY (cards)
+   *   UI same as Study Materials
+   *   BUT source = existing quizzes
+   * ============================ */
+
+  const btnChooseLib = $('btnChooseImageFromLibrary');
+  let libModalEl = null;
+
+  function ensureImageLibraryModal(){
+    if (libModalEl) return libModalEl;
+    const m = document.createElement('div');
+    m.className = 'modal fade';
+    m.id = 'quizImageLibraryModal';
+    m.tabIndex = -1;
+    m.innerHTML = `
+      <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title"><i class="fa fa-book me-2"></i>Choose Image from Quiz Library</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body" style="min-height:180px;">
+            <div id="qzLibLoader" style="display:none; text-align:center; padding:20px;">
+              <div class="spin mb-2"></div>
+              <div class="text-muted small">Loading quiz image library…</div>
+            </div>
+            <div id="qzLibEmpty" class="text-muted small p-3" style="display:none;">No quiz images found yet.</div>
+            <div id="qzLibList" style="display:none;"></div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+            <button id="qzLibConfirm" type="button" class="btn btn-primary" disabled>Add image</button>
+          </div>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(m);
+
+    // inject card styles once
+    if (!document.getElementById('qz-lib-card-styles')) {
+      const style = document.createElement('style');
+      style.id = 'qz-lib-card-styles';
+      style.textContent = `
+        #qzLibList .sm-lib-grid { display:grid; gap:12px; grid-template-columns:repeat(3, 1fr); }
+        @media (max-width:1024px){ #qzLibList .sm-lib-grid { grid-template-columns:repeat(2, 1fr); } }
+        @media (max-width:640px){ #qzLibList .sm-lib-grid { grid-template-columns:repeat(1, 1fr); } }
+
+        .sm-lib-card { display:flex; flex-direction:column; gap:8px; padding:10px; border-radius:10px; border:1px solid rgba(0,0,0,0.06); background:#fff; min-height:160px; position:relative; overflow:hidden; }
+        .sm-lib-thumb { height:120px; width:100%; object-fit:cover; border-radius:8px; background:#f5f5f5; box-shadow: inset 0 0 0 1px rgba(0,0,0,0.02); }
+        .sm-lib-card .overlay-checkbox { position:absolute; top:10px; left:10px; z-index:5; background:rgba(255,255,255,0.95); padding:6px; border-radius:6px; box-shadow:0 1px 3px rgba(0,0,0,0.06); }
+        .sm-lib-card .card-name { margin-top:6px; font-weight:600; font-size:13px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+        .sm-lib-card .card-refs { font-size:12px; color:var(--muted-color); margin-top:4px; max-height:3.6em; overflow:hidden; }
+        .sm-lib-card .card-actions { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-top:auto; }
+        .sm-lib-placeholder-icon { width:100%; height:120px; display:flex; align-items:center; justify-content:center; font-size:36px; color:rgba(0,0,0,0.35); border-radius:8px; background: linear-gradient(180deg,#fafafa,#fff); }
+      `;
+      document.head.appendChild(style);
+    }
+
+    libModalEl = m;
+    return libModalEl;
+  }
+
+  async function openImageLibraryPicker(){
+    const modalEl = ensureImageLibraryModal();
+    const libList   = modalEl.querySelector('#qzLibList');
+    const libLoader = modalEl.querySelector('#qzLibLoader');
+    const libEmpty  = modalEl.querySelector('#qzLibEmpty');
+    const libConfirm= modalEl.querySelector('#qzLibConfirm');
+
+    libList.innerHTML = '';
+    libLoader.style.display = '';
+    libList.style.display   = 'none';
+    libEmpty.style.display  = 'none';
+    libConfirm.disabled     = true;
+
+    // show modal
+    if (window.bootstrap && typeof window.bootstrap.Modal === 'function') {
+      bootstrap.Modal.getOrCreateInstance(modalEl).show();
+    } else {
+      modalEl.style.display = 'block';
+      modalEl.classList.add('show');
+      document.body.classList.add('modal-open');
+    }
+
+    try{
+      // Fetch all quizzes and build a unique image library from quiz_img
+      const url = API_BASE; // e.g. /api/quizz → should return list with quiz_img
+      const res = await fetch(url, {
+        headers: { 'Authorization':'Bearer '+TOKEN, 'Accept':'application/json' }
+      });
+      const json = await res.json().catch(()=>null);
+      if (!res.ok || !json) {
+        throw new Error(json?.message || ('HTTP '+res.status));
+      }
+
+      const rows = Array.isArray(json.data) ? json.data
+                 : (Array.isArray(json.items) ? json.items
+                 : (Array.isArray(json) ? json : []));
+      
+      // dedupe by url (strip query), only keep valid image URLs
+      const docMap = new Map();
+      (rows || []).forEach(q => {
+        const img = q.quiz_img || '';
+        if (!img) return;
+        const urlCandidate = String(img);
+        const ext = extOf(urlCandidate);
+        if (!isImageExt(ext)) return;
+
+        const key = urlCandidate.split('?')[0];
+        const quizName = q.quiz_name || 'Untitled Quiz';
+
+        if (!docMap.has(key)) {
+          docMap.set(key, {
+            url: urlCandidate,
+            name: (urlCandidate.split('/').pop() || quizName || 'image'),
+            refs: [quizName],
+          });
+        } else {
+          const entry = docMap.get(key);
+          if (!entry.refs.includes(quizName)) entry.refs.push(quizName);
+        }
+      });
+
+      libLoader.style.display = 'none';
+      const items = Array.from(docMap.values());
+      if (!items.length) {
+        libEmpty.style.display = '';
+        libEmpty.textContent = 'No quiz images found yet.';
+        return;
+      }
+
+      const cardsHtml = items.map((it, idx) => {
+        const url = it.url || '';
+        const name = it.name || (url||'').split('/').pop() || `image-${idx+1}`;
+        const refs = it.refs || [];
+        const short = refs.slice(0,3).join(', ');
+        const more  = Math.max(0, refs.length - 3);
+        const refsDisplay = short + (more ? `, +${more} more` : '');
+        return `
+          <div class="sm-lib-card" data-url="${escapeHtml(url)}">
+            <div class="overlay-checkbox">
+              <input class="sm-lib-checkbox" type="checkbox" data-url="${escapeHtml(url)}" />
+            </div>
+            <div class="thumb-wrap">
+              <img loading="lazy" class="sm-lib-thumb" src="${escapeHtml(url)}" alt="${escapeHtml(name)}">
+            </div>
+            <div class="card-name" title="${escapeHtml(name)}">${escapeHtml(name)}</div>
+            <div class="card-refs" title="${escapeHtml(refs.join(' • '))}">
+              ${escapeHtml(refsDisplay || 'Used in quiz')}
+            </div>
+            <div class="card-actions">
+              <button type="button" class="sm-lib-preview-row btn btn-sm btn-outline-primary" data-url="${escapeHtml(url)}">
+                <i class="fa fa-eye me-1"></i>Preview
+              </button>
+              <div style="font-size:12px; color:var(--muted-color);">${escapeHtml(String(refs.length))} quiz(es)</div>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      libList.innerHTML = `<div class="sm-lib-grid">${cardsHtml}</div>`;
+      libList.style.display = '';
+      libEmpty.style.display = 'none';
+
+      const grid = libList.querySelector('.sm-lib-grid') || libList;
+
+      // Single-select: when one checkbox checked, uncheck others
+      grid.querySelectorAll('.sm-lib-checkbox').forEach(cb => {
+        cb.addEventListener('change', () => {
+          if (cb.checked) {
+            grid.querySelectorAll('.sm-lib-checkbox').forEach(other => {
+              if (other !== cb) other.checked = false;
+            });
+          }
+          const any = Array.from(grid.querySelectorAll('.sm-lib-checkbox')).some(n => n.checked);
+          libConfirm.disabled = !any;
+        });
+      });
+
+      // Clicking card toggles its checkbox
+      grid.querySelectorAll('.sm-lib-card').forEach(card => {
+        const cb = card.querySelector('.sm-lib-checkbox');
+        card.addEventListener('click', (ev) => {
+          if (ev.target.closest('.sm-lib-preview-row') || ev.target.tagName === 'INPUT') return;
+          cb.checked = !cb.checked;
+          if (cb.checked) {
+            grid.querySelectorAll('.sm-lib-checkbox').forEach(other => {
+              if (other !== cb) other.checked = false;
+            });
+          }
+          const any = Array.from(grid.querySelectorAll('.sm-lib-checkbox')).some(n => n.checked);
+          libConfirm.disabled = !any;
+        });
+      });
+
+      // Preview button – SweetAlert2 image preview
+      grid.querySelectorAll('.sm-lib-preview-row').forEach(btn => {
+        btn.addEventListener('click', (ev) => {
+          ev.preventDefault();
+          ev.stopPropagation();
+          const u = btn.dataset.url;
+          if (!u) return;
+          Swal.fire({
+            imageUrl: u,
+            imageAlt: (u || '').split('/').pop() || 'Preview',
+            showConfirmButton: false,
+            showCloseButton: true,
+            background: '#000',
+            width: '80%',
+            padding: 0
+          });
+        });
+      });
+
+      // Confirm → pick selected image & apply as quiz_img_url
+      libConfirm.onclick = () => {
+        const checked = Array.from(grid.querySelectorAll('.sm-lib-checkbox')).find(n => n.checked);
+        if (!checked) return;
+        const imgUrl = checked.dataset.url;
+        if (!imgUrl) return;
+
+        // Set URL tab + value + preview
+        urlInput.value = imgUrl;
+        urlPrev.style.backgroundImage = `url('${imgUrl}')`;
+        clearFile(); // clear file input so API uses URL
+
+        try{
+          const urlTab = document.getElementById('url-tab');
+          if (urlTab && window.bootstrap && bootstrap.Tab) {
+            bootstrap.Tab.getOrCreateInstance(urlTab).show();
+          }
+        }catch(e){}
+
+        // close modal
+        try {
+          if (window.bootstrap && typeof window.bootstrap.Modal === 'function') {
+            bootstrap.Modal.getInstance(modalEl)?.hide();
+          } else {
+            modalEl.classList.remove('show'); modalEl.style.display = 'none'; document.body.classList.remove('modal-open');
+          }
+        } catch(e){}
+      };
+
+    }catch(e){
+      console.error('Quiz image library error', e);
+      libLoader.style.display = 'none';
+      libList.style.display = 'none';
+      libEmpty.textContent = 'Unable to load quiz image library.';
+      libEmpty.style.display = '';
+    }
+  }
+
+  if (btnChooseLib) {
+    btnChooseLib.addEventListener('click', openImageLibraryPicker);
+  }
+
   /* ===== submit ===== */
   $('btnSave').addEventListener('click', async ()=>{
     clrErr();
@@ -496,7 +785,7 @@
     try{
       let res, json;
 
-      const url  = isEdit ? `/api/quizz/${encodeURIComponent(currentUUID)}` : API_BASE;
+      const url  = isEdit ? `${API_BASE}/${encodeURIComponent(currentUUID)}` : API_BASE;
       const method = isEdit ? 'PUT' : 'POST';
 
       if(tab==='file' && hasFile){
@@ -511,15 +800,19 @@
           headers:{ 'Authorization':'Bearer '+TOKEN, 'Accept':'application/json' },
           body: fd
         });
-      }else if(tab==='url' && /^https?:\/\//i.test(urlVal)){
-        // JSON for URL-based image; backend accepts quiz_img_url
-        const payload = { ...buildCommonPayload(), quiz_img_url: urlVal };
-        res = await fetch(url, {
-          method: method,
-          headers:{ 'Authorization':'Bearer '+TOKEN, 'Accept':'application/json', 'Content-Type':'application/json' },
-          body: JSON.stringify(payload)
-        });
-      }else{
+      } else if (tab === 'url' && urlVal) {
+    // can be full URL or relative path
+    const payload = { ...buildCommonPayload(), quiz_img_url: urlVal };
+    res = await fetch(url, {
+      method: method,
+      headers:{
+        'Authorization':'Bearer '+TOKEN,
+        'Accept':'application/json',
+        'Content-Type':'application/json'
+      },
+      body: JSON.stringify(payload)
+    });
+}else{
         // No image provided → JSON; backend may set default/leave null
         const payload = buildCommonPayload();
         res = await fetch(url, {

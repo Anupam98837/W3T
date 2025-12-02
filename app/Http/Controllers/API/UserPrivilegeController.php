@@ -14,6 +14,7 @@ class UserPrivilegeController extends Controller
      * Expects:
      *  user_id: int
      *  privileges: array of privilege_id integers
+     * */
      private function actor(Request $request): array
     {
         return [

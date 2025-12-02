@@ -12,28 +12,45 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('modules', function (Blueprint $table) {
-            $table->bigIncrements('id'); // Primary Key
+            // Primary Key
+            $table->bigIncrements('id');
 
-            $table->char('uuid', 36)->unique(); // NEW UNIQUE UUID
+            // UUID (UNIQUE)
+            $table->char('uuid', 36)->unique();
 
-            $table->string('name', 150)->unique(); 
+            // Name (UNIQUE)
+            $table->string('name', 150)->unique();
+
+            // Href (required, no default)
+            $table->string('href', 255);
+
+            // Optional description
             $table->text('description')->nullable();
 
+            // Status with default 'Active'
             $table->string('status', 20)->default('Active');
 
+            // Timestamps with proper defaults
             $table->timestamp('created_at')->useCurrent();
-            $table->timestamp('updated_at')->useCurrent()->useCurrentOnUpdate();
+            $table->timestamp('updated_at')
+                  ->useCurrent()
+                  ->useCurrentOnUpdate();
 
+            // Audit fields
             $table->unsignedBigInteger('created_by')->nullable();
             $table->string('created_at_ip', 45)->nullable();
 
+            // Soft delete timestamp
             $table->timestamp('deleted_at')->nullable();
 
-            // Foreign Key
+            // Index only where needed
+            $table->index('created_by');
+
+            // Foreign key: created_by -> users.id
             $table->foreign('created_by')
-                ->references('id')
-                ->on('users')
-                ->nullOnDelete();
+                  ->references('id')
+                  ->on('users')
+                  ->nullOnDelete();
         });
     }
 

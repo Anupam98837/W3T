@@ -1646,55 +1646,84 @@
     // Library picker implementation (with Preview per-row)
     // ---------------------------
     let _libModal = null;
-    function ensureLibraryModal() {
-      if (_libModal) return _libModal;
-      const m = document.createElement('div');
-      m.className = 'modal fade';
-      m.id = 'smLibraryModal';
-      m.tabIndex = -1;
-      m.innerHTML = `
-        <div class="modal-dialog modal-lg modal-dialog-scrollable">
-          <div class="modal-content">
-            <div class="modal-header">
-              <h5 class="modal-title"><i class="fa fa-book me-2"></i>Choose from Library</h5>
-              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body" style="min-height:160px;">
-             <div id="smLibLoader" style="display:none; padding:18px;">
-  <div style="display:flex; align-items:center; gap:8px;">
-    <div class="spin" aria-hidden="true"></div>
-    <div class="text-muted">Loading library…</div>
-  </div>
-</div>
-
-              <div id="smLibEmpty" style="display:none;" class="text-muted small p-3;">No library items found for this batch.</div>
-              <div id="smLibList" style="display:none;"></div>
-            </div>
-            <div class="modal-footer">
-              <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
-              <button id="smLibConfirm" type="button" class="btn btn-primary">Add selected</button>
-            </div>
+function ensureLibraryModal() {
+  if (_libModal) return _libModal;
+  const m = document.createElement('div');
+  m.className = 'modal fade';
+  m.id = 'smLibraryModal';
+  m.tabIndex = -1;
+  m.innerHTML = `
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title"><i class="fa fa-book me-2"></i>Choose from Library</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body" style="min-height:160px;">
+         <div id="smLibLoader" style="display:none; padding:18px;">
+          <div style="display:flex; align-items:center; gap:8px;">
+            <div class="spin" aria-hidden="true"></div>
+            <div class="text-muted">Loading library…</div>
           </div>
         </div>
-      `;
-      document.body.appendChild(m);
-      _libModal = m;
-      return _libModal;
-    }
 
-      // ---------- Replace your existing openLibraryPicker() with this version ----------
-  async function openLibraryPicker() {
+          <div id="smLibEmpty" style="display:none;" class="text-muted small p-3;">No library items found for this batch.</div>
+          
+          <!-- Search Bar -->
+          <div id="smLibSearchContainer" class="mb-3" style="display:none;">
+            <div class="input-group input-group-sm">
+              <span class="input-group-text" id="search-addon">
+                <i class="fa fa-search"></i>
+              </span>
+              <input 
+                type="text" 
+                id="smLibSearch" 
+                class="form-control" 
+                placeholder="Search documents by name or reference..." 
+                aria-label="Search"
+                aria-describedby="search-addon"
+              />
+              <button id="smLibClearSearch" class="btn btn-outline-secondary" type="button" style="display:none;">
+                <i class="fa fa-times"></i>
+              </button>
+            </div>
+            <div id="smLibSearchResults" class="small text-muted mt-2" style="display:none;"></div>
+          </div>
+          
+          <div id="smLibList" style="display:none;"></div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+          <button id="smLibConfirm" type="button" class="btn btn-primary">Add selected</button>
+        </div>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(m);
+  _libModal = m;
+  return _libModal;
+}
+
+async function openLibraryPicker() {
   const modalEl = ensureLibraryModal();
   const libList = modalEl.querySelector('#smLibList');
   const libLoader = modalEl.querySelector('#smLibLoader');
   const libEmpty = modalEl.querySelector('#smLibEmpty');
   const libConfirm = modalEl.querySelector('#smLibConfirm');
+  const searchContainer = modalEl.querySelector('#smLibSearchContainer');
+  const searchInput = modalEl.querySelector('#smLibSearch');
+  const clearSearchBtn = modalEl.querySelector('#smLibClearSearch');
+  const searchResults = modalEl.querySelector('#smLibSearchResults');
 
   // reset UI
   libList.innerHTML = '';
   libLoader.style.display = '';
   libList.style.display = 'none';
   libEmpty.style.display = 'none';
+  searchContainer.style.display = 'none';
+  searchInput.value = '';
+  clearSearchBtn.style.display = 'none';
+  searchResults.style.display = 'none';
   libConfirm.disabled = true;
 
   // show modal (bootstrap if available)
@@ -1708,7 +1737,7 @@
     }
   } catch (e) {}
 
-  // inject grid/card styles (3 per row on wide screens)
+  // inject grid/card styles with search-specific styles
   if (!document.getElementById('sm-lib-card-styles')) {
     const style = document.createElement('style');
     style.id = 'sm-lib-card-styles';
@@ -1730,6 +1759,12 @@
       .sm-lib-placeholder-icon { width:100%; height:120px; display:flex; align-items:center; justify-content:center; font-size:36px; color:rgba(0,0,0,0.35); border-radius:8px; background: linear-gradient(180deg,#fafafa,#fff); }
       .sm-lib-badge { font-size:11px; padding:4px 6px; border-radius:6px; background:rgba(0,0,0,0.05); }
       .sm-lib-card .card-name { margin-top:6px; font-weight:600; font-size:13px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+      
+      /* Search highlighting */
+      .highlight { background-color: rgba(255, 255, 0, 0.3); padding: 0 1px; border-radius: 2px; }
+      
+      /* Filtered card state */
+      .sm-lib-card.filtered-out { opacity: 0.4; pointer-events: none; }
     `;
     document.head.appendChild(style);
   }
@@ -1764,12 +1799,21 @@
               url: urlCandidate,
               name: normalized.name || (urlCandidate.split('/').pop() || 'file'),
               refs: [{ materialTitle, moduleTitle, materialId }],
-              sample: normalized
+              sample: normalized,
+              // Store all searchable text in one property for easier searching
+              searchText: (normalized.name || '') + ' ' + 
+                         (materialTitle || '') + ' ' + 
+                         (moduleTitle || '') + ' ' +
+                         (urlCandidate || '')
             });
           } else {
             const entry = docMap.get(key);
             const hasRef = entry.refs.some(r => String(r.materialId) === String(materialId) && r.materialTitle === materialTitle);
-            if (!hasRef) entry.refs.push({ materialTitle, moduleTitle, materialId });
+            if (!hasRef) {
+              entry.refs.push({ materialTitle, moduleTitle, materialId });
+              // Update search text with new references
+              entry.searchText += ' ' + (materialTitle || '') + ' ' + (moduleTitle || '');
+            }
           }
         });
       });
@@ -1781,9 +1825,13 @@
     if (!items.length) {
       libEmpty.style.display = '';
       libList.style.display = 'none';
+      searchContainer.style.display = 'none';
       libConfirm.disabled = true;
       return;
     }
+
+    // Show search container since we have items
+    searchContainer.style.display = '';
 
     // helper: detect type by extension
     function extOf(u){ try { return (u || '').split('?')[0].split('.').pop().toLowerCase(); } catch(e){ return ''; } }
@@ -1791,96 +1839,206 @@
     function isPdfExt(e){ return e === 'pdf'; }
     function isVideoExt(e){ return ['mp4','webm','ogg','mov'].includes(e); }
 
-    // build cards
-    const selectedSet = new Set((createModalEl._selectedLibraryUrls || []).map(u => String(u)));
-    const cardHtml = items.map((it, idx) => {
-      const url = it.url || '';
-      const name = it.name || (url||'').split('/').pop() || `file-${idx+1}`;
-      const ext = extOf(url);
-      const isImg = isImageExt(ext);
-      const isPdf = isPdfExt(ext);
-      const isVid = isVideoExt(ext);
-      const refs = it.refs.map(r => (r.moduleTitle ? `${r.materialTitle} • ${r.moduleTitle}` : r.materialTitle));
-      const refsShort = refs.slice(0,3).join(', ');
-      const more = Math.max(0, refs.length - 3);
-      const refsDisplay = refsShort + (more ? `, +${more} more` : '');
-      const checked = selectedSet.has(url) ? 'checked' : '';
+    // Function to highlight search terms in text
+    function highlightText(text, searchTerm) {
+      if (!searchTerm || !text) return escapeHtml(text);
+      
+      const escapedText = escapeHtml(text);
+      const regex = new RegExp(`(${searchTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+      return escapedText.replace(regex, '<span class="highlight">$1</span>');
+    }
 
-      // thumbnail markup: if image -> <img>, if pdf/video -> placeholder with icon
-      let thumbHtml = '';
-      if (isImg) {
-        thumbHtml = `<img loading="lazy" class="sm-lib-thumb" src="${escapeHtml(url)}" alt="${escapeHtml(name)}" />`;
-      } else if (isPdf) {
-        thumbHtml = `<div class="sm-lib-placeholder-icon"><i class="fa fa-file-pdf"></i></div>`;
-      } else if (isVid) {
-        thumbHtml = `<div class="sm-lib-placeholder-icon"><i class="fa fa-video"></i></div>`;
+    // Function to render library items with optional filtering
+    function renderLibraryItems(filteredItems = items, searchTerm = '') {
+      const selectedSet = new Set((createModalEl._selectedLibraryUrls || []).map(u => String(u)));
+      
+      const cardHtml = filteredItems.map((it, idx) => {
+        const url = it.url || '';
+        const name = it.name || (url||'').split('/').pop() || `file-${idx+1}`;
+        const ext = extOf(url);
+        const isImg = isImageExt(ext);
+        const isPdf = isPdfExt(ext);
+        const isVid = isVideoExt(ext);
+        const refs = it.refs.map(r => (r.moduleTitle ? `${r.materialTitle} • ${r.moduleTitle}` : r.materialTitle));
+        const refsShort = refs.slice(0,3).join(', ');
+        const more = Math.max(0, refs.length - 3);
+        const refsDisplay = refsShort + (more ? `, +${more} more` : '');
+        const checked = selectedSet.has(url) ? 'checked' : '';
+
+        // Highlight name and refs if searching
+        const highlightedName = searchTerm ? highlightText(name, searchTerm) : escapeHtml(name);
+        const highlightedRefs = searchTerm ? highlightText(refsDisplay, searchTerm) : escapeHtml(refsDisplay);
+
+        // thumbnail markup
+        let thumbHtml = '';
+        if (isImg) {
+          thumbHtml = `<img loading="lazy" class="sm-lib-thumb" src="${escapeHtml(url)}" alt="${escapeHtml(name)}" />`;
+        } else if (isPdf) {
+          thumbHtml = `<div class="sm-lib-placeholder-icon"><i class="fa fa-file-pdf"></i></div>`;
+        } else if (isVid) {
+          thumbHtml = `<div class="sm-lib-placeholder-icon"><i class="fa fa-video"></i></div>`;
+        } else {
+          thumbHtml = `<div class="sm-lib-placeholder-icon"><i class="fa fa-file"></i></div>`;
+        }
+
+        return `
+          <div class="sm-lib-card" data-url="${escapeHtml(url)}" data-ext="${escapeHtml(ext)}" data-name="${escapeHtml(name)}">
+            <div class="overlay-checkbox">
+              <input class="sm-lib-checkbox" type="checkbox" data-url="${escapeHtml(url)}" ${checked} />
+            </div>
+
+            <div class="thumb-wrap">${thumbHtml}</div>
+
+            <div class="card-name" title="${escapeHtml(name)}">${highlightedName}</div>
+            <div class="card-refs" title="${escapeHtml(refs.join(' • '))}">${highlightedRefs}</div>
+
+            <div class="card-actions">
+              <div style="display:flex; gap:8px; align-items:center;">
+                <button type="button" class="sm-lib-preview-row btn btn-sm btn-outline-primary" data-url="${escapeHtml(url)}" title="Preview"><i class="fa fa-eye"></i> Preview</button>
+              </div>
+              <div style="font-size:12px; color:var(--muted-color);">${escapeHtml(String(it.refs.length))} ref(s)</div>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      libList.innerHTML = `<div class="sm-lib-grid">${cardHtml}</div>`;
+      libList.style.display = '';
+      libEmpty.style.display = 'none';
+
+      // Update search results counter
+      if (searchTerm) {
+        searchResults.style.display = '';
+        searchResults.textContent = `Found ${filteredItems.length} of ${items.length} items`;
       } else {
-        thumbHtml = `<div class="sm-lib-placeholder-icon"><i class="fa fa-file"></i></div>`;
+        searchResults.style.display = 'none';
       }
 
-      return `
-        <div class="sm-lib-card" data-url="${escapeHtml(url)}" data-ext="${escapeHtml(ext)}">
-          <div class="overlay-checkbox">
-            <input class="sm-lib-checkbox" type="checkbox" data-url="${escapeHtml(url)}" ${checked} />
-          </div>
+      // Wire up card interactions
+      wireCardInteractions();
+    }
 
-          <div class="thumb-wrap">${thumbHtml}</div>
+    // Function to wire up card interactions
+    function wireCardInteractions() {
+      const grid = libList.querySelector('.sm-lib-grid');
+      if (!grid) return;
 
-          <div class="card-name" title="${escapeHtml(name)}">${escapeHtml(name)}</div>
-          <div class="card-refs" title="${escapeHtml(refs.join(' • '))}">${escapeHtml(refsDisplay || 'No references')}</div>
-
-          <div class="card-actions">
-            <div style="display:flex; gap:8px; align-items:center;">
-              <button type="button" class="sm-lib-preview-row btn btn-sm btn-outline-primary" data-url="${escapeHtml(url)}" title="Preview"><i class="fa fa-eye"></i> Preview</button>
-            </div>
-            <div style="font-size:12px; color:var(--muted-color);">${escapeHtml(String(it.refs.length))} ref(s)</div>
-          </div>
-        </div>
-      `;
-    }).join('');
-
-    libList.innerHTML = `<div class="sm-lib-grid">${cardHtml}</div>`;
-    libList.style.display = '';
-    libEmpty.style.display = 'none';
-
-    // wire checkboxes: clicking the card (not the checkbox) will toggle selection for better UX
-    const grid = libList.querySelector('.sm-lib-grid');
-    grid.querySelectorAll('.sm-lib-card').forEach(card => {
-      const cb = card.querySelector('.sm-lib-checkbox');
-      // card click toggles checkbox unless click on interactive element
-      card.addEventListener('click', (ev) => {
-        if (ev.target.closest('.sm-lib-preview-row') || ev.target.tagName === 'INPUT' || ev.target.closest('.overlay-checkbox')) return;
-        cb.checked = !cb.checked;
-        const any = Array.from(grid.querySelectorAll('.sm-lib-checkbox')).some(n => n.checked);
-        libConfirm.disabled = !any;
+      // wire checkboxes
+      grid.querySelectorAll('.sm-lib-card').forEach(card => {
+        const cb = card.querySelector('.sm-lib-checkbox');
+        // card click toggles checkbox unless click on interactive element
+        card.addEventListener('click', (ev) => {
+          if (ev.target.closest('.sm-lib-preview-row') || 
+              ev.target.tagName === 'INPUT' || 
+              ev.target.closest('.overlay-checkbox')) return;
+          cb.checked = !cb.checked;
+          updateConfirmButtonState();
+        });
+        // also update confirm state when checkbox changed directly
+        cb.addEventListener('change', updateConfirmButtonState);
       });
-      // also update confirm state when checkbox changed directly
-      cb.addEventListener('change', () => {
-        const any = Array.from(grid.querySelectorAll('.sm-lib-checkbox')).some(n => n.checked);
-        libConfirm.disabled = !any;
+
+      // wire preview buttons
+      libList.querySelectorAll('.sm-lib-preview-row').forEach(btn => {
+        btn.addEventListener('click', (ev) => {
+          ev.preventDefault();
+          ev.stopPropagation();
+          const u = btn.dataset.url;
+          if (!u) return;
+
+          // build attachment object consistent with your previewer
+          const at = { url: u, name: (u||'').split('/').pop() };
+          // close library modal for cleaner UX prior to preview
+          try { 
+            if (window.bootstrap && typeof window.bootstrap.Modal === 'function') {
+              bootstrap.Modal.getInstance(modalEl)?.hide(); 
+            } else { 
+              modalEl.classList.remove('show'); 
+              modalEl.style.display = 'none'; 
+              document.body.classList.remove('modal-open'); 
+            }
+          } catch(e){}
+          // open existing preview helper
+          openAttachmentPreview(at, at.name || 'Preview');
+        });
       });
+    }
+
+    // Function to update confirm button state
+    function updateConfirmButtonState() {
+      const grid = libList.querySelector('.sm-lib-grid');
+      if (!grid) {
+        libConfirm.disabled = true;
+        return;
+      }
+      const any = Array.from(grid.querySelectorAll('.sm-lib-checkbox')).some(n => n.checked);
+      libConfirm.disabled = !any;
+    }
+
+    // Initial render
+    renderLibraryItems(items);
+
+    // Search functionality
+    let searchTimeout;
+    searchInput.addEventListener('input', function(e) {
+      clearTimeout(searchTimeout);
+      
+      const searchTerm = e.target.value.trim().toLowerCase();
+      
+      // Show/hide clear button
+      if (searchTerm) {
+        clearSearchBtn.style.display = 'block';
+      } else {
+        clearSearchBtn.style.display = 'none';
+        searchResults.style.display = 'none';
+        renderLibraryItems(items, '');
+        return;
+      }
+
+      // Debounce search
+      searchTimeout = setTimeout(() => {
+        const filtered = items.filter(item => {
+          // Search in name, material title, module title, and URL
+          return item.searchText.toLowerCase().includes(searchTerm);
+        });
+
+        renderLibraryItems(filtered, searchTerm);
+      }, 300);
     });
 
-    // wire preview buttons
-    libList.querySelectorAll('.sm-lib-preview-row').forEach(btn => {
-      btn.addEventListener('click', (ev) => {
-        ev.preventDefault();
-        ev.stopPropagation();
-        const u = btn.dataset.url;
-        if (!u) return;
+    // Clear search button
+    clearSearchBtn.addEventListener('click', function() {
+      searchInput.value = '';
+      clearSearchBtn.style.display = 'none';
+      searchResults.style.display = 'none';
+      renderLibraryItems(items, '');
+      searchInput.focus();
+    });
 
-        // build attachment object consistent with your previewer
-        const at = { url: u, name: (u||'').split('/').pop() };
-        // close library modal for cleaner UX prior to preview
-        try { if (window.bootstrap && typeof window.bootstrap.Modal === 'function') bootstrap.Modal.getInstance(modalEl)?.hide(); else { modalEl.classList.remove('show'); modalEl.style.display = 'none'; document.body.classList.remove('modal-open'); } } catch(e){}
-        // open existing preview helper
-        openAttachmentPreview(at, at.name || 'Preview');
-      });
+    // Keyboard shortcuts for search
+    searchInput.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape') {
+        if (this.value) {
+          this.value = '';
+          clearSearchBtn.style.display = 'none';
+          searchResults.style.display = 'none';
+          renderLibraryItems(items, '');
+        } else {
+          // Close modal on second escape if search is empty
+          try {
+            if (window.bootstrap && typeof window.bootstrap.Modal === 'function') {
+              bootstrap.Modal.getInstance(modalEl)?.hide();
+            }
+          } catch(e) {}
+        }
+      }
     });
 
     // final confirm: collect selected card urls
     libConfirm.onclick = () => {
-      const checked = Array.from(libList.querySelectorAll('.sm-lib-checkbox')).filter(n => n.checked).map(n => n.dataset.url);
+      const checked = Array.from(libList.querySelectorAll('.sm-lib-checkbox'))
+        .filter(n => n.checked)
+        .map(n => n.dataset.url);
       const exist = createModalEl._selectedLibraryUrls || [];
       const set = new Set(exist.concat([]));
       checked.forEach(u => { if (u && !set.has(u)) set.add(u); });
@@ -1891,7 +2049,9 @@
         if (window.bootstrap && typeof window.bootstrap.Modal === 'function') {
           bootstrap.Modal.getInstance(modalEl)?.hide();
         } else {
-          modalEl.classList.remove('show'); modalEl.style.display = 'none'; document.body.classList.remove('modal-open');
+          modalEl.classList.remove('show'); 
+          modalEl.style.display = 'none'; 
+          document.body.classList.remove('modal-open');
         }
       } catch (e) {}
     };
@@ -1902,6 +2062,7 @@
     libList.style.display = 'none';
     libEmpty.style.display = '';
     libEmpty.textContent = 'Unable to load library items.';
+    searchContainer.style.display = 'none';
   }
 }
   })();

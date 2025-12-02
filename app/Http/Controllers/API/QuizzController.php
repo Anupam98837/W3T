@@ -168,117 +168,119 @@ class QuizzController extends Controller
      * CREATE (POST /api/quizz)
      * ========================= */
     public function store(Request $request)
-    {
-        if ($resp = $this->requireRole($request, ['admin','super_admin'])) return $resp;
-        $this->logWithActor('[Quizz Store] begin', $request);
- 
-        $data = $request->validate([
-            'quiz_name'            => ['required','string','max:255'],
-            'quiz_description'     => ['sometimes','nullable','string'],
-            'instructions'         => ['sometimes','nullable','string'],
-            'note'                 => ['sometimes','nullable','string'],
-            'is_public'            => ['sometimes','string','in:yes,no'],
-            'result_set_up_type'   => ['sometimes','string', Rule::in(['Immediately','Now','Schedule'])],
-            'result_release_date'  => ['sometimes','nullable','date'],
-            'total_time'           => ['sometimes','nullable','integer','min:1'],
-            'total_attempts'       => ['sometimes','nullable','integer','min:1'],
- 
-             // 🔽 NEW: randomization flags
-            'is_question_random'   => ['sometimes','string', Rule::in(['yes','no'])],
-            'is_option_random'     => ['sometimes','string', Rule::in(['yes','no'])],
- 
-            // image via file OR URL
-            'quiz_img'             => ['sometimes','file','image','mimes:jpeg,png,jpg,gif,webp,avif','max:4096'],
-            'quiz_img_url'         => ['sometimes','nullable','url'],
- 
-            // metadata
-            'metadata'             => ['sometimes','nullable','array'],
- 
-            // lifecycle
-            'status'               => ['sometimes', Rule::in(['active','archived'])],
-        ]);
- 
-        // Determine image path
-        $imgPath = null;
-        if (!empty($data['quiz_img_url'])) {
-            $imgPath = (string)$data['quiz_img_url'];
-        } elseif ($request->hasFile('quiz_img')) {
-            $destDir = $this->ensureImageFolder();
-            $ext     = strtolower($request->file('quiz_img')->getClientOriginalExtension() ?: 'jpg');
-            $fname   = 'quizz_' . time() . '_' . Str::random(6) . '.' . $ext;
-            $request->file('quiz_img')->move($destDir, $fname);
-            $imgPath = 'assets/images/quizz/' . $fname;
-        }
- 
-        $a    = $this->actor($request);
-        $now  = now();
-        $uuid = (string) Str::uuid();
- 
-        $insert = [
-            'uuid'                 => $uuid,
-            'created_by'           => $a['id'] ?: null,
-            'quiz_name'            => $data['quiz_name'],
-            'quiz_description'     => $data['quiz_description'] ?? null,
-            'quiz_img'             => $imgPath,
-            'instructions'         => $data['instructions'] ?? null,
-            'note'                 => $data['note'] ?? null,
-            'is_public'            => $data['is_public'] ?? 'no',
-            'result_set_up_type'   => $data['result_set_up_type'] ?? 'Immediately',
-            'result_release_date'  => $data['result_release_date'] ?? null,
-            'total_time'           => $data['total_time'] ?? null,
-            'total_attempts'       => $data['total_attempts'] ?? 1,
-              // 🔽 NEW: store flags (backed by your toggles)
-            'is_question_random'   => $data['is_question_random'] ?? 'no',
-            'is_option_random'     => $data['is_option_random'] ?? 'no',
-            'status'               => $data['status'] ?? 'active',
-            'created_at'           => $now,
-            'created_at_ip'        => $request->ip(),
-            'updated_at'           => $now,
-            'deleted_at'           => null,
-            'metadata'             => isset($data['metadata'])
-                                        ? json_encode($data['metadata'], JSON_UNESCAPED_UNICODE)
-                                        : json_encode(new \stdClass()),
-        ];
- 
-        $id = DB::table('quizz')->insertGetId($insert);
-        $fresh = DB::table('quizz')->where('id', $id)->first();
- 
-        // Enrich UI counts (best-effort)
-        if ($fresh) {
-            try { $fresh->question_count = DB::table('quizz_questions')->where('quiz_id', $fresh->id)->count(); }
-            catch (\Throwable $e) { $fresh->question_count = 0; }
-            try { $fresh->student_count  = DB::table('quizz_results')->where('quiz_id', $fresh->id)->distinct('user_id')->count('user_id'); }
-            catch (\Throwable $e) { $fresh->student_count = 0; }
-        }
- 
-        // Activity + Notification
-        $this->logActivity($request, 'store', 'Created quiz "'.$insert['quiz_name'].'"', 'quizz', $id, array_keys($insert), null, $fresh ? (array)$fresh : null);
- 
-        $link = rtrim((string) config('app.url'), '/') . '/admin/quizz/'.$id;
-        $this->persistNotification([
-            'title'     => 'Quiz created',
-            'message'   => '“'.$insert['quiz_name'].'” has been created.',
-            'receivers' => $this->adminReceivers(),
-            'metadata'  => [
-                'action' => 'created',
-                'quiz'   => ['id' => $id, 'uuid' => $uuid, 'name' => $insert['quiz_name'], 'status' => $insert['status']],
-                'created_by' => $a,
-            ],
-            'type'      => 'quizz',
-            'link_url'  => $link,
-            'priority'  => 'normal',
-            'status'    => 'active',
-        ]);
- 
-        $this->logWithActor('[Quizz Store] success', $request, ['quiz_id' => $id, 'uuid' => $uuid]);
- 
-        return response()->json([
-            'status'  => 'success',
-            'message' => 'Quiz created successfully',
-            'data'    => $fresh,
-        ], 201);
+{
+    if ($resp = $this->requireRole($request, ['admin','super_admin'])) return $resp;
+    $this->logWithActor('[Quizz Store] begin', $request);
+
+    $data = $request->validate([
+        'quiz_name'            => ['required','string','max:255'],
+        'quiz_description'     => ['sometimes','nullable','string'],
+        'instructions'         => ['sometimes','nullable','string'],
+        'note'                 => ['sometimes','nullable','string'],
+        'is_public'            => ['sometimes','string', Rule::in(['yes','no'])],
+        'result_set_up_type'   => ['sometimes','string', Rule::in(['Immediately','Now','Schedule'])],
+        'result_release_date'  => ['sometimes','nullable','date'],
+        'total_time'           => ['sometimes','nullable','integer','min:1'],
+        'total_attempts'       => ['sometimes','nullable','integer','min:1'],
+
+        // randomization flags
+        'is_question_random'   => ['sometimes','string', Rule::in(['yes','no'])],
+        'is_option_random'     => ['sometimes','string', Rule::in(['yes','no'])],
+
+        // image via file OR URL / library path
+        'quiz_img'             => ['sometimes','file','image','mimes:jpeg,png,jpg,gif,webp,avif','max:4096'],
+        'quiz_img_url'         => ['sometimes','nullable','string','max:1024'], // <- relative OR http(s)
+
+        // metadata
+        'metadata'             => ['sometimes','nullable','array'],
+
+        // lifecycle
+        'status'               => ['sometimes', Rule::in(['active','archived'])],
+    ]);
+
+    // decide final image path (file / url / library path)
+    $imgPath = $this->resolveQuizImagePath($request, null);
+
+    $a    = $this->actor($request);
+    $now  = now();
+    $uuid = (string) Str::uuid();
+
+    $insert = [
+        'uuid'                 => $uuid,
+        'created_by'           => $a['id'] ?: null,
+        'quiz_name'            => $data['quiz_name'],
+        'quiz_description'     => $data['quiz_description'] ?? null,
+        'quiz_img'             => $imgPath,
+        'instructions'         => $data['instructions'] ?? null,
+        'note'                 => $data['note'] ?? null,
+        'is_public'            => $data['is_public'] ?? 'no',
+        'result_set_up_type'   => $data['result_set_up_type'] ?? 'Immediately',
+        'result_release_date'  => $data['result_release_date'] ?? null,
+        'total_time'           => $data['total_time'] ?? null,
+        'total_attempts'       => $data['total_attempts'] ?? 1,
+        'is_question_random'   => $data['is_question_random'] ?? 'no',
+        'is_option_random'     => $data['is_option_random'] ?? 'no',
+        'status'               => $data['status'] ?? 'active',
+        'created_at'           => $now,
+        'created_at_ip'        => $request->ip(),
+        'updated_at'           => $now,
+        'deleted_at'           => null,
+        'metadata'             => isset($data['metadata'])
+                                    ? json_encode($data['metadata'], JSON_UNESCAPED_UNICODE)
+                                    : json_encode(new \stdClass()),
+    ];
+
+    $id = DB::table('quizz')->insertGetId($insert);
+    $fresh = DB::table('quizz')->where('id', $id)->first();
+
+    // Enrich UI counts (best-effort)
+    if ($fresh) {
+        try {
+            $fresh->question_count = DB::table('quizz_questions')->where('quiz_id', $fresh->id)->count();
+        } catch (\Throwable $e) { $fresh->question_count = 0; }
+
+        try {
+            $fresh->student_count  = DB::table('quizz_results')->where('quiz_id', $fresh->id)->distinct('user_id')->count('user_id');
+        } catch (\Throwable $e) { $fresh->student_count = 0; }
     }
- 
+
+    // Activity + Notification
+    $this->logActivity(
+        $request,
+        'store',
+        'Created quiz "'.$insert['quiz_name'].'"',
+        'quizz',
+        $id,
+        array_keys($insert),
+        null,
+        $fresh ? (array)$fresh : null
+    );
+
+    $link = rtrim((string) config('app.url'), '/') . '/admin/quizz/'.$id;
+    $this->persistNotification([
+        'title'     => 'Quiz created',
+        'message'   => '“'.$insert['quiz_name'].'” has been created.',
+        'receivers' => $this->adminReceivers(),
+        'metadata'  => [
+            'action' => 'created',
+            'quiz'   => ['id' => $id, 'uuid' => $uuid, 'name' => $insert['quiz_name'], 'status' => $insert['status']],
+            'created_by' => $a,
+        ],
+        'type'      => 'quizz',
+        'link_url'  => $link,
+        'priority'  => 'normal',
+        'status'    => 'active',
+    ]);
+
+    $this->logWithActor('[Quizz Store] success', $request, ['quiz_id' => $id, 'uuid' => $uuid]);
+
+    return response()->json([
+        'status'  => 'success',
+        'message' => 'Quiz created successfully',
+        'data'    => $fresh,
+    ], 201);
+}
+
     /* =========================
      * LIST (GET /api/quizz)
      * ========================= */
@@ -351,77 +353,111 @@ class QuizzController extends Controller
     /* =========================
      * UPDATE (PUT/PATCH /api/quizz/{id|uuid})
      * ========================= */
-    public function update(Request $request, string $key)
-    {
-        if ($resp = $this->requireRole($request, ['admin','super_admin'])) return $resp;
- 
-        $rowQ = DB::table('quizz')->whereNull('deleted_at');
-        if (ctype_digit($key)) $rowQ->where('id',(int)$key); else $rowQ->where('uuid',$key);
-        $row = $rowQ->first();
-        if (!$row) return response()->json(['error'=>'Quiz not found'], 404);
- 
-        $id = (int)$row->id;
- 
-        $data = $request->validate([
-            'quiz_name'            => ['sometimes','string','max:255'],
-            'quiz_description'     => ['sometimes','nullable','string'],
-            'instructions'         => ['sometimes','nullable','string'],
-            'note'                 => ['sometimes','nullable','string'],
-            'is_public'            => ['sometimes','string', Rule::in(['yes','no'])],
-            'result_set_up_type'   => ['sometimes','string', Rule::in(['Immediately','Now','Schedule'])],
-            'result_release_date'  => ['sometimes','nullable','date'],
-            'total_time'           => ['sometimes','nullable','integer','min:1'],
-            'total_attempts'       => ['sometimes','nullable','integer','min:1'],
-            'status'               => ['sometimes', Rule::in(['active','archived'])],
-             // 🔽 NEW: randomization flags
-            'is_question_random'   => ['sometimes','string', Rule::in(['yes','no'])],
-            'is_option_random'     => ['sometimes','string', Rule::in(['yes','no'])],
- 
-            // image via file OR URL
-            'quiz_img'             => ['sometimes','file','image','mimes:jpeg,png,jpg,gif,webp,avif','max:4096'],
-            'quiz_img_url'         => ['sometimes','nullable','url'],
- 
-            'metadata'             => ['sometimes','nullable','array'],
-        ]);
- 
-        $upd = [];
-        foreach ($data as $k => $v) {
-            if (in_array($k, ['quiz_img','quiz_img_url'], true)) continue; // handled below
-            if ($k === 'metadata') $v = $v !== null ? json_encode($v, JSON_UNESCAPED_UNICODE) : json_encode(new \stdClass());
-            $upd[$k] = $v;
-        }
- 
-        // image update precedence: URL > File
-        if (!empty($data['quiz_img_url'])) {
-            $upd['quiz_img'] = (string)$data['quiz_img_url'];
-        } elseif ($request->hasFile('quiz_img')) {
-            $destDir = $this->ensureImageFolder();
-            $ext     = strtolower($request->file('quiz_img')->getClientOriginalExtension() ?: 'jpg');
-            $fname   = 'quizz_' . time() . '_' . Str::random(6) . '.' . $ext;
-            $request->file('quiz_img')->move($destDir, $fname);
-            $upd['quiz_img'] = 'assets/images/quizz/' . $fname;
-        }
- 
-        if (empty($upd)) {
-            return response()->json(['status'=>'noop','message'=>'Nothing to update'], 200);
-        }
- 
-        $upd['updated_at'] = now();
-        DB::table('quizz')->where('id',$id)->update($upd);
- 
-        $fresh = DB::table('quizz')->where('id',$id)->first();
-        if ($fresh) {
-            try { $fresh->question_count = DB::table('quizz_questions')->where('quiz_id', $fresh->id)->count(); }
-            catch (\Throwable $e) { $fresh->question_count = 0; }
-            try { $fresh->student_count  = DB::table('quizz_results')->where('quiz_id', $fresh->id)->distinct('user_id')->count('user_id'); }
-            catch (\Throwable $e) { $fresh->student_count = 0; }
-        }
- 
-        $this->logActivity($request, 'update', 'Updated quiz "'.($fresh->quiz_name ?? $row->quiz_name).'"', 'quizz', $id, array_keys($upd), (array)$row, $fresh ? (array)$fresh : null);
- 
-        return response()->json(['status'=>'success','message'=>'Quiz updated','data'=>$fresh]);
+  public function update(Request $request, string $key)
+{
+    if ($resp = $this->requireRole($request, ['admin','super_admin'])) return $resp;
+
+    // Find row by id|uuid
+    $rowQ = DB::table('quizz')->whereNull('deleted_at');
+    if (ctype_digit($key)) {
+        $rowQ->where('id', (int)$key);
+    } else {
+        $rowQ->where('uuid', $key);
     }
- 
+
+    $row = $rowQ->first();
+    if (!$row) {
+        return response()->json(['error' => 'Quiz not found'], 404);
+    }
+
+    $id = (int)$row->id;
+
+    $data = $request->validate([
+        'quiz_name'            => ['sometimes','string','max:255'],
+        'quiz_description'     => ['sometimes','nullable','string'],
+        'instructions'         => ['sometimes','nullable','string'],
+        'note'                 => ['sometimes','nullable','string'],
+        'is_public'            => ['sometimes','string', Rule::in(['yes','no'])],
+        'result_set_up_type'   => ['sometimes','string', Rule::in(['Immediately','Now','Schedule'])],
+        'result_release_date'  => ['sometimes','nullable','date'],
+        'total_time'           => ['sometimes','nullable','integer','min:1'],
+        'total_attempts'       => ['sometimes','nullable','integer','min:1'],
+        'status'               => ['sometimes', Rule::in(['active','archived'])],
+
+        // randomization flags
+        'is_question_random'   => ['sometimes','string', Rule::in(['yes','no'])],
+        'is_option_random'     => ['sometimes','string', Rule::in(['yes','no'])],
+
+        // image via file OR URL / library + remove flag
+        'quiz_img'             => ['sometimes','file','image','mimes:jpeg,png,jpg,gif,webp,avif','max:4096'],
+        'quiz_img_url'         => ['sometimes','nullable','string','max:1024'],
+        'quiz_img_remove'      => ['sometimes','boolean'],
+
+        'metadata'             => ['sometimes','nullable','array'],
+    ]);
+
+    $upd = [];
+
+    foreach ($data as $k => $v) {
+        // image fields handled separately via resolveQuizImagePath()
+        if (in_array($k, ['quiz_img','quiz_img_url','quiz_img_remove'], true)) {
+            continue;
+        }
+
+        if ($k === 'metadata') {
+            $v = $v !== null
+                ? json_encode($v, JSON_UNESCAPED_UNICODE)
+                : json_encode(new \stdClass());
+        }
+
+        $upd[$k] = $v;
+    }
+
+    // Decide final image path (keep existing if nothing provided)
+    $newImgPath = $this->resolveQuizImagePath($request, $row->quiz_img ?? null);
+    if ($newImgPath !== $row->quiz_img) {
+        $upd['quiz_img'] = $newImgPath;
+    }
+
+    if (empty($upd)) {
+        return response()->json([
+            'status'  => 'noop',
+            'message' => 'Nothing to update',
+        ], 200);
+    }
+
+    $upd['updated_at'] = now();
+    DB::table('quizz')->where('id', $id)->update($upd);
+
+    $fresh = DB::table('quizz')->where('id', $id)->first();
+    if ($fresh) {
+        try {
+            $fresh->question_count = DB::table('quizz_questions')->where('quiz_id', $fresh->id)->count();
+        } catch (\Throwable $e) { $fresh->question_count = 0; }
+
+        try {
+            $fresh->student_count  = DB::table('quizz_results')->where('quiz_id', $fresh->id)->distinct('user_id')->count('user_id');
+        } catch (\Throwable $e) { $fresh->student_count = 0; }
+    }
+
+    $this->logActivity(
+        $request,
+        'update',
+        'Updated quiz "'.($fresh->quiz_name ?? $row->quiz_name).'"',
+        'quizz',
+        $id,
+        array_keys($upd),
+        (array)$row,
+        $fresh ? (array)$fresh : null
+    );
+
+    return response()->json([
+        'status'  => 'success',
+        'message' => 'Quiz updated',
+        'data'    => $fresh,
+    ]);
+}
+
     /* =========================
      * STATUS (PATCH /api/quizz/{id|uuid}/status)
      * ========================= */
@@ -980,7 +1016,46 @@ public function deletedIndex(Request $r)
         ],
     ]);
 }
- 
+ /**
+ * Decide which image to use for a quiz.
+ *
+ * Priority:
+ *   1) quiz_img_library_url (file chosen from library)
+ *   2) quiz_img_url (manual URL)
+ *   3) quiz_img (uploaded file)
+ *
+ * On update, $existing is the current DB value so we can keep it
+ * when nothing new is sent.
+ */
+protected function resolveQuizImagePath(Request $request, ?string $existingPath = null): ?string
+{
+    // 1) explicit remove
+    if ($request->boolean('quiz_img_remove', false)) {
+        return null;
+    }
+
+    // 2) uploaded file
+    if ($request->hasFile('quiz_img') && $request->file('quiz_img')->isValid()) {
+        $destDir = $this->ensureImageFolder(); // make sure this points to public_path('assets/images/quizz')
+        $ext     = strtolower($request->file('quiz_img')->getClientOriginalExtension() ?: 'jpg');
+        $fname   = 'quizz_' . time() . '_' . Str::random(6) . '.' . $ext;
+        $request->file('quiz_img')->move($destDir, $fname);
+
+        // store relative path (same as you showed in screenshots)
+        return 'assets/images/quizz/' . $fname;
+    }
+
+    // 3) url or library path
+    $urlOrPath = trim((string) $request->input('quiz_img_url', ''));
+    if ($urlOrPath !== '') {
+        // can be full http(s) URL OR something like "assets/images/quizz/xyz.jpg"
+        return $urlOrPath;
+    }
+
+    // 4) fallback to existing
+    return $existingPath;
+}
+
 }
  
  
