@@ -185,7 +185,7 @@
               <input id="quiz_img_url" class="form-control" type="url" placeholder="https://…/cover.webp" autocomplete="off">
             </div>
             <div class="col-md-4">
-              <button id="btnUrlPreview" class="btn btn-outline-primary w-100" type="button"><i class="fa fa-eye me-1"></i>Preview</button>
+              <button id="btnUrlPreview" class="btn btn-primary w-100" type="button"><i class="fa fa-eye me-1"></i>Preview</button>
             </div>
             <div class="col-12">
               <div id="urlPrev" class="img-prev" aria-label="URL preview"></div>
@@ -646,26 +646,27 @@ async function openImageLibraryPicker(){
     const rows = Array.isArray(json.data) ? json.data
                : (Array.isArray(json.items) ? json.items
                : (Array.isArray(json) ? json : []));
-    
-    // dedupe by url (strip query), only keep valid image URLs
-    // dedupe by url (strip query), only keep valid image URLs
+  
 const docMap = new Map();
 (rows || []).forEach(q => {
   // Prefer the public URL if backend sends it
   const rawImg = q.quiz_img_url || q.quiz_img || '';
-  if (!rawImg) return;
+if (!rawImg) return;
 
-  const urlCandidate = String(rawImg);
-  const ext = extOf(urlCandidate);
-  if (!isImageExt(ext)) return;
+// Normalize to a real, fetchable URL
+const urlCandidate = resolveImgUrl(String(rawImg));
+const ext = extOf(urlCandidate.split('?')[0]);
+if (!isImageExt(ext)) return;
 
-  const key = urlCandidate.split('?')[0];
+// Use the normalized URL as dedupe key (strip query)
+const key = urlCandidate.split('?')[0];
+
   const quizName = q.quiz_name || 'Untitled Quiz';
   const fileName = (urlCandidate.split('/').pop() || quizName || 'image');
 
   if (!docMap.has(key)) {
     docMap.set(key, {
-      url: urlCandidate,          // this is what <img src="..."> uses
+      url: urlCandidate,          
       name: fileName,
       refs: [quizName],
       searchText: (quizName || '') + ' ' + fileName
@@ -697,6 +698,26 @@ const docMap = new Map();
       const regex = new RegExp(`(${searchTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
       return escapedText.replace(regex, '<span class="highlight">$1</span>');
     }
+    function resolveImgUrl(raw) {
+  const u = (raw || '').trim();
+  if (!u) return '';
+
+  // Already absolute http(s) → use as-is
+  if (/^https?:\/\//i.test(u)) return u;
+
+  try {
+    // If it starts with '/', treat it as root-relative
+    if (u.startsWith('/')) {
+      return new URL(u, window.location.origin).href;
+    }
+
+    // Otherwise, treat as relative to app root (NOT /admin/...)
+    return new URL(u.replace(/^\/+/, ''), window.location.origin + '/').href;
+  } catch (e) {
+    console.error('resolveImgUrl failed for', raw, e);
+    return u;
+  }
+}
 
     // Function to render library items with optional filtering
     function renderLibraryItems(filteredItems = items, searchTerm = '') {
@@ -726,7 +747,7 @@ const docMap = new Map();
             </div>
             <div class="card-actions">
               <button type="button" class="sm-lib-preview-row btn btn-sm btn-outline-primary" data-url="${escapeHtml(url)}">
-                <i class="fa fa-eye me-1"></i>Preview
+                <i class="fa fa-arrow-up-right-from-square me-1"></i>Preview
               </button>
               <div style="font-size:12px; color:var(--muted-color);">${escapeHtml(String(refs.length))} quiz(es)</div>
             </div>
@@ -784,23 +805,17 @@ const docMap = new Map();
       });
 
       // Preview button – SweetAlert2 image preview
-      grid.querySelectorAll('.sm-lib-preview-row').forEach(btn => {
-        btn.addEventListener('click', (ev) => {
-          ev.preventDefault();
-          ev.stopPropagation();
-          const u = btn.dataset.url;
-          if (!u) return;
-          Swal.fire({
-            imageUrl: u,
-            imageAlt: (u || '').split('/').pop() || 'Preview',
-            showConfirmButton: false,
-            showCloseButton: true,
-            background: '#000',
-            width: '80%',
-            padding: 0
-          });
-        });
-      });
+      // Preview button – open in new browser tab
+grid.querySelectorAll('.sm-lib-preview-row').forEach(btn => {
+  btn.addEventListener('click', (ev) => {
+    ev.preventDefault();
+    ev.stopPropagation();
+    const u = btn.dataset.url;
+    if (!u) return;
+    window.open(u, '_blank', 'noopener');
+  });
+});
+
     }
 
     // Function to update confirm button state

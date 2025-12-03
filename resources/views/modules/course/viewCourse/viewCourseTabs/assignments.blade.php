@@ -812,8 +812,10 @@ function renderCards(list) {
       selectedIds.clear();
       selectedIds.add(String(file.id));
       applySelection();
-      const bsModal = bootstrap.Modal.getInstance(assignLibModal);
-      if (bsModal) bsModal.hide();
+
+      // ✅ close via dismiss button (no bootstrap.Modal usage)
+      const closeBtn = assignLibModal.querySelector('[data-bs-dismiss="modal"]');
+      if (closeBtn) closeBtn.click();
     });
   });
 }
@@ -887,8 +889,10 @@ useBtn.addEventListener('click', function(){
     return;
   }
   applySelection();
-  const bsModal = bootstrap.Modal.getInstance(assignLibModal);
-  if (bsModal) bsModal.hide();
+
+  // ✅ close via dismiss button
+  const closeBtn = assignLibModal.querySelector('[data-bs-dismiss="modal"]');
+  if (closeBtn) closeBtn.click();
 });
 
 // Initial load whenever modal opens

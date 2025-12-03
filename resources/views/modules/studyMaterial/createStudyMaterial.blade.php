@@ -69,6 +69,13 @@
   html.theme-dark .file-row{background:#0b1020;border-color:var(--line-strong)}
   html.theme-dark .file-row:hover{background:#131d35;}
   html.theme-dark .preview-text {background: #1a2335;}
+  .lib-overlay-check {
+  position: absolute;
+  top: 8px;
+  left: 8px; /* original */
+  margin-left: 6px; /* added */
+}
+
 </style>
 
 @section('content')
@@ -658,81 +665,107 @@
   }
 
   function renderLibGrid(){
-    if(!libGrid || !libEmpty) return;
-    libGrid.innerHTML = '';
+  if(!libGrid || !libEmpty) return;
+  libGrid.innerHTML = '';
 
-    if(!libItems.length){
-      libEmpty.style.display = 'block';
-      updateLibSelectionInfo();
-      return;
-    }
-    libEmpty.style.display = 'none';
+  if(!libItems.length){
+    libEmpty.style.display = 'block';
+    updateLibSelectionInfo();
+    return;
+  }
+  libEmpty.style.display = 'none';
 
-    const frag = document.createDocumentFragment();
+  const frag = document.createDocumentFragment();
 
-    libItems.forEach((doc, idx)=>{
-      const col = document.createElement('div');
-      col.className = 'col-md-4 mb-3';
+  libItems.forEach((doc, idx)=>{
+    const col = document.createElement('div');
+    col.className = 'col-md-4 mb-3';
 
-      const card = document.createElement('div');
-      card.className = 'card h-100 lib-card';
+    const card = document.createElement('div');
+    card.className = 'card h-100 lib-card position-relative';
 
-      const thumbHtml = (doc.isImage && doc.url)
-        ? `<img src="${escapeHtml(doc.url)}" alt="${escapeHtml(doc.name)}" class="img-fluid rounded" style="max-height:140px;object-fit:cover;">`
-        : '<div class="lib-icon"><i class="fa fa-file fa-2x"></i></div>';
-
-      const mimeText = doc.mime || ('File .' + (doc.ext || ''));
-      const sizeText = doc.size ? bytes(doc.size) : '';
-
-      card.innerHTML =
-        `<div class="card-img-top lib-thumb text-center p-3">${thumbHtml}</div>
-         <div class="card-body d-flex flex-column">
-           <h6 class="card-title text-truncate" title="${escapeHtml(doc.name)}">${escapeHtml(doc.name)}</h6>
-           <p class="card-text tiny text-muted mb-1">${escapeHtml(mimeText)}</p>
-           <p class="card-text tiny text-muted mb-2">${escapeHtml(sizeText)}</p>
-           <div class="mt-auto d-flex justify-content-between align-items-center">
-             <div class="form-check form-check-sm">
-               <input class="form-check-input lib-select" type="checkbox" data-key="${escapeHtml(doc.key)}" id="lib-${idx}">
-               <label class="form-check-label tiny" for="lib-${idx}">Select</label>
-             </div>
-             ${doc.url ? `<button type="button" class="btn btn-link p-0 tiny lib-preview" data-url="${escapeHtml(doc.url)}">
-                            <i class="fa fa-arrow-up-right-from-square me-1"></i>Preview
-                          </button>` : ''}
-           </div>
+    const thumbHtml = (doc.isImage && doc.url)
+      ? `<img src="${escapeHtml(doc.url)}" alt="${escapeHtml(doc.name)}" class="img-fluid rounded" style="max-height:140px;object-fit:cover;">`
+      : `<div class="lib-icon d-flex align-items-center justify-content-center" style="height:140px;">
+           <i class="fa fa-file fa-2x"></i>
          </div>`;
 
-      const checkbox = card.querySelector('.lib-select');
-      if(libSelectedKeys.has(doc.key)) checkbox.checked = true;
-      checkbox.addEventListener('change',(e)=>{
-        const k = checkbox.getAttribute('data-key') || '';
-        if(e.target.checked) libSelectedKeys.add(k);
-        else libSelectedKeys.delete(k);
-        updateLibSelectionInfo();
-      });
+    const mimeText = doc.mime || ('File .' + (doc.ext || ''));
+    const sizeText = doc.size ? bytes(doc.size) : '';
 
-      card.addEventListener('click',(ev)=>{
-        if(ev.target.closest('.lib-select') || ev.target.closest('.lib-preview')) return;
-        checkbox.checked = !checkbox.checked;
-        checkbox.dispatchEvent(new Event('change'));
-      });
+    card.innerHTML = `
+      <!-- checkbox overlay top-left -->
+      <div class="lib-overlay-check ml-6">
+        <input 
+          class="form-check-input lib-select" 
+          type="checkbox" 
+          data-key="${escapeHtml(doc.key)}" 
+          id="lib-${idx}"
+        >
+      </div>
 
-      col.appendChild(card);
-      frag.appendChild(col);
+      <div class="card-img-top lib-thumb text-center p-3">
+        ${thumbHtml}
+      </div>
+
+      <div class="card-body d-flex flex-column">
+        <h6 class="card-title text-truncate" title="${escapeHtml(doc.name)}">
+          ${escapeHtml(doc.name)}
+        </h6>
+
+        <p class="card-text tiny text-muted mb-1">${escapeHtml(mimeText)}</p>
+        <p class="card-text tiny text-muted mb-2">${escapeHtml(sizeText)}</p>
+
+        <div class="mt-auto d-flex justify-content-start align-items-center">
+          ${
+            doc.url 
+              ? `<button 
+                   type="button" 
+                   class="btn btn-sm btn-outline-primary tiny d-inline-flex align-items-center px-2 py-1 lib-preview" 
+                   data-url="${escapeHtml(doc.url)}"
+                   style="font-size:12px;"
+                 >
+                   <i class="fa fa-arrow-up-right-from-square me-1"></i>
+                   Preview
+                 </button>`
+              : ''
+          }
+        </div>
+      </div>
+    `;
+
+    // ===== checkbox =====
+    const checkbox = card.querySelector('.lib-select');
+
+    // pre-check
+    if(libSelectedKeys.has(doc.key)) checkbox.checked = true;
+
+    checkbox.addEventListener('change',(e)=>{
+      const k = checkbox.getAttribute('data-key') || '';
+      if(e.target.checked) libSelectedKeys.add(k);
+      else libSelectedKeys.delete(k);
+      updateLibSelectionInfo();
     });
 
-    libGrid.appendChild(frag);
-    updateLibSelectionInfo();
-  }
+    // ===== card click → toggle checkbox =====
+    card.addEventListener('click',(ev)=>{
+      if(
+        ev.target.closest('.lib-select') ||
+        ev.target.closest('.lib-preview')
+      ) return;
 
-  // preview in new tab
-  if(libGrid){
-    libGrid.addEventListener('click',(e)=>{
-      const btn = e.target.closest('.lib-preview');
-      if(!btn) return;
-      const u = btn.getAttribute('data-url');
-      if(u) window.open(u, '_blank');
+      checkbox.checked = !checkbox.checked;
+      checkbox.dispatchEvent(new Event('change'));
     });
-  }
+
+    col.appendChild(card);
+    frag.appendChild(col);
+  });
+
+  libGrid.appendChild(frag);
+  updateLibSelectionInfo();
+}
+
 
   async function fetchLibraryItems(query){
     if(!LIBRARY_API || !libLoading || !libGrid) return;
