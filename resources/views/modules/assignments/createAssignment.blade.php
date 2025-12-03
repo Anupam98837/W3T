@@ -99,6 +99,26 @@
   html.theme-dark .tool{background:#0f172a;border-color:var(--line-strong);color:#e5e7eb}
   html.theme-dark .dropzone{background:#0f172a;border-color:var(--line-strong)}
   html.theme-dark .file-item{background:#0f172a;border-color:var(--line-strong)}
+  .lib-card {
+  position: relative;
+  overflow: hidden;
+}
+
+.lib-overlay-check {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 5;
+  background: rgba(255,255,255,0.95);
+  padding: 4px 8px;
+  border-radius: 999px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.12);
+}
+
+.lib-overlay-check .form-check-input {
+  cursor: pointer;
+}
+
 </style>
 
 @section('content')
@@ -335,7 +355,7 @@
         <div class="mb-3 d-flex" style="gap:8px">
           <input id="libSearch" type="search" class="form-control" placeholder="Search by title, file name, type...">
           <button id="btnLibSearch" class="btn btn-outline-primary" type="button">
-            <i class="fa fa-magnifying-glass me-1"></i>Search
+            <i class="fa fa-magnifying-glass me-1"></i>
           </button>
         </div>
         <div class="tiny mb-2 text-muted">
@@ -831,16 +851,19 @@ function normalizeAttach(a){
 
 // Render the grid of cards in the modal
 function renderLibGrid() {
-  if(!libGrid) return;
+  if (!libGrid) return;
   libGrid.innerHTML = '';
   libEmpty.style.display = libItems.length ? 'none' : 'block';
 
-  if(!libItems.length) { updateLibSelectionInfo(); return; }
+  if (!libItems.length) { 
+    updateLibSelectionInfo(); 
+    return; 
+  }
 
-  // create a doc map already (but we keep libItems as array of doc entries)
   const rowFrag = document.createDocumentFragment();
+
   libItems.forEach((doc, idx) => {
-    // doc: { url, name, refs: [...assignment titles], ext, isImage, size }
+    // doc: { key, url, name, refs, ext, isImage, size, mime }
     const idKey = doc.key; // normalized key (url w/o query)
     const cardCol = document.createElement('div');
     cardCol.className = 'col-md-4 mb-3';
@@ -850,32 +873,69 @@ function renderLibGrid() {
 
     const thumbHtml = doc.isImage && doc.url
       ? `<img src="${escapeHtml(doc.url)}" alt="${escapeHtml(doc.name)}" class="img-fluid rounded" style="max-height:140px;object-fit:cover;">`
-      : `<div class="lib-icon"><i class="fa fa-file fa-2x"></i></div>`;
+      : `<div class="lib-icon d-flex align-items-center justify-content-center" style="height:140px;">
+           <i class="fa fa-file fa-2x text-muted"></i>
+         </div>`;
 
     card.innerHTML = `
-      <div class="card-img-top lib-thumb text-center p-3">${thumbHtml}</div>
-      <div class="card-body d-flex flex-column">
-        <h6 class="card-title text-truncate" title="${escapeHtml(doc.name)}">${escapeHtml(doc.name)}</h6>
-        <p class="card-text tiny text-muted mb-1">${escapeHtml(doc.mime || ('File .' + (doc.ext || '')))}</p>
-        <p class="card-text tiny text-muted mb-2">${doc.size ? (formatFileSize(doc.size)) : ''}</p>
-        <div class="mt-auto d-flex justify-content-between align-items-center">
-          <div class="form-check form-check-sm">
-            <input class="form-check-input lib-select" type="checkbox" data-url="${escapeHtml(doc.url)}" id="lib-${idx}">
-            <label class="form-check-label tiny" for="lib-${idx}">Select</label>
-          </div>
-          ${doc.url ? `<a href="${escapeHtml(doc.url)}" target="_blank" class="tiny text-decoration-none"><i class="fa fa-arrow-up-right-from-square me-1"></i>Preview</a>` : ''}
+      <!-- Top-left overlay checkbox -->
+      <div class="lib-overlay-check">
+        <div class="form-check form-check-sm m-0">
+          <input 
+            class="form-check-input lib-select" 
+            type="checkbox" 
+            data-url="${escapeHtml(doc.url)}" 
+            id="lib-${idx}">
         </div>
+      </div>
+
+      <div class="card-img-top lib-thumb text-center p-3">
+        ${thumbHtml}
+      </div>
+
+      <div class="card-body d-flex flex-column">
+        <h6 class="card-title text-truncate" title="${escapeHtml(doc.name)}">
+          ${escapeHtml(doc.name)}
+        </h6>
+        <p class="card-text tiny text-muted mb-1">
+          ${escapeHtml(doc.mime || ('File .' + (doc.ext || '')))}
+        </p>
+        <p class="card-text tiny text-muted mb-2">
+          ${doc.size ? formatFileSize(doc.size) : ''}
+        </p>
+
+        <div class="mt-auto d-flex justify-content-start align-items-center">
+  ${
+    doc.url 
+      ? `<a 
+           href="${escapeHtml(doc.url)}" 
+           target="_blank" 
+           rel="noopener" 
+           class="btn btn-sm btn-outline-primary tiny d-inline-flex align-items-center px-2 py-1"
+           style="font-size:12px;"
+         >
+           <i class="fa fa-arrow-up-right-from-square me-1"></i>
+           Preview
+         </a>`
+      : ''
+  }
+</div>
+
       </div>
     `;
 
-    // when created, if url is already selected mark checkbox
     const checkbox = card.querySelector('.lib-select');
-    if(libSelectedUrls.has(idKey) || libSelectedUrls.has(doc.url)) checkbox.checked = true;
 
+    // Pre-check if already selected
+    if (libSelectedUrls.has(idKey) || libSelectedUrls.has(doc.url)) {
+      checkbox.checked = true;
+    }
+
+    // Checkbox change → update selection set
     checkbox.addEventListener('change', (e) => {
       const theUrl = doc.url;
       const key = doc.key;
-      if(e.target.checked) {
+      if (e.target.checked) {
         libSelectedUrls.add(key);
         libSelectedUrls.add(theUrl);
       } else {
@@ -885,9 +945,9 @@ function renderLibGrid() {
       updateLibSelectionInfo();
     });
 
-    // clicking card (outside preview/button) toggles checkbox
+    // Clicking card (but not preview or checkbox) toggles checkbox
     card.addEventListener('click', (ev) => {
-      if(ev.target.closest('.lib-select') || ev.target.closest('a')) return;
+      if (ev.target.closest('.lib-select') || ev.target.closest('a')) return;
       checkbox.checked = !checkbox.checked;
       checkbox.dispatchEvent(new Event('change'));
     });
