@@ -9,14 +9,14 @@ use Illuminate\Support\Facades\Route;
 Route::get('/ui', function () {
     return view('ui.ui');
 });
-Route::get('/testing', function () {
-    return view('modules.testing');
+Route::get('/', function () {
+    return view('pages.landing.home');
 });
 
 
 // Login Routes 
 
-Route::get('/', function () {
+Route::get('/login', function () {
     return view('pages.auth.login');
 });
 
