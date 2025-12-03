@@ -1324,7 +1324,7 @@ function renderLibraryGrid(){
             </div>
             ${
               att.url
-                ? `<a href="${H.esc(att.url)}" target="_blank" class="small text-decoration-none">
+                ? `<a href="${H.esc(att.url)}" target="_blank" class="small text-decoration-none ">
                      <i class="fa fa-arrow-up-right-from-square me-1"></i>Preview
                    </a>`
                 : ''
