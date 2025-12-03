@@ -613,6 +613,71 @@ public function index(Request $request)
         ]);
     }
 
+        /**
+     * GET /api/auth/my-role
+     * Header: Authorization: Bearer <token>
+     *
+     * Returns:
+     * {
+     *   "status": "success",
+     *   "role": "admin",
+     *   "role_short_form": "ADM",
+     *   "user": { ... public payload ... }
+     * }
+     */
+    public function getMyRole(Request $request)
+    {
+        $plain = $this->extractToken($request);
+        if (!$plain) {
+            return response()->json([
+                'status'  => 'error',
+                'message' => 'Token not provided',
+            ], 401);
+        }
+
+        $rec = DB::table('personal_access_tokens')
+            ->where('token', hash('sha256', $plain))
+            ->where('tokenable_type', self::USER_TYPE)
+            ->first();
+
+        if (!$rec) {
+            return response()->json([
+                'status'  => 'error',
+                'message' => 'Invalid token',
+            ], 401);
+        }
+
+        // Check expiry (same logic as authenticateToken)
+        if (!empty($rec->expires_at) && Carbon::parse($rec->expires_at)->isPast()) {
+            DB::table('personal_access_tokens')->where('id', $rec->id)->delete();
+
+            return response()->json([
+                'status'  => 'error',
+                'message' => 'Token expired',
+            ], 401);
+        }
+
+        $user = DB::table('users')
+            ->where('id', $rec->tokenable_id)
+            ->whereNull('deleted_at')
+            ->first();
+
+        if (!$user || (isset($user->status) && $user->status !== 'active')) {
+            return response()->json([
+                'status'  => 'error',
+                'message' => 'Unauthorized',
+            ], 401);
+        }
+
+        return response()->json([
+            'status'          => 'success',
+            'role'            => (string)($user->role ?? ''),
+            'role_short_form' => (string)($user->role_short_form ?? ''),
+            'user'            => $this->publicUserPayload($user),
+        ]);
+    }
+
+
     /* =========================================================
      |                     Helper methods
      |=========================================================*/

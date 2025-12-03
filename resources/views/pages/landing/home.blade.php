@@ -1564,6 +1564,10 @@
   </style>
 </head>
 <body class="lp-page">
+  {{-- 🔹 Include your global overlay here (ensure it has id="pageOverlay") --}}
+  {{-- Change the include path to match your project --}}
+  @include('partials.overlay')
+
   <!-- Announcement strip -->
   <div class="lp-announcement">
     <div class="lp-announcement-inner">
@@ -2466,9 +2470,24 @@
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 
-  <!-- JS for hero image stack interaction + scroll animations + back-to-top -->
+  <!-- JS for hero image stack interaction + scroll animations + back-to-top + role/overlay -->
   <script>
     document.addEventListener('DOMContentLoaded', function () {
+      /* =========================
+         Page overlay helpers
+         ========================= */
+      const pageOverlay = document.getElementById('pageOverlay');
+
+      function showPageOverlay() {
+        if (!pageOverlay) return;
+        pageOverlay.style.display = 'flex';   // or 'block' based on your CSS
+      }
+
+      function hidePageOverlay() {
+        if (!pageOverlay) return;
+        pageOverlay.style.display = 'none';
+      }
+
       /* =========================
          Hero image stack
          ========================= */
@@ -2575,34 +2594,88 @@
         });
       }
 
-      const loginBtn = document.getElementById('lpLoginBtn');
+      /* =========================
+         Helper: get my role from API
+         ========================= */
+      async function getMyRole(token) {
+        if (!token) return "";
 
-        if (loginBtn) {
-        // Read token + role
-        const token =
-            sessionStorage.getItem('token') || localStorage.getItem('token');
-        let role =
-            sessionStorage.getItem('role') || localStorage.getItem('role') || '';
-
-        role = (role || '').toString().trim().toLowerCase();
-
-        // === Change button text dynamically ===
-        if (token && role) {
-            loginBtn.textContent = "Dashboard";  // <<< Change here
-        } else {
-            loginBtn.textContent = "Log in";     // fallback
-        }
-
-        // === Add click logic ===
-        loginBtn.addEventListener('click', function () {
-            if (token && role) {
-            window.location.assign(`/${role}/dashboard`);
-            } else {
-            window.location.assign('/login');
+        try {
+          const res = await fetch("/api/auth/my-role", {
+            method: "GET",
+            headers: {
+              "Authorization": "Bearer " + token,
+              "Accept": "application/json"
             }
-        });
+          });
+
+          if (!res.ok) {
+            console.warn("[Landing] getMyRole failed:", res.status);
+            return "";
+          }
+
+          const data = await res.json();
+
+          if (data?.status === "success" && data?.role) {
+            return String(data.role).trim().toLowerCase();
+          }
+
+          return "";
+        } catch (err) {
+          console.error("[Landing] getMyRole error:", err);
+          return "";
+        }
+      }
+
+      /* =========================
+         Login / Dashboard button
+         ========================= */
+      const loginBtn = document.getElementById("lpLoginBtn");
+
+      if (loginBtn) {
+        const token =
+          sessionStorage.getItem("token") || localStorage.getItem("token");
+
+        let role = "";
+
+        function setButtonLabel(isLoggedIn) {
+          loginBtn.textContent = isLoggedIn ? "Dashboard" : "Log in";
         }
 
+        // Default state
+        setButtonLabel(false);
+
+        // If token exists, fetch role from API with overlay
+        if (token) {
+          showPageOverlay();
+
+          getMyRole(token)
+            .then(function (apiRole) {
+              role = apiRole || "";
+              setButtonLabel(!!role);
+            })
+            .catch(function (err) {
+              console.error("[Landing] role fetch error:", err);
+              role = "";
+              setButtonLabel(false);
+            })
+            .finally(function () {
+              hidePageOverlay();
+            });
+        }
+
+        // Button click action
+        loginBtn.addEventListener("click", function () {
+          const currentToken =
+            sessionStorage.getItem("token") || localStorage.getItem("token");
+
+          if (currentToken && role) {
+            window.location.assign(`/${role}/dashboard`);
+          } else {
+            window.location.assign("/login");
+          }
+        });
+      }
     });
   </script>
 </body>
