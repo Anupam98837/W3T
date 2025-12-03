@@ -287,10 +287,14 @@
             <i class="fa fa-file me-1"></i>Choose Files
           </label>
           <input id="attachments" type="file" multiple accept=".pdf,.doc,.docx,.zip,.jpg,.jpeg,.png,.gif" hidden>
+          <button type="button" id="btnOpenLibrary" class="btn btn-outline-secondary">
+            <i class="fa fa-book me-1"></i>Choose from Library
+          </button>
           <button type="button" id="btnClearFiles" class="btn btn-light">Clear All</button>
         </div>
       </div>
       <div id="fileList" class="file-list"></div>
+      <div id="libraryList" class="file-list library-list mt-2"></div>
       <div class="err" data-for="attachments"></div>
 
       {{-- Actions --}}
@@ -311,6 +315,51 @@
     </div>
     <div id="errToast" class="toast text-bg-danger border-0 mt-2">
       <div class="d-flex"><div id="errMsg" class="toast-body">Something went wrong</div><button class="btn-close btn-close-white m-auto me-2" data-bs-dismiss="toast"></button></div>
+    </div>
+  </div>
+</div>
+<!-- Study Material / Library Modal -->
+<div class="modal fade" id="smLibraryModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">
+          <i class="fa fa-book me-2"></i>
+          Choose from Library
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+
+      <div class="modal-body">
+        {{-- Search bar --}}
+        <div class="mb-3 d-flex" style="gap:8px">
+          <input id="libSearch" type="search" class="form-control" placeholder="Search by title, file name, type...">
+          <button id="btnLibSearch" class="btn btn-outline-primary" type="button">
+            <i class="fa fa-magnifying-glass me-1"></i>Search
+          </button>
+        </div>
+        <div class="tiny mb-2 text-muted">
+          Results are filtered per course / batch if selected.
+        </div>
+
+        {{-- Results grid --}}
+        <div id="libEmpty" class="tiny text-muted mb-2" style="display:none;">No items found.</div>
+        <div id="libLoading" class="tiny mb-2" style="display:none;">
+          <i class="fa fa-spinner fa-spin me-1"></i>Loading library…
+        </div>
+
+        <div id="libGrid" class="row g-3">
+          {{-- Cards inserted via JS --}}
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <span class="tiny me-auto" id="libSelectionInfo"></span>
+        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Close</button>
+        <button type="button" id="btnLibAddSelected" class="btn btn-primary">
+          <i class="fa fa-plus me-1"></i>Add Selected
+        </button>
+      </div>
     </div>
   </div>
 </div>
@@ -470,6 +519,11 @@
   const COURSES_API = '/api/courses';
   const MODULES_API = '/api/course-modules';
   const BATCHES_API  = '/api/batches';
+    // Assignment Library API (you implement this in backend)
+  const LIBRARY_API = API_BASE; 
+  // URLs chosen from library (these will be sent as library_urls[])
+  let libraryUrls = [];
+
 
   if(!TOKEN){
     Swal.fire('Login needed','Your session expired. Please login again.','warning')
@@ -612,11 +666,50 @@
   wireRTE('instructions','btnLinkInst');
 
   /* ===== File handling ===== */
-  const drop = $('dropzone');
+    const drop = $('dropzone');
   const fileInput = $('attachments');
   const fileList = $('fileList');
+  const libraryList = $('libraryList');           // NEW
   const btnClearFiles = $('btnClearFiles');
+  const btnOpenLibrary = $('btnOpenLibrary');     // NEW
   let selectedFiles = [];
+    function renderLibraryList(){
+  // guard if element is missing
+  if (!libraryList) return;
+
+  libraryList.innerHTML = '';
+  if (!libraryUrls || libraryUrls.length === 0) {
+    const empty = document.createElement('div');
+    empty.className = 'tiny text-muted';
+    empty.textContent = 'No files chosen from library.';
+    libraryList.appendChild(empty);
+    return;
+  }
+
+  libraryUrls.forEach((url, idx) => {
+    const item = document.createElement('div');
+    item.className = 'file-item library-item';
+    item.innerHTML = `
+      <div class="file-info">
+        <i class="fa-solid fa-book-open-reader"></i>
+        <span class="file-name" title="${url}">${url}</span>
+        <span class="file-size badge bg-secondary ms-2">Library</span>
+      </div>
+      <span class="file-remove" data-idx="${idx}" title="Remove from library selection">
+        <i class="fa-solid fa-xmark"></i>
+      </span>
+    `;
+    libraryList.appendChild(item);
+  });
+
+  libraryList.querySelectorAll('.file-remove').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const idx = parseInt(btn.dataset.idx);
+      libraryUrls.splice(idx, 1);
+      renderLibraryList();
+    });
+  });
+}
 
   function formatFileSize(bytes){
     if(bytes < 1024) return bytes + ' B';
@@ -674,10 +767,15 @@
     fileInput.value = '';
   });
 
-  btnClearFiles.addEventListener('click', ()=>{
+    btnClearFiles.addEventListener('click', ()=>{
     selectedFiles = [];
     renderFileList();
+
+    // also clear library selection if you want
+    libraryUrls = [];
+    renderLibraryList();
   });
+
 
   /* ===== Late submission toggle ===== */
   const allowLate = $('allow_late_submissions');
@@ -688,6 +786,246 @@
   }
   allowLate.addEventListener('change', syncLatePenalty);
   syncLatePenalty();
+  
+// modal elements (assume they exist in DOM)
+const libModal = document.getElementById('smLibraryModal');
+const libGrid = $('libGrid');           // container where cards go
+const libEmpty = $('libEmpty');         // "no items" element
+const libLoading = $('libLoading');     // loader element
+const libSearch = $('libSearch');       // search input inside modal
+const btnLibSearch = $('btnLibSearch');
+const btnLibAddSelected = $('btnLibAddSelected');
+const libSelectionInfo = $('libSelectionInfo');
+
+let libItems = [];              // raw items fetched from server (assignments)
+let libSelectedUrls = new Set(); // selected attachment URLs (unique keys)
+const libModalInstance = libModal ? new bootstrap.Modal(libModal) : null;
+
+function updateLibSelectionInfo() {
+  const count = libSelectedUrls.size;
+  libSelectionInfo.textContent = count ? `${count} item${count>1?'s':''} selected` : 'No items selected';
+}
+
+function extOf(u){ try { return (u||'').split('?')[0].split('.').pop().toLowerCase(); } catch(e){ return ''; } }
+function isImageExt(e){ return ['png','jpg','jpeg','gif','webp','avif','svg'].includes(e); }
+function escapeHtml(s){ return String(s||'').replace(/[&<>"'`=\/]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;','/':'&#x2F;','`':'&#x60','=':'&#x3D;'}[ch])); }
+
+// Normalize attachment entry to { url, name, mime, size, ext }
+function normalizeAttach(a){
+  if(!a) return null;
+  if(typeof a === 'string') {
+    const url = a;
+    const name = url.split('/').pop() || url;
+    const ext = extOf(url);
+    return { url, name, mime:'', size:0, ext };
+  }
+  // object-ish
+  const url = a.signed_url || a.url || a.path || a.file_url || a.storage_url || a.path_with_namespace || null;
+  if(!url) return null;
+  const name = a.name || a.label || a.original_name || (url.split('/').pop()) || 'file';
+  const mime = a.mime || a.content_type || a.contentType || '';
+  const size = a.size || a.filesize || 0;
+  const ext = (a.ext || a.extension || extOf(url)).toLowerCase();
+  return { url, name, mime, size, ext, raw: a };
+}
+
+// Render the grid of cards in the modal
+function renderLibGrid() {
+  if(!libGrid) return;
+  libGrid.innerHTML = '';
+  libEmpty.style.display = libItems.length ? 'none' : 'block';
+
+  if(!libItems.length) { updateLibSelectionInfo(); return; }
+
+  // create a doc map already (but we keep libItems as array of doc entries)
+  const rowFrag = document.createDocumentFragment();
+  libItems.forEach((doc, idx) => {
+    // doc: { url, name, refs: [...assignment titles], ext, isImage, size }
+    const idKey = doc.key; // normalized key (url w/o query)
+    const cardCol = document.createElement('div');
+    cardCol.className = 'col-md-4 mb-3';
+
+    const card = document.createElement('div');
+    card.className = 'card h-100 lib-card';
+
+    const thumbHtml = doc.isImage && doc.url
+      ? `<img src="${escapeHtml(doc.url)}" alt="${escapeHtml(doc.name)}" class="img-fluid rounded" style="max-height:140px;object-fit:cover;">`
+      : `<div class="lib-icon"><i class="fa fa-file fa-2x"></i></div>`;
+
+    card.innerHTML = `
+      <div class="card-img-top lib-thumb text-center p-3">${thumbHtml}</div>
+      <div class="card-body d-flex flex-column">
+        <h6 class="card-title text-truncate" title="${escapeHtml(doc.name)}">${escapeHtml(doc.name)}</h6>
+        <p class="card-text tiny text-muted mb-1">${escapeHtml(doc.mime || ('File .' + (doc.ext || '')))}</p>
+        <p class="card-text tiny text-muted mb-2">${doc.size ? (formatFileSize(doc.size)) : ''}</p>
+        <div class="mt-auto d-flex justify-content-between align-items-center">
+          <div class="form-check form-check-sm">
+            <input class="form-check-input lib-select" type="checkbox" data-url="${escapeHtml(doc.url)}" id="lib-${idx}">
+            <label class="form-check-label tiny" for="lib-${idx}">Select</label>
+          </div>
+          ${doc.url ? `<a href="${escapeHtml(doc.url)}" target="_blank" class="tiny text-decoration-none"><i class="fa fa-arrow-up-right-from-square me-1"></i>Preview</a>` : ''}
+        </div>
+      </div>
+    `;
+
+    // when created, if url is already selected mark checkbox
+    const checkbox = card.querySelector('.lib-select');
+    if(libSelectedUrls.has(idKey) || libSelectedUrls.has(doc.url)) checkbox.checked = true;
+
+    checkbox.addEventListener('change', (e) => {
+      const theUrl = doc.url;
+      const key = doc.key;
+      if(e.target.checked) {
+        libSelectedUrls.add(key);
+        libSelectedUrls.add(theUrl);
+      } else {
+        libSelectedUrls.delete(key);
+        libSelectedUrls.delete(theUrl);
+      }
+      updateLibSelectionInfo();
+    });
+
+    // clicking card (outside preview/button) toggles checkbox
+    card.addEventListener('click', (ev) => {
+      if(ev.target.closest('.lib-select') || ev.target.closest('a')) return;
+      checkbox.checked = !checkbox.checked;
+      checkbox.dispatchEvent(new Event('change'));
+    });
+
+    cardCol.appendChild(card);
+    rowFrag.appendChild(cardCol);
+  });
+
+  libGrid.appendChild(rowFrag);
+  updateLibSelectionInfo();
+}
+
+// Fetch library items from assignments index and normalize into deduped docs
+async function fetchLibraryItems(query = '') {
+  if(!LIBRARY_API) return;
+  libLoading.style.display = 'block';
+  libEmpty.style.display = 'none';
+  libGrid.innerHTML = '';
+  libItems = [];
+  libSelectedUrls = new Set();
+  updateLibSelectionInfo();
+
+  try {
+    const params = new URLSearchParams();
+    params.append('per_page','200');
+    const cid = courseSel.value;
+    const bid = batchSel.value;
+    if(cid) params.append('course_id', cid);
+    if(bid) params.append('batch_id', bid);
+    if(query) params.append('q', query);
+
+    const url = LIBRARY_API + (params.toString() ? ('?' + params.toString()) : '');
+    console.log('[LIBRARY] Fetching assignments for library:', url);
+
+    const res = await fetch(url, { headers: { 'Authorization': 'Bearer ' + TOKEN, 'Accept': 'application/json' }});
+    const text = await res.text();
+    let json = null;
+    try { json = text ? JSON.parse(text) : null; } catch(e) { console.warn('[LIBRARY] non-json response', e); }
+
+    if(!res.ok) {
+      const msg = (json && (json.message || json.error)) || ('HTTP ' + res.status);
+      err('Library error: ' + msg);
+      libItems = [];
+      renderLibGrid();
+      return;
+    }
+
+    // normalize list shape
+    let rows = [];
+    if (Array.isArray(json)) rows = json;
+    else if (json && Array.isArray(json.data)) rows = json.data;
+    else if (json && json.data && Array.isArray(json.data.data)) rows = json.data.data;
+    else if (json && Array.isArray(json.items)) rows = json.items;
+    else if (json && Array.isArray(json.rows)) rows = json.rows;
+    else rows = [];
+
+    // build docMap deduped by url (strip query)
+    const docMap = new Map();
+    rows.forEach(row => {
+      // determine attachments in row: try multiple fields
+      const rawAtts = row.attachments || row.attachment || row.files || row.resources || [];
+      const atts = Array.isArray(rawAtts) ? rawAtts : (rawAtts ? [rawAtts] : []);
+
+      atts.forEach(a => {
+        const n = normalizeAttach(a);
+        if(!n || !n.url) return;
+        const key = n.url.split('?')[0];
+        if(!key) return;
+        const assignmentTitle = row.title || row.name || row.quiz_name || ('Assignment ' + (row.id || ''));
+        if(!docMap.has(key)) {
+          docMap.set(key, {
+            key,
+            url: n.url,
+            name: n.name || (n.url.split('/').pop() || 'file'),
+            mime: n.mime || '',
+            size: n.size || 0,
+            ext: n.ext || extOf(n.url),
+            isImage: isImageExt(n.ext || extOf(n.url)),
+            refs: [assignmentTitle],
+            searchText: ((assignmentTitle||'') + ' ' + (n.name||'') + ' ' + (n.url||'')).toLowerCase()
+          });
+        } else {
+          const entry = docMap.get(key);
+          if(!entry.refs.includes(assignmentTitle)) {
+            entry.refs.push(assignmentTitle);
+            entry.searchText += ' ' + assignmentTitle;
+          }
+        }
+      });
+    });
+
+    libItems = Array.from(docMap.values());
+    renderLibGrid();
+  } catch (e) {
+    console.error('Library fetch failed', e);
+    libItems = [];
+    renderLibGrid();
+  } finally {
+    libLoading.style.display = 'none';
+  }
+}
+
+// Open library modal handler (wires initial state)
+if(btnOpenLibrary){
+  btnOpenLibrary.addEventListener('click', () => {
+    if(!libModalInstance) return;
+    // preselect urls already in libraryUrls
+    libSelectedUrls.clear();
+    (libraryUrls || []).forEach(u => {
+      if(u) libSelectedUrls.add( (String(u)).split('?')[0] );
+      libSelectedUrls.add(String(u));
+    });
+    libSearch.value = '';
+    updateLibSelectionInfo();
+    libModalInstance.show();
+    fetchLibraryItems('');
+  });
+}
+
+// Search wiring
+if(btnLibSearch) btnLibSearch.addEventListener('click', ()=> fetchLibraryItems((libSearch.value||'').trim()));
+if(libSearch) libSearch.addEventListener('keypress', (e)=> { if(e.key==='Enter'){ e.preventDefault(); fetchLibraryItems((libSearch.value||'').trim()); } });
+
+// Confirm selected → add selected URLs to libraryUrls
+if(btnLibAddSelected){
+  btnLibAddSelected.addEventListener('click', () => {
+    const chosen = [];
+    libItems.forEach(item => {
+      const key = item.key;
+      if(libSelectedUrls.has(key) || libSelectedUrls.has(item.url)) chosen.push(item.url);
+    });
+    // merge & dedupe
+    const merged = new Set([...(libraryUrls || []), ...chosen]);
+    libraryUrls = Array.from(merged);
+    renderLibraryList();
+    if(libModalInstance) libModalInstance.hide();
+  });
+}
 
   /* ===== Auto-slug generation ===== */
   const titleInput = $('title');
@@ -900,7 +1238,7 @@
 
   // init UI
   renderSelectedChips();
-
+  renderLibraryList();
   /* ===== payload builder ===== */
   function buildPayload(){
     return {
@@ -919,7 +1257,8 @@
       due_at: $('due_at').value || null,
       end_at: $('end_at').value || null,
       allow_late_submissions: allowLate.checked ? 1 : 0,
-      late_penalty: allowLate.checked ? (Number($('late_penalty').value||0) || null) : null
+      late_penalty: allowLate.checked ? (Number($('late_penalty').value||0) || null) : null,
+       library_urls: libraryUrls   
     };
   }
 

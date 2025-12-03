@@ -521,138 +521,197 @@
    * ============================ */
 
   const btnChooseLib = $('btnChooseImageFromLibrary');
-  let libModalEl = null;
+let libModalEl = null;
 
-  function ensureImageLibraryModal(){
-    if (libModalEl) return libModalEl;
-    const m = document.createElement('div');
-    m.className = 'modal fade';
-    m.id = 'quizImageLibraryModal';
-    m.tabIndex = -1;
-    m.innerHTML = `
-      <div class="modal-dialog modal-xl modal-dialog-scrollable">
-        <div class="modal-content">
-          <div class="modal-header">
-            <h5 class="modal-title"><i class="fa fa-book me-2"></i>Choose Image from Quiz Library</h5>
-            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+function ensureImageLibraryModal(){
+  if (libModalEl) return libModalEl;
+  const m = document.createElement('div');
+  m.className = 'modal fade';
+  m.id = 'quizImageLibraryModal';
+  m.tabIndex = -1;
+  m.innerHTML = `
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title"><i class="fa fa-book me-2"></i>Choose Image from Quiz Library</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body" style="min-height:180px;">
+          <div id="qzLibLoader" style="display:none; text-align:center; padding:20px;">
+            <div class="spin mb-2"></div>
+            <div class="text-muted small">Loading quiz image library…</div>
           </div>
-          <div class="modal-body" style="min-height:180px;">
-            <div id="qzLibLoader" style="display:none; text-align:center; padding:20px;">
-              <div class="spin mb-2"></div>
-              <div class="text-muted small">Loading quiz image library…</div>
+          <div id="qzLibEmpty" class="text-muted small p-3" style="display:none;">No quiz images found yet.</div>
+          
+          <!-- Search Bar -->
+          <div id="qzLibSearchContainer" class="mb-3" style="display:none;">
+            <div class="input-group input-group-sm">
+              <span class="input-group-text" id="search-addon">
+                <i class="fa fa-search"></i>
+              </span>
+              <input 
+                type="text" 
+                id="qzLibSearch" 
+                class="form-control" 
+                placeholder="Search images by name or quiz title..." 
+                aria-label="Search"
+                aria-describedby="search-addon"
+              />
+              <button id="qzLibClearSearch" class="btn btn-outline-secondary" type="button" style="display:none;">
+                <i class="fa fa-times"></i>
+              </button>
             </div>
-            <div id="qzLibEmpty" class="text-muted small p-3" style="display:none;">No quiz images found yet.</div>
-            <div id="qzLibList" style="display:none;"></div>
+            <div id="qzLibSearchResults" class="small text-muted mt-2" style="display:none;"></div>
           </div>
-          <div class="modal-footer">
-            <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
-            <button id="qzLibConfirm" type="button" class="btn btn-primary" disabled>Add image</button>
-          </div>
+          
+          <div id="qzLibList" style="display:none;"></div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+          <button id="qzLibConfirm" type="button" class="btn btn-primary" disabled>Add image</button>
         </div>
       </div>
+    </div>
+  `;
+  document.body.appendChild(m);
+
+  // inject card styles once
+  if (!document.getElementById('qz-lib-card-styles')) {
+    const style = document.createElement('style');
+    style.id = 'qz-lib-card-styles';
+    style.textContent = `
+      #qzLibList .sm-lib-grid { display:grid; gap:12px; grid-template-columns:repeat(3, 1fr); }
+      @media (max-width:1024px){ #qzLibList .sm-lib-grid { grid-template-columns:repeat(2, 1fr); } }
+      @media (max-width:640px){ #qzLibList .sm-lib-grid { grid-template-columns:repeat(1, 1fr); } }
+
+      .sm-lib-card { display:flex; flex-direction:column; gap:8px; padding:10px; border-radius:10px; border:1px solid rgba(0,0,0,0.06); background:#fff; min-height:160px; position:relative; overflow:hidden; }
+      .sm-lib-thumb { height:120px; width:100%; object-fit:cover; border-radius:8px; background:#f5f5f5; box-shadow: inset 0 0 0 1px rgba(0,0,0,0.02); }
+      .sm-lib-card .overlay-checkbox { position:absolute; top:10px; left:10px; z-index:5; background:rgba(255,255,255,0.95); padding:6px; border-radius:6px; box-shadow:0 1px 3px rgba(0,0,0,0.06); }
+      .sm-lib-card .card-name { margin-top:6px; font-weight:600; font-size:13px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+      .sm-lib-card .card-refs { font-size:12px; color:var(--muted-color); margin-top:4px; max-height:3.6em; overflow:hidden; }
+      .sm-lib-card .card-actions { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-top:auto; }
+      .sm-lib-placeholder-icon { width:100%; height:120px; display:flex; align-items:center; justify-content:center; font-size:36px; color:rgba(0,0,0,0.35); border-radius:8px; background: linear-gradient(180deg,#fafafa,#fff); }
+      
+      /* Search highlighting */
+      .highlight { background-color: rgba(255, 255, 0, 0.3); padding: 0 1px; border-radius: 2px; }
     `;
-    document.body.appendChild(m);
-
-    // inject card styles once
-    if (!document.getElementById('qz-lib-card-styles')) {
-      const style = document.createElement('style');
-      style.id = 'qz-lib-card-styles';
-      style.textContent = `
-        #qzLibList .sm-lib-grid { display:grid; gap:12px; grid-template-columns:repeat(3, 1fr); }
-        @media (max-width:1024px){ #qzLibList .sm-lib-grid { grid-template-columns:repeat(2, 1fr); } }
-        @media (max-width:640px){ #qzLibList .sm-lib-grid { grid-template-columns:repeat(1, 1fr); } }
-
-        .sm-lib-card { display:flex; flex-direction:column; gap:8px; padding:10px; border-radius:10px; border:1px solid rgba(0,0,0,0.06); background:#fff; min-height:160px; position:relative; overflow:hidden; }
-        .sm-lib-thumb { height:120px; width:100%; object-fit:cover; border-radius:8px; background:#f5f5f5; box-shadow: inset 0 0 0 1px rgba(0,0,0,0.02); }
-        .sm-lib-card .overlay-checkbox { position:absolute; top:10px; left:10px; z-index:5; background:rgba(255,255,255,0.95); padding:6px; border-radius:6px; box-shadow:0 1px 3px rgba(0,0,0,0.06); }
-        .sm-lib-card .card-name { margin-top:6px; font-weight:600; font-size:13px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-        .sm-lib-card .card-refs { font-size:12px; color:var(--muted-color); margin-top:4px; max-height:3.6em; overflow:hidden; }
-        .sm-lib-card .card-actions { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-top:auto; }
-        .sm-lib-placeholder-icon { width:100%; height:120px; display:flex; align-items:center; justify-content:center; font-size:36px; color:rgba(0,0,0,0.35); border-radius:8px; background: linear-gradient(180deg,#fafafa,#fff); }
-      `;
-      document.head.appendChild(style);
-    }
-
-    libModalEl = m;
-    return libModalEl;
+    document.head.appendChild(style);
   }
 
-  async function openImageLibraryPicker(){
-    const modalEl = ensureImageLibraryModal();
-    const libList   = modalEl.querySelector('#qzLibList');
-    const libLoader = modalEl.querySelector('#qzLibLoader');
-    const libEmpty  = modalEl.querySelector('#qzLibEmpty');
-    const libConfirm= modalEl.querySelector('#qzLibConfirm');
+  libModalEl = m;
+  return libModalEl;
+}
 
-    libList.innerHTML = '';
-    libLoader.style.display = '';
-    libList.style.display   = 'none';
-    libEmpty.style.display  = 'none';
-    libConfirm.disabled     = true;
+async function openImageLibraryPicker(){
+  const modalEl = ensureImageLibraryModal();
+  const libList   = modalEl.querySelector('#qzLibList');
+  const libLoader = modalEl.querySelector('#qzLibLoader');
+  const libEmpty  = modalEl.querySelector('#qzLibEmpty');
+  const libConfirm= modalEl.querySelector('#qzLibConfirm');
+  const searchContainer = modalEl.querySelector('#qzLibSearchContainer');
+  const searchInput = modalEl.querySelector('#qzLibSearch');
+  const clearSearchBtn = modalEl.querySelector('#qzLibClearSearch');
+  const searchResults = modalEl.querySelector('#qzLibSearchResults');
 
-    // show modal
-    if (window.bootstrap && typeof window.bootstrap.Modal === 'function') {
-      bootstrap.Modal.getOrCreateInstance(modalEl).show();
-    } else {
-      modalEl.style.display = 'block';
-      modalEl.classList.add('show');
-      document.body.classList.add('modal-open');
+  libList.innerHTML = '';
+  libLoader.style.display = '';
+  libList.style.display   = 'none';
+  libEmpty.style.display  = 'none';
+  searchContainer.style.display = 'none';
+  searchInput.value = '';
+  clearSearchBtn.style.display = 'none';
+  searchResults.style.display = 'none';
+  libConfirm.disabled     = true;
+
+  // show modal
+  if (window.bootstrap && typeof window.bootstrap.Modal === 'function') {
+    bootstrap.Modal.getOrCreateInstance(modalEl).show();
+  } else {
+    modalEl.style.display = 'block';
+    modalEl.classList.add('show');
+    document.body.classList.add('modal-open');
+  }
+
+  try{
+    // Fetch all quizzes and build a unique image library from quiz_img
+    const url = API_BASE; // e.g. /api/quizz → should return list with quiz_img
+    const res = await fetch(url, {
+      headers: { 'Authorization':'Bearer '+TOKEN, 'Accept':'application/json' }
+    });
+    const json = await res.json().catch(()=>null);
+    if (!res.ok || !json) {
+      throw new Error(json?.message || ('HTTP '+res.status));
     }
 
-    try{
-      // Fetch all quizzes and build a unique image library from quiz_img
-      const url = API_BASE; // e.g. /api/quizz → should return list with quiz_img
-      const res = await fetch(url, {
-        headers: { 'Authorization':'Bearer '+TOKEN, 'Accept':'application/json' }
-      });
-      const json = await res.json().catch(()=>null);
-      if (!res.ok || !json) {
-        throw new Error(json?.message || ('HTTP '+res.status));
-      }
+    const rows = Array.isArray(json.data) ? json.data
+               : (Array.isArray(json.items) ? json.items
+               : (Array.isArray(json) ? json : []));
+    
+    // dedupe by url (strip query), only keep valid image URLs
+    // dedupe by url (strip query), only keep valid image URLs
+const docMap = new Map();
+(rows || []).forEach(q => {
+  // Prefer the public URL if backend sends it
+  const rawImg = q.quiz_img_url || q.quiz_img || '';
+  if (!rawImg) return;
 
-      const rows = Array.isArray(json.data) ? json.data
-                 : (Array.isArray(json.items) ? json.items
-                 : (Array.isArray(json) ? json : []));
+  const urlCandidate = String(rawImg);
+  const ext = extOf(urlCandidate);
+  if (!isImageExt(ext)) return;
+
+  const key = urlCandidate.split('?')[0];
+  const quizName = q.quiz_name || 'Untitled Quiz';
+  const fileName = (urlCandidate.split('/').pop() || quizName || 'image');
+
+  if (!docMap.has(key)) {
+    docMap.set(key, {
+      url: urlCandidate,          // this is what <img src="..."> uses
+      name: fileName,
+      refs: [quizName],
+      searchText: (quizName || '') + ' ' + fileName
+    });
+  } else {
+    const entry = docMap.get(key);
+    if (!entry.refs.includes(quizName)) {
+      entry.refs.push(quizName);
+      entry.searchText += ' ' + quizName;
+    }
+  }
+});
+    libLoader.style.display = 'none';
+    const items = Array.from(docMap.values());
+    if (!items.length) {
+      libEmpty.style.display = '';
+      libEmpty.textContent = 'No quiz images found yet.';
+      return;
+    }
+
+    // Show search container since we have items
+    searchContainer.style.display = '';
+
+    // Function to highlight search terms in text
+    function highlightText(text, searchTerm) {
+      if (!searchTerm || !text) return escapeHtml(text);
       
-      // dedupe by url (strip query), only keep valid image URLs
-      const docMap = new Map();
-      (rows || []).forEach(q => {
-        const img = q.quiz_img || '';
-        if (!img) return;
-        const urlCandidate = String(img);
-        const ext = extOf(urlCandidate);
-        if (!isImageExt(ext)) return;
+      const escapedText = escapeHtml(text);
+      const regex = new RegExp(`(${searchTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+      return escapedText.replace(regex, '<span class="highlight">$1</span>');
+    }
 
-        const key = urlCandidate.split('?')[0];
-        const quizName = q.quiz_name || 'Untitled Quiz';
-
-        if (!docMap.has(key)) {
-          docMap.set(key, {
-            url: urlCandidate,
-            name: (urlCandidate.split('/').pop() || quizName || 'image'),
-            refs: [quizName],
-          });
-        } else {
-          const entry = docMap.get(key);
-          if (!entry.refs.includes(quizName)) entry.refs.push(quizName);
-        }
-      });
-
-      libLoader.style.display = 'none';
-      const items = Array.from(docMap.values());
-      if (!items.length) {
-        libEmpty.style.display = '';
-        libEmpty.textContent = 'No quiz images found yet.';
-        return;
-      }
-
-      const cardsHtml = items.map((it, idx) => {
+    // Function to render library items with optional filtering
+    function renderLibraryItems(filteredItems = items, searchTerm = '') {
+      const cardsHtml = filteredItems.map((it, idx) => {
         const url = it.url || '';
         const name = it.name || (url||'').split('/').pop() || `image-${idx+1}`;
         const refs = it.refs || [];
         const short = refs.slice(0,3).join(', ');
         const more  = Math.max(0, refs.length - 3);
         const refsDisplay = short + (more ? `, +${more} more` : '');
+
+        // Highlight name and refs if searching
+        const highlightedName = searchTerm ? highlightText(name, searchTerm) : escapeHtml(name);
+        const highlightedRefs = searchTerm ? highlightText(refsDisplay, searchTerm) : escapeHtml(refsDisplay);
+
         return `
           <div class="sm-lib-card" data-url="${escapeHtml(url)}">
             <div class="overlay-checkbox">
@@ -661,9 +720,9 @@
             <div class="thumb-wrap">
               <img loading="lazy" class="sm-lib-thumb" src="${escapeHtml(url)}" alt="${escapeHtml(name)}">
             </div>
-            <div class="card-name" title="${escapeHtml(name)}">${escapeHtml(name)}</div>
+            <div class="card-name" title="${escapeHtml(name)}">${highlightedName}</div>
             <div class="card-refs" title="${escapeHtml(refs.join(' • '))}">
-              ${escapeHtml(refsDisplay || 'Used in quiz')}
+              ${highlightedRefs || 'Used in quiz'}
             </div>
             <div class="card-actions">
               <button type="button" class="sm-lib-preview-row btn btn-sm btn-outline-primary" data-url="${escapeHtml(url)}">
@@ -679,6 +738,20 @@
       libList.style.display = '';
       libEmpty.style.display = 'none';
 
+      // Update search results counter
+      if (searchTerm) {
+        searchResults.style.display = '';
+        searchResults.textContent = `Found ${filteredItems.length} of ${items.length} images`;
+      } else {
+        searchResults.style.display = 'none';
+      }
+
+      // Wire up card interactions
+      wireCardInteractions();
+    }
+
+    // Function to wire up card interactions
+    function wireCardInteractions() {
       const grid = libList.querySelector('.sm-lib-grid') || libList;
 
       // Single-select: when one checkbox checked, uncheck others
@@ -728,49 +801,120 @@
           });
         });
       });
-
-      // Confirm → pick selected image & apply as quiz_img_url
-      libConfirm.onclick = () => {
-        const checked = Array.from(grid.querySelectorAll('.sm-lib-checkbox')).find(n => n.checked);
-        if (!checked) return;
-        const imgUrl = checked.dataset.url;
-        if (!imgUrl) return;
-
-        // Set URL tab + value + preview
-        urlInput.value = imgUrl;
-        urlPrev.style.backgroundImage = `url('${imgUrl}')`;
-        clearFile(); // clear file input so API uses URL
-
-        try{
-          const urlTab = document.getElementById('url-tab');
-          if (urlTab && window.bootstrap && bootstrap.Tab) {
-            bootstrap.Tab.getOrCreateInstance(urlTab).show();
-          }
-        }catch(e){}
-
-        // close modal
-        try {
-          if (window.bootstrap && typeof window.bootstrap.Modal === 'function') {
-            bootstrap.Modal.getInstance(modalEl)?.hide();
-          } else {
-            modalEl.classList.remove('show'); modalEl.style.display = 'none'; document.body.classList.remove('modal-open');
-          }
-        } catch(e){}
-      };
-
-    }catch(e){
-      console.error('Quiz image library error', e);
-      libLoader.style.display = 'none';
-      libList.style.display = 'none';
-      libEmpty.textContent = 'Unable to load quiz image library.';
-      libEmpty.style.display = '';
     }
-  }
 
-  if (btnChooseLib) {
-    btnChooseLib.addEventListener('click', openImageLibraryPicker);
-  }
+    // Function to update confirm button state
+    function updateConfirmButtonState() {
+      const grid = libList.querySelector('.sm-lib-grid');
+      if (!grid) {
+        libConfirm.disabled = true;
+        return;
+      }
+      const any = Array.from(grid.querySelectorAll('.sm-lib-checkbox')).some(n => n.checked);
+      libConfirm.disabled = !any;
+    }
 
+    // Initial render
+    renderLibraryItems(items);
+
+    // Search functionality
+    let searchTimeout;
+    searchInput.addEventListener('input', function(e) {
+      clearTimeout(searchTimeout);
+      
+      const searchTerm = e.target.value.trim().toLowerCase();
+      
+      // Show/hide clear button
+      if (searchTerm) {
+        clearSearchBtn.style.display = 'block';
+      } else {
+        clearSearchBtn.style.display = 'none';
+        searchResults.style.display = 'none';
+        renderLibraryItems(items, '');
+        return;
+      }
+
+      // Debounce search
+      searchTimeout = setTimeout(() => {
+        const filtered = items.filter(item => {
+          // Search in image name and quiz references
+          return item.searchText.toLowerCase().includes(searchTerm);
+        });
+
+        renderLibraryItems(filtered, searchTerm);
+      }, 300);
+    });
+
+    // Clear search button
+    clearSearchBtn.addEventListener('click', function() {
+      searchInput.value = '';
+      clearSearchBtn.style.display = 'none';
+      searchResults.style.display = 'none';
+      renderLibraryItems(items, '');
+      searchInput.focus();
+    });
+
+    // Keyboard shortcuts for search
+    searchInput.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape') {
+        if (this.value) {
+          this.value = '';
+          clearSearchBtn.style.display = 'none';
+          searchResults.style.display = 'none';
+          renderLibraryItems(items, '');
+        } else {
+          // Close modal on second escape if search is empty
+          try {
+            if (window.bootstrap && typeof window.bootstrap.Modal === 'function') {
+              bootstrap.Modal.getInstance(modalEl)?.hide();
+            }
+          } catch(e) {}
+        }
+      }
+    });
+
+    // Confirm → pick selected image & apply as quiz_img_url
+    libConfirm.onclick = () => {
+      const checked = Array.from(libList.querySelectorAll('.sm-lib-checkbox')).find(n => n.checked);
+      if (!checked) return;
+      const imgUrl = checked.dataset.url;
+      if (!imgUrl) return;
+
+      // Set URL tab + value + preview
+      urlInput.value = imgUrl;
+      urlPrev.style.backgroundImage = `url('${imgUrl}')`;
+      clearFile(); // clear file input so API uses URL
+
+      try{
+        const urlTab = document.getElementById('url-tab');
+        if (urlTab && window.bootstrap && bootstrap.Tab) {
+          bootstrap.Tab.getOrCreateInstance(urlTab).show();
+        }
+      }catch(e){}
+
+      // close modal
+      try {
+        if (window.bootstrap && typeof window.bootstrap.Modal === 'function') {
+          bootstrap.Modal.getInstance(modalEl)?.hide();
+        } else {
+          modalEl.classList.remove('show'); modalEl.style.display = 'none'; document.body.classList.remove('modal-open');
+        }
+      } catch(e){}
+    };
+
+  }catch(e){
+    console.error('Quiz image library error', e);
+    libLoader.style.display = 'none';
+    libList.style.display = 'none';
+    libEmpty.textContent = 'Unable to load quiz image library.';
+    libEmpty.style.display = '';
+    searchContainer.style.display = 'none';
+  }
+}
+
+if (btnChooseLib) {
+  btnChooseLib.addEventListener('click', openImageLibraryPicker);
+}
   /* ===== submit ===== */
   $('btnSave').addEventListener('click', async ()=>{
     clrErr();

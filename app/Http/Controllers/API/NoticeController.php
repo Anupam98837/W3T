@@ -98,6 +98,155 @@ class NoticeController extends Controller
         ], $context));
     }
 
+    /**
+     * Append uploaded files AND library_urls[] (remote URL attachments) to existing stored attachments.
+     *
+     * @param Request $r
+     * @param string $storageFolder Folder name for uploaded files
+     * @param array $existing Existing decoded attachments array
+     * @return array Merged stored attachments array
+     */
+    protected function appendFilesAndLibraryUrls(Request $r, string $storageFolder, array $existing = []): array
+    {
+        // Normalize existing attachments to array
+        $stored = $existing ?: [];
+        if (!is_array($stored)) $stored = [];
+
+        // Build dedupe keys set (by url or sha256)
+        $seenUrl = [];
+        $seenSha = [];
+
+        foreach ($stored as $att) {
+            if (!empty($att['url'])) $seenUrl[(string)$att['url']] = true;
+            if (!empty($att['sha256'])) $seenSha[(string)$att['sha256']] = true;
+        }
+
+        // 1) Handle uploaded files (attachments[] / attachments)
+        $files = [];
+        if ($r->hasFile('attachments')) {
+            $files = is_array($r->file('attachments')) ? $r->file('attachments') : [$r->file('attachments')];
+        }
+
+        if (!empty($files)) {
+            // Store under public/assets/media/notices/{storageFolder}
+            $destBase = $this->mediaBasePublicPath() . DIRECTORY_SEPARATOR . self::MEDIA_SUBDIR . DIRECTORY_SEPARATOR . $storageFolder;
+            $this->ensureDir($destBase);
+
+            foreach ($files as $file) {
+                if (!$file || !$file->isValid()) continue;
+
+                // Move & compute metadata
+                $ext  = strtolower($file->getClientOriginalExtension() ?: 'bin');
+                $fid  = Str::lower(Str::random(10));
+                $name = $fid.'.'.$ext;
+
+                try {
+                    $file->move($destBase, $name);
+                } catch (\Throwable $e) {
+                    Log::error('Failed to move uploaded notice file (append helper): '.$e->getMessage(), ['dest'=>$destBase,'file'=>$name]);
+                    continue;
+                }
+
+                $absPath = $destBase . DIRECTORY_SEPARATOR . $name;
+                $relPath = self::MEDIA_SUBDIR . '/' . $storageFolder . '/' . $name;
+                $mime = $file->getClientMimeType() ?: (is_file($absPath) ? mime_content_type($absPath) : 'application/octet-stream');
+                $size = @filesize($absPath) ?: 0;
+                $sha  = is_file($absPath) ? hash_file('sha256', $absPath) : null;
+                $url  = $this->toPublicUrl($relPath);
+
+                // Dedupe by sha if present
+                if ($sha && isset($seenSha[$sha])) {
+                    // Already present, skip
+                    continue;
+                }
+                if ($url && isset($seenUrl[$url])) {
+                    // Exact same URL already present, skip
+                    continue;
+                }
+
+                // Register seen keys
+                if ($sha) $seenSha[$sha] = true;
+                if ($url) $seenUrl[$url] = true;
+
+                $stored[] = [
+                    'id'          => $fid,
+                    'disk'        => 'public',
+                    'path'        => $relPath,
+                    'url'         => $url,
+                    'mime'        => $mime,
+                    'ext'         => $ext,
+                    'size'        => $size,
+                    'sha256'      => $sha,
+                    'uploaded_at' => Carbon::now()->toIso8601String(),
+                ];
+            }
+        }
+
+        // 2) Handle library_urls[] (URL-based attachments)
+        $libUrls = $r->input('library_urls', []);
+        if ($libUrls && !is_array($libUrls)) $libUrls = [$libUrls];
+
+        foreach ($libUrls as $u) {
+            if (!$u || !is_string($u)) continue;
+            $u = trim($u);
+            if ($u === '') continue;
+
+            // Normalize URL (avoid duplicates by exact URL)
+            if (isset($seenUrl[$u])) continue;
+
+            // Create id from hash of URL so it's stable and unique-ish
+            $id = 'lib-' . substr(hash('sha256', $u), 0, 12);
+
+            // Attempt to detect extension/mime (best-effort)
+            $ext = pathinfo(parse_url($u, PHP_URL_PATH) ?: '', PATHINFO_EXTENSION);
+            $ext = strtolower((string)$ext);
+            $mime = '';
+            if ($ext) {
+                // Best-effort mime map for common types (optional)
+                $map = [
+                    'pdf'=>'application/pdf',
+                    'png'=>'image/png',
+                    'jpg'=>'image/jpeg','jpeg'=>'image/jpeg',
+                    'mp4'=>'video/mp4','webm'=>'video/webm',
+                    'gif'=>'image/gif'
+                ];
+                if (isset($map[$ext])) $mime = $map[$ext];
+            }
+
+            $stored[] = [
+                'id'          => $id,
+                'disk'        => 'external',
+                'path'        => $u,
+                'url'         => $u,
+                'mime'        => $mime,
+                'ext'         => $ext,
+                'size'        => null,
+                'sha256'      => null,
+                'uploaded_at' => Carbon::now()->toIso8601String(),
+            ];
+
+            // Mark seen
+            $seenUrl[$u] = true;
+        }
+
+        // Final: ensure uniqueness in $stored by url then by sha (stable)
+        $uniq = [];
+        $out = [];
+        foreach ($stored as $att) {
+            $key = '';
+            if (!empty($att['url'])) $key = 'u:'.(string)$att['url'];
+            elseif (!empty($att['sha256'])) $key = 's:'.(string)$att['sha256'];
+            elseif (!empty($att['path'])) $key = 'p:'.(string)$att['path'];
+            else $key = 'i:'.(string)($att['id'] ?? Str::random(6));
+
+            if (isset($uniq[$key])) continue;
+            $uniq[$key] = true;
+            $out[] = $att;
+        }
+
+        return $out;
+    }
+
     /* =========================================================
      |  Index (list) — filters for dropdown-driven page
      * ========================================================= */
@@ -154,6 +303,7 @@ class NoticeController extends Controller
             'priority'          => 'nullable|in:low,normal,high',
             'status'            => 'nullable|in:draft,published,archived',
             'attachments.*'     => 'nullable|file|max:51200',
+            'library_urls.*'    => 'nullable|url', // NEW: Library URLs support
             'created_at_ip'     => 'nullable|ip',
         ], [
             'attachments.*.max' => 'Each attachment must be <= 50 MB.'
@@ -169,59 +319,14 @@ class NoticeController extends Controller
         // Default visibility changed to 'course' to allow course-only notices
         $visibility = $r->input('visibility_scope', 'course');
 
-        // Collect files (if any)
-        $files = [];
-        if ($r->hasFile('attachments')) {
-            $files = is_array($r->file('attachments')) ? $r->file('attachments') : [$r->file('attachments')];
-        }
-
-        // compute batch id (nullable) — avoid casting empty -> 0
+        // Compute batch id (nullable) — avoid casting empty -> 0
         $batchId = $r->filled('batch_id') ? (int) $r->input('batch_id') : null;
 
-        // storage folder: use batch id when present, otherwise a course-scoped folder
+        // Storage folder: use batch id when present, otherwise a course-scoped folder
         $storageFolder = $batchId !== null ? (string)$batchId : 'course_' . (int)$r->input('course_id');
 
-        $stored = [];
-        if (!empty($files)) {
-            // store under public/assets/media/notices/{storageFolder}
-            $destBase = $this->mediaBasePublicPath() . DIRECTORY_SEPARATOR . self::MEDIA_SUBDIR . DIRECTORY_SEPARATOR . $storageFolder;
-            $this->ensureDir($destBase);
-
-            foreach ($files as $file) {
-                if (!$file || !$file->isValid()) continue;
-
-                $ext  = strtolower($file->getClientOriginalExtension() ?: 'bin');
-                $fid  = Str::lower(Str::random(10));
-                $name = $fid.'.'.$ext;
-
-                try {
-                    $file->move($destBase, $name);
-                } catch (\Throwable $e) {
-                    Log::error('Failed to move uploaded notice file: '.$e->getMessage(), ['dest'=>$destBase,'file'=>$name]);
-                    continue;
-                }
-
-                $absPath = $destBase . DIRECTORY_SEPARATOR . $name;
-                $relPath = self::MEDIA_SUBDIR . '/' . $storageFolder . '/' . $name; // relative to public/
-                $mime = $file->getClientMimeType() ?: (is_file($absPath) ? mime_content_type($absPath) : 'application/octet-stream');
-                $size = @filesize($absPath) ?: 0;
-                $sha  = is_file($absPath) ? hash_file('sha256', $absPath) : null;
-
-                $url  = $this->toPublicUrl($relPath);
-
-                $stored[] = [
-                    'id'          => $fid,
-                    'disk'        => 'public',
-                    'path'        => $relPath,
-                    'url'         => $url,
-                    'mime'        => $mime,
-                    'ext'         => $ext,
-                    'size'        => $size,
-                    'sha256'      => $sha,
-                    'uploaded_at' => Carbon::now()->toIso8601String(),
-                ];
-            }
-        }
+        // Build attachments using helper (handles uploaded files + library_urls)
+        $stored = $this->appendFilesAndLibraryUrls($r, $storageFolder, []);
 
         $now = Carbon::now();
         $id = DB::table('notices')->insertGetId([
@@ -268,6 +373,7 @@ class NoticeController extends Controller
             'priority'             => 'nullable|in:low,normal,high',
             'status'               => 'nullable|in:draft,published,archived',
             'attachments.*'        => 'nullable|file|max:51200',
+            'library_urls.*'       => 'nullable|url', // NEW: Library URLs support
             'remove_attachments'   => 'sometimes|array',
             'remove_attachments.*' => 'string',
             'regenerate_slug'      => 'sometimes|boolean',
@@ -302,21 +408,19 @@ class NoticeController extends Controller
             foreach ($stored as $att) {
                 $attId = isset($att['id']) ? (string)$att['id'] : (string)($att['path'] ?? ($att['url'] ?? ''));
                 if ($attId !== '' && isset($remSet[$attId])) {
-                    // attempt to remove file (best-effort)
+                    // Attempt to remove file (best-effort) - only for locally stored files
                     try {
-                        if (!empty($att['path'])) {
-                            // if path is public assets relative path: remove from public
+                        if (!empty($att['path']) && $att['disk'] === 'public') {
+                            // If path is public assets relative path: remove from public
                             $p = $att['path'];
                             if (strpos($p, self::MEDIA_SUBDIR) === 0 || strpos($p, 'notices/') === 0) {
                                 $candidate = $this->mediaBasePublicPath() . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, ltrim($p, '/'));
-                            } else {
-                                // fallback to storage/app/
-                                $candidate = storage_path('app/' . ltrim($p, '/'));
-                            }
-                            if (File::exists($candidate) && is_file($candidate)) {
-                                File::delete($candidate);
+                                if (File::exists($candidate) && is_file($candidate)) {
+                                    File::delete($candidate);
+                                }
                             }
                         }
+                        // Don't delete external URLs (disk = 'external')
                     } catch (\Throwable $ex) {
                         Log::warning('Failed to delete notice attachment during update', ['path' => $att['path'] ?? null, 'error' => $ex->getMessage()]);
                     }
@@ -327,50 +431,11 @@ class NoticeController extends Controller
             $stored = $kept;
         }
 
-        // Append new attachments
-        if ($r->hasFile('attachments')) {
-            $files = is_array($r->file('attachments')) ? $r->file('attachments') : [$r->file('attachments')];
+        // Append new attachments using helper (handles uploaded files + library_urls)
+        $storageFolder = $row->batch_id ? (string) $row->batch_id : 'course_' . (int) ($row->course_id ?? 0);
+        $stored = $this->appendFilesAndLibraryUrls($r, $storageFolder, $stored);
 
-            $rootFolder = $row->batch_id ? (string) $row->batch_id : 'course_' . (int) ($row->course_id ?? 0);
-            $destBase = $this->mediaBasePublicPath() . DIRECTORY_SEPARATOR . self::MEDIA_SUBDIR . DIRECTORY_SEPARATOR . $rootFolder;
-            $this->ensureDir($destBase);
-
-            foreach ($files as $file) {
-                if (!$file || !$file->isValid()) continue;
-
-                $ext  = strtolower($file->getClientOriginalExtension() ?: 'bin');
-                $fid  = Str::lower(Str::random(10));
-                $name = $fid . '.' . $ext;
-
-                try {
-                    $file->move($destBase, $name);
-                } catch (\Throwable $e) {
-                    Log::error('Failed to move uploaded notice file (update): '.$e->getMessage(), ['dest'=>$destBase,'file'=>$name]);
-                    continue;
-                }
-
-                $absPath = $destBase . DIRECTORY_SEPARATOR . $name;
-                $relPath = self::MEDIA_SUBDIR . '/' . $rootFolder . '/' . $name;
-
-                $mime = $file->getClientMimeType() ?: (is_file($absPath) ? mime_content_type($absPath) : 'application/octet-stream');
-                $size = @filesize($absPath) ?: 0;
-                $sha  = is_file($absPath) ? hash_file('sha256', $absPath) : null;
-                $url  = $this->toPublicUrl($relPath);
-
-                $stored[] = [
-                    'id'          => $fid,
-                    'disk'        => 'public',
-                    'path'        => $relPath,
-                    'url'         => $url,
-                    'mime'        => $mime,
-                    'ext'         => $ext,
-                    'size'        => $size,
-                    'sha256'      => $sha,
-                    'uploaded_at' => Carbon::now()->toIso8601String(),
-                ];
-            }
-        }
-
+        // Persist updated attachments
         $update['attachments'] = $stored ? json_encode($stored) : null;
         $update['updated_at'] = Carbon::now();
 
@@ -410,12 +475,13 @@ class NoticeController extends Controller
         $row = DB::table('notices')->where('id', (int)$id)->first();
         if (!$row) return response()->json(['error'=>'Not found'], 404);
 
-        // delete attached files (best-effort)
+        // Delete attached files (best-effort) - only local files
         $attachments = $this->jsonDecode($row->attachments);
         foreach ($attachments as $a) {
             try {
-                $p = $a['path'] ?? null;
-                if ($p) {
+                // Only delete locally stored files, not external URLs
+                if (($a['disk'] ?? '') === 'public' && !empty($a['path'])) {
+                    $p = $a['path'];
                     if (strpos($p, self::MEDIA_SUBDIR) === 0 || strpos($p, 'notices/') === 0) {
                         $absPath = $this->mediaBasePublicPath() . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, ltrim($p, '/'));
                     } else {
@@ -508,11 +574,24 @@ class NoticeController extends Controller
         $attachments = $this->jsonDecode($row->attachments);
         $file = null;
         foreach ($attachments as $a) {
-            if (($a['id'] ?? null) === $fileId) { $file = $a; break; }
+            if (($a['id'] ?? null) === $fileId) { 
+                $file = $a; 
+                break; 
+            }
         }
+        
         if (!$file) return response()->json(['error' => 'File not found'], 404);
+        
+        // For external URLs (library files), redirect to the URL instead of streaming
+        if (($file['disk'] ?? '') === 'external' && !empty($file['url'])) {
+            return response()->json([
+                'message' => 'External file URL',
+                'url' => $file['url'],
+                'redirect' => true
+            ]);
+        }
 
-        // Resolve absolute path (prefer public media path, fallback to storage/app)
+        // Resolve absolute path for local files
         $absPath = null;
         if (!empty($file['path'])) {
             $p = $file['path'];
@@ -627,7 +706,7 @@ class NoticeController extends Controller
         // load notices for this batch
         $nQ = DB::table('notices as n')
             ->leftJoin('course_modules as cm', 'cm.id', '=', 'n.course_module_id')
-            ->leftJoin('users as creator', 'creator.id', '=', 'n.created_by') // Join with users table
+            ->leftJoin('users as creator', 'creator.id', '=', 'n.created_by')
             ->where('n.batch_id', $batch->id)
             ->whereNull('n.deleted_at')
             ->whereNull('cm.deleted_at')
@@ -642,12 +721,12 @@ class NoticeController extends Controller
                 'n.priority',
                 'n.status',
                 'n.course_module_id',
-                'n.created_by', // Include created_by field
+                'n.created_by',
                 'cm.title as module_title',
                 'cm.uuid as module_uuid',
                 'n.created_at',
                 'n.updated_at',
-                'creator.name as created_by_name' // Get creator's name
+                'creator.name as created_by_name'
             )
             ->orderBy('cm.order_no')
             ->orderBy('n.created_at', 'desc');
@@ -685,13 +764,14 @@ class NoticeController extends Controller
                 'status' => $notice->status,
                 'attachments' => $attachments,
                 'created_by' => $notice->created_by ? (int)$notice->created_by : null,
-                'created_by_name' => $notice->created_by_name, // Add creator's name
+                'created_by_name' => $notice->created_by_name,
                 'created_at' => $notice->created_at,
                 'updated_at' => $notice->updated_at,
             ];
 
+            // Add stream URLs for local files, keep external URLs as-is
             foreach ($nData['attachments'] as &$attachment) {
-                if (isset($attachment['id'])) {
+                if (isset($attachment['id']) && ($attachment['disk'] ?? '') !== 'external') {
                     $attachment['stream_url'] = $this->appUrl() . "/api/notices/stream/{$notice->uuid}/{$attachment['id']}";
                 }
             }
@@ -825,12 +905,12 @@ class NoticeController extends Controller
             'priority'         => 'nullable|in:low,normal,high',
             'status'           => 'nullable|in:draft,published,archived',
             'attachments.*'    => 'nullable|file|max:51200',
+            'library_urls.*'   => 'nullable|url', // NEW: Library URLs support
         ], [
             'attachments.*.max' => 'Each attachment must be <= 50 MB.'
         ]);
         if ($v->fails()) return response()->json(['errors' => $v->errors()], 422);
 
-        // resolve module similar to study-material logic
         $moduleId = null;
         if ($r->filled('course_module_id')) {
             $module = DB::table('course_modules')->where('id', (int)$r->course_module_id)->whereNull('deleted_at')->first();
@@ -872,51 +952,8 @@ class NoticeController extends Controller
         $slug = $this->uniqueSlug($r->title);
         $visibility = $r->input('visibility_scope', 'batch');
 
-        $files = [];
-        if ($r->hasFile('attachments')) {
-            $files = is_array($r->file('attachments')) ? $r->file('attachments') : [$r->file('attachments')];
-        }
-
-        $stored = [];
-        if (!empty($files)) {
-            $destBase = $this->mediaBasePublicPath() . DIRECTORY_SEPARATOR . self::MEDIA_SUBDIR . DIRECTORY_SEPARATOR . (int)$batch->id;
-            $this->ensureDir($destBase);
-            foreach ($files as $file) {
-                if (!$file || !$file->isValid()) continue;
-
-                $ext  = strtolower($file->getClientOriginalExtension() ?: 'bin');
-                $fid  = Str::lower(Str::random(10));
-                $name = $fid.'.'.$ext;
-
-                try {
-                    $file->move($destBase, $name);
-                } catch (\Throwable $e) {
-                    Log::error('Failed to move uploaded notice file (storeByBatch): '.$e->getMessage(), ['dest'=>$destBase,'file'=>$name]);
-                    continue;
-                }
-
-                $absPath = $destBase.DIRECTORY_SEPARATOR.$name;
-                $relPath = self::MEDIA_SUBDIR . '/' . (int)$batch->id . '/' . $name;
-
-                $mime = $file->getClientMimeType() ?: (is_file($absPath) ? mime_content_type($absPath) : 'application/octet-stream');
-                $size = @filesize($absPath) ?: 0;
-                $sha  = is_file($absPath) ? hash_file('sha256', $absPath) : null;
-
-                $url  = $this->toPublicUrl($relPath);
-
-                $stored[] = [
-                    'id'          => $fid,
-                    'disk'        => 'public',
-                    'path'        => $relPath,
-                    'url'         => $url,
-                    'mime'        => $mime,
-                    'ext'         => $ext,
-                    'size'        => $size,
-                    'sha256'      => $sha,
-                    'uploaded_at' => Carbon::now()->toIso8601String(),
-                ];
-            }
-        }
+        // Build attachments using helper (handles uploaded files + library_urls)
+        $stored = $this->appendFilesAndLibraryUrls($r, (string)$batch->id, []);
 
         $now = Carbon::now();
         $id = DB::table('notices')->insertGetId([

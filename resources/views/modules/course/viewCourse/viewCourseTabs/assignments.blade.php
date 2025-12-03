@@ -421,6 +421,9 @@ body.role-privileged #submitAssignSend {
                 <div class="drop-actions mt-2">
                   <label class="btn btn-outline-primary mb-0" for="assign_attachments">Choose Files</label>
                   <input id="assign_attachments" name="attachments[]" type="file" multiple hidden>
+                  <button type="button" class="btn btn-outline-secondary" id="chooseFromLibraryBtn" data-bs-toggle="modal" data-bs-target="#libraryModal">
+<i class="fa fa-folder-open me-1" aria-hidden="true"></i> Choose from library
+</button>
                   <button type="button" id="assign_btnClearFiles" class="btn btn-light">Clear</button>
                 </div>
               </div>
@@ -482,6 +485,58 @@ body.role-privileged #submitAssignSend {
     </div>
   </div>
 </div>
+<!-- Assignment Library Modal -->
+<div class="modal fade" id="assignLibraryModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">
+          <i class="fa fa-book me-2"></i> Choose from Library
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+
+      <div class="modal-body">
+        <div class="d-flex mb-3">
+          <input id="assignLib_search"
+                 class="form-control"
+                 placeholder="Search files by name or type"
+                 aria-label="Search library">
+          <button type="button"
+                  id="assignLib_refresh"
+                  class="btn btn-outline-secondary ms-2"
+                  title="Refresh">
+            <i class="fa fa-rotate-right"></i>
+          </button>
+        </div>
+
+        <div id="assignLib_grid" class="row g-3">
+          <!-- cards injected via JS -->
+        </div>
+
+        <div id="assignLib_empty"
+             class="text-center text-muted mt-4"
+             style="display:none;">
+          No files found.
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button type="button"
+                class="btn btn-light"
+                data-bs-dismiss="modal">
+          Close
+        </button>
+        <button type="button"
+                id="assignLib_use"
+                class="btn btn-primary">
+          <i class="fa fa-check me-1"></i> Use selected
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- Submit Assignment Modal -->
 <div class="modal fade" id="submitAssignmentModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
@@ -641,6 +696,205 @@ body.role-privileged #submitAssignSend {
   const lateCheckbox = document.getElementById('assign_allow_late');
 const latePenalty = document.getElementById('assign_late_penalty');
 if (isPrivileged) document.body.classList.add('role-privileged');
+const LIB_API = '/api/assignments'; 
+
+const assignLibModal = document.getElementById('assignLibraryModal');
+const gridEl        = document.getElementById('assignLib_grid');
+const emptyEl       = document.getElementById('assignLib_empty');
+const searchEl      = document.getElementById('assignLib_search');
+const refreshBtn    = document.getElementById('assignLib_refresh');
+const useBtn        = document.getElementById('assignLib_use');
+const libraryListEl = document.getElementById('assign_libraryList');
+
+if (!assignLibModal) return;  // safety
+
+let filesCache = [];
+const selectedIds = new Set();
+
+function csrf() {
+  const m = document.querySelector('meta[name="csrf-token"]');
+  return m ? m.getAttribute('content') : '';
+}
+
+function debounce(fn, wait){
+  let t;
+  return function(...args){
+    clearTimeout(t);
+    t = setTimeout(() => fn.apply(this, args), wait);
+  };
+}
+
+async function fetchFiles(search = '') {
+  gridEl.innerHTML = '<div class="col-12 text-center py-4">Loading…</div>';
+  emptyEl.style.display = 'none';
+  try {
+    const url = LIB_API + (search ? ('?search=' + encodeURIComponent(search)) : '');
+    const resp = await fetch(url, {
+      method: 'GET',
+      credentials: 'same-origin',
+      headers: {
+        'X-CSRF-TOKEN': csrf()
+      }
+    });
+    if (!resp.ok) throw new Error('Failed to fetch library files');
+    const data = await resp.json();
+    filesCache = Array.isArray(data) ? data : [];
+    renderCards(filesCache);
+  } catch (err) {
+    console.error(err);
+    gridEl.innerHTML = '<div class="col-12 text-danger py-4">Could not load library files.</div>';
+  }
+}
+
+function renderCards(list) {
+  gridEl.innerHTML = '';
+  selectedIds.clear();
+
+  if (!list.length) {
+    emptyEl.style.display = 'block';
+    return;
+  }
+  emptyEl.style.display = 'none';
+
+  list.forEach(file => {
+    const col = document.createElement('div');
+    col.className = 'col-6 col-md-3 col-lg-2';
+
+    const card = document.createElement('div');
+    card.className = 'card h-100 assign-lib-card';
+    card.style.cursor = 'pointer';
+    card.dataset.id   = file.id;
+
+    const body = document.createElement('div');
+    body.className = 'card-body d-flex flex-column align-items-center text-center p-2';
+
+    const thumbWrap = document.createElement('div');
+    thumbWrap.className = 'd-flex justify-content-center align-items-center mb-2';
+    thumbWrap.style.minHeight = '70px';
+    thumbWrap.style.width = '100%';
+
+    if (file.thumbnail_url) {
+      const img = document.createElement('img');
+      img.src = file.thumbnail_url;
+      img.alt = file.name || '';
+      img.className = 'img-fluid rounded';
+      img.style.maxHeight = '70px';
+      thumbWrap.appendChild(img);
+    } else {
+      thumbWrap.innerHTML = '<i class="fa fa-file fa-2x" aria-hidden="true"></i>';
+    }
+
+    const nameEl = document.createElement('div');
+    nameEl.className = 'small text-truncate w-100';
+    nameEl.title = file.name || '';
+    nameEl.textContent = file.name || '(unnamed file)';
+
+    body.appendChild(thumbWrap);
+    body.appendChild(nameEl);
+    card.appendChild(body);
+    col.appendChild(card);
+    gridEl.appendChild(col);
+
+    // toggle selection
+    card.addEventListener('click', () => {
+      const id = String(file.id);
+      if (selectedIds.has(id)) {
+        selectedIds.delete(id);
+        card.classList.remove('selected');
+      } else {
+        selectedIds.add(id);
+        card.classList.add('selected');
+      }
+    });
+
+    // double click = quick use
+    card.addEventListener('dblclick', () => {
+      selectedIds.clear();
+      selectedIds.add(String(file.id));
+      applySelection();
+      const bsModal = bootstrap.Modal.getInstance(assignLibModal);
+      if (bsModal) bsModal.hide();
+    });
+  });
+}
+
+function applySelection() {
+  // Avoid duplicates in libraryList
+  const existingIds = new Set(
+    Array.from(libraryListEl.querySelectorAll('[data-lib-id]'))
+         .map(el => el.getAttribute('data-lib-id'))
+  );
+
+  selectedIds.forEach(id => {
+    if (existingIds.has(id)) return;
+    const file = filesCache.find(f => String(f.id) === String(id));
+    if (!file) return;
+
+    const pill = document.createElement('div');
+    pill.className = 'file-pill d-inline-flex align-items-center me-2 mb-2';
+    pill.setAttribute('data-lib-id', id);
+
+    const icon = document.createElement('span');
+    icon.className = 'me-2';
+    icon.innerHTML = '<i class="fa fa-file"></i>';
+
+    const name = document.createElement('span');
+    name.className = 'small text-truncate';
+    name.style.maxWidth = '200px';
+    name.textContent = file.name || '(unnamed file)';
+
+    const removeBtn = document.createElement('button');
+    removeBtn.type = 'button';
+    removeBtn.className = 'btn-close btn-close-sm ms-2';
+    removeBtn.setAttribute('aria-label', 'Remove');
+    removeBtn.addEventListener('click', () => {
+      pill.remove();
+    });
+
+    // hidden input for backend
+    const hidden = document.createElement('input');
+    hidden.type  = 'hidden';
+    hidden.name  = 'library_files[]';
+    hidden.value = file.id;
+
+    pill.appendChild(icon);
+    pill.appendChild(name);
+    pill.appendChild(removeBtn);
+    pill.appendChild(hidden);
+    libraryListEl.appendChild(pill);
+  });
+}
+
+const debouncedSearch = debounce(function(){
+  fetchFiles(searchEl.value.trim());
+}, 350);
+
+searchEl.addEventListener('input', debouncedSearch);
+searchEl.addEventListener('keyup', function(e){
+  if (e.key === 'Enter') {
+    fetchFiles(searchEl.value.trim());
+  }
+});
+
+refreshBtn.addEventListener('click', function(){
+  searchEl.value = '';
+  fetchFiles('');
+});
+
+useBtn.addEventListener('click', function(){
+  if (!selectedIds.size) {
+    alert('Please select at least one file from the library.');
+    return;
+  }
+  applySelection();
+  const bsModal = bootstrap.Modal.getInstance(assignLibModal);
+  if (bsModal) bsModal.hide();
+});
+
+// Initial load whenever modal opens
+assignLibModal.addEventListener('show.bs.modal', function(){
+  fetchFiles(searchEl.value.trim());
+});
 
 function syncLate() {
   if (lateCheckbox.checked) {
@@ -2769,6 +3023,7 @@ const createdTd=document.createElement('td');createdTd.textContent=it.created_at
     function restorePreviousList(){if($items){if(_prevContent!==null){$items.innerHTML=_prevContent;_prevContent=null;}else{if(typeof loadAssignments==='function')loadAssignments();}}}
     $btnBin.addEventListener('click',ev=>{ev.preventDefault();openBin();});
   })();
+  
 
   loadAssignments();
 })();

@@ -200,6 +200,39 @@ class StudyMaterialController extends Controller
             'attachments' => $stored,
         ], 201);
     }
+    /* =========================================================
+     |  List (filters for dropdown-driven page)
+     * ========================================================= */
+    public function index(Request $r)
+    {
+        if ($res = $this->requireRole($r, ['admin','superadmin'])) return $res;
+
+        $q  = DB::table('study_materials')->whereNull('deleted_at');
+
+        if ($r->filled('course_id'))        $q->where('course_id', (int)$r->course_id);
+        if ($r->filled('course_module_id')) $q->where('course_module_id', (int)$r->course_module_id);
+        if ($r->filled('batch_id'))         $q->where('batch_id', (int)$r->batch_id);
+        if ($r->filled('search')) {
+            $s = '%'.trim($r->search).'%';
+            $q->where(function($w) use ($s){
+                $w->where('title', 'like', $s)->orWhere('description', 'like', $s);
+            });
+        }
+
+        $per = max(1, min(100, (int)($r->per_page ?? 20)));
+        $page = max(1, (int)($r->page ?? 1));
+
+        $total = (clone $q)->count();
+        $rows = $q->orderByDesc('created_at')
+                  ->offset(($page-1)*$per)
+                  ->limit($per)
+                  ->get();
+
+        return response()->json([
+            'data' => $rows,
+            'meta' => ['page'=>$page,'per_page'=>$per,'total'=>$total]
+        ]);
+    }
 
     /* =========================================================
      |  View assignments for a batch (RBAC aware) — unchanged

@@ -263,7 +263,7 @@ html.theme-dark .w3-sidebar-scroll::-webkit-scrollbar-thumb {
     </nav>
  
     <!-- Schedule -->
-    <div class="w3-nav-section">
+    <!-- <div class="w3-nav-section">
       <div class="w3-section-title"><i class="fa-solid fa-calendar-days"></i> SCHEDULE</div>
       <div class="w3-section-rule"></div>
     </div>
@@ -271,7 +271,7 @@ html.theme-dark .w3-sidebar-scroll::-webkit-scrollbar-thumb {
       <a href="/student/timetable" class="w3-link"><i class="fa-solid fa-calendar"></i><span>Timetable</span></a>
       <a href="/student/exams" class="w3-link"><i class="fa-solid fa-clipboard-list"></i><span>Exams</span></a>
     </nav>
- 
+  -->
     <!-- Account (visible only on small screens) -->
     <div class="w3-nav-section d-lg-none">
       <div class="w3-section-title"><i class="fa-solid fa-user"></i> ACCOUNT</div>

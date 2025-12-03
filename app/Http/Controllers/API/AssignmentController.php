@@ -4,6 +4,7 @@ namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
@@ -252,347 +253,256 @@ class AssignmentController extends Controller
     return response()->json(['data' => $row]);
 }
     /* STORE */
-    public function store(Request $request, $course = null)
-    {
-        if ($resp = $this->requireRole($request, ['admin','super_admin','instructor'])) return $resp;
-        $this->logWithActor('[Assignment Store] begin', $request);
+    public function store(Request $r, $course = null)
+{
+    if ($res = $this->requireRole($r, ['admin','super_admin','instructor'])) return $res;
+    $actor = $this->actor($r);
 
-        $rules = [
-            'course_id'         => ['sometimes','required','numeric'],
-            'course_module_id'  => ['required','numeric'],
-            'batch_id'          => ['required','numeric'],
-            'title'             => ['required','string','max:255'],
-            'slug'              => ['nullable','string','max:140','unique:assignments,slug'],
-            'instruction'       => ['nullable','string'],
-            'status'            => ['nullable', Rule::in(['draft','published','closed'])],
-            'submission_type'   => ['nullable', Rule::in(['file','link','text','code','mixed'])],
-            'allowed_submission_types' => ['nullable','array'],
-            'allowed_submission_types.*' => ['string'],
-            'attempts_allowed'  => ['nullable','integer','min:0'],
-            'total_marks'       => ['nullable','numeric','min:0'],
-            'pass_marks'        => ['nullable','numeric','min:0'],
-            'release_at'        => ['nullable','date'],
-            'due_at'            => ['nullable','date','after_or_equal:release_at'],
-            'end_at'            => ['nullable','date','after_or_equal:due_at'],
-            'allow_late'        => ['nullable','boolean'],
-            'late_penalty_percent' => ['nullable','numeric','min:0','max:100'],
-            'attachments_json'  => ['nullable','array'],
-            'attachments_json.*'=> ['array'],
-            'metadata'          => ['nullable','array'],
-        ];
-
-        if ($course !== null) {
-            $request->merge(['course_id' => (int)$course]);
-        }
-
-        $data = $request->validate($rules);
-
-        $submissionType = $data['submission_type'] ?? 'file';
-        $allowedTypes   = $data['allowed_submission_types'] ?? null;
-
-        $a = $this->actor($request);
-        $now = now();
-        $uuid = (string) Str::uuid();
-
-        $insert = [
-            'uuid'                  => $uuid,
-            'course_id'             => (int)($data['course_id'] ?? 0),
-            'course_module_id'      => (int)$data['course_module_id'],
-            'batch_id'              => (int)$data['batch_id'],
-            'title'                 => $data['title'],
-            'slug'                  => $data['slug'] ?? Str::slug($data['title'] ?? 'assignment'),
-            'instruction'           => $data['instruction'] ?? null,
-            'status'                => $data['status'] ?? 'draft',
-            'submission_type'       => $submissionType,
-            'allowed_submission_types' => isset($data['allowed_submission_types'])
-                                            ? json_encode(array_values($data['allowed_submission_types']), JSON_UNESCAPED_UNICODE)
-                                            : null,
-            'attempts_allowed'      => (int)($data['attempts_allowed'] ?? 1),
-            'total_marks'           => isset($data['total_marks']) ? (float)$data['total_marks'] : 100.00,
-            'pass_marks'            => isset($data['pass_marks']) ? (float)$data['pass_marks'] : null,
-            'release_at'            => $data['release_at'] ?? null,
-            'due_at'                => $data['due_at'] ?? null,
-            'end_at'                => $data['end_at'] ?? null,
-            'allow_late'            => !empty($data['allow_late']) ? 1 : 0,
-            'late_penalty_percent'  => isset($data['late_penalty_percent']) ? (float)$data['late_penalty_percent'] : null,
-            'attachments_json'      => json_encode([], JSON_UNESCAPED_UNICODE),
-            'created_by'            => $a['id'] ?: null,
-            'created_at'            => $now,
-            'created_at_ip'         => $request->ip(),
-            'updated_at'            => $now,
-            'deleted_at'            => null,
-            'metadata'              => isset($data['metadata']) ? json_encode($data['metadata'], JSON_UNESCAPED_UNICODE) : json_encode(new \stdClass()),
-        ];
-
-        $insertedAttachments = [];
-        DB::beginTransaction();
-        try {
-            $id = DB::table('assignments')->insertGetId($insert);
-
-            // Normalize files: allow 'attachments' or 'attachments[]'
-            $files = $request->file('attachments') ?: $request->file('attachments[]') ?: [];
-            if (!is_array($files) && $files !== null) $files = [$files];
-            if (!empty($files)) {
-                $destBase = $this->mediaBasePublicPath() . DIRECTORY_SEPARATOR . self::MEDIA_SUBDIR;
-                File::ensureDirectoryExists($destBase, 0755, true);
-
-                // start order from existing count + 1
-                $orderNo = $this->nextAttachmentOrderNo($id);
-
-                foreach ($files as $file) {
-                    if (!$file || !$file->isValid()) continue;
-
-                    // capture metadata BEFORE moving file to avoid stat errors
-                    $originalName = $file->getClientOriginalName();
-                    $origSize = $file->getSize();
-                    $mime = $file->getClientMimeType() ?: $file->getMimeType();
-                    $ext  = strtolower($file->getClientOriginalExtension() ?: '');
-
-                    $fname = 'assignment-' . $uuid . '-' . (string) Str::uuid() . ($ext ? ('.'.$ext) : '');
-                    // move
-                    $file->move($destBase, $fname);
-
-                    $relative = self::MEDIA_SUBDIR . '/' . $fname;
-                    $url = $this->toPublicUrl($relative);
-
-                    $meta = [
-                        'id'            => (string) Str::uuid(),
-                        'original_name' => $originalName,
-                        'filename'      => $fname,
-                        'url'           => $url,
-                        'size'          => $origSize,
-                        'mime'          => $mime,
-                        'order_no'      => $orderNo++,
-                        'uploaded_by'   => $a['id'] ?: null,
-                        'created_at'    => $now->toDateTimeString(),
-                    ];
-
-                    $insertedAttachments[] = $meta;
-                }
-
-                if (!empty($insertedAttachments)) {
-                    $merged = array_merge([], $insertedAttachments);
-                    DB::table('assignments')->where('id', $id)->update(['attachments_json' => json_encode($merged, JSON_UNESCAPED_UNICODE), 'updated_at' => now()]);
-                }
-            }
-
-            DB::commit();
-        } catch (\Throwable $e) {
-            DB::rollBack();
-            Log::error('[Assignments] create failed: '.$e->getMessage(), ['trace' => $e->getTraceAsString()]);
-            return response()->json(['error' => 'Creation failed'], 500);
-        }
-
-        $fresh = DB::table('assignments')->where('id', $id)->first();
-        $fresh->attachments = [];
-        if (!empty($fresh->attachments_json)) {
-            try { $fresh->attachments = json_decode($fresh->attachments_json, true); } catch (\Throwable $e) { $fresh->attachments = []; }
-        }
-
-        $this->logActivity($request, 'store', 'Created assignment "'.$insert['title'].'"', 'assignments', $id, array_keys($insert), null, $fresh ? (array)$fresh : null);
-
-        $link = rtrim((string)config('app.url'), '/').'/admin/assignments/'.$id;
-        $this->persistNotification([
-            'title'     => 'Assignment created',
-            'message'   => '“'.$insert['title'].'” has been created.',
-            'receivers' => $this->adminReceivers(),
-            'metadata'  => [
-                'action' => 'created',
-                'assignment' => [
-                    'id' => $id,
-                    'uuid' => $uuid,
-                    'title' => $insert['title'],
-                ],
-                'created_by' => $a,
-            ],
-            'type'     => 'assignment',
-            'link_url' => $link,
-            'priority' => 'normal',
-            'status'   => 'active',
-        ]);
-
-        $this->logWithActor('[Assignment Store] success', $request, ['assignment_id' => $id, 'uuid' => $uuid]);
-
-        return response()->json(['status'=>'success','message'=>'Assignment created','data'=>$fresh], 201);
+    // If route passes course in URL, force that
+    if ($course !== null) {
+        $r->merge(['course_id' => (int)$course]);
     }
 
-   /* UPDATE */
-public function update(Request $request, string $assignment)
-{
-    if ($resp = $this->requireRole($request, ['admin','super_admin','instructor'])) return $resp;
+    $v = Validator::make($r->all(), [
+        'course_id'         => 'required|integer|exists:courses,id',
+        'course_module_id'  => 'required|integer|exists:course_modules,id',
+        'batch_id'          => 'required|integer|exists:batches,id',
+        'title'             => 'required|string|max:255',
+        // new: description instead of instruction (we map description -> instruction)
+        'description'       => 'nullable|string',
+        'view_policy'       => 'nullable|in:inline_only,downloadable',
+        // Attachments (file uploads) — optional, multiple
+        'attachments.*'     => 'nullable|file|max:51200', // 50MB each
+        // Optional assignment-specific fields if you send them
+        'status'            => 'nullable|in:draft,published,closed',
+        'submission_type'   => 'nullable|in:file,link,text,code,mixed',
+        'attempts_allowed'  => 'nullable|integer|min:0',
+        'total_marks'       => 'nullable|numeric|min:0',
+        'pass_marks'        => 'nullable|numeric|min:0',
+        'release_at'        => 'nullable|date',
+        'due_at'            => 'nullable|date|after_or_equal:release_at',
+        'end_at'            => 'nullable|date|after_or_equal:due_at',
+        'allow_late'        => 'nullable|boolean',
+        'late_penalty_percent' => 'nullable|numeric|min:0|max:100',
+    ], [
+        'attachments.*.max' => 'Each attachment must be <= 50 MB.',
+    ]);
 
-    $row = $this->findAssignmentOr404($assignment);
-    if (!$row) return response()->json(['error'=>'Assignment not found'], 404);
+    if ($v->fails()) {
+        return response()->json(['errors' => $v->errors()], 422);
+    }
 
-    $id = (int)$row->id;
+    $data   = $v->validated();
+    $uuid   = (string) Str::uuid();
+    $slug   = Str::slug($data['title']) ?: $uuid;
+    $policy = $r->input('view_policy', 'inline_only');
 
-    $rules = [
-        'course_id'         => ['sometimes','numeric'],
-        'course_module_id'  => ['sometimes','numeric'],
-        'batch_id'          => ['sometimes','numeric'],
-        'title'             => ['sometimes','string','max:255'],
-        'slug'              => ['sometimes','nullable','string','max:140','unique:assignments,slug,'.$id],
-        'instruction'       => ['sometimes','nullable','string'],
-        'status'            => ['sometimes', Rule::in(['draft','published','closed'])],
-        'submission_type'   => ['sometimes', Rule::in(['file','link','text','code','mixed'])],
-        'allowed_submission_types' => ['sometimes','nullable','array'],
-        'allowed_submission_types.*' => ['string'],
-        'attempts_allowed'  => ['sometimes','integer','min:0'],
-        'total_marks'       => ['sometimes','numeric','min:0'],
-        'pass_marks'        => ['sometimes','numeric','min:0'],
-        'release_at'        => ['sometimes','nullable','date'],
-        'due_at'            => ['sometimes','nullable','date','after_or_equal:release_at'],
-        'end_at'            => ['sometimes','nullable','date','after_or_equal:due_at'],
-        'allow_late'        => ['sometimes','boolean'],
-        'late_penalty_percent' => ['sometimes','nullable','numeric','min:0','max:100'],
-        'attachments_json'  => ['sometimes','nullable','array'],
-        'metadata'          => ['sometimes','nullable','array'],
+    // Build attachments using helper (handles uploaded files + library_urls, if any)
+    $stored = $this->appendFilesAndLibraryUrls($r, (int)$data['batch_id'], []);
+
+    $now = now();
+
+    $insert = [
+        'uuid'                  => $uuid,
+        'course_id'             => (int)$data['course_id'],
+        'course_module_id'      => (int)$data['course_module_id'],
+        'batch_id'              => (int)$data['batch_id'],
+        'title'                 => $data['title'],
+        'slug'                  => $slug,
+        // description -> instruction
+        'instruction'           => $data['description'] ?? null,
+        'status'                => $data['status'] ?? 'draft',
+        'submission_type'       => $data['submission_type'] ?? 'file',
+        'allowed_submission_types' => null,
+        'attempts_allowed'      => (int)($data['attempts_allowed'] ?? 1),
+        'total_marks'           => isset($data['total_marks']) ? (float)$data['total_marks'] : 100.00,
+        'pass_marks'            => isset($data['pass_marks']) ? (float)$data['pass_marks'] : null,
+        'release_at'            => $data['release_at'] ?? null,
+        'due_at'                => $data['due_at'] ?? null,
+        'end_at'                => $data['end_at'] ?? null,
+        'allow_late'            => !empty($data['allow_late']) ? 1 : 0,
+        'late_penalty_percent'  => isset($data['late_penalty_percent']) ? (float)$data['late_penalty_percent'] : null,
+        'attachments_json'      => $stored ? json_encode($stored, JSON_UNESCAPED_UNICODE) : json_encode([], JSON_UNESCAPED_UNICODE),
+        'created_by'            => $actor['id'] ?: 0,
+        'created_at'            => $now,
+        'created_at_ip'         => $r->ip(),
+        'updated_at'            => $now,
+        'deleted_at'            => null,
+        // store view_policy inside metadata so you don’t need new DB column
+        'metadata'              => json_encode(['view_policy' => $policy], JSON_UNESCAPED_UNICODE),
     ];
 
-    $data = $request->validate($rules);
+    $id = DB::table('assignments')->insertGetId($insert);
 
-    $upd = [];
-    foreach ($data as $k => $v) {
-        if ($k === 'allowed_submission_types') {
-            $upd[$k] = $v !== null ? json_encode(array_values($v), JSON_UNESCAPED_UNICODE) : null;
-        } elseif ($k === 'attachments_json') {
-            $upd[$k] = $v !== null ? json_encode($v, JSON_UNESCAPED_UNICODE) : json_encode([], JSON_UNESCAPED_UNICODE);
-        } elseif ($k === 'metadata') {
-            $upd[$k] = $v !== null ? json_encode($v, JSON_UNESCAPED_UNICODE) : json_encode(new \stdClass());
-        } elseif ($k === 'allow_late') {
-            $upd[$k] = !empty($v) ? 1 : 0;
-        } else {
-            $upd[$k] = $v;
-        }
-    }
-    $upd['updated_at'] = now();
-
-    DB::beginTransaction();
-    try {
-        DB::table('assignments')->where('id', $id)->update($upd);
-
-        $insertedAttachments = [];
-        $files = $request->file('attachments') ?: $request->file('attachments[]') ?: [];
-        if (!is_array($files) && $files !== null) $files = [$files];
-
-        if (!empty($files)) {
-            $destBase = $this->mediaBasePublicPath() . DIRECTORY_SEPARATOR . self::MEDIA_SUBDIR;
-            File::ensureDirectoryExists($destBase, 0755, true);
-
-            $orderNo = $this->nextAttachmentOrderNo($id);
-
-            foreach ($files as $file) {
-                if (!$file || !$file->isValid()) continue;
-
-                $originalName = $file->getClientOriginalName();
-                $origSize = $file->getSize();
-                $mime = $file->getClientMimeType() ?: $file->getMimeType();
-                $ext  = strtolower($file->getClientOriginalExtension() ?: '');
-
-                $fname = 'assignment-' . ($row->uuid ?: (string) Str::uuid()) . '-' . (string) Str::uuid() . ($ext ? ('.'.$ext) : '');
-                $file->move($destBase, $fname);
-
-                $relative = self::MEDIA_SUBDIR . '/' . $fname;
-                $url = $this->toPublicUrl($relative);
-
-                $meta = [
-                    'id' => (string) Str::uuid(),
-                    'original_name' => $originalName,
-                    'filename' => $fname,
-                    'url' => $url,
-                    'size' => $origSize,
-                    'mime' => $mime,
-                    'order_no' => $orderNo++,
-                    'uploaded_by' => $this->actor($request)['id'] ?: null,
-                    'created_at' => now()->toDateTimeString(),
-                ];
-                $insertedAttachments[] = $meta;
-            }
-
-            if (!empty($insertedAttachments)) {
-                $existing = [];
-                if (!empty($row->attachments_json)) {
-                    try { $existing = json_decode($row->attachments_json, true) ?: []; } catch (\Throwable $e) { $existing = []; }
-                }
-                $merged = array_merge($existing, $insertedAttachments);
-                DB::table('assignments')->where('id', $id)->update(['attachments_json' => json_encode($merged, JSON_UNESCAPED_UNICODE), 'updated_at' => now()]);
-            }
-        }
-
-        DB::commit();
-    } catch (\Throwable $e) {
-        DB::rollBack();
-        Log::error('[Assignments] update failed', ['error' => $e->getMessage(), 'trace' => $e->getTraceAsString()]);
-        return response()->json(['error'=>'Update failed'], 500);
-    }
-
-    $fresh = DB::table('assignments')->where('id', $id)->first();
-    if ($fresh) {
-        // Decode attachments
-        $fresh->attachments = [];
-        if (!empty($fresh->attachments_json)) {
-            try { 
-                $fresh->attachments = json_decode($fresh->attachments_json, true); 
-            } catch (\Throwable $e) { 
-                $fresh->attachments = []; 
-            }
-        }
-
-        // FIXED: Properly decode allowed_submission_types - COMPLETE REWRITE
-        $rawAllowedTypes = $fresh->allowed_submission_types;
-        
-        \Log::debug('DEBUG allowed_submission_types:', [
-            'raw_value' => $rawAllowedTypes,
-            'raw_type' => gettype($rawAllowedTypes),
-            'hex' => bin2hex($rawAllowedTypes),
-            'is_null' => is_null($rawAllowedTypes),
-            'is_string' => is_string($rawAllowedTypes),
-            'empty_string' => $rawAllowedTypes === ''
-        ]);
-
-        if ($rawAllowedTypes === null || $rawAllowedTypes === '') {
-            $fresh->allowed_submission_types = [];
-        } elseif (is_string($rawAllowedTypes)) {
-            try {
-                $decoded = json_decode($rawAllowedTypes, true);
-                \Log::debug('JSON decode result:', [
-                    'decoded' => $decoded,
-                    'json_error' => json_last_error(),
-                    'json_error_msg' => json_last_error_msg()
-                ]);
-                
-                if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
-                    $fresh->allowed_submission_types = $decoded;
-                } else {
-                    // If JSON decode failed, try as comma-separated
-                    $fresh->allowed_submission_types = array_filter(array_map('trim', explode(',', $rawAllowedTypes)));
-                }
-            } catch (\Throwable $e) {
-                \Log::error('Error decoding allowed_submission_types:', ['error' => $e->getMessage()]);
-                $fresh->allowed_submission_types = [];
-            }
-        } elseif (is_array($rawAllowedTypes)) {
-            $fresh->allowed_submission_types = $rawAllowedTypes;
-        } else {
-            $fresh->allowed_submission_types = [];
-        }
-
-        \Log::debug('Final allowed_submission_types:', ['result' => $fresh->allowed_submission_types]);
-
-        // Normalize dates for frontend
-        try {
-            if (!empty($fresh->due_at)) $fresh->due_at = \Carbon\Carbon::parse($fresh->due_at)->toIso8601String();
-            if (!empty($fresh->end_at)) $fresh->end_at = \Carbon\Carbon::parse($fresh->end_at)->toIso8601String();
-            if (!empty($fresh->release_at)) $fresh->release_at = \Carbon\Carbon::parse($fresh->release_at)->toIso8601String();
-        } catch (\Throwable $e) {
-            // ignore date parse issues
-        }
-    }
-
-    $this->logActivity($request, 'update', 'Updated assignment "'.($fresh->title ?? $row->title).'"', 'assignments', $id, array_keys($upd), (array)$row, $fresh ? (array)$fresh : null);
-
-    return response()->json(['status'=>'success','message'=>'Assignment updated','data'=>$fresh]);
+    return response()->json([
+        'status'      => 'success',
+        'message'     => 'Assignment created',
+        'data'        => array_merge($insert, [
+            'id'           => $id,
+            'attachments'  => $stored,
+        ]),
+    ], 201);
 }
+
+
+   /* UPDATE */
+/**
+ * Update Assignment basic fields and (optionally) add/remove attachments and library URLs.
+ */
+public function update(Request $r, $id)
+{
+    if ($res = $this->requireRole($r, ['admin','super_admin','instructor'])) return $res;
+
+    $row = DB::table('assignments')
+        ->where('id', (int)$id)
+        ->whereNull('deleted_at')
+        ->first();
+
+    if (!$row) return response()->json(['error' => 'Assignment not found'], 404);
+
+    $v = Validator::make($r->all(), [
+        'title'               => 'sometimes|required|string|max:255',
+        'description'         => 'nullable|string',
+        'view_policy'         => 'nullable|in:inline_only,downloadable',
+        // assignment fields you might update
+        'status'              => 'sometimes|in:draft,published,closed',
+        'submission_type'     => 'sometimes|in:file,link,text,code,mixed',
+        'attempts_allowed'    => 'sometimes|integer|min:0',
+        'total_marks'         => 'sometimes|numeric|min:0',
+        'pass_marks'          => 'sometimes|numeric|min:0',
+        'release_at'          => 'sometimes|nullable|date',
+        'due_at'              => 'sometimes|nullable|date|after_or_equal:release_at',
+        'end_at'              => 'sometimes|nullable|date|after_or_equal:due_at',
+        'allow_late'          => 'sometimes|boolean',
+        'late_penalty_percent'=> 'sometimes|nullable|numeric|min:0|max:100',
+
+        'attachments.*'       => 'nullable|file|max:51200',
+        'library_urls.*'      => 'nullable|url',
+        'remove_attachments'  => 'sometimes|array',
+        'remove_attachments.*'=> 'string',
+    ], [
+        'attachments.*.max' => 'Each attachment must be <= 50 MB.',
+    ]);
+
+    if ($v->fails()) return response()->json(['errors' => $v->errors()], 422);
+
+    $data   = $v->validated();
+    $update = [];
+
+    if (array_key_exists('title', $data)) {
+        $update['title'] = $data['title'];
+        if ($r->boolean('regenerate_slug', false)) {
+            $update['slug'] = Str::slug($data['title']) ?: $row->uuid;
+        }
+    }
+
+    if (array_key_exists('description', $data)) {
+        $update['instruction'] = $data['description'];
+    }
+
+    if (array_key_exists('view_policy', $data)) {
+        // merge/overwrite metadata->view_policy
+        $meta = $this->jsonDecode($row->metadata);
+        if (!is_array($meta)) $meta = [];
+        $meta['view_policy'] = $data['view_policy'];
+        $update['metadata'] = json_encode($meta, JSON_UNESCAPED_UNICODE);
+    }
+
+    // assignment fields
+    foreach ([
+        'status',
+        'submission_type',
+        'attempts_allowed',
+        'total_marks',
+        'pass_marks',
+        'release_at',
+        'due_at',
+        'end_at',
+        'late_penalty_percent',
+    ] as $fld) {
+        if (array_key_exists($fld, $data)) {
+            $update[$fld] = $data[$fld];
+        }
+    }
+
+    if (array_key_exists('allow_late', $data)) {
+        $update['allow_late'] = !empty($data['allow_late']) ? 1 : 0;
+    }
+
+    // decode existing attachments_json
+    $stored = $this->jsonDecode($row->attachments_json);
+    if (!is_array($stored)) $stored = [];
+
+    //
+    // 1) Remove attachments (remove_attachments[])
+    //
+    $toRemove = $r->input('remove_attachments', []);
+    if (!is_array($toRemove)) $toRemove = [$toRemove];
+
+    if (!empty($toRemove)) {
+        $remSet = array_flip(array_map('strval', $toRemove));
+        $kept   = [];
+
+        foreach ($stored as $att) {
+            $attId = '';
+
+            if (isset($att['id']))               $attId = (string)$att['id'];
+            elseif (isset($att['attachment_id']))$attId = (string)$att['attachment_id'];
+            elseif (isset($att['file_id']))      $attId = (string)$att['file_id'];
+            elseif (isset($att['storage_key']))  $attId = (string)$att['storage_key'];
+            elseif (isset($att['key']))          $attId = (string)$att['key'];
+            else                                 $attId = (string)($att['path'] ?? ($att['url'] ?? ''));
+
+            if ($attId !== '' && isset($remSet[$attId])) {
+                // try to delete physical file (best-effort)
+                try {
+                    if (!empty($att['path'])) {
+                        $p = $att['path'];
+
+                        if (strpos($p, 'assets/media') === 0 || strpos($p, 'batchStudyMaterial') === 0) {
+                            $candidate = $this->mediaBasePublicPath()
+                                . DIRECTORY_SEPARATOR
+                                . str_replace('/', DIRECTORY_SEPARATOR, ltrim($p, '/'));
+                        } else {
+                            $candidate = storage_path('app/' . ltrim($p, '/'));
+                        }
+
+                        if (File::exists($candidate) && is_file($candidate)) {
+                            File::delete($candidate);
+                        }
+                    }
+                } catch (\Throwable $ex) {
+                    Log::warning('Failed to delete assignment attachment: ' . $ex->getMessage(), ['att' => $att]);
+                }
+
+                continue; // don't keep
+            }
+
+            $kept[] = $att;
+        }
+
+        $stored = $kept;
+    }
+
+    //
+    // 2) Append new files + library_urls
+    //
+    $batchId = (int)$row->batch_id;
+    $stored  = $this->appendFilesAndLibraryUrls($r, $batchId, $stored);
+
+    $update['attachments_json'] = $stored ? json_encode($stored, JSON_UNESCAPED_UNICODE) : json_encode([], JSON_UNESCAPED_UNICODE);
+    $update['updated_at']       = now();
+
+    DB::table('assignments')->where('id', (int)$id)->update($update);
+
+    return response()->json([
+        'status'      => 'success',
+        'message'     => 'Assignment updated',
+        'id'          => (int)$id,
+        'attachments' => $stored,
+    ]);
+}
+
     /* DESTROY */
     public function destroy(Request $request, string $assignment)
     {
@@ -904,14 +814,14 @@ public function viewAssignmentByBatch(Request $r, string $batchKey)
 }
 /**
  * Create assignment for a batch (resolve batch by id|uuid|slug).
- * This delegates to your existing store() by merging course_id and batch_id into request.
+ * Delegates to store() after injecting course_id, batch_id, course_module_id.
  */
-public function storeByBatch(Request $request, string $batchKey)
+public function storeByBatch(Request $r, string $batchKey)
 {
-    if ($res = $this->requireRole($request, ['admin','super_admin','instructor'])) return $res;
-    $actor = $this->actor($request);
-    $role = $actor['role'];
-    $uid  = $actor['id'];
+    if ($res = $this->requireRole($r, ['admin','super_admin','instructor'])) return $res;
+    $actor = $this->actor($r);
+    $role  = $actor['role'];
+    $uid   = $actor['id'];
 
     // resolve batch (id | uuid | slug)
     $bq = DB::table('batches')->whereNull('deleted_at');
@@ -935,28 +845,41 @@ public function storeByBatch(Request $request, string $batchKey)
         if (!$biUserCol) {
             return response()->json(['error'=>'Schema issue: batch_instructors needs user_id OR instructor_id'], 500);
         }
-        $assigned = DB::table('batch_instructors')->where('batch_id', $batch->id)->whereNull('deleted_at')->where($biUserCol, $uid)->exists();
+        $assigned = DB::table('batch_instructors')
+            ->where('batch_id', $batch->id)
+            ->whereNull('deleted_at')
+            ->where($biUserCol, $uid)
+            ->exists();
         if (!$assigned) return response()->json(['error' => 'Forbidden'], 403);
     }
 
-    // infer course_id from batch (safer for consistency)
+    // infer course_id from batch (safer)
     $courseId = (int) ($batch->course_id ?? 0);
 
-    // If client provided a course_module_id explicitly, honor it.
+    // Resolve course_module_id:
     $moduleId = null;
-    if ($request->filled('course_module_id')) {
-        $module = DB::table('course_modules')->where('id', (int)$request->input('course_module_id'))->whereNull('deleted_at')->first();
+    if ($r->filled('course_module_id')) {
+        $module = DB::table('course_modules')
+            ->where('id', (int)$r->input('course_module_id'))
+            ->whereNull('deleted_at')
+            ->first();
+
         if ($module && (int)$module->course_id === $courseId) {
             $moduleId = (int)$module->id;
         } else {
-            return response()->json(['errors' => ['course_module_id' => ['Course module not found or does not belong to this batch\'s course']]], 422);
+            return response()->json([
+                'errors' => [
+                    'course_module_id' => ['Course module not found or does not belong to this batch\'s course']
+                ]
+            ], 422);
         }
     } else {
         // Try to infer module from the course associated with the batch
         $modsQuery = DB::table('course_modules')
             ->where('course_id', $courseId)
             ->whereNull('deleted_at')
-            ->orderBy('order_no')->orderBy('id');
+            ->orderBy('order_no')
+            ->orderBy('id');
 
         $modules = $modsQuery->get();
 
@@ -973,21 +896,24 @@ public function storeByBatch(Request $request, string $batchKey)
                     $moduleId = (int)$modules->first()->id;
                 } else {
                     // no module to infer — require explicit module from client
-                    return response()->json(['errors' => ['course_module_id' => ['Unable to infer course_module_id from batch — please provide course_module_id']]], 422);
+                    return response()->json([
+                        'errors' => [
+                            'course_module_id' => ['Unable to infer course_module_id from batch — please provide course_module_id']
+                        ]
+                    ], 422);
                 }
             }
         }
     }
 
     // merge batch/course/module into request so existing store() logic works
-    $request->merge([
-        'batch_id' => (int)$batch->id,
-        'course_id' => $courseId,
-        'course_module_id' => $moduleId,
+    $r->merge([
+        'batch_id'        => (int)$batch->id,
+        'course_id'       => $courseId,
+        'course_module_id'=> $moduleId,
     ]);
 
-    // reuse existing store method — it will perform validation and creation
-    return $this->store($request);
+    return $this->store($r, $courseId);
 }
 
 /**
@@ -1046,6 +972,161 @@ public function binByBatch(Request $r, string $batchKey)
         'batch_uuid' => $batch->uuid,
         'data' => $items,
     ], 200);
+}
+/**
+ * Append uploaded files AND library_urls[] (remote URL attachments) to existing stored attachments
+ * for ASSIGNMENTS.
+ *
+ * @param \Illuminate\Http\Request $r
+ * @param int $batchId
+ * @param array $existing
+ * @return array
+ */
+protected function appendFilesAndLibraryUrls(Request $r, int $batchId, array $existing = []): array
+{
+    $stored = $existing ?: [];
+    if (!is_array($stored)) $stored = [];
+
+    // dedupe sets
+    $seenUrl = [];
+    $seenSha = [];
+
+    foreach ($stored as $att) {
+        if (!empty($att['url']))    $seenUrl[(string)$att['url']]   = true;
+        if (!empty($att['sha256'])) $seenSha[(string)$att['sha256']] = true;
+    }
+
+    // 1) Uploaded files: attachments[] / attachments
+    $files = [];
+    if ($r->hasFile('attachments')) {
+        $files = is_array($r->file('attachments')) ? $r->file('attachments') : [$r->file('attachments')];
+    }
+
+    if (!empty($files)) {
+        // store under: public/assets/media/assignments/batchStudyMaterial/{batchId}/...
+        $folder   = "batchStudyMaterial/" . (int)$batchId;
+        $destBase = $this->mediaBasePublicPath()
+            . DIRECTORY_SEPARATOR
+            . self::MEDIA_SUBDIR
+            . DIRECTORY_SEPARATOR
+            . $folder;
+
+        if (!File::exists($destBase)) {
+            File::makeDirectory($destBase, 0755, true, true);
+        }
+
+        foreach ($files as $file) {
+            if (!$file || !$file->isValid()) continue;
+
+            $ext  = strtolower($file->getClientOriginalExtension() ?: 'bin');
+            $fid  = Str::lower(Str::random(10));
+            $name = $fid . '.' . $ext;
+
+            try {
+                $file->move($destBase, $name);
+            } catch (\Throwable $e) {
+                Log::error(
+                    'Failed to move uploaded assignment file (append helper): ' . $e->getMessage(),
+                    ['dest' => $destBase, 'file' => $name]
+                );
+                continue;
+            }
+
+            $absPath = $destBase . DIRECTORY_SEPARATOR . $name;
+            $relPath = self::MEDIA_SUBDIR . '/' . $folder . '/' . $name;
+
+            $mime = $file->getClientMimeType()
+                ?: (function_exists('mime_content_type') ? mime_content_type($absPath) : 'application/octet-stream');
+
+            $size = @filesize($absPath) ?: 0;
+            $sha  = @hash_file('sha256', $absPath) ?: null;
+            $url  = $this->toPublicUrl($relPath);
+
+            if ($sha && isset($seenSha[$sha])) continue;
+            if ($url && isset($seenUrl[$url])) continue;
+
+            if ($sha) $seenSha[$sha] = true;
+            if ($url) $seenUrl[$url] = true;
+
+            $stored[] = [
+                'id'          => $fid,
+                'disk'        => 'public',
+                'path'        => $relPath,
+                'url'         => $url,
+                'mime'        => $mime,
+                'ext'         => $ext,
+                'size'        => $size,
+                'sha256'      => $sha,
+                'uploaded_at' => \Carbon\Carbon::now()->toIso8601String(),
+            ];
+        }
+    }
+
+    // 2) library_urls[]
+    $libUrls = $r->input('library_urls', []);
+    if ($libUrls && !is_array($libUrls)) $libUrls = [$libUrls];
+
+    foreach ($libUrls as $u) {
+        if (!$u || !is_string($u)) continue;
+        $u = trim($u);
+        if ($u === '') continue;
+
+        if (isset($seenUrl[$u])) continue;
+
+        $id  = 'lib-' . substr(hash('sha256', $u), 0, 12);
+        $ext = pathinfo(parse_url($u, PHP_URL_PATH) ?: '', PATHINFO_EXTENSION);
+        $ext = strtolower((string)$ext);
+        $mime = '';
+
+        if ($ext) {
+            $map = [
+                'pdf'  => 'application/pdf',
+                'png'  => 'image/png',
+                'jpg'  => 'image/jpeg',
+                'jpeg' => 'image/jpeg',
+                'mp4'  => 'video/mp4',
+                'webm' => 'video/webm',
+                'gif'  => 'image/gif',
+            ];
+            if (isset($map[$ext])) $mime = $map[$ext];
+        }
+
+        $stored[] = [
+            'id'          => $id,
+            'disk'        => 'external',
+            'path'        => $u,
+            'url'         => $u,
+            'mime'        => $mime,
+            'ext'         => $ext,
+            'size'        => null,
+            'sha256'      => null,
+            'uploaded_at' => \Carbon\Carbon::now()->toIso8601String(),
+        ];
+
+        $seenUrl[$u] = true;
+    }
+
+    // Final dedupe by url/sha/path
+    $uniq = [];
+    $out  = [];
+
+    foreach ($stored as $att) {
+        if (!empty($att['url'])) {
+            $key = 'u:' . (string)$att['url'];
+        } elseif (!empty($att['sha256'])) {
+            $key = 's:' . (string)$att['sha256'];
+        } elseif (!empty($att['path'])) {
+            $key = 'p:' . (string)$att['path'];
+        } else {
+            $key = 'i:' . (string)($att['id'] ?? Str::random(6));
+        }
+
+        if (isset($uniq[$key])) continue;
+        $uniq[$key] = true;
+        $out[]      = $att;
+    }
+
+    return $out;
 }
 
 }

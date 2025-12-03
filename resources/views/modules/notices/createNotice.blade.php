@@ -151,6 +151,10 @@
             <i class="fa fa-file-arrow-up me-1"></i>Choose Files
           </label>
           <input id="attachments" type="file" hidden multiple>
+          <button type="button" id="btnChooseFromLibrary" class="btn btn-outline-secondary ms-2">
+    <i class="fa fa-book me-1"></i>Choose from Library
+    </button>
+
           <button type="button" id="btnClearAll" class="btn btn-light ms-2">Clear All</button>
         </div>
       </div>
@@ -158,7 +162,7 @@
       <div class="err" data-for="attachments"></div>
 
       <div class="d-flex justify-content-between align-items-center mt-4">
-        <a id="cancel" class="btn btn-light" href="/admin/notices/manage">Cancel</a>
+        <a id="cancel" class="btn btn-light" href="/admin/notice/manage">Cancel</a>
         <button id="btnSave" class="btn btn-primary" type="button">
           <span class="btn-spinner" aria-hidden="true"></span>
           <span class="btn-label"><i class="fa fa-floppy-disk me-1"></i>Create Notice</span>
@@ -365,6 +369,10 @@
   /* ===== attachments (same as study material) ===== */
   const dz = $('dz'), input = $('attachments'), list = $('fileList');
   let dt = new DataTransfer();
+
+  // NEW: URLs selected from Notice Library
+  let libraryUrls = [];
+
   // map to keep object URLs created for preview (to revoke later)
   const previewObjectURLs = new Set();
 
@@ -426,41 +434,133 @@
     if(previewModal) previewModal.show();
   }
 
-  function handleFileAction(e) {
+    function handleFileAction(e) {
     const target = e.target;
     if(!target) return;
     const previewBtn = target.closest('.btn-preview');
     const deleteBtn = target.closest('.btn-delete');
+
+    if (!previewBtn && !deleteBtn) return;
+
+    const row = (previewBtn || deleteBtn).closest('.file-row');
+    if (!row) return;
+    const type  = row.dataset.type || 'local';
+    const index = Number(row.dataset.index || -1);
+
     if (previewBtn) {
       e.preventDefault(); e.stopPropagation();
-      const row = previewBtn.closest('.file-row');
-      const index = Array.from(list.children).indexOf(row);
-      const file = dt.files[index];
-      if (file) previewFile(file);
-    } else if (deleteBtn) {
+      if (type === 'local') {
+        const file = dt.files[index];
+        if (file) previewFile(file);
+      } else if (type === 'lib') {
+        const url = libraryUrls[index];
+        if (url) window.open(url, '_blank');
+      }
+      return;
+    }
+
+    if (deleteBtn) {
       e.preventDefault(); e.stopPropagation();
-      const row = deleteBtn.closest('.file-row');
-      const index = Array.from(list.children).indexOf(row);
-      const next = new DataTransfer();
-      Array.from(dt.files).forEach((ff,i)=>{ if(i!==index) next.items.add(ff); });
-      dt = next; if(input) input.files = dt.files; redraw();
+      if (type === 'local') {
+        const next = new DataTransfer();
+        Array.from(dt.files).forEach((ff,i)=>{ if(i!==index) next.items.add(ff); });
+        dt = next; if(input) input.files = dt.files;
+      } else if (type === 'lib') {
+        if (index >= 0 && index < libraryUrls.length) {
+          libraryUrls.splice(index, 1);
+        }
+      }
+      redraw();
     }
   }
 
   function redraw(){
     if(!list) return;
     list.innerHTML='';
+
+    // 1) Local uploaded files
     Array.from(dt.files).forEach((f,idx)=>{
-      const row = document.createElement('div'); row.className='file-row';
-      const n = document.createElement('div'); n.className='name'; n.textContent=f.name; n.title = f.name;
-      const s = document.createElement('div'); s.className='size'; s.textContent=bytes(f.size);
-      const btnGroup = document.createElement('div'); btnGroup.className='btn-group';
-      const previewBtn = document.createElement('button'); previewBtn.className='btn-action btn-preview'; previewBtn.type='button'; previewBtn.innerHTML='<i class="fa fa-eye"></i><span>Preview</span>'; previewBtn.title='Preview file';
-      const rm = document.createElement('button'); rm.className='btn-action btn-delete'; rm.type='button'; rm.innerHTML='<i class="fa fa-trash"></i><span>Delete</span>'; rm.title='Remove file';
-      btnGroup.appendChild(previewBtn); btnGroup.appendChild(rm);
-      row.appendChild(n); row.appendChild(s); row.appendChild(btnGroup); list.appendChild(row);
+      const row = document.createElement('div');
+      row.className = 'file-row';
+      row.dataset.type  = 'local';
+      row.dataset.index = String(idx);
+
+      const n = document.createElement('div');
+      n.className = 'name';
+      n.textContent = f.name;
+      n.title = f.name;
+
+      const s = document.createElement('div');
+      s.className = 'size';
+      s.textContent = bytes(f.size);
+
+      const btnGroup = document.createElement('div');
+      btnGroup.className = 'btn-group';
+
+      const previewBtn = document.createElement('button');
+      previewBtn.className = 'btn-action btn-preview';
+      previewBtn.type = 'button';
+      previewBtn.innerHTML = '<i class="fa fa-eye"></i><span>Preview</span>';
+      previewBtn.title = 'Preview file';
+
+      const rm = document.createElement('button');
+      rm.className = 'btn-action btn-delete';
+      rm.type = 'button';
+      rm.innerHTML = '<i class="fa fa-trash"></i><span>Delete</span>';
+      rm.title = 'Remove file';
+
+      btnGroup.appendChild(previewBtn);
+      btnGroup.appendChild(rm);
+
+      row.appendChild(n);
+      row.appendChild(s);
+      row.appendChild(btnGroup);
+      list.appendChild(row);
+    });
+
+    // 2) Library-selected URLs
+    libraryUrls.forEach((u, idx) => {
+      const row = document.createElement('div');
+      row.className = 'file-row';
+      row.dataset.type  = 'lib';
+      row.dataset.index = String(idx);
+
+      const name = (u || '').split('/').pop() || u;
+
+      const n = document.createElement('div');
+      n.className = 'name';
+      n.textContent = name + ' (from library)';
+      n.title = u;
+
+      const s = document.createElement('div');
+      s.className = 'size';
+      s.textContent = 'From Notice Library';
+
+      const btnGroup = document.createElement('div');
+      btnGroup.className = 'btn-group';
+
+      const previewBtn = document.createElement('button');
+      previewBtn.className = 'btn-action btn-preview';
+      previewBtn.type = 'button';
+      previewBtn.innerHTML = '<i class="fa fa-eye"></i><span>Preview</span>';
+      previewBtn.title = 'Open in new tab';
+
+      const rm = document.createElement('button');
+      rm.className = 'btn-action btn-delete';
+      rm.type = 'button';
+      rm.innerHTML = '<i class="fa fa-trash"></i><span>Delete</span>';
+      rm.title = 'Remove from library selection';
+
+      btnGroup.appendChild(previewBtn);
+      btnGroup.appendChild(rm);
+
+      row.appendChild(n);
+      row.appendChild(s);
+      row.appendChild(btnGroup);
+      list.appendChild(row);
     });
   }
+
 
   function addFiles(files){
     const maxPer = 50*1024*1024;
@@ -481,6 +581,457 @@
   if(dz) dz.addEventListener('drop', e=> addFiles(e.dataTransfer && e.dataTransfer.files));
   if($('btnClearAll')) $('btnClearAll').addEventListener('click', ()=>{ dt=new DataTransfer(); if(input) input.value=''; if(input) input.files=dt.files; redraw(); fErr('attachments',''); });
   if(list) list.addEventListener('click', handleFileAction);
+    /* ===== Notice Library: pick from existing notice attachments ===== */
+
+    /* ===== Notice Library: card/grid + search ===== */
+
+  let noticeLibModalEl = null;
+
+  function ensureNoticeLibModal(){
+    if (noticeLibModalEl) return noticeLibModalEl;
+
+    const m = document.createElement('div');
+    m.className = 'modal fade';
+    m.id = 'noticeLibraryModal';
+    m.tabIndex = -1;
+    m.innerHTML = `
+      <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">
+              <i class="fa fa-book me-2"></i>Notice Library
+            </h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+
+          <div class="modal-body" style="min-height:180px;">
+            <div id="noticeLibLoader" class="p-3">
+              <div class="d-flex align-items-center gap-2">
+                <div class="spin" aria-hidden="true"></div>
+                <div class="text-muted">Loading notice files…</div>
+              </div>
+            </div>
+
+            <div id="noticeLibEmpty" class="text-muted small p-3" style="display:none;">
+              No files found in notices.
+            </div>
+
+            <!-- Search bar -->
+            <div id="noticeLibSearchContainer" class="mb-3" style="display:none;">
+              <div class="input-group input-group-sm">
+                <span class="input-group-text">
+                  <i class="fa fa-search"></i>
+                </span>
+                <input type="text" id="noticeLibSearch" class="form-control" placeholder="Search by file name, notice title, or URL…">
+                <button type="button" id="noticeLibClearSearch" class="btn btn-outline-secondary" style="display:none;">
+                  <i class="fa fa-times"></i>
+                </button>
+              </div>
+              <div id="noticeLibSearchResults" class="small text-muted mt-1" style="display:none;"></div>
+            </div>
+
+            <div id="noticeLibList" style="display:none;"></div>
+          </div>
+
+          <div class="modal-footer">
+            <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+            <button type="button" id="noticeLibConfirm" class="btn btn-primary">Add selected</button>
+          </div>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(m);
+    noticeLibModalEl = m;
+
+    // one-time styles for card grid
+    if (!document.getElementById('notice-lib-card-css')) {
+      const style = document.createElement('style');
+      style.id = 'notice-lib-card-css';
+      style.textContent = `
+        #noticeLibList .notice-lib-grid {
+          display: grid;
+          gap: 12px;
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+        }
+        @media (max-width: 1024px) {
+          #noticeLibList .notice-lib-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+          }
+        }
+        @media (max-width: 640px) {
+          #noticeLibList .notice-lib-grid {
+            grid-template-columns: repeat(1, minmax(0, 1fr));
+          }
+        }
+
+        .notice-lib-card {
+          position: relative;
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
+          padding: 10px;
+          border-radius: 10px;
+          border: 1px solid rgba(0,0,0,0.08);
+          background: #fff;
+          box-shadow: 0 1px 2px rgba(15,23,42,0.04);
+          min-height: 170px;
+          overflow: hidden;
+          cursor: pointer;
+        }
+        .notice-lib-card:hover {
+          box-shadow: 0 2px 6px rgba(15,23,42,0.10);
+          border-color: rgba(59,130,246,0.35);
+        }
+
+        .notice-lib-thumb {
+          width: 100%;
+          height: 110px;
+          border-radius: 8px;
+          object-fit: cover;
+          background: linear-gradient(180deg,#f8fafc,#ffffff);
+        }
+        .notice-lib-placeholder {
+          width: 100%;
+          height: 110px;
+          border-radius: 8px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 30px;
+          color: rgba(100,116,139,0.9);
+          background: linear-gradient(180deg,#f9fafb,#ffffff);
+        }
+
+        .notice-lib-checkbox-wrap {
+          position: absolute;
+          top: 8px;
+          left: 8px;
+          z-index: 5;
+          background: rgba(255,255,255,0.95);
+          border-radius: 999px;
+          padding: 4px 7px;
+          box-shadow: 0 1px 3px rgba(15,23,42,0.18);
+        }
+
+        .notice-lib-card .card-name {
+          font-size: 13px;
+          font-weight: 600;
+          margin-top: 6px;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+        .notice-lib-card .card-refs {
+          font-size: 12px;
+          color: var(--muted-color, #6b7280);
+          max-height: 3.2em;
+          overflow: hidden;
+        }
+        .notice-lib-card .card-footer {
+          margin-top: auto;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 8px;
+          font-size: 12px;
+        }
+
+        .notice-lib-highlight {
+          background: rgba(250,204,21,0.4);
+          border-radius: 2px;
+          padding: 0 2px;
+        }
+      `;
+      document.head.appendChild(style);
+    }
+
+    return m;
+  }
+
+  function normalizeNoticeAttachments(row){
+    let raw = row.attachment ?? row.attachments ?? row.attachments_json ?? [];
+    if (typeof raw === 'string' && raw.trim() !== '') {
+      try { raw = JSON.parse(raw); }
+      catch(e){
+        const parts = raw.split(/\s*,\s*|\s*\|\|\s*/).filter(Boolean);
+        raw = parts.length ? parts : [];
+      }
+    }
+    if (raw && !Array.isArray(raw)) raw = [raw];
+
+    return (raw || []).map((a, idx) => {
+      if (typeof a === 'string') {
+        const url = a;
+        return {
+          url,
+          name: (url.split('/').pop() || `file-${idx+1}`),
+          ext: (url.split('?')[0].split('.').pop() || '').toLowerCase()
+        };
+      }
+      const url = a.signed_url || a.url || a.path || '';
+      const name = a.name || (url.split('/').pop() || a.original_name || `file-${idx+1}`);
+      const ext = (a.ext || a.extension || (url.split('?')[0].split('.').pop() || '')).toLowerCase();
+      return { url, name, ext };
+    }).filter(it => !!it.url);
+  }
+
+  async function openNoticeLibraryPicker(onSelected){
+    const modalEl = ensureNoticeLibModal();
+    const libLoader       = modalEl.querySelector('#noticeLibLoader');
+    const libEmpty        = modalEl.querySelector('#noticeLibEmpty');
+    const libList         = modalEl.querySelector('#noticeLibList');
+    const libConfirm      = modalEl.querySelector('#noticeLibConfirm');
+    const searchContainer = modalEl.querySelector('#noticeLibSearchContainer');
+    const searchInput     = modalEl.querySelector('#noticeLibSearch');
+    const clearSearchBtn  = modalEl.querySelector('#noticeLibClearSearch');
+    const searchResults   = modalEl.querySelector('#noticeLibSearchResults');
+
+    libLoader.style.display = '';
+    libEmpty.style.display  = 'none';
+    libList.style.display   = 'none';
+    libList.innerHTML       = '';
+    searchContainer.style.display = 'none';
+    searchInput.value       = '';
+    clearSearchBtn.style.display = 'none';
+    searchResults.style.display  = 'none';
+    libConfirm.disabled     = true;
+
+    // show modal
+    let bsModal = null;
+    try {
+      if (window.bootstrap && typeof window.bootstrap.Modal === 'function') {
+        bsModal = bootstrap.Modal.getOrCreateInstance(modalEl);
+        bsModal.show();
+      } else {
+        modalEl.style.display = 'block';
+        modalEl.classList.add('show');
+        document.body.classList.add('modal-open');
+      }
+    } catch(e){}
+
+    const esc = (s)=> String(s || '').replace(/[&<>"'`=\/]/g, ch => ({
+      '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;','/':'&#x2F;','`':'&#x60','=':'&#x3D;'
+    }[ch] || ch));
+
+    const extIcon = (ext)=>{
+      ext = (ext || '').toLowerCase();
+      if (['png','jpg','jpeg','webp','gif','svg'].includes(ext)) return '<i class="fa fa-file-image"></i>';
+      if (ext === 'pdf') return '<i class="fa fa-file-pdf"></i>';
+      if (['mp4','webm','ogg','mov'].includes(ext)) return '<i class="fa fa-file-video"></i>';
+      if (['doc','docx','rtf','odt'].includes(ext)) return '<i class="fa fa-file-word"></i>';
+      if (['xls','xlsx','csv','ods'].includes(ext)) return '<i class="fa fa-file-excel"></i>';
+      if (['ppt','pptx','odp'].includes(ext)) return '<i class="fa fa-file-powerpoint"></i>';
+      return '<i class="fa fa-file"></i>';
+    };
+
+    const highlight = (text, term)=>{
+      if (!term) return esc(text);
+      const safe = esc(text);
+      const re = new RegExp('(' + term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')','gi');
+      return safe.replace(re, '<span class="notice-lib-highlight">$1</span>');
+    };
+
+    try {
+      // optional filters by course / batch
+      const course_id = $('course_id') ? $('course_id').value : '';
+      const batch_id  = $('batch_id') ? $('batch_id').value : '';
+
+      const params = [];
+      if (course_id) params.push('course_id=' + encodeURIComponent(course_id));
+      if (batch_id)  params.push('batch_id=' + encodeURIComponent(batch_id));
+
+      const url = API_NOTICES + (params.length ? ('?' + params.join('&')) : '');
+      const data = await loadJSON(url);
+      const rows = Array.isArray(data) ? data : (data.data || data.items || data.rows || []);
+
+      const docMap = new Map();
+
+      (rows || []).forEach(n => {
+        const noticeTitle = n.title || 'Untitled';
+        const atts = normalizeNoticeAttachments(n);
+        atts.forEach(att => {
+          const baseUrl = att.url.split('?')[0];
+          if (!baseUrl) return;
+          if (!docMap.has(baseUrl)) {
+            docMap.set(baseUrl, {
+              url: att.url,
+              baseUrl,
+              name: att.name,
+              ext: att.ext,
+              refs: [noticeTitle]
+            });
+          } else {
+            const e = docMap.get(baseUrl);
+            if (!e.refs.includes(noticeTitle)) e.refs.push(noticeTitle);
+          }
+        });
+      });
+
+      libLoader.style.display = 'none';
+
+      const items = Array.from(docMap.values());
+      if (!items.length) {
+        libEmpty.style.display = '';
+        return;
+      }
+
+      searchContainer.style.display = '';
+
+      function renderCards(list, term){
+        const selectedSet = new Set((libraryUrls || []).map(u => String(u)));
+        const gridHtml = list.map((it, idx) => {
+          const checked = selectedSet.has(it.url) ? 'checked' : '';
+          const shortRefs = (it.refs || []).slice(0, 2).join(', ');
+          const more = Math.max(0, (it.refs || []).length - 2);
+          const refsText = shortRefs + (more ? `, +${more} more` : '');
+          const fileName = it.name || (it.baseUrl.split('/').pop() || 'file');
+
+          return `
+            <div class="notice-lib-card" data-url="${esc(it.url)}" data-idx="${idx}">
+              <div class="notice-lib-checkbox-wrap">
+                <input type="checkbox" class="form-check-input notice-lib-checkbox" data-url="${esc(it.url)}" ${checked}>
+              </div>
+
+              <div class="notice-lib-placeholder">
+                ${extIcon(it.ext)}
+              </div>
+
+              <div class="card-name" title="${esc(fileName)}">
+                ${term ? highlight(fileName, term) : esc(fileName)}
+              </div>
+
+              <div class="card-refs" title="${esc((it.refs || []).join(', '))}">
+                ${term ? highlight(refsText, term) : esc(refsText)}
+              </div>
+
+              <div class="card-footer">
+                <button type="button" class="btn btn-sm btn-outline-primary notice-lib-preview-btn">
+                  <i class="fa fa-eye"></i> Preview
+                </button>
+                <div class="text-muted small">${esc(String((it.refs || []).length))} notice(s)</div>
+              </div>
+            </div>
+          `;
+        }).join('');
+
+        libList.innerHTML = `<div class="notice-lib-grid">${gridHtml}</div>`;
+        libList.style.display = '';
+
+        const grid = libList.querySelector('.notice-lib-grid');
+        if (!grid) return;
+
+        function updateConfirm(){
+          const anyChecked = !!grid.querySelector('.notice-lib-checkbox:checked');
+          libConfirm.disabled = !anyChecked;
+        }
+
+        // toggle checkbox when clicking card (but ignore direct click on preview or checkbox)
+        grid.querySelectorAll('.notice-lib-card').forEach(card => {
+          const cb = card.querySelector('.notice-lib-checkbox');
+          const previewBtn = card.querySelector('.notice-lib-preview-btn');
+          const url = card.dataset.url;
+
+          card.addEventListener('click', (ev)=>{
+            if (ev.target === cb || ev.target.closest('.notice-lib-preview-btn')) return;
+            cb.checked = !cb.checked;
+            updateConfirm();
+          });
+
+          if (cb) {
+            cb.addEventListener('change', updateConfirm);
+          }
+
+          if (previewBtn) {
+            previewBtn.addEventListener('click', (ev)=>{
+              ev.preventDefault();
+              ev.stopPropagation();
+              if (url) window.open(url, '_blank');
+            });
+          }
+        });
+
+        updateConfirm();
+      }
+
+      // initial render
+      renderCards(items, '');
+
+      // search behavior
+      let searchTimer = null;
+      searchInput.addEventListener('input', ()=>{
+        clearTimeout(searchTimer);
+        const term = searchInput.value.trim().toLowerCase();
+        if (!term) {
+          clearSearchBtn.style.display = 'none';
+          searchResults.style.display  = 'none';
+          renderCards(items, '');
+          return;
+        }
+        clearSearchBtn.style.display = '';
+        searchTimer = setTimeout(()=>{
+          const filtered = items.filter(it => {
+            const text = [
+              it.name || '',
+              (it.refs || []).join(' '),
+              it.url || ''
+            ].join(' ').toLowerCase();
+            return text.includes(term);
+          });
+          searchResults.style.display = '';
+          searchResults.textContent = `Found ${filtered.length} of ${items.length} files`;
+          renderCards(filtered, term);
+        }, 200);
+      });
+
+      clearSearchBtn.addEventListener('click', ()=>{
+        searchInput.value = '';
+        clearSearchBtn.style.display = 'none';
+        searchResults.style.display  = 'none';
+        renderCards(items, '');
+        searchInput.focus();
+      });
+
+      // confirm selection
+      libConfirm.onclick = ()=>{
+        const selected = Array.from(libList.querySelectorAll('.notice-lib-checkbox:checked'))
+          .map(cb => cb.dataset.url)
+          .filter(Boolean);
+
+        if (selected.length && typeof onSelected === 'function') {
+          onSelected(selected);
+        }
+
+        try {
+          if (bsModal) bsModal.hide();
+          else {
+            modalEl.classList.remove('show');
+            modalEl.style.display = 'none';
+            document.body.classList.remove('modal-open');
+          }
+        } catch(e){}
+      };
+
+    } catch(e){
+      console.error('Notice library load failed:', e);
+      libLoader.style.display = 'none';
+      libEmpty.style.display  = '';
+      libEmpty.textContent = 'Unable to load notice files.';
+    }
+  }
+
+  // Wire "Choose from Library" button (already added in HTML)
+  if ($('btnChooseFromLibrary')) {
+    $('btnChooseFromLibrary').addEventListener('click', (e)=>{
+      e.preventDefault();
+      openNoticeLibraryPicker((urls)=>{
+        const set = new Set(libraryUrls);
+        (urls || []).forEach(u => { if (u) set.add(u); });
+        libraryUrls = Array.from(set);
+        redraw();
+      });
+    });
+  }
+
 
   /* When preview modal hides, revoke object URLs we created for previews */
   if($('previewModal')){
@@ -513,7 +1064,7 @@
       if(!title){ fErr('title','Title is required.'); hasErr=true; }
       if(hasErr) return;
 
-      const fd = new FormData();
+            const fd = new FormData();
       fd.append('course_id', course_id);
       if(course_module_id) fd.append('course_module_id', course_module_id);
       if(batch_id) fd.append('batch_id', batch_id);
@@ -521,11 +1072,17 @@
       if(message_html) fd.append('message_html', message_html);
       Array.from(dt.files).forEach(f=> fd.append('attachments[]', f, f.name));
 
+      // NEW: library URLs
+      (libraryUrls || []).forEach(u => {
+        if (u) fd.append('library_urls[]', u);
+      });
+
+
       setSaving(true);
       try{
         const res = await fetch(API_NOTICES, { method:'POST', headers:{ 'Authorization':'Bearer '+TOKEN, 'Accept':'application/json' }, body:fd });
         const json = await res.json().catch(()=> ({}));
-        if(res.ok){ ok('Notice created'); setTimeout(()=> location.replace('/admin/notices/manage'), 700); return; }
+        if(res.ok){ ok('Notice created'); setTimeout(()=> location.replace('/admin/notice/manage'), 700); return; }
         if(res.status===422){
           const e = json.errors || {};
           if(e['attachments.*']) fErr('attachments', Array.isArray(e['attachments.*'])? e['attachments.*'][0] : String(e['attachments.*']));

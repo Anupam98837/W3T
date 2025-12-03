@@ -344,6 +344,10 @@ html.theme-dark .rte-ph {
       <i class="fa fa-file-upload"></i>
       <span>Choose Files</span>
     </label>
+     <button type="button" id="notice_choose_from_library" class="notice-clear-btn">
+    <i class="fa fa-book"></i>
+    Choose from Library
+  </button>
 
     <button type="button" id="notice_clear_files" class="notice-clear-btn">Clear All</button>
   </div>
@@ -828,24 +832,193 @@ function openDetailsModal(row){
   function exitEditMode(){ if (noticeIdInput) noticeIdInput.value=''; if (noticeMethodInput) noticeMethodInput.value=''; if (noticeCreateFormEl) noticeCreateFormEl.reset(); if (noticeExistingList) noticeExistingList.innerHTML=''; if (noticeExistingWrap) noticeExistingWrap.style.display='none'; const modalTitle = createModalEl.querySelector('.modal-title'); if (modalTitle) modalTitle.innerHTML = '<i class="fa fa-plus me-2"></i> Add Notice'; if (noticeCreateSubmitBtn) noticeCreateSubmitBtn.innerHTML = '<i class="fa fa-save me-1"></i> Create'; }
   try{ if (createModalEl) createModalEl.addEventListener('hidden.bs.modal', exitEditMode); }catch(e){}
 
-  (function initCreateForm(){ const nForm = noticeCreateFormEl; if (!nForm) return; const nSubmit = noticeCreateSubmitBtn; const nAlert = document.getElementById('noticeCreateAlert'); nForm.addEventListener('submit', async (ev)=>{ ev.preventDefault(); ev.stopPropagation(); if (nAlert) nAlert.style.display='none'; nForm.classList.add('was-validated'); if (!nForm.checkValidity()) return; const editingId = noticeIdInput && noticeIdInput.value ? noticeIdInput.value.trim() : ''; const ctx = readContext(); const batchKey = ctx?.batch_id ?? ctx?.batch_uuid ?? null; if (!editingId && !batchKey){ if (nAlert){ nAlert.innerHTML = 'Missing Batch context — cannot create notice here.'; nAlert.style.display=''; } return; }
+    (function initCreateForm(){
+    const nForm   = noticeCreateFormEl;
+    if (!nForm) return;
 
-    // --- SYNC RTE content to hidden textarea BEFORE building FormData ---
-    try { syncRTEtoTextarea(); } catch(e){ console.warn('RTE sync failed', e); }
+    const nSubmit = noticeCreateSubmitBtn;
+    const nAlert  = document.getElementById('noticeCreateAlert');
 
-    const fd = new FormData(); if (ctx && ctx.batch_id) fd.append('batch_uuid', ctx.batch_id); // module if available
-    const mod = ctx && ctx.module_id ? String(ctx.module_id).trim() : ''; if (mod){ if (/^\d+$/.test(mod)) fd.append('course_module_id', mod); else fd.append('module_uuid', mod); }
-    fd.append('title', noticeTitleInput ? noticeTitleInput.value.trim() : ''); fd.append('message_html', noticeMessageInput ? noticeMessageInput.value.trim() : ''); fd.append('visibility_scope', noticeVisibility ? noticeVisibility.value : 'batch'); fd.append('priority', noticePriority ? noticePriority.value : 'normal'); fd.append('status', noticeStatus ? noticeStatus.value : 'draft'); const files = noticeAttachmentsInput && noticeAttachmentsInput.files ? noticeAttachmentsInput.files : []; for (let i=0;i<files.length;i++) fd.append('attachments[]', files[i]); const toRemove = Array.from(nForm.querySelectorAll('input[name="remove_attachments[]"]:checked')).map(n=>n.value); toRemove.forEach(v=>fd.append('remove_attachments[]', v)); const prevHtml = nSubmit ? nSubmit.innerHTML : (editingId ? 'Update' : 'Create'); if (nSubmit){ nSubmit.disabled = true; nSubmit.innerHTML = `<i class="fa fa-spinner fa-spin me-1"></i> ${editingId ? 'Updating...' : 'Creating...'}`; }
-    try{ let endpoint = apiBase; let method = 'POST'; if (editingId){ fd.append('_method','PATCH'); fd.append('id', editingId); endpoint = `${apiBase}/${encodeURIComponent(editingId)}`; method = 'POST'; } else { const ctxBatch = ctx && ctx.batch_id ? ctx.batch_id : null; if (!ctxBatch){ if (nAlert){ nAlert.innerHTML = 'Missing Batch context — cannot create notice here.'; nAlert.style.display=''; } throw new Error('Missing batch context'); } endpoint = `${apiBase}/batch/${encodeURIComponent(ctxBatch)}`; method = 'POST'; }
-      const res = await apiFetch(endpoint, { method: method, body: fd }); const json = await res.json().catch(()=>({})); if (!res.ok) { if (res.status === 422 && json.errors) { let msgs=[]; for (const k in json.errors){ if (Array.isArray(json.errors[k])) msgs.push(`${k}: ${json.errors[k].join(', ')}`); else msgs.push(`${k}: ${json.errors[k]}`); } if (nAlert){ nAlert.innerHTML = msgs.map(m=>`<div>${escapeHtml(m)}</div>`).join(''); nAlert.style.display=''; } } else { if (nAlert){ nAlert.innerHTML = `<div>${escapeHtml(json.message || 'Failed to create/update notice')}</div>`; nAlert.style.display=''; } } throw new Error('Save error'); }
-      try { if (createModalInstance && typeof createModalInstance.hide === 'function') createModalInstance.hide(); else hideCreateModal(); } catch(e){ hideCreateModal(); } 
-      setTimeout(cleanupModalBackdrops, 60);
-      exitEditMode(); showOk(json.message || (editingId ? 'Updated' : 'Created')); await loadNotices();
-    } catch(err){ console.error('Create/Update failed', err); showErr('Save failed'); }
-    finally { if (nSubmit){ nSubmit.disabled = false; nSubmit.innerHTML = prevHtml; } }
-  }); if (createModalEl){ try{ createModalEl.addEventListener('show.bs.modal', ()=> updateContextDisplay()); } catch(e){} } })();
+    nForm.addEventListener('submit', async (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
 
-  function updateContextDisplay(){ const ctx = readContext(); const ctxText = document.getElementById('noticeContextText'); const ctxErr = document.getElementById('noticeContextError'); const submitBtn = document.getElementById('noticeCreateSubmit'); const isEditing = (noticeIdInput && noticeIdInput.value && noticeIdInput.value.trim() !== ''); if (!ctx || !ctx.batch_id) { if (ctxText) ctxText.textContent = isEditing ? 'Editing (batch unknown)' : 'Missing context'; if (isEditing) { if (ctxErr) ctxErr.style.display='none'; if (submitBtn) submitBtn.disabled=false; return; } if (ctxErr) ctxErr.style.display=''; if (submitBtn) submitBtn.disabled = true; } else { if (ctxText) ctxText.textContent = `Batch: ${ctx.batch_id}` + (ctx.module_id ? ` • Module: ${ctx.module_id}` : ''); if (ctxErr) ctxErr.style.display='none'; if (submitBtn) submitBtn.disabled=false; } }
+      if (nAlert) nAlert.style.display = 'none';
+      nForm.classList.add('was-validated');
+      if (!nForm.checkValidity()) return;
+
+      const editingId = noticeIdInput && noticeIdInput.value ? noticeIdInput.value.trim() : '';
+      const ctx       = readContext();
+      const batchKey  = ctx?.batch_id ?? ctx?.batch_uuid ?? null;
+
+      if (!editingId && !batchKey) {
+        if (nAlert) {
+          nAlert.innerHTML = 'Missing Batch context — cannot create notice here.';
+          nAlert.style.display = '';
+        }
+        return;
+      }
+
+      // --- SYNC RTE content to hidden textarea BEFORE building FormData ---
+      try { syncRTEtoTextarea(); } catch(e){ console.warn('RTE sync failed', e); }
+
+      const fd = new FormData();
+
+      if (ctx && ctx.batch_id) fd.append('batch_uuid', ctx.batch_id);
+
+      const mod = ctx && ctx.module_id ? String(ctx.module_id).trim() : '';
+      if (mod) {
+        if (/^\d+$/.test(mod)) fd.append('course_module_id', mod);
+        else fd.append('module_uuid', mod);
+      }
+
+      fd.append('title',           noticeTitleInput   ? noticeTitleInput.value.trim()   : '');
+      fd.append('message_html',    noticeMessageInput ? noticeMessageInput.value.trim() : '');
+      fd.append('visibility_scope', noticeVisibility  ? noticeVisibility.value          : 'batch');
+      fd.append('priority',         noticePriority    ? noticePriority.value            : 'normal');
+      fd.append('status',           noticeStatus      ? noticeStatus.value              : 'draft');
+
+      // LOCAL FILES
+      const files = noticeAttachmentsInput && noticeAttachmentsInput.files
+        ? noticeAttachmentsInput.files
+        : [];
+      for (let i = 0; i < files.length; i++) {
+        fd.append('attachments[]', files[i]);
+      }
+
+      // LIBRARY URLS (from Choose from Library)
+      const libUrls = (createModalEl && Array.isArray(createModalEl._selectedNoticeLibraryUrls))
+        ? createModalEl._selectedNoticeLibraryUrls
+        : [];
+      if (libUrls && libUrls.length) {
+        const seenLib = {};
+        libUrls.forEach(u => {
+          if (!u) return;
+          u = String(u);
+          if (seenLib[u]) return;
+          seenLib[u] = true;
+          fd.append('library_urls[]', u);
+        });
+      }
+
+      // attachments marked for removal
+      const toRemove = Array
+        .from(nForm.querySelectorAll('input[name="remove_attachments[]"]:checked'))
+        .map(n => n.value);
+      toRemove.forEach(v => fd.append('remove_attachments[]', v));
+
+      // submit button loading state
+      const prevHtml = nSubmit ? nSubmit.innerHTML : (editingId ? 'Update' : 'Create');
+      if (nSubmit) {
+        nSubmit.disabled = true;
+        nSubmit.innerHTML = `<i class="fa fa-spinner fa-spin me-1"></i> ${editingId ? 'Updating...' : 'Creating...'}`;
+      }
+
+      try {
+        let endpoint = apiBase;
+        let method   = 'POST';
+
+        if (editingId) {
+          fd.append('_method', 'PATCH');
+          fd.append('id', editingId);
+          endpoint = `${apiBase}/${encodeURIComponent(editingId)}`;
+          method   = 'POST';
+        } else {
+          const ctxBatch = ctx && ctx.batch_id ? ctx.batch_id : null;
+          if (!ctxBatch) {
+            if (nAlert) {
+              nAlert.innerHTML = 'Missing Batch context — cannot create notice here.';
+              nAlert.style.display = '';
+            }
+            throw new Error('Missing batch context');
+          }
+          endpoint = `${apiBase}/batch/${encodeURIComponent(ctxBatch)}`;
+          method   = 'POST';
+        }
+
+        const res  = await apiFetch(endpoint, { method, body: fd });
+        const json = await res.json().catch(() => ({}));
+
+        if (!res.ok) {
+          if (res.status === 422 && json.errors) {
+            let msgs = [];
+            for (const k in json.errors) {
+              if (Array.isArray(json.errors[k])) msgs.push(`${k}: ${json.errors[k].join(', ')}`);
+              else msgs.push(`${k}: ${json.errors[k]}`);
+            }
+            if (nAlert) {
+              nAlert.innerHTML  = msgs.map(m => `<div>${escapeHtml(m)}</div>`).join('');
+              nAlert.style.display = '';
+            }
+          } else {
+            if (nAlert) {
+              nAlert.innerHTML  = `<div>${escapeHtml(json.message || 'Failed to create/update notice')}</div>`;
+              nAlert.style.display = '';
+            }
+          }
+          throw new Error('Save error');
+        }
+
+        // success
+        try {
+          if (createModalInstance && typeof createModalInstance.hide === 'function') {
+            createModalInstance.hide();
+          } else {
+            hideCreateModal();
+          }
+        } catch (e) {
+          hideCreateModal();
+        }
+        setTimeout(cleanupModalBackdrops, 60);
+
+        exitEditMode();
+        showOk(json.message || (editingId ? 'Updated' : 'Created'));
+        await loadNotices();
+      } catch (err) {
+        console.error('Create/Update failed', err);
+        showErr('Save failed');
+      } finally {
+        if (nSubmit) {
+          nSubmit.disabled = false;
+          nSubmit.innerHTML = prevHtml;
+        }
+      }
+    });
+
+    // keep context text fresh whenever modal shows
+    if (createModalEl) {
+      try {
+        createModalEl.addEventListener('show.bs.modal', () => updateContextDisplay());
+      } catch (e) {}
+    }
+  })();
+
+  // now a standalone function, OUTSIDE initCreateForm
+  function updateContextDisplay(){
+    const ctx       = readContext();
+    const ctxText   = document.getElementById('noticeContextText');
+    const ctxErr    = document.getElementById('noticeContextError');
+    const submitBtn = document.getElementById('noticeCreateSubmit');
+
+    const isEditing = (noticeIdInput && noticeIdInput.value && noticeIdInput.value.trim() !== '');
+
+    if (!ctx || !ctx.batch_id) {
+      if (ctxText) ctxText.textContent = isEditing ? 'Editing (batch unknown)' : 'Missing context';
+
+      if (isEditing) {
+        if (ctxErr) ctxErr.style.display = 'none';
+        if (submitBtn) submitBtn.disabled = false;
+        return;
+      }
+
+      if (ctxErr) ctxErr.style.display = '';
+      if (submitBtn) submitBtn.disabled = true;
+    } else {
+      if (ctxText) ctxText.textContent = `Batch: ${ctx.batch_id}` + (ctx.module_id ? ` • Module: ${ctx.module_id}` : '');
+      if (ctxErr) ctxErr.style.display = 'none';
+      if (submitBtn) submitBtn.disabled = false;
+    }
+  }
 
   (function initBin(){ if (!$btnBin) return; if (!canViewBin) { $btnBin.style.display='none'; return; } else { $btnBin.style.display='inline-block'; }
     async function fetchDeletedNotices(params=''){
@@ -874,147 +1047,594 @@ function openDetailsModal(row){
     $btnBin.addEventListener('click', (ev)=>{ ev.preventDefault(); openBin(); });
   })();
   /* ===== Attachments UI: filelist + drag/drop + clear/remove (paste before the final "})();" ) ===== */
-(function wireAttachmentsUI(){
-  const dz = document.getElementById('notice_dropzone');
-  const fileInput = document.getElementById('notice_attachments');
-  const fileListEl = document.getElementById('notice_fileList');
-  const clearBtn = document.getElementById('notice_clear_files');
-  const chooseLabel = document.getElementById('notice_choose_label');
+  /* ===== Attachments UI + Library picker for Notices ===== */
+  (function wireAttachmentsUI(){
+    const dz          = document.getElementById('notice_dropzone');
+    const fileInput   = document.getElementById('notice_attachments');
+    const fileListEl  = document.getElementById('notice_fileList');
+    const clearBtn    = document.getElementById('notice_clear_files');
+    const chooseLabel = document.getElementById('notice_choose_label');
+    const chooseLibBtn= document.getElementById('notice_choose_from_library');
 
-  if (!dz || !fileInput || !fileListEl) return;
+    if (!fileListEl) return;
 
-  // Helper: format size
-  function fmtSize(bytes){
-    if (!bytes && bytes !== 0) return '';
-    const units = ['B','KB','MB','GB'];
-    let b = Number(bytes), i = 0;
-    while (b >= 1024 && i < units.length - 1){ b /= 1024; i++; }
-    return `${b.toFixed(b < 10 && i > 0 ? 1 : 0)} ${units[i]}`;
-  }
+    // state: we still rely on fileInput.files for upload,
+    // but we maintain a separate list of library URLs
+    if (!createModalEl) return;
+    if (!Array.isArray(createModalEl._selectedNoticeLibraryUrls)) {
+      createModalEl._selectedNoticeLibraryUrls = [];
+    }
 
-  // Render the current fileInput.files into the UI
-  function renderFileList(){
-    const files = fileInput.files || [];
-    fileListEl.innerHTML = '';
-    if (!files.length) { fileListEl.style.display = 'none'; return; }
-    fileListEl.style.display = 'flex';
-    Array.from(files).forEach((f, idx) => {
-      const row = document.createElement('div');
-      row.className = 'notice-file-item';
-      row.innerHTML = `
-        <div class="meta" style="min-width:0; overflow:hidden;">
-          <div class="name" title="${escapeHtml(f.name)}">${escapeHtml(f.name)}</div>
-          <div class="size small text-muted">${fmtSize(f.size)}</div>
-        </div>
-        <div style="display:flex;gap:8px;align-items:center">
-          <button type="button" class="btn btn-sm btn-outline-secondary notice-file-preview" data-idx="${idx}" title="Preview (local)">Preview</button>
-          <button type="button" class="btn btn-sm btn-outline-danger notice-file-remove" data-idx="${idx}">Remove</button>
-        </div>
-      `;
-      fileListEl.appendChild(row);
-    });
+    function getLibUrls(){
+      return Array.isArray(createModalEl._selectedNoticeLibraryUrls)
+        ? createModalEl._selectedNoticeLibraryUrls
+        : [];
+    }
+    function setLibUrls(arr){
+      createModalEl._selectedNoticeLibraryUrls = Array.from(new Set((arr || []).filter(Boolean)));
+    }
 
-    // wire remove/preview handlers
-    fileListEl.querySelectorAll('.notice-file-remove').forEach(btn => {
-      btn.addEventListener('click', (e) => {
-        const idx = Number(btn.dataset.idx);
-        removeFileAtIndex(idx);
+    // helpers
+    function escapeHtmlLocal(s){
+      return String(s || '').replace(/[&<>"'`=\/]/g, function(ch){
+        return {
+          '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;','/':'&#x2F;','`':'&#x60','=':'&#x3D;'
+        }[ch];
       });
-    });
-    fileListEl.querySelectorAll('.notice-file-preview').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const idx = Number(btn.dataset.idx);
-        const f = fileInput.files[idx];
-        if (!f) return;
-        // For images/videos show in new tab using blob url, otherwise open file name
-        const url = URL.createObjectURL(f);
-        window.open(url, '_blank');
-        // revoke later to avoid memory leak
-        setTimeout(()=> URL.revokeObjectURL(url), 30000);
-      });
-    });
-  }
+    }
+    function fmtSize(bytes){
+      if (!bytes && bytes !== 0) return '';
+      const units = ['B','KB','MB','GB'];
+      let b = Number(bytes), i = 0;
+      while (b >= 1024 && i < units.length - 1){ b /= 1024; i++; }
+      return `${b.toFixed(b < 10 && i > 0 ? 1 : 0)} ${units[i]}`;
+    }
 
-  // Remove a file from input.files by index (using DataTransfer)
-  function removeFileAtIndex(idx){
-    const dt = new DataTransfer();
-    Array.from(fileInput.files).forEach((f, i) => { if (i !== idx) dt.items.add(f); });
-    fileInput.files = dt.files;
-    renderFileList();
-  }
+    // re-render file list (local files + library URLs)
+    function renderFileList(){
+      fileListEl.innerHTML = '';
 
-  // Clear all files
-  function clearAllFiles(){
-    fileInput.value = '';
-    // also reset DataTransfer to be safe
-    try { fileInput.files = new DataTransfer().files; } catch(e){}
-    renderFileList();
-  }
+      const files = fileInput && fileInput.files ? Array.from(fileInput.files) : [];
+      const libs  = getLibUrls();
 
-  // When native file input changes
-  fileInput.addEventListener('change', () => {
-    renderFileList();
-  });
-
-  // Clear button
-  if (clearBtn) clearBtn.addEventListener('click', (e) => {
-    e.preventDefault();
-    clearAllFiles();
-  });
-
-  // Drag/drop wiring
-  function prevent(ev){ ev.preventDefault(); ev.stopPropagation(); }
-  ['dragenter','dragover'].forEach(ev => {
-    dz.addEventListener(ev, (e) => {
-      prevent(e);
-      dz.classList.add('dragover');
-    });
-  });
-  ['dragleave','dragend','drop'].forEach(ev => {
-    dz.addEventListener(ev, (e) => {
-      if (ev === 'drop') {
-        prevent(e);
-        dz.classList.remove('dragover');
-        const dt = e.dataTransfer;
-        if (dt && dt.files && dt.files.length){
-          // Merge dropped files with existing selection
-          const newDT = new DataTransfer();
-          // keep existing files
-          Array.from(fileInput.files || []).forEach(f => newDT.items.add(f));
-          // add dropped files
-          Array.from(dt.files).forEach(f => newDT.items.add(f));
-          fileInput.files = newDT.files;
-          renderFileList();
-        }
-      } else {
-        dz.classList.remove('dragover');
+      if (!files.length && !libs.length){
+        fileListEl.style.display = 'none';
+        return;
       }
-    });
-  });
+      fileListEl.style.display = 'flex';
 
-  // clicking the whole dropzone triggers the native input (label already exists but support click anywhere)
-  dz.addEventListener('click', (e) => {
-    // if the click targeted a button or input, ignore
-    const tag = (e.target && e.target.tagName || '').toLowerCase();
-    if (['button','a','input','label'].includes(tag)) return;
+      // 1) local files
+      files.forEach((f, idx) => {
+        const row = document.createElement('div');
+        row.className = 'notice-file-item';
+        row.innerHTML = `
+          <div class="meta" style="min-width:0; overflow:hidden;">
+            <div class="name" title="${escapeHtmlLocal(f.name)}">${escapeHtmlLocal(f.name)}</div>
+            <div class="size small text-muted">${fmtSize(f.size)}</div>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center">
+            <button type="button" class="btn btn-sm btn-outline-secondary notice-file-preview" data-idx="${idx}" title="Preview (local)">Preview</button>
+            <button type="button" class="btn btn-sm btn-outline-danger notice-file-remove" data-idx="${idx}">Remove</button>
+          </div>
+        `;
+        fileListEl.appendChild(row);
+      });
 
-    // fileInput.click();
-  });
+      // 2) library URLs
+      libs.forEach((u, idx) => {
+        const name = (u || '').split('/').pop() || u;
+        const row = document.createElement('div');
+        row.className = 'notice-file-item';
+        row.innerHTML = `
+          <div class="meta" style="min-width:0; overflow:hidden;">
+            <div class="name" title="${escapeHtmlLocal(name)}">${escapeHtmlLocal(name)}</div>
+            <div class="size small text-muted" title="${escapeHtmlLocal(u)}">From Library</div>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center">
+            <button type="button" class="btn btn-sm btn-outline-primary notice-lib-preview" data-idx="${idx}">Preview</button>
+            <button type="button" class="btn btn-sm btn-outline-danger notice-lib-remove" data-idx="${idx}">Remove</button>
+          </div>
+        `;
+        fileListEl.appendChild(row);
+      });
 
-  // support keyboard accessibility: pressing Enter/Space on the choose label opens input
-  if (chooseLabel){
-    chooseLabel.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault();
-         fileInput.click(); 
+      // wire local file remove / preview
+      fileListEl.querySelectorAll('.notice-file-remove').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const idx = Number(btn.dataset.idx);
+          if (Number.isNaN(idx)) return;
+          const dt = new DataTransfer();
+          Array.from(fileInput.files).forEach((f, i) => { if (i !== idx) dt.items.add(f); });
+          fileInput.files = dt.files;
+          renderFileList();
+        });
+      });
+
+      fileListEl.querySelectorAll('.notice-file-preview').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const idx = Number(btn.dataset.idx);
+          const f = fileInput.files[idx];
+          if (!f) return;
+          const url = URL.createObjectURL(f);
+          window.open(url, '_blank');
+          setTimeout(()=> URL.revokeObjectURL(url), 30000);
+        });
+      });
+
+      // wire library remove / preview
+      fileListEl.querySelectorAll('.notice-lib-remove').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const idx = Number(btn.dataset.idx);
+          if (Number.isNaN(idx)) return;
+          const arr = getLibUrls();
+          arr.splice(idx, 1);
+          setLibUrls(arr);
+          renderFileList();
+        });
+      });
+
+      fileListEl.querySelectorAll('.notice-lib-preview').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          e.preventDefault();
+          const idx = Number(btn.dataset.idx);
+          const arr = getLibUrls();
+          const u = arr[idx];
+          if (!u) return;
+          const at = normalizeAttachmentForPreview(u);
+          openAttachmentPreview(at, 'Preview');
+        });
+      });
+    }
+
+    // clear all
+    function clearAll(){
+      if (fileInput) {
+        fileInput.value = '';
+        try { fileInput.files = new DataTransfer().files; } catch(e){}
+      }
+      setLibUrls([]);
+      renderFileList();
+    }
+
+    if (fileInput){
+      fileInput.addEventListener('change', () => {
+        renderFileList();
+      });
+    }
+
+    if (clearBtn){
+      clearBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        clearAll();
+      });
+    }
+
+    // drag & drop
+    function prevent(ev){ ev.preventDefault(); ev.stopPropagation(); }
+    if (dz){
+      ['dragenter','dragover'].forEach(ev => {
+        dz.addEventListener(ev, (e) => {
+          prevent(e);
+          dz.classList.add('dragover');
+        });
+      });
+      ['dragleave','dragend','drop'].forEach(ev => {
+        dz.addEventListener(ev, (e) => {
+          if (ev === 'drop') {
+            prevent(e);
+            dz.classList.remove('dragover');
+            const dt = e.dataTransfer;
+            if (dt && dt.files && dt.files.length){
+              const newDT = new DataTransfer();
+              Array.from(fileInput.files || []).forEach(f => newDT.items.add(f));
+              Array.from(dt.files).forEach(f => newDT.items.add(f));
+              fileInput.files = newDT.files;
+              renderFileList();
+            }
+          } else {
+            dz.classList.remove('dragover');
+          }
+        });
+      });
+    }
+
+    // keyboard access for Choose Files
+    if (chooseLabel && fileInput){
+      chooseLabel.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fileInput.click(); }
+      });
+    }
+
+    // NEW: “Choose from Library” button
+    if (chooseLibBtn){
+      chooseLibBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        openNoticeLibraryPicker(() => {
+          // after library modal closes with selection, re-render
+          renderFileList();
+        });
+      });
+    }
+
+    // reset library selections on fresh "Add Notice"
+    try {
+      createModalEl.addEventListener('show.bs.modal', () => {
+        const isEditing = (noticeIdInput && noticeIdInput.value && noticeIdInput.value.trim() !== '');
+        if (!isEditing){
+          setLibUrls([]);
         }
-    });
+        renderFileList();
+      });
+    } catch(e){}
+
+    // initial
+    renderFileList();
+  })();
+  // ===== Library picker for Notices (reuses Study Materials as file library) =====
+  // ===== Library picker for Notices (fetch attachments from /api/notices/batch/{batchKey}) =====
+(function(){
+  const libraryApiBase = '/api/notices';
+  let _noticeLibModal = null;
+
+  function ensureNoticeLibraryModal(){
+    if (_noticeLibModal) return _noticeLibModal;
+    const m = document.createElement('div');
+    m.className = 'modal fade';
+    m.id = 'noticeLibraryModal';
+    m.tabIndex = -1;
+    m.innerHTML = `
+      <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title"><i class="fa fa-book me-2"></i>Choose from Library</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body" style="min-height:160px;">
+            <div id="noticeLibLoader" style="display:none; padding:18px;">
+              <div style="display:flex; align-items:center; gap:8px;">
+                <div class="spin" aria-hidden="true"></div>
+                <div class="text-muted">Loading library…</div>
+              </div>
+            </div>
+
+            <div id="noticeLibEmpty" style="display:none;" class="text-muted small p-3;">No library items found for this batch.</div>
+
+            <div id="noticeLibSearchContainer" class="mb-3" style="display:none;">
+              <div class="input-group input-group-sm">
+                <span class="input-group-text">
+                  <i class="fa fa-search"></i>
+                </span>
+                <input type="text" id="noticeLibSearch" class="form-control" placeholder="Search by file name, module or notice..." />
+                <button id="noticeLibClearSearch" class="btn btn-outline-secondary" type="button" style="display:none;">
+                  <i class="fa fa-times"></i>
+                </button>
+              </div>
+              <div id="noticeLibSearchResults" class="small text-muted mt-2" style="display:none;"></div>
+            </div>
+
+            <div id="noticeLibList" style="display:none;"></div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+            <button id="noticeLibConfirm" type="button" class="btn btn-primary">Add selected</button>
+          </div>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(m);
+    _noticeLibModal = m;
+
+    // shared card styles
+    if (!document.getElementById('notice-lib-card-styles')) {
+      const style = document.createElement('style');
+      style.id = 'notice-lib-card-styles';
+      style.textContent = `
+        #noticeLibList .notice-lib-grid { display:grid; gap:12px; grid-template-columns:repeat(3, 1fr); }
+        @media (max-width:1024px){ #noticeLibList .notice-lib-grid{ grid-template-columns:repeat(2, 1fr);} }
+        @media (max-width:640px){ #noticeLibList .notice-lib-grid{ grid-template-columns:repeat(1, 1fr);} }
+
+        .notice-lib-card{ display:flex; flex-direction:column; gap:8px; padding:10px; border-radius:10px; border:1px solid rgba(0,0,0,0.06); background:#fff; min-height:160px; position:relative; overflow:hidden; }
+        .notice-lib-thumb{ height:120px; width:100%; object-fit:cover; border-radius:8px; background:linear-gradient(180deg,#f7f7f7,#fff); box-shadow:inset 0 0 0 1px rgba(0,0,0,0.02); }
+        .notice-lib-placeholder-icon{ width:100%; height:120px; display:flex; align-items:center; justify-content:center; font-size:36px; color:rgba(0,0,0,0.35); border-radius:8px; background:linear-gradient(180deg,#fafafa,#fff); }
+
+        .notice-lib-card .overlay-checkbox{ position:absolute; top:10px; left:10px; z-index:5; background:rgba(255,255,255,0.9); padding:6px; border-radius:6px; box-shadow:0 1px 3px rgba(0,0,0,0.06); }
+        .notice-lib-card .card-name{ margin-top:6px; font-weight:600; font-size:13px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+        .notice-lib-card .card-refs{ font-size:12px; color:var(--muted-color); margin-top:6px; max-height:3.6em; overflow:hidden; }
+
+        .notice-lib-card .card-actions{ display:flex; align-items:center; justify-content:space-between; gap:8px; margin-top:auto; }
+        .notice-highlight{ background:rgba(255,255,0,0.3); padding:0 1px; border-radius:2px; }
+      `;
+      document.head.appendChild(style);
+    }
+
+    return _noticeLibModal;
   }
 
-  // Small helper to escape HTML in JS text
-  function escapeHtml(s){ return String(s || '').replace(/[&<>"'`=\/]/g, function(ch){ return({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;','/':'&#x2F;','`':'&#x60','=':'&#x3D;'}[ch]); }); }
+  // main entry: called from attachments IIFE
+  window.openNoticeLibraryPicker = async function(onDone){
+    const modalEl   = ensureNoticeLibraryModal();
+    const libList   = modalEl.querySelector('#noticeLibList');
+    const libLoader = modalEl.querySelector('#noticeLibLoader');
+    const libEmpty  = modalEl.querySelector('#noticeLibEmpty');
+    const libConfirm= modalEl.querySelector('#noticeLibConfirm');
+    const searchContainer = modalEl.querySelector('#noticeLibSearchContainer');
+    const searchInput     = modalEl.querySelector('#noticeLibSearch');
+    const clearSearchBtn  = modalEl.querySelector('#noticeLibClearSearch');
+    const searchResults   = modalEl.querySelector('#noticeLibSearchResults');
 
-  // init (if files already present e.g. from edit mode)
-  renderFileList();
+    libList.innerHTML = '';
+    libLoader.style.display = '';
+    libEmpty.style.display  = 'none';
+    libList.style.display   = 'none';
+    searchContainer.style.display = 'none';
+    searchInput.value = '';
+    clearSearchBtn.style.display = 'none';
+    searchResults.style.display  = 'none';
+    libConfirm.disabled = true;
+
+    // show modal
+    try {
+      if (window.bootstrap && typeof window.bootstrap.Modal === 'function') {
+        bootstrap.Modal.getOrCreateInstance(modalEl).show();
+      } else {
+        modalEl.style.display = 'block';
+        modalEl.classList.add('show');
+        document.body.classList.add('modal-open');
+      }
+    } catch(e){}
+
+    function esc(s){
+      return String(s || '').replace(/[&<>"'`=\/]/g, function(ch){
+        return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;','/':'&#x2F;','`':'&#x60','=':'&#x3D;'}[ch];
+      });
+    }
+    function extOf(u){ try { return (u || '').split('?')[0].split('.').pop().toLowerCase(); } catch(e){ return ''; } }
+    function isImg(e){ return ['png','jpg','jpeg','webp','gif','svg'].includes(e); }
+    function isPdf(e){ return e === 'pdf'; }
+    function isVid(e){ return ['mp4','webm','ogg','mov'].includes(e); }
+    function highlight(text, term){
+      if (!term || !text) return esc(text);
+      const escaped = esc(text);
+      const re = new RegExp('(' + term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')','gi');
+      return escaped.replace(re, '<span class="notice-highlight">$1</span>');
+    }
+
+    try {
+      const ctx = readContext();
+      if (!ctx || !ctx.batch_id) throw new Error('Missing batch context');
+
+      const url = `${libraryApiBase}/batch/${encodeURIComponent(ctx.batch_id)}`;
+      const res = await apiFetch(url);
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const json = await res.json().catch(()=>null);
+
+      console.log('Notice library JSON:', json); // DEBUG: see actual shape
+
+      if (!json || !json.data) throw new Error('Invalid response');
+
+      const data = json.data;
+      let allNotices = [];
+
+      // 1) modules_with_notices -> notices[]
+      if (Array.isArray(data.modules_with_notices)) {
+        data.modules_with_notices.forEach(mg => {
+          const moduleTitle = mg.module?.title || '';
+          (mg.notices || []).forEach(n => {
+            n._moduleTitle = moduleTitle; // attach module title
+            allNotices.push(n);
+          });
+        });
+      }
+      // 2) data.notices[]
+      else if (Array.isArray(data.notices)) {
+        allNotices = data.notices;
+      }
+      // 3) data as array
+      else if (Array.isArray(data)) {
+        allNotices = data;
+      }
+
+      if (!allNotices.length) {
+        libLoader.style.display = 'none';
+        libEmpty.style.display  = '';
+        return;
+      }
+
+      // Build docMap from notice attachments
+      const docMap = new Map();
+
+      allNotices.forEach(notice => {
+        const moduleTitle = notice._moduleTitle || '';
+        const noticeTitle = notice.title || 'Untitled';
+        const noticeId    = notice.id || notice.uuid || '';
+
+        let atts = Array.isArray(notice.attachment)
+          ? notice.attachment
+          : (notice.attachments || notice.attachments_json || []);
+
+        if (typeof atts === 'string') {
+          try { atts = JSON.parse(atts); } catch(e){ atts = []; }
+        }
+        if (!Array.isArray(atts)) atts = atts ? [atts] : [];
+
+        (atts || []).forEach(a => {
+          const normalized = (typeof a === 'string')
+            ? { url:a, name:(a||'').split('/').pop() }
+            : a;
+
+          const urlCand = (normalized.signed_url || normalized.url || normalized.path || '') + '';
+          if (!urlCand) return;
+
+          const key = urlCand.split('?')[0];
+          if (!docMap.has(key)) {
+            docMap.set(key, {
+              url: urlCand,
+              name: normalized.name || (urlCand.split('/').pop() || 'file'),
+              refs: [{ noticeTitle, moduleTitle, noticeId }],
+              searchText:
+                (normalized.name || '') + ' ' +
+                (noticeTitle || '') + ' ' +
+                (moduleTitle || '') + ' ' +
+                urlCand
+            });
+          } else {
+            const entry = docMap.get(key);
+            const exists = entry.refs.some(r => String(r.noticeId) === String(noticeId));
+            if (!exists) {
+              entry.refs.push({ noticeTitle, moduleTitle, noticeId });
+              entry.searchText += ' ' + (noticeTitle || '') + ' ' + (moduleTitle || '');
+            }
+          }
+        });
+      });
+
+      libLoader.style.display = 'none';
+      const items = Array.from(docMap.values());
+      if (!items.length) {
+        libEmpty.style.display = '';
+        return;
+      }
+
+      searchContainer.style.display = '';
+
+      function renderCards(list, term){
+        const selectedSet = new Set((createModalEl._selectedNoticeLibraryUrls || []).map(u => String(u)));
+        const cards = list.map((it, idx) => {
+          const url = it.url || '';
+          const name = it.name || (url||'').split('/').pop() || `file-${idx+1}`;
+          const ext = extOf(url);
+          const refs = it.refs.map(r => (r.moduleTitle ? `${r.noticeTitle} • ${r.moduleTitle}` : r.noticeTitle));
+          const refsShort = refs.slice(0,3).join(', ');
+          const more = Math.max(0, refs.length - 3);
+          const refsDisplay = refsShort + (more ? `, +${more} more` : '');
+          const checked = selectedSet.has(url) ? 'checked' : '';
+
+          let thumbHtml = '';
+          if (isImg(ext))      thumbHtml = `<img class="notice-lib-thumb" loading="lazy" src="${esc(url)}" alt="${esc(name)}" />`;
+          else if (isPdf(ext)) thumbHtml = `<div class="notice-lib-placeholder-icon"><i class="fa fa-file-pdf"></i></div>`;
+          else if (isVid(ext)) thumbHtml = `<div class="notice-lib-placeholder-icon"><i class="fa fa-video"></i></div>`;
+          else                 thumbHtml = `<div class="notice-lib-placeholder-icon"><i class="fa fa-file"></i></div>`;
+
+          return `
+            <div class="notice-lib-card" data-url="${esc(url)}">
+              <div class="overlay-checkbox">
+                <input type="checkbox" class="notice-lib-checkbox" data-url="${esc(url)}" ${checked} />
+              </div>
+              <div class="thumb-wrap">${thumbHtml}</div>
+              <div class="card-name" title="${esc(name)}">${term ? highlight(name, term) : esc(name)}</div>
+              <div class="card-refs" title="${esc(refs.join(' • '))}">
+                ${term ? highlight(refsDisplay, term) : esc(refsDisplay)}
+              </div>
+              <div class="card-actions">
+                <button type="button" class="btn btn-sm btn-outline-primary notice-lib-preview-row" data-url="${esc(url)}">
+                  <i class="fa fa-eye"></i> Preview
+                </button>
+                <div style="font-size:12px; color:var(--muted-color);">${esc(String(it.refs.length))} ref(s)</div>
+              </div>
+            </div>
+          `;
+        }).join('');
+
+        libList.innerHTML = `<div class="notice-lib-grid">${cards}</div>`;
+        libList.style.display = '';
+
+        const grid = libList.querySelector('.notice-lib-grid');
+        if (!grid) return;
+
+        function updateConfirm(){
+          const any = Array.from(grid.querySelectorAll('.notice-lib-checkbox')).some(n => n.checked);
+          libConfirm.disabled = !any;
+        }
+
+        grid.querySelectorAll('.notice-lib-card').forEach(card => {
+          const cb = card.querySelector('.notice-lib-checkbox');
+          card.addEventListener('click', (ev) => {
+            if (ev.target.closest('.notice-lib-preview-row') || ev.target === cb) return;
+            cb.checked = !cb.checked;
+            updateConfirm();
+          });
+          cb.addEventListener('change', updateConfirm);
+        });
+
+        grid.querySelectorAll('.notice-lib-preview-row').forEach(btn => {
+          btn.addEventListener('click', (ev) => {
+            ev.preventDefault();
+            ev.stopPropagation();
+            const u = btn.dataset.url;
+            if (!u) return;
+            const at = normalizeAttachmentForPreview(u);
+            try {
+              if (window.bootstrap && typeof window.bootstrap.Modal === 'function') {
+                bootstrap.Modal.getInstance(modalEl)?.hide();
+              } else {
+                modalEl.classList.remove('show'); modalEl.style.display='none'; document.body.classList.remove('modal-open');
+              }
+            } catch(e){}
+            openAttachmentPreview(at, at.name || 'Preview');
+          });
+        });
+
+        updateConfirm();
+      }
+
+      // initial render
+      renderCards(items, '');
+
+      // search
+      let searchTimeout;
+      searchInput.addEventListener('input', () => {
+        clearTimeout(searchTimeout);
+        const term = searchInput.value.trim().toLowerCase();
+        if (!term){
+          clearSearchBtn.style.display = 'none';
+          searchResults.style.display  = 'none';
+          renderCards(items, '');
+          return;
+        }
+        clearSearchBtn.style.display = '';
+        searchTimeout = setTimeout(() => {
+          const filtered = items.filter(it => it.searchText.toLowerCase().includes(term));
+          searchResults.style.display = '';
+          searchResults.textContent = `Found ${filtered.length} of ${items.length} items`;
+          renderCards(filtered, term);
+        }, 250);
+      });
+
+      clearSearchBtn.addEventListener('click', () => {
+        searchInput.value = '';
+        clearSearchBtn.style.display = 'none';
+        searchResults.style.display  = 'none';
+        renderCards(items, '');
+        searchInput.focus();
+      });
+
+      // confirm
+      libConfirm.onclick = () => {
+        const urls = Array.from(libList.querySelectorAll('.notice-lib-checkbox'))
+          .filter(n => n.checked)
+          .map(n => n.dataset.url);
+        const existing = createModalEl._selectedNoticeLibraryUrls || [];
+        const set = new Set(existing);
+        urls.forEach(u => { if (u) set.add(u); });
+        createModalEl._selectedNoticeLibraryUrls = Array.from(set);
+        if (typeof onDone === 'function') onDone();
+
+        try {
+          if (window.bootstrap && typeof window.bootstrap.Modal === 'function') {
+            bootstrap.Modal.getInstance(modalEl)?.hide();
+          } else {
+            modalEl.classList.remove('show'); modalEl.style.display='none'; document.body.classList.remove('modal-open');
+          }
+        } catch(e){}
+      };
+
+    } catch(err){
+      console.error('Notice library picker error', err);
+      libLoader.style.display = 'none';
+      libEmpty.style.display  = '';
+      libEmpty.textContent = 'Unable to load library items.';
+    }
+  };
 })();
 
   updateContextDisplay(); loadNotices();
