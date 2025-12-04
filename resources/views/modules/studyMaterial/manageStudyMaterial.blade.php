@@ -107,12 +107,32 @@ html.theme-dark .dropdown-menu{background:#0f172a;border-color:var(--line-strong
 .list-group-item:hover {
   background-color: #f8f9fa;
 }
+.library-card {
+  position: relative;
+  overflow: hidden;
+}
+
+.lib-overlay-check {
+  position: absolute;
+  top: 8px;
+  left: 10px;        /* tweak this for more left margin */
+  z-index: 10;
+  background: rgba(255,255,255,0.9);
+  padding: 4px 6px;
+  border-radius: 999px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.12);
+}
+
+html.theme-dark .lib-overlay-check {
+  background: rgba(15,23,42,0.9);
+}
+
 </style>
 @endpush
-
 @section('content')
 <div class="sm-wrap">
-  {{-- ===== Toolbar ===== --}}
+
+  {{-- ===== Global Toolbar: Course & Batch only ===== --}}
   <div class="row align-items-center g-2 mb-3 mfa-toolbar panel">
     <div class="col-12 d-flex align-items-center flex-wrap gap-2">
 
@@ -124,45 +144,90 @@ html.theme-dark .dropdown-menu{background:#0f172a;border-color:var(--line-strong
       </div>
 
       <div class="d-flex align-items-center gap-2">
-        <label class="text-muted small mb-0">Module</label>
-        <select id="moduleSel" class="form-select" style="min-width:240px;" disabled>
-          <option value="">Select a module…</option>
-        </select>
-      </div>
-
-      <div class="d-flex align-items-center gap-2">
         <label class="text-muted small mb-0">Batch</label>
         <select id="batchSel" class="form-select" style="min-width:220px;" disabled>
           <option value="">Select a batch…</option>
         </select>
       </div>
 
-      <div class="ms-auto d-flex align-items-center gap-2">
-        <div class="form-check form-switch me-1">
-          <input class="form-check-input" type="checkbox" id="binToggle" />
-          <label class="form-check-label small" for="binToggle">Bin</label>
-        </div>
-
-        <div class="position-relative" style="min-width:240px;">
-          <input id="q" type="text" class="form-control ps-5" placeholder="Search title/description…" disabled>
-          <i class="fa fa-search position-absolute" style="left:12px;top:50%;transform:translateY(-50%);opacity:.6;"></i>
-        </div>
-        <button
-  id="btnCreate"
-  class="btn btn-primary"
-  disabled
-  data-create-url="{{ url('/admin/course/studyMaterial/create') }}"
->
-  <i class="fa fa-plus"></i> New Material
-</button>
-
+      <div class="ms-auto small text-muted d-none d-md-block">
+        Pick Course & Batch to load study materials.
       </div>
     </div>
   </div>
 
-  {{-- ===== Table ===== --}}
+  {{-- ===== Tabs (like Modules) ===== --}}
+  <ul class="nav nav-tabs mb-3" role="tablist">
+  <li class="nav-item">
+    <a class="nav-link active" href="javascript:void(0)" id="smTabActive" data-scope="active">
+      <i class="fa-solid fa-book-open me-2" aria-hidden="true"></i>
+      Active
+    </a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link" href="javascript:void(0)" id="smTabArchived" data-scope="archived">
+      <i class="fa-solid fa-box-archive me-2" aria-hidden="true"></i>
+      Archived
+    </a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link" href="javascript:void(0)" id="smTabBin" data-scope="bin">
+      <i class="fa-solid fa-trash-can me-2" aria-hidden="true"></i>
+      Bin
+    </a>
+  </li>
+</ul>
+
+
+  {{-- ===== Card: Toolbar + Table ===== --}}
   <div class="card table-wrap">
     <div class="card-body p-0">
+
+      {{-- Inner toolbar (like Modules) --}}
+      {{-- Inner toolbar (like Notices) --}}
+<div class="row align-items-center g-2 px-3 pt-3 pb-2 mfa-toolbar" id="listToolbar">
+  <div class="col-12 col-xl d-flex align-items-center flex-wrap gap-2">
+
+    {{-- Per-page --}}
+    <div class="d-flex align-items-center gap-2">
+      <label for="perPageSel" class="text-muted small mb-0">Per page</label>
+      <select id="perPageSel" class="form-select form-select-sm" style="width:auto; min-width:90px;">
+        <option value="10">10</option>
+        <option value="20" selected>20</option>
+        <option value="30">30</option>
+        <option value="50">50</option>
+      </select>
+    </div>
+
+    {{-- Search --}}
+    <div class="position-relative flex-grow-1" style="min-width:260px;">
+      <input id="q" type="text" class="form-control ps-5" placeholder="Search title/description…" disabled>
+      <i class="fa fa-search position-absolute" style="left:12px;top:50%;transform:translateY(-50%);opacity:.6;"></i>
+    </div>
+
+  </div>
+
+  <div class="col-12 col-xl-auto ms-xl-auto d-flex justify-content-xl-end gap-2">
+
+    {{-- Filters button --}}
+    <button type="button" id="btnFilters" class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#smFilterModal">
+      <i class="fa fa-sliders"></i> Filters
+    </button>
+
+    {{-- Create --}}
+    <a
+      id="btnCreate"
+      href="/admin/course/studyMaterial/create"
+      class="btn btn-primary"
+      data-create-url="/admin/course/studyMaterial/create"
+      disabled
+    >
+      <i class="fa fa-plus me-1"></i> New Material
+    </a>
+  </div>
+</div>
+
+      {{-- ===== Table ===== --}}
       <div class="table-responsive">
         <table class="table table-hover table-borderless align-middle mb-0">
           <thead class="sticky-top">
@@ -190,7 +255,7 @@ html.theme-dark .dropdown-menu{background:#0f172a;border-color:var(--line-strong
             <tr id="ask">
               <td colspan="6" class="p-4 text-center text-muted">
                 <i class="fa fa-book mb-2" style="font-size:28px;opacity:.6"></i>
-                <div>Please select Course → Module → Batch to load study materials.</div>
+                <div>Please select Course → Batch to load study materials.</div>
               </td>
             </tr>
           </tbody>
@@ -244,7 +309,6 @@ html.theme-dark .dropdown-menu{background:#0f172a;border-color:var(--line-strong
   </div>
 </div>
 
-{{-- ================= Create / Edit Material (modal) ================= --}}
 {{-- ================= Create / Edit Material (modal) ================= --}}
 <div class="modal fade" id="editModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-xl modal-dialog-scrollable">
@@ -323,7 +387,6 @@ html.theme-dark .dropdown-menu{background:#0f172a;border-color:var(--line-strong
   </div>
 </div>
 
-{{-- ================= Library Modal ================= --}}
 {{-- ================= Library Modal ================= --}}
 <div class="modal fade" id="libraryModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-xl modal-dialog-scrollable">
@@ -417,7 +480,10 @@ const API = {
   update: (id)=> `/api/study-materials/${encodeURIComponent(id)}`,
   destroy: (id, force=false)=> `/api/study-materials/${encodeURIComponent(id)}${force ? '?force=1' : ''}`,
   restore: (id)=> `/api/study-materials/${encodeURIComponent(id)}/restore`,
-  file   : (id)=> `/api/study-materials/file/${encodeURIComponent(id)}`
+  file   : (id)=> `/api/study-materials/file/${encodeURIComponent(id)}`,
+  binIndex : (qs)=> '/api/study-materials/deleted?' + qs.toString(),
+  archive   : (id)=> `/api/study-materials/${encodeURIComponent(id)}/archive`,
+  unarchive : (id)=> `/api/study-materials/${encodeURIComponent(id)}/unarchive`,
 };
 
 const H = {
@@ -451,40 +517,98 @@ const H = {
     return map[ext]||'fa-file';
   }
 };
+
 function extOf(u){
   try { return (u||'').split('?')[0].split('.').pop().toLowerCase(); }
   catch(e){ return ''; }
 }
 
-/* =================== ELEMENTS & STATE =================== */
-const courseSel = document.getElementById('courseSel');
-const moduleSel = document.getElementById('moduleSel');
-const batchSel  = document.getElementById('batchSel');
-const q         = document.getElementById('q');
-const btnCreate = document.getElementById('btnCreate');
-const rowsEl    = document.getElementById('rows');
-const loaderRow = document.getElementById('loaderRow');
-const emptyEl   = document.getElementById('empty');
-const askEl     = document.getElementById('ask');
-const pager     = document.getElementById('pager');
-const metaTxt   = document.getElementById('metaTxt');
-const binToggle = document.getElementById('binToggle');
+const courseSel   = document.getElementById('courseSel');
+const batchSel    = document.getElementById('batchSel');
+const q           = document.getElementById('q');
+const btnCreate   = document.getElementById('btnCreate');
+const rowsEl      = document.getElementById('rows');
+const loaderRow   = document.getElementById('loaderRow');
+const emptyEl     = document.getElementById('empty');
+const askEl       = document.getElementById('ask');
+const pager       = document.getElementById('pager');
+const metaTxt     = document.getElementById('metaTxt');
 
-let sort = '-created_at';
-let page = 1;
+const listToolbar = document.getElementById('listToolbar');
+const perPageSel  = document.getElementById('perPageSel');
+const btnFilters  = document.getElementById('btnFilters');
+
+const smTabActive   = document.getElementById('smTabActive');
+const smTabArchived = document.getElementById('smTabArchived');
+const smTabBin      = document.getElementById('smTabBin');
+
+const fltStatus = document.getElementById('fltStatus');
+const fltSort   = document.getElementById('fltSort');
+const fltApply  = document.getElementById('fltApply');
+
+let sort    = '-created_at';
+let page    = 1;
 let perPage = 20;
+let scope   = 'active';   // 'active' | 'archived' | 'bin'
 let binMode = false;
+let statusFilter = '';
+
+let modulesForTable = [];
+const moduleMaterialsCache = new Map();
+
+
+/* ================= SCOPE HANDLING ================== */
+function setScope(newScope){
+  scope   = newScope;
+  binMode = (scope === 'bin');
+
+  // Tab active states
+  if (smTabActive && smTabArchived && smTabBin) {
+    smTabActive.classList.toggle('active',   scope === 'active');
+    smTabArchived.classList.toggle('active', scope === 'archived');
+    smTabBin.classList.toggle('active',      scope === 'bin');
+  }
+
+  // Toolbar behaviour
+  if (listToolbar) {
+    if (scope === 'bin') {
+      listToolbar.classList.add('opacity-75');
+      q.disabled = true;
+      if (btnCreate) btnCreate.disabled = true;
+    } else {
+      listToolbar.classList.remove('opacity-75');
+      q.disabled = !batchSel.value;
+      if (btnCreate) btnCreate.disabled = !batchSel.value;
+    }
+  }
+
+  page = 1;
+  moduleMaterialsCache.clear();
+
+  if (batchSel.value) {
+    renderModuleTable();
+  } else {
+    rowsEl.querySelectorAll('tr:not(#loaderRow):not(#ask)').forEach(n=>n.remove());
+    emptyEl.style.display='none';
+    askEl.style.display='';
+    pager.innerHTML='';
+    metaTxt.textContent='—';
+  }
+}
 
 /* =================== INIT =================== */
 loadCourses();
 wire();
+setScope('active');
 
 function enableFilters(on){
-  [moduleSel, batchSel, q].forEach(el=> el.disabled = !on);
-  btnCreate.disabled = !on || binMode;
+  [batchSel, q].forEach(el=> el.disabled = !on);
+  btnCreate.disabled = !on || scope === 'bin';
 }
 
 function wire(){
+
+  /* ========= Dropdown buttons ========= */
   document.addEventListener('click', (e)=>{
     const btn = e.target.closest('.dd-toggle');
     if(!btn) return;
@@ -497,6 +621,7 @@ function wire(){
     dd.toggle();
   });
 
+  /* ========= Column sorting ========= */
   document.querySelectorAll('thead th.sortable').forEach(th=>{
     th.addEventListener('click', ()=>{
       const col = th.dataset.col;
@@ -508,62 +633,91 @@ function wire(){
     });
   });
 
+  /* ========= Course change ========= */
   courseSel.addEventListener('change', async ()=>{
-    moduleSel.innerHTML = '<option value="">Select a module…</option>';
-    batchSel .innerHTML = '<option value="">Select a batch…</option>';
+    batchSel.innerHTML = '<option value="">Select a batch…</option>';
     enableFilters(false);
+
+    // reset table
     rowsEl.querySelectorAll('tr:not(#loaderRow):not(#ask)').forEach(n=>n.remove());
-    emptyEl.style.display='none'; askEl.style.display='';
-    pager.innerHTML=''; metaTxt.textContent='—';
+    emptyEl.style.display='none'; 
+    askEl.style.display='';
+    pager.innerHTML=''; 
+    metaTxt.textContent='—';
+    modulesForTable = [];
+    moduleMaterialsCache.clear();
+
     if(!courseSel.value) return;
+
     await loadModules(courseSel.value);
     await loadBatches(courseSel.value);
     enableFilters(true);
   });
 
-  moduleSel.addEventListener('change', async ()=>{
-    await loadBatches(courseSel.value, moduleSel.value||'');
-    askEl.style.display='';
-    rowsEl.querySelectorAll('tr:not(#loaderRow):not(#ask)').forEach(n=>n.remove());
-    emptyEl.style.display='none'; pager.innerHTML=''; metaTxt.textContent='—';
-  });
-
+  /* ========= Batch change ========= */
   batchSel.addEventListener('change', ()=>{
-    if(batchSel.value){ page=1; loadList(); }
+    moduleMaterialsCache.clear();
+    if(batchSel.value){
+      renderModuleTable();
+    }else{
+      rowsEl.querySelectorAll('tr:not(#loaderRow):not(#ask)').forEach(n=>n.remove());
+      emptyEl.style.display='none';
+      askEl.style.display='';
+      pager.innerHTML=''; 
+      metaTxt.textContent='—';
+    }
   });
 
+  /* ========= Per page ========= */
+  if (perPageSel) {
+    perPageSel.value = String(perPage);
+    perPageSel.addEventListener('change', () => {
+      perPage = Number(perPageSel.value) || 20;
+      page = 1;
+      moduleMaterialsCache.clear();
+      if (batchSel.value) renderModuleTable();
+    });
+  }
+
+  /* ========= Filters ========= */
+  if (fltApply) {
+    fltApply.addEventListener('click', () => {
+      statusFilter = fltStatus ? fltStatus.value : '';
+      sort         = fltSort ? fltSort.value : '-created_at';
+      page = 1;
+      moduleMaterialsCache.clear();
+      if (batchSel.value) renderModuleTable();
+      const m = bootstrap.Modal.getInstance(document.getElementById('smFilterModal'));
+      if (m) m.hide();
+    });
+  }
+
+  /* ========= Search ========= */
   let t;
   q.addEventListener('input', ()=>{
     clearTimeout(t);
-    t=setTimeout(()=>{ page=1; if(batchSel.value) loadList(); }, 350);
+    t=setTimeout(()=>{
+      moduleMaterialsCache.clear();
+      if(batchSel.value) renderModuleTable();
+    }, 350);
   });
 
-  binToggle.addEventListener('change', ()=>{
-    binMode = !!binToggle.checked;
-    btnCreate.disabled = binMode || !batchSel.value;
-    page = 1;
-    if(batchSel.value) loadList();
-  });
-
-  btnCreate.addEventListener('click', () => {
-    if (!courseSel.value || !batchSel.value) {
-      Swal.fire('Select filters', 'Pick Course → Module → Batch first.', 'info');
-      return;
-    }
-    if (binMode) {
-      Swal.fire('Bin view active', 'Switch off Bin to create.', 'info');
-      return;
-    }
-
-    const base = btnCreate.dataset.createUrl || '/admin/course/studyMaterial/create';
-    const qs = new URLSearchParams({
-      course_id: courseSel.value,
-      course_module_id: moduleSel.value || '',
-      batch_id: batchSel.value
+  /* ========= Tabs ========= */
+  if (smTabActive && smTabArchived && smTabBin) {
+    smTabActive.addEventListener('click', (e)=>{
+      e.preventDefault();
+      if (scope !== 'active') setScope('active');
     });
+    smTabArchived.addEventListener('click', (e)=>{
+      e.preventDefault();
+      if (scope !== 'archived') setScope('archived');
+    });
+    smTabBin.addEventListener('click', (e)=>{
+      e.preventDefault();
+      if (scope !== 'bin') setScope('bin');
+    });
+  }
 
-    window.location.href = `${base}?${qs.toString()}`;
-  });
 
   document.addEventListener('click', (e)=>{
     const item=e.target.closest('.dropdown-item[data-act]');
@@ -575,14 +729,14 @@ function wire(){
     if(act==='delete')  deleteItem(id);
     if(act==='purge')   purgeItem(id);
     if(act==='restore') restoreItem(id);
+    if(act==='archive')   archiveMaterial(id);
+if(act==='unarchive') unarchiveMaterial(id);
     const toggle=item.closest('.dropdown')?.querySelector('.dd-toggle');
     if(toggle) bootstrap.Dropdown.getOrCreateInstance(toggle).hide();
   });
 
   document.getElementById('viewer').addEventListener('contextmenu', (e)=> e.preventDefault());
 }
-
-/* =================== LOADERS =================== */
 async function loadCourses(){
   try{
     const res=await fetch('/api/courses?status=published&per_page=1000',{
@@ -598,21 +752,23 @@ async function loadCourses(){
 
 async function loadModules(courseId){
   try{
-    const res=await fetch(`/api/course-modules?course_id=${encodeURIComponent(courseId)}&per_page=1000`,{
+    const res = await fetch(`/api/course-modules?course_id=${encodeURIComponent(courseId)}&per_page=1000`,{
       headers:{Authorization:'Bearer '+TOKEN,Accept:'application/json'}
     });
-    const j=await res.json();
+    const j = await res.json();
     if(!res.ok) throw new Error(j?.message||'Failed to load modules');
-    const items=j?.data||[];
-    moduleSel.innerHTML = '<option value="">Select a module…</option>' +
-      items.map(m=>`<option value="${m.id}" data-uuid="${H.esc(m.uuid||'')}">${H.esc(m.title||'(untitled)')}</option>`).join('');
-  }catch(e){ err(e.message||'Modules error'); }
+
+    // store modules for table
+    modulesForTable = j?.data || [];
+  }catch(e){
+    modulesForTable = [];
+    err(e.message||'Modules error');
+  }
 }
 
-async function loadBatches(courseId, moduleId){
+async function loadBatches(courseId){
   try{
     const qs = new URLSearchParams({course_id:courseId, per_page:'200'});
-    if(moduleId) qs.set('course_module_id', moduleId);
     const res=await fetch('/api/batches?'+qs.toString(),{
       headers:{Authorization:'Bearer '+TOKEN,Accept:'application/json'}
     });
@@ -624,12 +780,306 @@ async function loadBatches(courseId, moduleId){
   }catch(e){ err(e.message||'Batches error'); }
 }
 
+function renderModuleTable(){
+  if(!batchSel.value){
+    showAsk(true);
+    return;
+  }
+
+  showAsk(false);
+  showLoader(true);
+  emptyEl.style.display='none';
+  pager.innerHTML='';
+  metaTxt.textContent='—';
+
+  // Clear existing rows
+  rowsEl.querySelectorAll('tr:not(#loaderRow):not(#ask)').forEach(n=>n.remove());
+
+  if(!modulesForTable.length){
+    showLoader(false);
+    emptyEl.style.display='';
+    return;
+  }
+
+  const frag = document.createDocumentFragment();
+
+  // simple pagination at module level if needed
+  const total = modulesForTable.length;
+  const per   = perPage;
+  const pages = Math.max(1, Math.ceil(total / per));
+  const cur   = Math.min(page, pages);
+
+  const start = (cur - 1) * per;
+  const end   = Math.min(start + per, total);
+  const slice = modulesForTable.slice(start, end);
+
+  slice.forEach(m => {
+    const modId = m.id;
+    const modTitle = m.title || '(untitled module)';
+    const modDesc  = m.description || '';
+
+    // main module row
+    const tr = document.createElement('tr');
+    tr.className = 'module-row';
+    tr.dataset.moduleId = modId;
+
+    tr.innerHTML = `
+      <td>
+        <button type="button" class="btn btn-sm btn-outline-secondary me-2 toggle-mod">
+          <i class="fa fa-chevron-right"></i>
+        </button>
+        <span class="fw-semibold">${H.esc(modTitle)}</span>
+        ${modDesc ? `<div class="small text-muted text-truncate" style="max-width:520px">${H.esc(modDesc)}</div>` : ''}
+      </td>
+      <td colspan="3" class="text-muted small">Module under "${H.esc(courseSel.options[courseSel.selectedIndex]?.text || '')}"</td>
+      <td>-</td>
+      <td class="text-end">
+        <button class="btn btn-sm btn-primary" data-act="create-under-module" data-module-id="${modId}" style="display:none">
+          <i class="fa fa-plus"></i> Add material
+        </button>
+      </td>
+    `;
+
+    // detail row for materials
+    const trDetails = document.createElement('tr');
+    trDetails.className = 'module-materials';
+    trDetails.dataset.moduleId = modId;
+    trDetails.style.display = 'none';
+    trDetails.innerHTML = `
+      <td colspan="6">
+        <div class="p-3 border-top border-light-subtle" id="mm_wrap_${modId}">
+          <div class="small text-muted">Click the arrow to load materials for this module & batch.</div>
+        </div>
+      </td>
+    `;
+
+    frag.appendChild(tr);
+    frag.appendChild(trDetails);
+  });
+
+  rowsEl.appendChild(frag);
+
+  // pagination UI (module-level)
+  const li=(dis,act,label,t)=>`<li class="page-item ${dis?'disabled':''} ${act?'active':''}">
+    <a class="page-link" href="javascript:void(0)" data-page="${t||''}">${label}</a></li>`;
+
+  let html='';
+  html+=li(cur<=1,false,'Previous',cur-1);
+  const w=3,s=Math.max(1,cur-w),e=Math.min(pages,cur+w);
+  if(s>1){
+    html+=li(false,false,1,1);
+    if(s>2) html+='<li class="page-item disabled"><span class="page-link">…</span></li>';
+  }
+  for(let i=s;i<=e;i++) html+=li(false,i===cur,i,i);
+  if(e<pages){
+    if(e<pages-1) html+='<li class="page-item disabled"><span class="page-link">…</span></li>';
+    html+=li(false,false,pages,pages);
+  }
+  html+=li(cur>=pages,false,'Next',cur+1);
+  pager.innerHTML=html;
+  pager.querySelectorAll('a.page-link[data-page]').forEach(a=>{
+    a.addEventListener('click',()=>{
+      const t=Number(a.dataset.page);
+      if(!t || t===page) return;
+      page=Math.max(1,t);
+      renderModuleTable();
+      window.scrollTo({top:0,behavior:'smooth'});
+    });
+  });
+
+  metaTxt.textContent = `Page ${cur} of ${pages} — ${total} module(s)`;
+
+  // wire expand buttons
+  rowsEl.querySelectorAll('.module-row .toggle-mod').forEach(btn=>{
+    btn.addEventListener('click',()=>{
+      const tr = btn.closest('.module-row');
+      const moduleId = tr.dataset.moduleId;
+      const detailsRow = rowsEl.querySelector(`.module-materials[data-module-id="${moduleId}"]`);
+      const icon = btn.querySelector('i');
+
+      if(detailsRow.style.display === 'none'){
+        detailsRow.style.display = '';
+        icon.classList.remove('fa-chevron-right');
+        icon.classList.add('fa-chevron-down');
+        loadModuleMaterials(moduleId);
+      }else{
+        detailsRow.style.display = 'none';
+        icon.classList.remove('fa-chevron-down');
+        icon.classList.add('fa-chevron-right');
+      }
+    });
+  });
+
+  // wire "Add material" button under each module
+  rowsEl.querySelectorAll('[data-act="create-under-module"]').forEach(btn=>{
+    btn.addEventListener('click',()=>{
+      const mId = btn.dataset.moduleId;
+      const base = btnCreate.dataset.createUrl || '/admin/course/studyMaterial/create';
+      const qs = new URLSearchParams({
+        course_id: courseSel.value,
+        course_module_id: mId,
+        batch_id: batchSel.value
+      });
+      window.location.href = `${base}?${qs.toString()}`;
+    });
+  });
+
+  showLoader(false);
+}
+
+async function loadModuleMaterials(moduleId){
+  const wrap = document.getElementById(`mm_wrap_${moduleId}`);
+  if(!wrap) return;
+
+  // if cached, just render
+  if(moduleMaterialsCache.has(moduleId)){
+    renderModuleMaterials(moduleId, moduleMaterialsCache.get(moduleId));
+    return;
+  }
+
+  wrap.innerHTML = '<div class="small text-muted">Loading materials…</div>';
+
+  try{
+    const usp = new URLSearchParams({
+  course_id: courseSel.value,
+  course_module_id: moduleId,
+  batch_id: batchSel.value,
+  per_page: 500,
+  sort
+});
+
+if (q.value.trim()) usp.set('search', q.value.trim());
+
+// status based on tab / filter
+if (scope === 'archived') {
+  usp.set('status', 'archived');
+} else if (statusFilter) {
+  usp.set('status', statusFilter);
+}
+
+if (!binMode) {
+  usp.set('include_deleted','0');
+}
+
+const url = (scope === 'bin')
+  ? API.binIndex(usp)
+  : API.index(usp);
+
+    const res = await fetch(url,{
+      headers:{Authorization:'Bearer '+TOKEN,Accept:'application/json','Cache-Control':'no-cache'}
+    });
+    const j=await res.json();
+    if(!res.ok) throw new Error(j?.message||'Load failed');
+
+    const items = j?.data || [];
+    moduleMaterialsCache.set(moduleId, items);
+    renderModuleMaterials(moduleId, items);
+  }catch(e){
+    wrap.innerHTML = `<div class="text-danger small">${H.esc(e.message||'Failed to load materials')}</div>`;
+  }
+}
+
+function renderModuleMaterials(moduleId, items){
+  const wrap = document.getElementById(`mm_wrap_${moduleId}`);
+  if(!wrap) return;
+
+  if(!items.length){
+    wrap.innerHTML = '<div class="small text-muted">No study materials for this module & batch.</div>';
+    return;
+  }
+
+  const rows = items.map(r=>`
+    <tr>
+      <td>
+        <div class="fw-semibold">${H.esc(r.title||'(untitled)')}</div>
+        <div class="small text-muted text-truncate" style="max-width:520px">${H.esc(r.description||'')}</div>
+      </td>
+      <td>${H.esc(r.batch_title || r.batch_name || '-')}</td>
+      <td class="text-center">
+        <span class="badge badge-soft-primary">
+          <i class="fa fa-paperclip"></i> ${Number(r.attachment_count||0)}
+        </span>
+      </td>
+      <td>${H.fmtDateTime(r.created_at)}</td>
+      <td class="text-end">${rowActions(r)}</td>
+    </tr>
+  `).join('');
+
+  wrap.innerHTML = `
+    <div class="table-responsive">
+      <table class="table table-sm align-middle mb-0">
+        <thead style="display:none">
+          <tr>
+            <th>Title</th>
+            <th style="width:16%;">Batch</th>
+            <th class="text-center" style="width:120px;">Files</th>
+            <th style="width:160px;">Created</th>
+            <th class="text-end" style="width:112px;">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rows}
+        </tbody>
+      </table>
+    </div>
+  `;
+
+  // re-wire dropdown actions in this nested table
+  wrap.querySelectorAll('.dropdown-item[data-act]').forEach(item=>{
+    item.addEventListener('click', (e)=>{
+      e.preventDefault();
+      const act = item.dataset.act, id=item.dataset.id, uuid=item.dataset.uuid;
+      if(act==='view')    openView(uuid);
+      if(act==='edit')    openEdit(id);
+      if(act==='delete')  deleteItem(id);
+      if(act==='purge')   purgeItem(id);
+      if(act==='restore') restoreItem(id);
+      const toggle=item.closest('.dropdown')?.querySelector('.dd-toggle');
+      if(toggle) bootstrap.Dropdown.getOrCreateInstance(toggle).hide();
+    });
+  });
+}
+
 function showAsk(v){ askEl.style.display = v ? '' : 'none'; }
 function showLoader(v){ loaderRow.style.display = v ? '' : 'none'; }
 
 function rowActions(r){
-  if(!binMode){
+  // BIN tab
+  if (scope === 'bin') {
     return `
+      <div class="dropdown text-end" data-bs-display="static">
+        <button type="button" class="btn btn-primary btn-sm dd-toggle" data-bs-toggle="dropdown" aria-expanded="false" title="Actions">
+          <i class="fa fa-ellipsis-vertical"></i>
+        </button>
+        <ul class="dropdown-menu dropdown-menu-end">
+          <li><button class="dropdown-item" data-act="view" data-uuid="${H.esc(r.uuid)}"><i class="fa fa-eye"></i> View</button></li>
+          <li><button class="dropdown-item" data-act="restore" data-id="${r.id}"><i class="fa fa-rotate-left"></i> Restore</button></li>
+          <li><hr class="dropdown-divider"></li>
+          <li><button class="dropdown-item text-danger" data-act="purge" data-id="${r.id}"><i class="fa fa-trash-can"></i> Delete permanently</button></li>
+        </ul>
+      </div>`;
+  }
+
+  // ARCHIVED tab
+  if (scope === 'archived') {
+    return `
+      <div class="dropdown text-end" data-bs-display="static">
+        <button type="button" class="btn btn-primary btn-sm dd-toggle" data-bs-toggle="dropdown" aria-expanded="false" title="Actions">
+          <i class="fa fa-ellipsis-vertical"></i>
+        </button>
+        <ul class="dropdown-menu dropdown-menu-end">
+          <li><button class="dropdown-item" data-act="view" data-uuid="${H.esc(r.uuid)}"><i class="fa fa-eye"></i> View</button></li>
+          <li><button class="dropdown-item" data-act="edit" data-id="${r.id}"><i class="fa fa-pen-to-square"></i> Edit</button></li>
+          <li><hr class="dropdown-divider"></li>
+          <li><button class="dropdown-item" data-act="unarchive" data-id="${r.id}"><i class="fa fa-box-open"></i> Unarchive</button></li>
+          <li><hr class="dropdown-divider"></li>
+          <li><button class="dropdown-item text-danger" data-act="delete" data-id="${r.id}"><i class="fa fa-trash"></i> Delete</button></li>
+        </ul>
+      </div>`;
+  }
+
+  // ACTIVE tab
+  return `
     <div class="dropdown text-end" data-bs-display="static">
       <button type="button" class="btn btn-primary btn-sm dd-toggle" data-bs-toggle="dropdown" aria-expanded="false" title="Actions">
         <i class="fa fa-ellipsis-vertical"></i>
@@ -638,25 +1088,14 @@ function rowActions(r){
         <li><button class="dropdown-item" data-act="view" data-uuid="${H.esc(r.uuid)}"><i class="fa fa-eye"></i> View</button></li>
         <li><button class="dropdown-item" data-act="edit" data-id="${r.id}"><i class="fa fa-pen-to-square"></i> Edit</button></li>
         <li><hr class="dropdown-divider"></li>
+        <li><button class="dropdown-item" data-act="archive" data-id="${r.id}"><i class="fa fa-box-archive"></i> Archive</button></li>
+        <li><hr class="dropdown-divider"></li>
         <li><button class="dropdown-item text-danger" data-act="delete" data-id="${r.id}"><i class="fa fa-trash"></i> Delete</button></li>
       </ul>
     </div>`;
-  }else{
-    return `
-    <div class="dropdown text-end" data-bs-display="static">
-      <button type="button" class="btn btn-primary btn-sm dd-toggle" data-bs-toggle="dropdown" aria-expanded="false" title="Actions">
-        <i class="fa fa-ellipsis-vertical"></i>
-      </button>
-      <ul class="dropdown-menu dropdown-menu-end">
-        <li><button class="dropdown-item" data-act="view" data-uuid="${H.esc(r.uuid)}"><i class="fa fa-eye"></i> View</button></li>
-        <li><button class="dropdown-item" data-act="restore" data-id="${r.id}"><i class="fa fa-rotate-left"></i> Restore</button></li>
-        <li><hr class="dropdown-divider"></li>
-        <li><button class="dropdown-item text-danger" data-act="purge" data-id="${r.id}"><i class="fa fa-trash-can"></i> Delete permanently</button></li>
-      </ul>
-    </div>`;
-  }
 }
 
+/* ====== Existing flat list (kept as-is, not used by module view, left untouched) ====== */
 function rowHTML(r){
   const tr=document.createElement('tr');
   tr.innerHTML = `
@@ -683,16 +1122,20 @@ async function loadList(){
   try{
     const usp=new URLSearchParams({
       course_id: courseSel.value,
-      course_module_id: moduleSel.value||'',
+      // course_module_id: moduleSel.value||'', // moduleSel was removed; leaving original line commented
       batch_id: batchSel.value,
       per_page: perPage,
       page,
       sort
     });
     if(q.value.trim()) usp.set('search', q.value.trim());
-    if(binMode){ usp.set('only_deleted','1'); } else { usp.set('include_deleted','0'); }
+      if(!binMode){
+      usp.set('include_deleted','0'); // optional, keep if your API uses it
+    }
 
-    const res=await fetch(API.index(usp), {
+    const url = binMode ? API.binIndex(usp) : API.index(usp);
+
+const res=await fetch(url, {
       headers:{Authorization:'Bearer '+TOKEN,Accept:'application/json','Cache-Control':'no-cache'}
     });
     const j=await res.json();
@@ -744,8 +1187,6 @@ async function loadList(){
     showLoader(false);
   }
 }
-
-/* =================== CREATE / EDIT =================== */
 const em_title = document.getElementById('em_title');
 const em_mode  = document.getElementById('em_mode');
 const em_id    = document.getElementById('em_id');
@@ -870,17 +1311,20 @@ if(em_browse){
 em_files.addEventListener('change', ()=> addEditorFiles(em_files.files));
 
 function resetEditor(){
-  em_title_input.value='';
-  em_desc.value='';
-  em_course_id.value  = courseSel.value;
+  em_title_input.value = '';
+  em_desc.value = '';
+
+  em_course_id.value    = courseSel.value || '';
   em_course_label.value = courseSel.options[courseSel.selectedIndex]?.text || '';
-  em_module_id.value  = moduleSel.value||'';
-  em_module_label.value = moduleSel.value ? (moduleSel.options[moduleSel.selectedIndex]?.text||'') : '';
-  em_batch_id.value   = batchSel.value||'';
+
+  em_module_id.value    = '';
+  em_module_label.value = '';
+
+  em_batch_id.value     = batchSel.value || '';
   em_batch_label.value  = batchSel.options[batchSel.selectedIndex]?.text || '';
 
   emDT = new DataTransfer();
-  em_files.value='';
+  em_files.value = '';
   em_files.files = emDT.files;
   emLibraryUrls = [];
   renderEmFiles();
@@ -898,26 +1342,35 @@ function openCreateModal(){
 }
 
 async function openEdit(id){
-  const m=new bootstrap.Modal(document.getElementById('editModal'));
   if(binMode) return Swal.fire('Bin view','Restore the item first to edit.','info');
-  em_mode.value='edit'; em_id.value=id; em_title.textContent='Edit Material';
+
+  const m = new bootstrap.Modal(document.getElementById('editModal'));
+  em_mode.value = 'edit';
+  em_id.value   = id;
+  em_title.textContent = 'Edit Material';
   resetEditor();
+
   try{
-    const res=await fetch('/api/study-materials?'+new URLSearchParams({id}), {
+    const res = await fetch('/api/study-materials?' + new URLSearchParams({id}), {
       headers:{Authorization:'Bearer '+TOKEN,Accept:'application/json'}
     });
-    const j=await res.json();
-    const row=(j?.data||[])[0];
+    const j   = await res.json();
+    const row = (j?.data || [])[0];
+
     if(row){
-      em_title_input.value=row.title||'';
-      em_desc.value=row.description||'';
-      em_course_id.value=row.course_id||courseSel.value;
-      em_module_id.value=row.course_module_id||moduleSel.value||'';
-      em_batch_id.value=row.batch_id||batchSel.value||'';
+      em_title_input.value = row.title || '';
+      em_desc.value        = row.description || '';
+
+      em_course_id.value    = row.course_id || courseSel.value || '';
       em_course_label.value = courseSel.options[courseSel.selectedIndex]?.text || '';
-      em_module_label.value = moduleSel.options[moduleSel.selectedIndex]?.text || '';
+
+      em_module_id.value    = row.course_module_id || '';
+      em_module_label.value = row.module_title || row.course_module_title || '';
+
+      em_batch_id.value     = row.batch_id || batchSel.value || '';
       em_batch_label.value  = batchSel.options[batchSel.selectedIndex]?.text || '';
     }
+
     m.show();
   }catch(e){
     err('Failed to open editor');
@@ -932,7 +1385,7 @@ async function saveMaterial(){
 
   const fd=new FormData();
   fd.append('course_id', em_course_id.value);
-  fd.append('course_module_id', em_module_id.value || (moduleSel.value||''));
+  fd.append('course_module_id', em_module_id.value);          // << keeps your change
   fd.append('batch_id', em_batch_id.value);
   fd.append('title', em_title_input.value.trim());
   if(em_desc.value.trim()) fd.append('description', em_desc.value.trim());
@@ -961,7 +1414,11 @@ async function saveMaterial(){
     if(!res.ok) throw new Error((j?.message)|| (j?.errors ? Object.values(j.errors)[0] : 'Save failed'));
     ok('Material saved');
     bootstrap.Modal.getOrCreateInstance(document.getElementById('editModal')).hide();
-    loadList();
+
+    // refresh module view instead of loadList()
+    moduleMaterialsCache.clear();
+    if(batchSel.value) renderModuleTable();
+
   }catch(e){
     err(e.message||'Save failed');
   }
@@ -986,7 +1443,8 @@ async function deleteItem(id){
     const j=await res.json().catch(()=>({}));
     if(!res.ok) throw new Error(j?.message||'Delete failed');
     ok('Moved to Bin');
-    loadList();
+    moduleMaterialsCache.clear();
+    if(batchSel.value) renderModuleTable();
   }catch(e){ err(e.message||'Delete failed'); }
 }
 
@@ -1008,22 +1466,61 @@ async function purgeItem(id){
     const j=await res.json().catch(()=>({}));
     if(!res.ok) throw new Error(j?.message||'Purge failed');
     ok('Deleted permanently');
-    loadList();
+    moduleMaterialsCache.clear();
+    if(batchSel.value) renderModuleTable();
   }catch(e){ err(e.message||'Purge failed'); }
+}
+async function archiveMaterial(id){
+  try{
+    const res = await fetch(API.archive(id),{
+      method:'POST',
+      headers:{Authorization:'Bearer '+TOKEN,Accept:'application/json'}
+    });
+    const j = await res.json().catch(()=>({}));
+    if(!res.ok) throw new Error(j?.message || 'Archive failed');
+    ok('Material archived');
+    moduleMaterialsCache.clear();
+    if (batchSel.value) renderModuleTable();
+  }catch(e){
+    err(e.message || 'Archive failed');
+  }
+}
+
+async function unarchiveMaterial(id){
+  try{
+    const res = await fetch(API.unarchive(id),{
+      method:'POST',
+      headers:{Authorization:'Bearer '+TOKEN,Accept:'application/json'}
+    });
+    const j = await res.json().catch(()=>({}));
+    if(!res.ok) throw new Error(j?.message || 'Unarchive failed');
+    ok('Material unarchived');
+    moduleMaterialsCache.clear();
+    if (batchSel.value) renderModuleTable();
+  }catch(e){
+    err(e.message || 'Unarchive failed');
+  }
 }
 
 async function restoreItem(id){
   try{
     const res=await fetch(API.restore(id),{
-      method:'PATCH',
-      headers:{Authorization:'Bearer '+TOKEN,Accept:'application/json'}
+      method:'POST',
+      headers:{
+        Authorization:'Bearer '+TOKEN,
+        Accept:'application/json'
+      }
     });
     const j=await res.json().catch(()=>({}));
     if(!res.ok) throw new Error(j?.message||'Restore failed');
     ok('Restored');
-    loadList();
-  }catch(e){ err(e.message||'Restore failed'); }
+    moduleMaterialsCache.clear();
+    if(batchSel.value) renderModuleTable();
+  }catch(e){
+    err(e.message||'Restore failed');
+  }
 }
+
 
 /* =================== VIEWER =================== */
 const vModal = new bootstrap.Modal(document.getElementById('viewModal'));
@@ -1206,7 +1703,6 @@ function normalizeAttach(a){
 async function fetchLibrary(query){
   const qs = new URLSearchParams({per_page:'200', include_deleted:'0'});
   if(courseSel.value) qs.set('course_id', courseSel.value);
-  if(moduleSel.value) qs.set('course_module_id', moduleSel.value);
   if(batchSel.value)  qs.set('batch_id', batchSel.value);
   if(query) qs.set('search', query);
 
@@ -1299,13 +1795,22 @@ function renderLibraryGrid(){
 
   libItems.forEach(att=>{
     const col = document.createElement('div');
-    col.className = 'col-md-4';
+    col.className = 'col-md-4 mb-3';
 
     const alreadyFromEditor = emLibraryUrls.some(u => u && u.split('?')[0] === (att.url||'').split('?')[0]);
     const selected = libSelected.has(att.key) || alreadyFromEditor;
 
     col.innerHTML = `
-      <div class="card h-100 border-0 shadow-sm">
+      <div class="card h-100 border-0 shadow-sm position-relative library-card">
+        <!-- checkbox overlay top-left -->
+        <div class="lib-overlay-check">
+          <input 
+            class="form-check-input lib-check" 
+            type="checkbox" 
+            data-key="${H.esc(att.key)}"
+          >
+        </div>
+
         <div class="card-body d-flex flex-column">
           <div class="mb-2 text-center" style="min-height:120px;display:flex;align-items:center;justify-content:center;">
             ${
@@ -1317,15 +1822,13 @@ function renderLibraryGrid(){
           <div class="fw-semibold text-truncate" title="${H.esc(att.name)}">${H.esc(att.name)}</div>
           <div class="small text-muted">${H.esc(att.mime || '')}</div>
           <div class="small text-muted mb-2">${att.size ? H.bytes(att.size) : ''}</div>
-          <div class="mt-auto d-flex justify-content-between align-items-center pt-2">
-            <div class="form-check">
-              <input class="form-check-input lib-check" type="checkbox" data-key="${H.esc(att.key)}">
-              <label class="form-check-label small">Select</label>
-            </div>
+
+          <div class="mt-auto d-flex justify-content-start align-items-center pt-2">
             ${
               att.url
-                ? `<a href="${H.esc(att.url)}" target="_blank" class="small text-decoration-none ">
-                     <i class="fa fa-arrow-up-right-from-square me-1"></i>Preview
+                ? `<a href="${H.esc(att.url)}" target="_blank" class="btn btn-sm btn-outline-primary d-inline-flex align-items-center px-2 py-1 small">
+                     <i class="fa fa-arrow-up-right-from-square me-1"></i>
+                     Preview
                    </a>`
                 : ''
             }
@@ -1337,6 +1840,7 @@ function renderLibraryGrid(){
     const cb = col.querySelector('.lib-check');
     cb.checked = selected;
     if(selected) libSelected.add(att.key);
+
     cb.addEventListener('change',(e)=>{
       if(e.target.checked) libSelected.add(att.key);
       else libSelected.delete(att.key);
@@ -1349,26 +1853,25 @@ function renderLibraryGrid(){
   updateSelectedText();
 }
 
-// open Library modal from editor
-if(em_libraryBtn){
-  em_libraryBtn.addEventListener('click', ()=>{
-    libSelected.clear();
-    // keep existing selections in emLibraryUrls
-    ensureLibraryLoaded('').then(()=>{
-      emLibraryUrls.forEach(u=>{
-        const base = (u||'').split('?')[0];
-        libItems.forEach(it=>{
-          if(it.url && it.url.split('?')[0]===base){
+if (em_libraryBtn) {
+  em_libraryBtn.addEventListener('click', (e) => {
+    e.preventDefault();      
+    e.stopPropagation();  
+    ensureLibraryLoaded('').then(() => {
+      emLibraryUrls.forEach(u => {
+        const base = (u || '').split('?')[0];
+        libItems.forEach(it => {
+          if (it.url && it.url.split('?')[0] === base) {
             libSelected.add(it.key);
           }
         });
       });
       renderLibraryGrid();
     });
+
     libraryModal.show();
   });
 }
-
 // search
 if(librarySearchBtn && librarySearch){
   librarySearchBtn.addEventListener('click', ()=>{

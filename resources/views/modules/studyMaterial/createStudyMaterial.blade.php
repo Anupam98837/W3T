@@ -254,7 +254,7 @@
 </div>
 @endsection
 @push('scripts')
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<!-- <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script> -->
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <script>
 (function(){
@@ -516,13 +516,21 @@
     dz.addEventListener(ev, e=>{ e.preventDefault(); e.stopPropagation(); dz.classList.remove('drag'); });
   });
   dz.addEventListener('drop', e=> addFiles(e.dataTransfer && e.dataTransfer.files));
-  $('btnClearAll').addEventListener('click', ()=>{
-    dt = new DataTransfer();
-    input.value='';
+  $('btnClearAll').addEventListener('click', (e)=>{
+  e.preventDefault();
+  e.stopPropagation();   
+  dt = new DataTransfer();
+  if (input) {
+    input.value = '';
     input.files = dt.files;
-    redraw();
-    fErr('attachments','');
-  });
+  }
+  libraryUrls = [];
+  redraw();          
+  renderLibraryList(); 
+  // 4) Clear any error message
+  fErr('attachments','');
+});
+
 
   $('previewModal').addEventListener('hidden.bs.modal', function() {
     const downloadBtn = $('downloadPreview');
@@ -544,7 +552,7 @@
   const btnLibAddSelected = $('btnLibAddSelected');
   const libSelectionInfo  = $('libSelectionInfo');
 
-  const libModalInstance  = libModal ? new bootstrap.Modal(libModal) : null;
+const libModalInstance  = libModal ? new bootstrap.Modal(libModal) : null;
   let libItems        = [];        // normalized docs
   let libSelectedKeys = new Set(); // url-without-query keys
 
@@ -863,20 +871,25 @@
   }
 
   // open modal
-  if(btnOpenLibrary && libModalInstance){
-    btnOpenLibrary.addEventListener('click',()=>{
-      libSelectedKeys = new Set();
-      (libraryUrls || []).forEach(u=>{
-        if(!u) return;
-        const key = String(u).split('?')[0];
-        libSelectedKeys.add(key);
-      });
-      if(libSearch) libSearch.value='';
-      updateLibSelectionInfo();
-      libModalInstance.show();
-      fetchLibraryItems('');
+  if (btnOpenLibrary && libModalInstance) {
+  btnOpenLibrary.addEventListener('click', (e)=>{
+    e.preventDefault();
+    e.stopPropagation();  
+
+    libSelectedKeys = new Set();
+    (libraryUrls || []).forEach(u=>{
+      if(!u) return;
+      const key = String(u).split('?')[0];
+      libSelectedKeys.add(key);
     });
-  }
+
+    if (libSearch) libSearch.value = '';
+    updateLibSelectionInfo();
+    libModalInstance.show();
+    fetchLibraryItems('');
+  });
+}
+
 
   // search
   if(btnLibSearch && libSearch){

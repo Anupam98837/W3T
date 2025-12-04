@@ -60,6 +60,24 @@
   html.theme-dark .file-row{background:#0b1020;border-color:var(--line-strong)}
   html.theme-dark .file-row:hover{background:#131d35;}
   html.theme-dark .preview-text {background: #1a2335}
+  .notice-lib-thumb {
+  width: 100%;
+  height: 120px;                /* fixed height container */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #fafafa;          /* optional */
+  overflow: hidden;             /* prevents overflow */
+  border-radius: 6px;
+}
+
+.notice-lib-thumb img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;          /* maintain aspect ratio */
+  object-position: center center;
+  display: block;
+}
 
   
 </style>
@@ -579,11 +597,25 @@
   ;['dragenter','dragover'].forEach(ev=> { if(dz) dz.addEventListener(ev, e=>{ e.preventDefault(); e.stopPropagation(); dz.classList.add('drag'); }); });
   ;['dragleave','dragend','drop'].forEach(ev=> { if(dz) dz.addEventListener(ev, e=>{ e.preventDefault(); e.stopPropagation(); dz.classList.remove('drag'); }); });
   if(dz) dz.addEventListener('drop', e=> addFiles(e.dataTransfer && e.dataTransfer.files));
-  if($('btnClearAll')) $('btnClearAll').addEventListener('click', ()=>{ dt=new DataTransfer(); if(input) input.value=''; if(input) input.files=dt.files; redraw(); fErr('attachments',''); });
-  if(list) list.addEventListener('click', handleFileAction);
-    /* ===== Notice Library: pick from existing notice attachments ===== */
+if ($('btnClearAll')) {
+  $('btnClearAll').addEventListener('click', (e) => {
+    e.preventDefault();
+    e.stopPropagation();   // ⬅️ stop click bubbling to #dz (so no file dialog)
 
-    /* ===== Notice Library: card/grid + search ===== */
+    dt = new DataTransfer();
+    if (input) {
+      input.value = '';
+      input.files = dt.files;
+    }
+
+    libraryUrls = [];
+    redraw();
+    fErr('attachments', '');
+    revokeAllPreviewURLs?.();
+  });
+}
+  if(list) list.addEventListener('click', handleFileAction);
+   
 
   let noticeLibModalEl = null;
 
@@ -876,82 +908,113 @@
       }
 
       searchContainer.style.display = '';
+      function isImageExt(ext) {
+  return ['jpg','jpeg','png','gif','webp','avif','svg'].includes(
+    String(ext || '').toLowerCase()
+  );
+}
 
-      function renderCards(list, term){
-        const selectedSet = new Set((libraryUrls || []).map(u => String(u)));
-        const gridHtml = list.map((it, idx) => {
-          const checked = selectedSet.has(it.url) ? 'checked' : '';
-          const shortRefs = (it.refs || []).slice(0, 2).join(', ');
-          const more = Math.max(0, (it.refs || []).length - 2);
-          const refsText = shortRefs + (more ? `, +${more} more` : '');
-          const fileName = it.name || (it.baseUrl.split('/').pop() || 'file');
+function resolveFileUrl(u) {
+  const raw = (u || '').trim();
+  if (!raw) return '';
 
-          return `
-            <div class="notice-lib-card" data-url="${esc(it.url)}" data-idx="${idx}">
-              <div class="notice-lib-checkbox-wrap">
-                <input type="checkbox" class="form-check-input notice-lib-checkbox" data-url="${esc(it.url)}" ${checked}>
-              </div>
+  // absolute http(s)
+  if (/^https?:\/\//i.test(raw)) return raw;
 
-              <div class="notice-lib-placeholder">
-                ${extIcon(it.ext)}
-              </div>
+  try {
+    // make it absolute to current origin
+    return new URL(raw.replace(/^\/+/, '/'), window.location.origin).href;
+  } catch (e) {
+    console.warn('resolveFileUrl failed for', raw, e);
+    return raw;
+  }
+}
 
-              <div class="card-name" title="${esc(fileName)}">
-                ${term ? highlight(fileName, term) : esc(fileName)}
-              </div>
+      function renderCards(list, term) {
+  const selectedSet = new Set((libraryUrls || []).map(u => String(u)));
 
-              <div class="card-refs" title="${esc((it.refs || []).join(', '))}">
-                ${term ? highlight(refsText, term) : esc(refsText)}
-              </div>
+  const gridHtml = list.map((it, idx) => {
+    const fullUrl = resolveFileUrl(it.url || '');
+    const checked = selectedSet.has(it.url) || selectedSet.has(fullUrl) ? 'checked' : '';
 
-              <div class="card-footer">
-                <button type="button" class="btn btn-sm btn-outline-primary notice-lib-preview-btn">
-                  <i class="fa fa-eye"></i> Preview
-                </button>
-                <div class="text-muted small">${esc(String((it.refs || []).length))} notice(s)</div>
-              </div>
-            </div>
-          `;
-        }).join('');
+    const shortRefs = (it.refs || []).slice(0, 2).join(', ');
+    const more = Math.max(0, (it.refs || []).length - 2);
+    const refsText = shortRefs + (more ? `, +${more} more` : '');
+    const fileName = it.name || (it.baseUrl.split('/').pop() || 'file');
 
-        libList.innerHTML = `<div class="notice-lib-grid">${gridHtml}</div>`;
-        libList.style.display = '';
+    const isImg = isImageExt(it.ext) && fullUrl;
 
-        const grid = libList.querySelector('.notice-lib-grid');
-        if (!grid) return;
+    const placeholderHtml = isImg
+      ? `<div class="notice-lib-thumb">
+           <img src="${esc(fullUrl)}" alt="${esc(fileName)}">
+         </div>`
+      : `<div class="notice-lib-placeholder">
+           ${extIcon(it.ext)}
+         </div>`;
 
-        function updateConfirm(){
-          const anyChecked = !!grid.querySelector('.notice-lib-checkbox:checked');
-          libConfirm.disabled = !anyChecked;
-        }
+    return `
+      <div class="notice-lib-card position-relative" data-url="${esc(fullUrl)}" data-idx="${idx}">
+        <div class="notice-lib-checkbox-wrap">
+          <input type="checkbox" class="form-check-input notice-lib-checkbox" data-url="${esc(fullUrl)}" ${checked}>
+        </div>
 
-        // toggle checkbox when clicking card (but ignore direct click on preview or checkbox)
-        grid.querySelectorAll('.notice-lib-card').forEach(card => {
-          const cb = card.querySelector('.notice-lib-checkbox');
-          const previewBtn = card.querySelector('.notice-lib-preview-btn');
-          const url = card.dataset.url;
+        ${placeholderHtml}
 
-          card.addEventListener('click', (ev)=>{
-            if (ev.target === cb || ev.target.closest('.notice-lib-preview-btn')) return;
-            cb.checked = !cb.checked;
-            updateConfirm();
-          });
+        <div class="card-name" title="${esc(fileName)}">
+          ${term ? highlight(fileName, term) : esc(fileName)}
+        </div>
 
-          if (cb) {
-            cb.addEventListener('change', updateConfirm);
-          }
+        <div class="card-refs" title="${esc((it.refs || []).join(', '))}">
+          ${term ? highlight(refsText, term) : esc(refsText)}
+        </div>
 
-          if (previewBtn) {
-            previewBtn.addEventListener('click', (ev)=>{
-              ev.preventDefault();
-              ev.stopPropagation();
-              if (url) window.open(url, '_blank');
-            });
-          }
-        });
+        <div class="card-footer">
+          <button type="button" class="btn btn-sm btn-outline-primary notice-lib-preview-btn">
+            <i class="fa fa-arrow-up-right-from-square me-1"></i> Preview
+          </button>
+          <div class="text-muted small">${esc(String((it.refs || []).length))} notice(s)</div>
+        </div>
+      </div>
+    `;
+  }).join('');
 
-        updateConfirm();
-      }
+  libList.innerHTML = `<div class="notice-lib-grid">${gridHtml}</div>`;
+  libList.style.display = '';
+
+  const grid = libList.querySelector('.notice-lib-grid');
+  if (!grid) return;
+
+  function updateConfirm() {
+    const anyChecked = !!grid.querySelector('.notice-lib-checkbox:checked');
+    libConfirm.disabled = !anyChecked;
+  }
+
+  grid.querySelectorAll('.notice-lib-card').forEach(card => {
+    const cb = card.querySelector('.notice-lib-checkbox');
+    const previewBtn = card.querySelector('.notice-lib-preview-btn');
+    const url = card.dataset.url;
+
+    card.addEventListener('click', (ev) => {
+      if (ev.target === cb || ev.target.closest('.notice-lib-preview-btn')) return;
+      cb.checked = !cb.checked;
+      updateConfirm();
+    });
+
+    if (cb) {
+      cb.addEventListener('change', updateConfirm);
+    }
+
+    if (previewBtn) {
+      previewBtn.addEventListener('click', (ev) => {
+        ev.preventDefault();
+        ev.stopPropagation();
+        if (url) window.open(url, '_blank');
+      });
+    }
+  });
+
+  updateConfirm();
+}
 
       // initial render
       renderCards(items, '');
@@ -1021,17 +1084,18 @@
 
   // Wire "Choose from Library" button (already added in HTML)
   if ($('btnChooseFromLibrary')) {
-    $('btnChooseFromLibrary').addEventListener('click', (e)=>{
-      e.preventDefault();
-      openNoticeLibraryPicker((urls)=>{
-        const set = new Set(libraryUrls);
-        (urls || []).forEach(u => { if (u) set.add(u); });
-        libraryUrls = Array.from(set);
-        redraw();
-      });
-    });
-  }
+  $('btnChooseFromLibrary').addEventListener('click', (e)=>{
+    e.preventDefault();
+    e.stopPropagation();  
 
+    openNoticeLibraryPicker((urls)=>{
+      const set = new Set(libraryUrls);
+      (urls || []).forEach(u => { if (u) set.add(u); });
+      libraryUrls = Array.from(set);
+      redraw();
+    });
+  });
+}
 
   /* When preview modal hides, revoke object URLs we created for previews */
   if($('previewModal')){

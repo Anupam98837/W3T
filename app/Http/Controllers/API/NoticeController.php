@@ -251,39 +251,50 @@ class NoticeController extends Controller
      |  Index (list) — filters for dropdown-driven page
      * ========================================================= */
     public function index(Request $r)
-    {
-        if ($res = $this->requireRole($r, ['admin','superadmin','instructor'])) return $res;
+{
+    if ($res = $this->requireRole($r, ['admin','superadmin','instructor'])) return $res;
 
-        $q = DB::table('notices')->whereNull('deleted_at');
+    $q = DB::table('notices as n')
+        ->leftJoin('course_modules as cm', 'cm.id', '=', 'n.course_module_id')
+        ->leftJoin('batches as b', 'b.id', '=', 'n.batch_id')
+        ->whereNull('n.deleted_at');
 
-        if ($r->filled('course_id'))        $q->where('course_id', (int)$r->course_id);
-        if ($r->filled('course_module_id')) $q->where('course_module_id', (int)$r->course_module_id);
-        if ($r->filled('batch_id'))         $q->where('batch_id', (int)$r->batch_id);
-        if ($r->filled('visibility_scope')) $q->where('visibility_scope', $r->visibility_scope);
-        if ($r->filled('status'))           $q->where('status', $r->status);
-        if ($r->filled('priority'))         $q->where('priority', $r->priority);
+    if ($r->filled('course_id'))        $q->where('n.course_id', (int)$r->course_id);
+    if ($r->filled('course_module_id')) $q->where('n.course_module_id', (int)$r->course_module_id);
+    if ($r->filled('batch_id'))         $q->where('n.batch_id', (int)$r->batch_id);
+    if ($r->filled('visibility_scope')) $q->where('n.visibility_scope', $r->visibility_scope);
+    if ($r->filled('status'))           $q->where('n.status', $r->status);
+    if ($r->filled('priority'))         $q->where('n.priority', $r->priority);
 
-        if ($r->filled('search')) {
-            $s = '%'.trim($r->search).'%';
-            $q->where(function($w) use ($s){
-                $w->where('title', 'like', $s)->orWhere('message_html', 'like', $s);
-            });
-        }
-
-        $per = max(1, min(100, (int)($r->per_page ?? 20)));
-        $page = max(1, (int)($r->page ?? 1));
-
-        $total = (clone $q)->count();
-        $rows = $q->orderByDesc('created_at')
-                  ->offset(($page-1)*$per)
-                  ->limit($per)
-                  ->get();
-
-        return response()->json([
-            'data' => $rows,
-            'meta' => ['page'=>$page,'per_page'=>$per,'total'=>$total]
-        ]);
+    if ($r->filled('search')) {
+        $s = '%'.trim($r->search).'%';
+        $q->where(function($w) use ($s){
+            $w->where('n.title', 'like', $s)
+              ->orWhere('n.message_html', 'like', $s);
+        });
     }
+
+    $per  = max(1, min(100, (int)($r->per_page ?? 20)));
+    $page = max(1, (int)($r->page ?? 1));
+
+    $total = (clone $q)->count();
+
+    $rows = $q->orderByDesc('n.created_at')
+        ->offset(($page-1)*$per)
+        ->limit($per)
+        ->select(
+            'n.*',
+            'cm.title as module_title',
+            'b.badge_title as batch_title',   // adjust if your column is different
+            'b.badge_title as batch_name'     // optional extra alias for frontend
+        )
+        ->get();
+
+    return response()->json([
+        'data' => $rows,
+        'meta' => ['page'=>$page,'per_page'=>$per,'total'=>$total]
+    ]);
+}
 
     /* =========================================================
      |  Create
@@ -447,6 +458,34 @@ class NoticeController extends Controller
             'attachments' => $stored,
         ]);
     }
+    public function archive(Request $r, $id)
+{
+    if ($res = $this->requireRole($r, ['admin','superadmin','instructor'])) return $res;
+
+    $row = DB::table('notices')->where('id', (int)$id)->whereNull('deleted_at')->first();
+    if (!$row) return response()->json(['error' => 'Not found'], 404);
+
+    DB::table('notices')->where('id', (int)$id)->update([
+        'status'     => 'archived',
+        'updated_at' => now(),
+    ]);
+
+    return response()->json(['message' => 'Notice archived']);
+}
+public function unarchive(Request $r, $id)
+{
+    if ($res = $this->requireRole($r, ['admin','superadmin','instructor'])) return $res;
+
+    $row = DB::table('notices')->where('id', (int)$id)->whereNull('deleted_at')->first();
+    if (!$row) return response()->json(['error' => 'Not found'], 404);
+
+    DB::table('notices')->where('id', (int)$id)->update([
+        'status'     => 'published',   // or draft if you want
+        'updated_at' => now(),
+    ]);
+
+    return response()->json(['message' => 'Notice unarchived']);
+}
 
     /* =========================================================
      |  Soft delete
@@ -505,31 +544,46 @@ class NoticeController extends Controller
      |  Bin listing (soft-deleted) — admin only
      * ========================================================= */
     public function indexDeleted(Request $r)
-    {
-        if ($res = $this->requireRole($r, ['admin','superadmin'])) return $res;
+{
+    if ($res = $this->requireRole($r, ['admin','superadmin'])) return $res;
 
-        $q = DB::table('notices')->whereNotNull('deleted_at');
+    $q = DB::table('notices as n')
+        ->leftJoin('course_modules as cm', 'cm.id', '=', 'n.course_module_id')
+        ->leftJoin('batches as b', 'b.id', '=', 'n.batch_id')
+        ->whereNotNull('n.deleted_at');
 
-        if ($r->filled('course_id'))        $q->where('course_id', (int)$r->course_id);
-        if ($r->filled('course_module_id')) $q->where('course_module_id', (int)$r->course_module_id);
-        if ($r->filled('batch_id'))         $q->where('batch_id', (int)$r->batch_id);
-        if ($r->filled('search')) {
-            $s = '%'.trim($r->search).'%';
-            $q->where(function($w) use ($s){
-                $w->where('title', 'like', $s)->orWhere('message_html', 'like', $s);
-            });
-        }
-
-        $per = max(1, min(100, (int)($r->per_page ?? 20)));
-        $page = max(1, (int)($r->page ?? 1));
-        $total = (clone $q)->count();
-        $rows = $q->orderByDesc('deleted_at')
-                  ->offset(($page-1)*$per)
-                  ->limit($per)
-                  ->get();
-
-        return response()->json(['data'=>$rows,'meta'=>['page'=>$page,'per_page'=>$per,'total'=>$total]]);
+    if ($r->filled('course_id'))        $q->where('n.course_id', (int)$r->course_id);
+    if ($r->filled('course_module_id')) $q->where('n.course_module_id', (int)$r->course_module_id);
+    if ($r->filled('batch_id'))         $q->where('n.batch_id', (int)$r->batch_id);
+    if ($r->filled('search')) {
+        $s = '%'.trim($r->search).'%';
+        $q->where(function($w) use ($s){
+            $w->where('n.title', 'like', $s)
+              ->orWhere('n.message_html', 'like', $s);
+        });
     }
+
+    $per  = max(1, min(100, (int)($r->per_page ?? 20)));
+    $page = max(1, (int)($r->page ?? 1));
+
+    $total = (clone $q)->count();
+
+    $rows = $q->orderByDesc('n.deleted_at')
+        ->offset(($page-1)*$per)
+        ->limit($per)
+        ->select(
+            'n.*',
+            'cm.title as module_title',
+            'b.badge_title as batch_title',
+            'b.badge_title as batch_name'
+        )
+        ->get();
+
+    return response()->json([
+        'data' => $rows,
+        'meta' => ['page'=>$page,'per_page'=>$per,'total'=>$total]
+    ]);
+}
 
     /* =========================================================
      |  Restore from bin — admin only

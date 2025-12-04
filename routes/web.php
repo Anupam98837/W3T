@@ -146,9 +146,6 @@ Route::get('/admin/module/manage', function () {
 Route::get('/admin/privilege/manage', function () {
     return view('modules.privileges.managePrivileges');
 });
-//   Route::get('/admin/privilege/assign/{userId?}', function ($userId = null) {
-//         return view('modules.privileges.assignPrivileges', compact('userId'));
-//     })->where('userId','[0-9]+')->name('admin.privileges.assign.user');
 
   // Accept either numeric ID OR UUID via query params
 Route::get('/user-privileges/manage', function () {
@@ -160,6 +157,28 @@ Route::get('/user-privileges/manage', function () {
         'userId'   => $userId,
     ]);
 })->name('modules.privileges.assign.user');
+
+//Coding Routes
+
+Route::get('/test', function () {
+    return view('pages.users.admin.pages.compiler.testCompiler');});
+Route::get('/admin/topic/manage', function () {
+    return view('pages.users.admin.pages.topic.manageTopic');
+});
+Route::get('/admin/topic/module/manage', function () {
+    return view('pages.users.admin.pages.topic.manageTopicModule');
+});
+Route::get('/admin/compiler/manage', function () {
+    return view('pages.users.admin.pages.compiler.testCompiler');
+});
+
+// Route::prefix('admin') // add your middlewares if needed
+//     ->group(function () {
+//         Route::get('topics/{topic}/modules/{module}/questions',
+//             [ViewCodingQuestionController::class, 'manage']
+//         )->name('admin.questions.manage');
+//     });
+     
 
 // Student Routes
 Route::get('/student/dashboard', function () {

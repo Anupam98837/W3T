@@ -86,7 +86,7 @@ html.theme-dark .dropdown-menu{background:#0f172a;border-color:var(--line-strong
 
 @section('content')
 <div class="sm-wrap">
-  {{-- ===== Toolbar ===== --}}
+  {{-- ===== Toolbar: only Course + right side blank/info ===== --}}
   <div class="row align-items-center g-2 mb-3 mfa-toolbar panel">
     <div class="col-12 d-flex align-items-center flex-wrap gap-2">
 
@@ -97,41 +97,76 @@ html.theme-dark .dropdown-menu{background:#0f172a;border-color:var(--line-strong
         </select>
       </div>
 
-      <div class="d-flex align-items-center gap-2">
-        <label class="text-muted small mb-0">Module</label>
-        <select id="moduleSel" class="form-select" style="min-width:240px;" disabled>
-          <option value="">Select a module…</option>
-        </select>
-      </div>
-
-      <div class="d-flex align-items-center gap-2">
-        <label class="text-muted small mb-0">Batch</label>
-        <select id="batchSel" class="form-select" style="min-width:220px;" disabled>
-          <option value="">Select a batch…</option>
-        </select>
-      </div>
-
-      <div class="ms-auto d-flex align-items-center gap-2">
-        <div class="form-check form-switch me-1">
-          <input class="form-check-input" type="checkbox" id="binToggle" />
-          <label class="form-check-label small" for="binToggle">Bin</label>
-        </div>
-
-        <div class="position-relative" style="min-width:240px;">
-          <input id="q" type="text" class="form-control ps-5" placeholder="Search title/message…" disabled>
-          <i class="fa fa-search position-absolute" style="left:12px;top:50%;transform:translateY(-50%);opacity:.6;"></i>
-        </div>
-        <a id="btnCreate" href="/admin/notice/create" class="btn btn-primary" disabled>
-          <i class="fa fa-plus"></i> New Notice
-</a>
-
+      <div class="ms-auto small text-muted d-none d-md-block">
+        Pick a course to load notices.
       </div>
     </div>
   </div>
 
-  {{-- ===== Table ===== --}}
+  {{-- ===== Tabs: Active / Archived / Bin ===== --}}
+  <ul class="nav nav-tabs mb-3" role="tablist">
+    <li class="nav-item">
+      <a class="nav-link active" href="javascript:void(0)" id="tabActive" data-scope="active">
+        <i class="fa fa-bullhorn me-1"></i> Active
+      </a>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link" href="javascript:void(0)" id="tabArchived" data-scope="archived">
+        <i class="fa fa-box-archive me-1"></i> Archived
+      </a>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link" href="javascript:void(0)" id="tabBin" data-scope="bin">
+        <i class="fa fa-trash-can me-1"></i> Bin
+      </a>
+    </li>
+  </ul>
+
+  {{-- ===== Card ===== --}}
   <div class="card table-wrap">
     <div class="card-body p-0">
+
+      {{-- Inner toolbar: search + button (like Modules view) --}}
+<div class="row align-items-center g-2 px-3 pt-3 pb-2 mfa-toolbar" id="listToolbar">
+
+  <!-- Left section: Per Page + Search -->
+  <div class="col-12 col-xl d-flex align-items-center flex-wrap gap-2">
+
+    <!-- Per Page -->
+    <div class="position-relative">
+      <select id="ddlPerPage" class="form-select" style="width:110px;">
+        <option value="10">10/page</option>
+        <option value="20" selected>20/page</option>
+        <option value="30">30/page</option>
+        <option value="50">50/page</option>
+      </select>
+    </div>
+
+    <!-- Search -->
+    <div class="position-relative flex-grow-1" style="min-width:240px;">
+      <input id="q" type="text" class="form-control ps-5" placeholder="Search title/message…" disabled>
+      <i class="fa fa-search position-absolute" style="left:12px;top:50%;transform:translateY(-50%);opacity:.6;"></i>
+    </div>
+
+  </div>
+
+  <!-- Right section: Filter + New -->
+  <div class="col-12 col-xl-auto ms-xl-auto d-flex justify-content-xl-end gap-2">
+
+    <!-- Filter Button -->
+    <button class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#filterModal" id="btnFilters">
+      <i class="fa fa-filter"></i> Filters
+    </button>
+
+    <!-- Create Button -->
+     <a id="btnCreate" href="{{ url('admin/notice/create') }}" class="btn btn-primary">
+
+      <i class="fa fa-plus"></i> New Notice
+    </a>
+  </div>
+
+</div>
+
       <div class="table-responsive">
         <table class="table table-hover table-borderless align-middle mb-0">
           <thead class="sticky-top">
@@ -159,7 +194,7 @@ html.theme-dark .dropdown-menu{background:#0f172a;border-color:var(--line-strong
             <tr id="ask">
               <td colspan="6" class="p-4 text-center text-muted">
                 <i class="fa fa-bullhorn mb-2" style="font-size:28px;opacity:.6"></i>
-<div>Please select a course to load notices.</div>
+                <div>Please select a course to load notices.</div>
               </td>
             </tr>
           </tbody>
@@ -175,6 +210,51 @@ html.theme-dark .dropdown-menu{background:#0f172a;border-color:var(--line-strong
         <div class="text-muted small" id="metaTxt">—</div>
         <nav style="position:relative; z-index:1;"><ul id="pager" class="pagination mb-0"></ul></nav>
       </div>
+    </div>
+  </div>
+</div>
+<div class="modal fade" id="filterModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-sm modal-dialog-centered">
+    <div class="modal-content">
+
+      <div class="modal-header">
+        <h6 class="modal-title">Filters</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+
+      <div class="modal-body">
+
+        <!-- Status -->
+        <div class="mb-3">
+          <label class="form-label small fw-semibold">Status</label>
+          <select id="ddlStatus" class="form-select form-select-sm">
+            <option value="">All</option>
+            <option value="draft">Draft</option>
+            <option value="published">Published</option>
+            <option value="archived">Archived</option>
+          </select>
+        </div>
+
+        <!-- Sort -->
+        <div class="mb-3">
+          <label class="form-label small fw-semibold">Sort by</label>
+          <select id="ddlSort" class="form-select form-select-sm">
+            <option value="-created_at">Newest first</option>
+            <option value="created_at">Oldest first</option>
+            <option value="title">Title A-Z</option>
+            <option value="-title">Title Z-A</option>
+            <option value="priority">Priority</option>
+          </select>
+        </div>
+
+      </div>
+
+      <div class="modal-footer">
+        <button id="btnApplyFilters" class="btn btn-primary btn-sm w-100">
+          Apply Filters
+        </button>
+      </div>
+
     </div>
   </div>
 </div>
@@ -222,8 +302,6 @@ html.theme-dark .dropdown-menu{background:#0f172a;border-color:var(--line-strong
     </div>
   </div>
 </div>
-
-{{-- ================= Create / Edit Notice (modal) ================= --}}
 {{-- ================= Create / Edit Notice (modal) ================= --}}
 <div class="modal fade" id="editModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-xl modal-dialog-scrollable">
@@ -429,7 +507,6 @@ html.theme-dark .dropdown-menu{background:#0f172a;border-color:var(--line-strong
 <script src="https://cdn.jsdelivr.net/npm/pptxjs@3.5.0/dist/pptxjs.min.js"></script>
 
 <script>
-/* =================== AUTH / GLOBALS =================== */
 const TOKEN = localStorage.getItem('token') || sessionStorage.getItem('token') || '';
 if (!TOKEN){
   Swal.fire('Login needed','Your session expired. Please login again.','warning')
@@ -440,6 +517,7 @@ const okToast  = new bootstrap.Toast(document.getElementById('okToast'));
 const errToast = new bootstrap.Toast(document.getElementById('errToast'));
 const ok  = (m)=>{ document.getElementById('okMsg').textContent  = m||'Done'; okToast.show(); };
 const err = (m)=>{ document.getElementById('errMsg').textContent = m||'Something went wrong'; errToast.show(); };
+const listToolbar = document.getElementById('listToolbar');
 
 /** API endpoints for Notices */
 const API = {
@@ -450,6 +528,8 @@ const API = {
   destroy: (id)=> `/api/notices/${encodeURIComponent(id)}`,
   restore: (id)=> `/api/notices/${encodeURIComponent(id)}/restore`, // POST
   forceDelete: (id)=> `/api/notices/${encodeURIComponent(id)}/force`,
+  archive:    (id)=> `/api/notices/${encodeURIComponent(id)}/archive`,
+  unarchive:  (id)=> `/api/notices/${encodeURIComponent(id)}/unarchive`,
   deletedIndex: (qs)=> '/api/notices/deleted?' + qs.toString()
 };
 
@@ -496,30 +576,68 @@ function extOf(u){
 
 /* =================== ELEMENTS & STATE =================== */
 const courseSel = document.getElementById('courseSel');
-const moduleSel = document.getElementById('moduleSel');
-const batchSel  = document.getElementById('batchSel');
 const q         = document.getElementById('q');
-const btnCreate = document.getElementById('btnCreate');
+// const btnCreate = document.getElementById('btnCreate');
 const rowsEl    = document.getElementById('rows');
 const loaderRow = document.getElementById('loaderRow');
 const emptyEl   = document.getElementById('empty');
 const askEl     = document.getElementById('ask');
 const pager     = document.getElementById('pager');
 const metaTxt   = document.getElementById('metaTxt');
-const binToggle = document.getElementById('binToggle');
 
-let sort = '-created_at';
-let page = 1;
-let perPage = 20;
-let binMode = false;
+/* Tabs */
+const tabActive   = document.getElementById('tabActive');
+const tabArchived = document.getElementById('tabArchived');
+const tabBin      = document.getElementById('tabBin');
+
+/* Per-page + filters (toolbar) */
+const perPageSel      = document.getElementById('ddlPerPage');   // <select id="ddlPerPage">
+const btnFilters      = document.getElementById('btnFilters');   // <button id="btnFilters">
+const filterModalEl   = document.getElementById('filterModal');  // <div id="filterModal">
+const filterStatusSel = document.getElementById('filterStatus'); // <select id="filterStatus">
+const filterSortSel   = document.getElementById('filterSort');   // <select id="filterSort">
+const filterApplyBtn  = document.getElementById('btnApplyFilters');
+const filterClearBtn  = document.getElementById('btnClearFilters');
+
+let sort         = '-created_at';
+let page         = 1;
+let perPage      = Number(perPageSel?.value || 20);
+let scope        = 'active'; // 'active' | 'archived' | 'bin'
+let filterStatus = '';       // from filter modal (only used in 'active')
 
 /* =================== INIT =================== */
 loadCourses();
 wire();
 
 function enableFilters(on){
-  [moduleSel, batchSel, q].forEach(el=> el.disabled = !on);
-  btnCreate.disabled = !on || binMode;
+  const active = (scope === 'active');
+  const enabled = on && active;
+
+  q.disabled         = !enabled;
+  // btnCreate.disabled = !enabled;
+  if (btnFilters)   btnFilters.disabled   = !enabled;
+  if (perPageSel)   perPageSel.disabled   = !on; // per-page still applies for archived/bin if toolbar visible
+}
+
+function setScope(newScope){
+  scope = newScope;
+
+  tabActive.classList.toggle('active',   scope==='active');
+  tabArchived.classList.toggle('active', scope==='archived');
+  tabBin.classList.toggle('active',      scope==='bin');
+
+  if (scope === 'active') {
+    if (listToolbar) listToolbar.classList.remove('d-none');
+    enableFilters(!!courseSel.value);
+  } else {
+    if (listToolbar) listToolbar.classList.add('d-none');
+    q.disabled = true;
+    // btnCreate.disabled = true;
+    if (btnFilters) btnFilters.disabled = true;
+  }
+
+  page = 1;
+  loadList();
 }
 
 function wire(){
@@ -535,7 +653,7 @@ function wire(){
     dd.toggle();
   });
 
-  // Sorting
+  // Sorting (header click)
   document.querySelectorAll('thead th.sortable').forEach(th=>{
     th.addEventListener('click', ()=>{
       const col = th.dataset.col;
@@ -550,38 +668,24 @@ function wire(){
     });
   });
 
-  courseSel.addEventListener('change', async ()=>{
-    moduleSel.innerHTML = '<option value="">Select a module…</option>';
-    batchSel.innerHTML  = '<option value="">Select a batch…</option>';
-    enableFilters(false);
+  // Course change
+  courseSel.addEventListener('change', ()=>{
     rowsEl.querySelectorAll('tr:not(#loaderRow):not(#ask)').forEach(n=>n.remove());
     emptyEl.style.display='none';
     pager.innerHTML='';
     metaTxt.textContent='—';
 
-    if(!courseSel.value) return;
-
-    await loadModules(courseSel.value);
-    await loadBatches(courseSel.value);
-    moduleSel.disabled = false;
-    batchSel.disabled  = false;
-    q.disabled         = false;
-    btnCreate.disabled = binMode ? true : false;
+    if(!courseSel.value){
+      enableFilters(false);
+      showAsk(true);
+      return;
+    }
+    enableFilters(true);
     page = 1;
     loadList();
   });
 
-  moduleSel.addEventListener('change', async ()=>{
-    await loadBatches(courseSel.value, moduleSel.value||'');
-    page = 1;
-    loadList();
-  });
-
-  batchSel.addEventListener('change', ()=>{
-    page = 1;
-    loadList();
-  });
-
+  // Search
   let t;
   q.addEventListener('input', ()=>{
     clearTimeout(t);
@@ -591,12 +695,49 @@ function wire(){
     }, 350);
   });
 
-  binToggle.addEventListener('change', ()=>{
-    binMode = !!binToggle.checked;
-    btnCreate.disabled = binMode || !courseSel.value;
-    page = 1;
-    loadList();
-  });
+  // Tabs
+  tabActive.addEventListener('click',  (e)=>{ e.preventDefault(); if(scope!=='active')   setScope('active'); });
+  tabArchived.addEventListener('click',(e)=>{ e.preventDefault(); if(scope!=='archived') setScope('archived'); });
+  tabBin.addEventListener('click',     (e)=>{ e.preventDefault(); if(scope!=='bin')      setScope('bin'); });
+
+  // Per-page selector
+  if (perPageSel) {
+    perPageSel.addEventListener('change', ()=>{
+      perPage = Number(perPageSel.value) || 20;
+      page = 1;
+      loadList();
+    });
+  }
+
+  // Filter modal: Apply
+  if (filterApplyBtn && filterModalEl) {
+    filterApplyBtn.addEventListener('click', ()=>{
+      // status filter only meaningful in active scope
+      filterStatus = filterStatusSel ? (filterStatusSel.value || '') : '';
+
+      const sortVal = filterSortSel ? (filterSortSel.value || '') : '';
+      sort = sortVal || '-created_at';
+
+      page = 1;
+      loadList();
+
+      bootstrap.Modal.getOrCreateInstance(filterModalEl).hide();
+    });
+  }
+
+  // Filter modal: Clear
+  if (filterClearBtn) {
+    filterClearBtn.addEventListener('click', ()=>{
+      filterStatus = '';
+      sort = '-created_at';
+
+      if (filterStatusSel) filterStatusSel.value = '';
+      if (filterSortSel)   filterSortSel.value   = '-created_at';
+
+      page = 1;
+      loadList();
+    });
+  }
 
   // Row actions (delegated)
   document.addEventListener('click', (e)=>{
@@ -604,16 +745,18 @@ function wire(){
     if(!item) return;
     e.preventDefault();
     const act=item.dataset.act, id=item.dataset.id, uuid=item.dataset.uuid;
-    if(act==='view')    openView(uuid);
-    if(act==='edit')    openEdit(id);
-    if(act==='delete')  deleteItem(id);
-    if(act==='purge')   purgeItem(id);
-    if(act==='restore') restoreItem(id);
+    if(act==='view')      openView(uuid);
+    if(act==='edit')      openEdit(id);
+    if(act==='delete')    deleteItem(id);
+    if(act==='purge')     purgeItem(id);
+    if(act==='restore')   restoreItem(id);
+    if(act==='archive')   archiveNotice(id);
+    if(act==='unarchive') unarchiveNotice(id);
+
     const toggle=item.closest('.dropdown')?.querySelector('.dd-toggle');
     if(toggle) bootstrap.Dropdown.getOrCreateInstance(toggle).hide();
   });
 
-  // disable right click on viewer
   document.getElementById('viewer').addEventListener('contextmenu', (e)=> e.preventDefault());
 }
 
@@ -632,67 +775,60 @@ async function loadCourses(){
   }catch(e){ err(e.message||'Courses error'); }
 }
 
-async function loadModules(courseId){
-  try{
-    const res=await fetch(`/api/course-modules?course_id=${encodeURIComponent(courseId)}&per_page=1000`,{
-      headers:{Authorization:'Bearer '+TOKEN,Accept:'application/json'}
-    });
-    const j=await res.json();
-    if(!res.ok) throw new Error(j?.message||'Failed to load modules');
-    const items=j?.data||[];
-    moduleSel.innerHTML =
-      '<option value="">Select a module…</option>' +
-      items.map(m=>`<option value="${m.id}" data-uuid="${H.esc(m.uuid||'')}">${H.esc(m.title||'(untitled)')}</option>`).join('');
-  }catch(e){ err(e.message||'Modules error'); }
-}
-
-async function loadBatches(courseId, moduleId){
-  try{
-    const qs = new URLSearchParams({course_id:courseId, per_page:'200'});
-    if(moduleId) qs.set('course_module_id', moduleId);
-    const res=await fetch('/api/batches?'+qs.toString(),{
-      headers:{Authorization:'Bearer '+TOKEN,Accept:'application/json'}
-    });
-    const j=await res.json();
-    if(!res.ok) throw new Error(j?.message||'Failed to load batches');
-    const items=j?.data||[];
-    batchSel.innerHTML =
-      '<option value="">Select a batch…</option>' +
-      items.map(b=>`<option value="${b.id}" data-uuid="${H.esc(b.uuid||'')}">${H.esc(b.badge_title||'(untitled)')}</option>`).join('');
-  }catch(e){ err(e.message||'Batches error'); }
-}
-
 function showAsk(v){ askEl.style.display = v ? '' : 'none'; }
 function showLoader(v){ loaderRow.style.display = v ? '' : 'none'; }
 
 function rowActions(r){
-  if(!binMode){
+  if (scope === 'active') {
     return `
-    <div class="dropdown text-end" data-bs-display="static">
-      <button type="button" class="btn btn-primary btn-sm dd-toggle" data-bs-toggle="dropdown" aria-expanded="false" title="Actions">
-        <i class="fa fa-ellipsis-vertical"></i>
-      </button>
-      <ul class="dropdown-menu dropdown-menu-end">
-        <li><button class="dropdown-item" data-act="view" data-uuid="${H.esc(r.uuid)}"><i class="fa fa-eye"></i> View</button></li>
-        <li><button class="dropdown-item" data-act="edit" data-id="${r.id}"><i class="fa fa-pen-to-square"></i> Edit</button></li>
-        <li><hr class="dropdown-divider"></li>
-        <li><button class="dropdown-item text-danger" data-act="delete" data-id="${r.id}"><i class="fa fa-trash"></i> Delete</button></li>
-      </ul>
-    </div>`;
-  }else{
-    return `
-    <div class="dropdown text-end" data-bs-display="static">
-      <button type="button" class="btn btn-primary btn-sm dd-toggle" data-bs-toggle="dropdown" aria-expanded="false" title="Actions">
-        <i class="fa fa-ellipsis-vertical"></i>
-      </button>
-      <ul class="dropdown-menu dropdown-menu-end">
-        <li><button class="dropdown-item" data-act="view" data-uuid="${H.esc(r.uuid)}"><i class="fa fa-eye"></i> View</button></li>
-        <li><button class="dropdown-item" data-act="restore" data-id="${r.id}"><i class="fa fa-rotate-left"></i> Restore</button></li>
-        <li><hr class="dropdown-divider"></li>
-        <li><button class="dropdown-item text-danger" data-act="purge" data-id="${r.id}"><i class="fa fa-trash-can"></i> Delete permanently</button></li>
-      </ul>
-    </div>`;
+      <div class="dropdown text-end" data-bs-display="static">
+        <button type="button" class="btn btn-primary btn-sm dd-toggle">
+          <i class="fa fa-ellipsis-vertical"></i>
+        </button>
+        <ul class="dropdown-menu dropdown-menu-end">
+          <li><button class="dropdown-item" data-act="view" data-uuid="${H.esc(r.uuid)}"><i class="fa fa-eye"></i> View</button></li>
+          <li><button class="dropdown-item" data-act="edit" data-id="${r.id}"><i class="fa fa-pen-to-square"></i> Edit</button></li>
+          <li><hr class="dropdown-divider"></li>
+          <li><button class="dropdown-item" data-act="archive" data-id="${r.id}"><i class="fa fa-box-archive"></i> Archive</button></li>
+          <li><hr class="dropdown-divider"></li>
+          <li><button class="dropdown-item text-danger" data-act="delete" data-id="${r.id}"><i class="fa fa-trash"></i> Delete</button></li>
+        </ul>
+      </div>`;
   }
+
+  if (scope === 'archived') {
+    return `
+      <div class="dropdown text-end" data-bs-display="static">
+        <button type="button" class="btn btn-primary btn-sm dd-toggle">
+          <i class="fa fa-ellipsis-vertical"></i>
+        </button>
+        <ul class="dropdown-menu dropdown-menu-end">
+          <li><button class="dropdown-item" data-act="view" data-uuid="${H.esc(r.uuid)}"><i class="fa fa-eye"></i> View</button></li>
+          <li><button class="dropdown-item" data-act="edit" data-id="${r.id}"><i class="fa fa-pen-to-square"></i> Edit</button></li>
+          <li><hr class="dropdown-divider"></li>
+          <li><button class="dropdown-item" data-act="unarchive" data-id="${r.id}"><i class="fa fa-box-open"></i> Unarchive</button></li>
+          <li><hr class="dropdown-divider"></li>
+          <li><button class="dropdown-item text-danger" data-act="delete" data-id="${r.id}"><i class="fa fa-trash"></i> Delete</button></li>
+        </ul>
+      </div>`;
+  }
+
+  if (scope === 'bin') {
+    return `
+      <div class="dropdown text-end" data-bs-display="static">
+        <button type="button" class="btn btn-primary btn-sm dd-toggle">
+          <i class="fa fa-ellipsis-vertical"></i>
+        </button>
+        <ul class="dropdown-menu dropdown-menu-end">
+          <li><button class="dropdown-item" data-act="view" data-uuid="${H.esc(r.uuid)}"><i class="fa fa-eye"></i> View</button></li>
+          <li><button class="dropdown-item" data-act="restore" data-id="${r.id}"><i class="fa fa-rotate-left"></i> Restore</button></li>
+          <li><hr class="dropdown-divider"></li>
+          <li><button class="dropdown-item text-danger" data-act="purge" data-id="${r.id}"><i class="fa fa-trash-can"></i> Delete permanently</button></li>
+        </ul>
+      </div>`;
+  }
+
+  return '';
 }
 
 function rowHTML(r){
@@ -718,11 +854,11 @@ function rowHTML(r){
 }
 
 async function loadList(){
-  // Require at least a course
   if(!courseSel.value){
     showAsk(true);
     return;
   }
+
   showAsk(false);
   showLoader(true);
   emptyEl.style.display='none';
@@ -737,12 +873,20 @@ async function loadList(){
       page,
       sort
     });
-    if(moduleSel.value) usp.set('course_module_id', moduleSel.value);
-    if(batchSel.value)  usp.set('batch_id', batchSel.value);
-    if(q.value.trim())  usp.set('search', q.value.trim());
 
-    let endpoint = API.index(usp);
-    if(binMode) endpoint = API.deletedIndex(usp);
+    if(q.value.trim()) usp.set('search', q.value.trim());
+
+    if (scope === 'archived') {
+      // archived tab always shows archived
+      usp.set('status', 'archived');
+    } else if (scope === 'active' && filterStatus) {
+      // in active tab, use status from filter modal if set
+      usp.set('status', filterStatus);
+    }
+
+    let endpoint;
+    if(scope === 'bin') endpoint = API.deletedIndex(usp);
+    else endpoint = API.index(usp);
 
     const res=await fetch(endpoint, {
       headers:{Authorization:'Bearer '+TOKEN,Accept:'application/json','Cache-Control':'no-cache'}
@@ -804,6 +948,37 @@ async function loadList(){
   }
 }
 
+async function archiveNotice(id){
+  try{
+    const res = await fetch(API.archive(id),{
+      method:'POST',
+      headers:{Authorization:'Bearer '+TOKEN,Accept:'application/json'},
+    });
+    const j = await res.json().catch(()=>({}));
+    if(!res.ok) throw new Error(j?.message || 'Archive failed');
+
+    ok('Archived');
+    loadList();
+  }catch(e){
+    err(e.message || 'Archive failed');
+  }
+}
+
+async function unarchiveNotice(id){
+  try{
+    const res = await fetch(API.unarchive(id),{
+      method:'POST',
+      headers:{Authorization:'Bearer '+TOKEN,Accept:'application/json'},
+    });
+    const j = await res.json().catch(()=>({}));
+    if(!res.ok) throw new Error(j?.message || 'Unarchive failed');
+
+    ok('Unarchived');
+    loadList();
+  }catch(e){
+    err(e.message || 'Unarchive failed');
+  }
+}
 /* =================== CREATE / EDIT (RTE + form + LIBRARY) =================== */
 const em_title        = document.getElementById('em_title');
 const em_mode         = document.getElementById('em_mode');
@@ -941,12 +1116,16 @@ em_files.addEventListener('change', ()=> addEditorFiles(em_files.files));
 function resetEditor(){
   em_title_input.value='';
   rte.innerHTML='';
-  em_course_id.value  = courseSel.value;
+
+  em_course_id.value    = courseSel.value || '';
   em_course_label.value = courseSel.options[courseSel.selectedIndex]?.text || '';
-  em_module_id.value  = moduleSel.value||'';
-  em_module_label.value = moduleSel.value ? (moduleSel.options[moduleSel.selectedIndex]?.text||'') : '';
-  em_batch_id.value   = batchSel.value||'';
-  em_batch_label.value  = batchSel.options[batchSel.selectedIndex]?.text || '';
+
+  em_module_id.value    = '';
+  em_module_label.value = '';
+
+  em_batch_id.value     = '';
+  em_batch_label.value  = '';
+
   em_visibility.value=''; em_priority.value='normal'; em_status.value='draft';
 
   emDT = new DataTransfer();
@@ -955,13 +1134,12 @@ function resetEditor(){
   emLibraryUrls = [];
   renderEmFiles();
 }
-
 function openCreateModal(){
   if(!courseSel.value)
     return Swal.fire('Select a course','Please pick a course first.','info');
 
-  if(binMode)
-    return Swal.fire('Bin view active','Switch off Bin to create.','info');
+  if (scope !== 'active')
+    return Swal.fire('Not allowed','Switch to the Active tab to create notices.','info');
 
   const m=new bootstrap.Modal(document.getElementById('editModal'));
   em_mode.value='create';
@@ -973,7 +1151,10 @@ function openCreateModal(){
 
 async function openEdit(id){
   const m=new bootstrap.Modal(document.getElementById('editModal'));
-  if(binMode) return Swal.fire('Bin view','Restore the item first to edit.','info');
+
+  if (scope === 'bin')
+    return Swal.fire('Bin view','Restore the item first to edit.','info');
+
   em_mode.value='edit'; em_id.value=id; em_title.textContent='Edit Notice'; resetEditor();
   try{
     const usp = new URLSearchParams({id});
@@ -989,19 +1170,23 @@ async function openEdit(id){
       em_visibility.value  = row.visibility_scope || '';
       em_priority.value    = row.priority || 'normal';
       em_status.value      = row.status || 'draft';
-      em_course_id.value   = row.course_id||courseSel.value;
-      em_module_id.value   = row.course_module_id||moduleSel.value||'';
-      em_batch_id.value    = row.batch_id||batchSel.value||'';
-      em_course_label.value= courseSel.options[courseSel.selectedIndex]?.text || '';
-      em_module_label.value= moduleSel.options[moduleSel.selectedIndex]?.text || '';
-      em_batch_label.value = batchSel.options[batchSel.selectedIndex]?.text || '';
-      // if backend later returns notice.library_urls, you can pre-fill emLibraryUrls here
+
+      em_course_id.value    = row.course_id || courseSel.value || '';
+      em_course_label.value = courseSel.options[courseSel.selectedIndex]?.text || '';
+
+      em_module_id.value    = row.course_module_id || '';
+      em_module_label.value = row.module_title || row.course_module_title || '';
+
+      em_batch_id.value     = row.batch_id || '';
+      em_batch_label.value  = row.batch_title || row.batch_name || '';
     }
+
     m.show();
   }catch(e){
     err('Failed to open editor');
   }
 }
+
 
 // RTE toolbar
 document.getElementById('rte_toolbar').addEventListener('click', (e)=>{
@@ -1323,10 +1508,9 @@ function normalizeAttach(a){
 
 async function fetchLibrary(query){
   const params = new URLSearchParams({ per_page:'200', include_deleted:'0' });
-  if(courseSel.value) params.set('course_id', courseSel.value);
-  if(moduleSel.value) params.set('course_module_id', moduleSel.value);
-  if(batchSel.value)  params.set('batch_id', batchSel.value);
-  if(query)           params.set('search', query);
+if(courseSel.value) params.set('course_id', courseSel.value);
+if(query)           params.set('search', query);
+
 
   const res = await fetch(LIBRARY_API + '?' + params.toString(), {
     headers:{Authorization:'Bearer '+TOKEN,Accept:'application/json'}
@@ -1423,34 +1607,45 @@ function renderLibraryGrid(){
     const selected = libSelected.has(att.key) || alreadyFromEditor;
 
     col.innerHTML = `
-      <div class="card h-100 border-0 shadow-sm">
-        <div class="card-body d-flex flex-column">
-          <div class="mb-2 text-center" style="min-height:120px;display:flex;align-items:center;justify-content:center;">
-            ${
-              att.mime && att.mime.startsWith('image/')
-                ? `<img src="${H.esc(att.url)}" alt="${H.esc(att.name)}" style="max-height:120px;max-width:100%;object-fit:contain;border-radius:6px;">`
-                : `<i class="fa ${H.icon(att.ext)} fa-3x text-muted"></i>`
-            }
-          </div>
-          <div class="fw-semibold text-truncate" title="${H.esc(att.name)}">${H.esc(att.name)}</div>
-          <div class="small text-muted">${H.esc(att.mime || '')}</div>
-          <div class="small text-muted mb-2">${att.size ? H.bytes(att.size) : ''}</div>
-          <div class="mt-auto d-flex justify-content-between align-items-center pt-2">
-            <div class="form-check">
-              <input class="form-check-input lib-check" type="checkbox" data-key="${H.esc(att.key)}">
-              <label class="form-check-label small">Select</label>
-            </div>
-            ${
-              att.url
-                ? `<a href="${H.esc(att.url)}" target="_blank" class="small text-decoration-none">
-                     <i class="fa fa-arrow-up-right-from-square me-1"></i>Preview
-                   </a>`
-                : ''
-            }
-          </div>
-        </div>
+  <div class="card h-100 border-0 shadow-sm position-relative">
+    
+    <!-- checkbox overlay -->
+    <div class="lib-overlay-check">
+      <input class="form-check-input lib-check" type="checkbox" data-key="${H.esc(att.key)}">
+    </div>
+
+    <div class="card-body d-flex flex-column">
+      <div class="mb-2 text-center" style="min-height:120px;display:flex;align-items:center;justify-content:center;">
+        ${
+          att.mime && att.mime.startsWith('image/')
+            ? `<img src="${H.esc(att.url)}" alt="${H.esc(att.name)}" style="max-height:120px;max-width:100%;object-fit:contain;border-radius:6px;">`
+            : `<i class="fa ${H.icon(att.ext)} fa-3x text-muted"></i>`
+        }
       </div>
-    `;
+
+      <div class="fw-semibold text-truncate" title="${H.esc(att.name)}">${H.esc(att.name)}</div>
+      <div class="small text-muted">${H.esc(att.mime || '')}</div>
+      <div class="small text-muted mb-2">${att.size ? H.bytes(att.size) : ''}</div>
+
+      <div class="mt-auto d-flex justify-content-between align-items-center pt-2">
+
+        ${
+          att.url
+            ? `<a href="${H.esc(att.url)}" target="_blank" class="small text-decoration-none">
+                 <i class="fa fa-arrow-up-right-from-square me-1"></i>Preview
+               </a>`
+            : ''
+        }
+
+        <div class="text-muted small">
+          ${H.esc(String(att.size ? H.bytes(att.size) : ''))}
+        </div>
+
+      </div>
+    </div>
+  </div>
+`;
+
 
     const cb = col.querySelector('.lib-check');
     cb.checked = selected;
@@ -1468,21 +1663,27 @@ function renderLibraryGrid(){
 }
 
 // open Library modal from editor
-if(em_libraryBtn){
-  em_libraryBtn.addEventListener('click', ()=>{
+// open Library modal from editor
+if (em_libraryBtn) {
+  em_libraryBtn.addEventListener('click', (e) => {
+    e.preventDefault();      // stop default (form submit, etc.)
+    e.stopPropagation();     // stop click from reaching parent (e.g., dropzone)
+
     libSelected.clear();
-    ensureLibraryLoaded('').then(()=>{
+
+    ensureLibraryLoaded('').then(() => {
       // pre-select based on existing emLibraryUrls
-      emLibraryUrls.forEach(u=>{
-        const base = (u||'').split('?')[0];
-        libItems.forEach(it=>{
-          if(it.url && it.url.split('?')[0]===base){
+      emLibraryUrls.forEach(u => {
+        const base = (u || '').split('?')[0];
+        libItems.forEach(it => {
+          if (it.url && it.url.split('?')[0] === base) {
             libSelected.add(it.key);
           }
         });
       });
       renderLibraryGrid();
     });
+
     noticeLibraryModal.show();
   });
 }

@@ -20,6 +20,11 @@ use App\Http\Controllers\API\ModuleController;
 use App\Http\Controllers\API\PrivilegeController;
 use App\Http\Controllers\API\UserPrivilegeController;
 use App\Http\Controllers\API\BatchMessageController;
+use App\Http\Controllers\API\TopicController;
+use App\Http\Controllers\API\CodingModuleController;
+use App\Http\Controllers\API\CodingQuestionController;
+use App\Http\Controllers\API\RunnerController;
+use App\Http\Controllers\API\JudgeController;
 
 Route::get('/user', function (Request $request) {
     return $request->user();
@@ -296,6 +301,8 @@ Route::middleware('checkRole:admin,super_admin,instructor,student')->group(funct
     Route::delete('/study-materials/{id}/force', [StudyMaterialController::class, 'forceDelete']);
     Route::get('/study-materials/deleted', [StudyMaterialController::class, 'indexDeleted']);
     Route::get('/study-materials/bin/batch/{batchKey}', [StudyMaterialController::class, 'binByBatch']);
+     Route::post('/study-materials/{id}/archive',   [StudyMaterialController::class, 'archive']);
+    Route::post('/study-materials/{id}/unarchive', [StudyMaterialController::class, 'unarchive']);
 
     // View endpoints
     Route::get   ('/study-materials/show/{uuid}',     [StudyMaterialController::class, 'showByUuid']);
@@ -318,8 +325,12 @@ Route::middleware('checkRole:admin,super_admin,instructor,student')->group(funct
     Route::post('/notices/batch/{batchKey}', [NoticeController::class, 'storeByBatch']);
    
     Route::post('/notices', [NoticeController::class, 'store']);
+    Route::post('/notices/{id}/archive', [NoticeController::class, 'archive']);
+Route::post('/notices/{id}/unarchive', [NoticeController::class, 'unarchive']);
+
     Route::patch('/notices/{id}', [NoticeController::class, 'update']);
     Route::delete('/notices/{id}', [NoticeController::class, 'destroy']);
+
     Route::post('/notices/{id}/restore', [NoticeController::class, 'restore']);
     Route::delete('/notices/{id}/force', [NoticeController::class, 'forceDelete']);
     Route::get('/notices/deleted', [NoticeController::class, 'indexDeleted']);
@@ -467,4 +478,41 @@ Route::middleware('checkRole:admin,super_admin,instructor')->group(function () {
     Route::get('user/by-uuid/{uuid}', [UserPrivilegeController::class, 'byUuid'])
         ->where('uuid', '[0-9a-fA-F\-]{36}')
         ->name('user.byUuid');
+});
+// Topic
+Route::prefix('topics')->group(function () {
+    Route::get('/',              [TopicController::class, 'index'])->name('topics.index');
+    Route::get('{idOrSlug}',     [TopicController::class, 'show'])->name('topics.show');
+    Route::post('/',             [TopicController::class, 'store'])->name('topics.store');
+    Route::match(['put','patch'], '{id}', [TopicController::class, 'update'])->name('topics.update');
+    Route::delete('{id}',        [TopicController::class, 'destroy'])->name('topics.destroy');
+    Route::post('{id}/restore',  [TopicController::class, 'restore'])->name('topics.restore');
+    Route::patch('{id}/toggle-status', [TopicController::class, 'toggleStatus'])->name('topics.toggle');
+    Route::post('reorder',       [TopicController::class, 'reorder'])->name('topics.reorder');
+    Route::post('{id}/image',    [TopicController::class, 'changeImage'])->name('topics.image.change');
+    Route::delete('{id}/image',  [TopicController::class, 'removeImage'])->name('topics.image.remove');
+});
+
+// Coding Modules
+Route::prefix('modules')->group(function () {
+    Route::get('/',               [CodingModuleController::class, 'index'])->name('modules.index');
+    Route::get('{idOrSlug}',      [CodingModuleController::class, 'show'])->name('modules.show');
+    Route::post('/',              [CodingModuleController::class, 'store'])->name('modules.store');
+    Route::match(['put','patch'], '{id}', [CodingModuleController::class, 'update'])->name('modules.update');
+    Route::delete('{id}',         [CodingModuleController::class, 'destroy'])->name('modules.destroy');
+    Route::post('{id}/restore',   [CodingModuleController::class, 'restore'])->name('modules.restore');
+    Route::patch('{id}/toggle-status', [CodingModuleController::class, 'toggleStatus'])->name('modules.toggle');
+    Route::post('reorder',        [CodingModuleController::class, 'reorder'])->name('modules.reorder');
+});
+
+// Coding Questions
+Route::prefix('questions')->group(function () {
+    Route::get('/',                   [CodingQuestionController::class, 'index'])->name('questions.index');
+    Route::get('{idOrSlug}',          [CodingQuestionController::class, 'show'])->name('questions.show');
+    Route::post('/',                  [CodingQuestionController::class, 'store'])->name('questions.store');
+    Route::match(['put','patch'], '{id}', [CodingQuestionController::class, 'update'])->name('questions.update');
+    Route::delete('{id}',             [CodingQuestionController::class, 'destroy'])->name('questions.destroy');
+    Route::post('{id}/restore',       [CodingQuestionController::class, 'restore'])->name('questions.restore');
+    Route::patch('{id}/toggle-status', [CodingQuestionController::class, 'toggleStatus'])->name('questions.toggle');
+    Route::post('reorder',            [CodingQuestionController::class, 'reorder'])->name('questions.reorder');
 });

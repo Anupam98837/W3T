@@ -208,7 +208,7 @@ class StudyMaterialController extends Controller
         if ($res = $this->requireRole($r, ['admin','superadmin'])) return $res;
 
         $q  = DB::table('study_materials')->whereNull('deleted_at');
-
+        
         if ($r->filled('course_id'))        $q->where('course_id', (int)$r->course_id);
         if ($r->filled('course_module_id')) $q->where('course_module_id', (int)$r->course_module_id);
         if ($r->filled('batch_id'))         $q->where('batch_id', (int)$r->batch_id);
@@ -218,6 +218,9 @@ class StudyMaterialController extends Controller
                 $w->where('title', 'like', $s)->orWhere('description', 'like', $s);
             });
         }
+        if ($status = $request->query('status')) {
+        $q->where('status', $status);   
+    }
 
         $per = max(1, min(100, (int)($r->per_page ?? 20)));
         $page = max(1, (int)($r->page ?? 1));
@@ -1282,4 +1285,91 @@ protected function appendFilesAndLibraryUrls(Request $r, int $batchId, array $ex
     return $out;
 }
 
+public function archive(Request $request, $id)
+{
+    // Optional: reuse your role check if you have it
+    if (method_exists($this, 'requireRole')) {
+        if ($resp = $this->requireRole($request, ['admin','super_admin','instructor'])) {
+            return $resp;
+        }
+    }
+
+    // Locate row by numeric id or uuid, and must NOT be soft-deleted
+    $q = DB::table('study_materials')->whereNull('deleted_at');
+    if (ctype_digit((string)$id)) {
+        $q->where('id', (int)$id);
+    } else {
+        $q->where('uuid', $id);
+    }
+    $row = $q->first();
+
+    if (!$row) {
+        return response()->json([
+            'message' => 'Study material not found'
+        ], 404);
+    }
+
+    // Already archived?
+    if (isset($row->status) && $row->status === 'archived') {
+        return response()->json([
+            'message' => 'Already archived'
+        ]);
+    }
+
+    $now = Carbon::now();
+
+    DB::table('study_materials')
+        ->where('id', $row->id)
+        ->update([
+            'status'      => 'archived',          // adjust if you use a different field
+            'archived_at' => $now,
+            'archived_by' => $request->user()->id ?? null,
+            'updated_at'  => $now,
+        ]);
+
+    return response()->json([
+        'message' => 'Material archived',
+        'id'      => $row->id,
+    ]);
+}
+
+public function unarchive(Request $request, $id)
+{
+    // Optional role check again
+    if (method_exists($this, 'requireRole')) {
+        if ($resp = $this->requireRole($request, ['admin','super_admin','instructor'])) {
+            return $resp;
+        }
+    }
+
+    $q = DB::table('study_materials')->whereNull('deleted_at');
+    if (ctype_digit((string)$id)) {
+        $q->where('id', (int)$id);
+    } else {
+        $q->where('uuid', $id);
+    }
+    $row = $q->first();
+
+    if (!$row) {
+        return response()->json([
+            'message' => 'Study material not found'
+        ], 404);
+    }
+
+    $now = Carbon::now();
+
+    DB::table('study_materials')
+        ->where('id', $row->id)
+        ->update([
+            'status'      => 'active',    
+            'archived_at' => null,
+            'archived_by' => null,
+            'updated_at'  => $now,
+        ]);
+
+    return response()->json([
+        'message' => 'Material unarchived',
+        'id'      => $row->id,
+    ]);
+}
 }
