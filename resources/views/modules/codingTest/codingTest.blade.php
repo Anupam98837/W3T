@@ -722,28 +722,30 @@
       // Description
       questionDescription.innerHTML = questionData.description || '<p>No description provided.</p>';
 
-      // Initialize languages (sets textarea value for default language)
+      // 1) Initialize languages and default language
       initializeLanguages();
 
-      // Initialize CodeMirror editor
-      setupEditor();
-
-      // Done loading
+      // 2) Show the main content BEFORE creating the editor
       loadingState.style.display = 'none';
       mainContent.style.display = 'block';
 
+      // 3) Setup CodeMirror AFTER the editor is visible
+      setupEditor();
+
+      // 4) Now apply language + default code in next tick (fixes first-load issue)
+      setTimeout(() => {
+        applyLanguageAndCode();
+        restoreSavedCodeIfAny();
+      }, 0);
+
       // Highlight any code blocks in description
       hljs.highlightAll();
-
-      // Try restore locally saved code
-      restoreSavedCodeIfAny();
     }
 
     function initializeLanguages() {
       languageSelect.innerHTML = '';
       originalCode = {};
 
-      // Unique language keys from snippets
       const snippets = questionData.snippets || [];
       const languages = [...new Set(snippets.map(s => s.language_key))];
 
@@ -765,13 +767,13 @@
       }
 
       currentLanguage = languageSelect.value;
-      codeEditorTextarea.value = originalCode[currentLanguage] || '';
       updateLanguageMeta();
 
+      // When user changes language -> reapply mode + starter code / saved code
       languageSelect.addEventListener('change', () => {
         currentLanguage = languageSelect.value;
         updateLanguageMeta();
-        updateEditorLanguageAndCode();
+        applyLanguageAndCode();
       });
     }
 
@@ -785,8 +787,22 @@
         indentWithTabs: false,
         viewportMargin: Infinity
       });
-      editor.setValue(originalCode[currentLanguage] || '');
       editor.refresh();
+    }
+
+    // Single source of truth for setting mode + code (used on first load & on language change)
+    function applyLanguageAndCode() {
+      if (!editor) return;
+
+      editor.setOption('mode', getCodeMirrorMode(currentLanguage));
+
+      const savedCode = localStorage.getItem(`code_${uuid}_${currentLanguage}`);
+      const baseCode = originalCode[currentLanguage] || '';
+      const codeToUse = savedCode || baseCode;
+
+      editor.setValue(codeToUse);
+      editor.refresh();
+      editor.focus();
     }
 
     function getCodeMirrorMode(lang) {
@@ -799,14 +815,6 @@
       }
       if (key === 'php') return 'application/x-httpd-php';
       return 'text/plain';
-    }
-
-    function updateEditorLanguageAndCode() {
-      if (!editor) return;
-      editor.setOption('mode', getCodeMirrorMode(currentLanguage));
-      const savedCode = localStorage.getItem(`code_${uuid}_${currentLanguage}`);
-      editor.setValue(savedCode || originalCode[currentLanguage] || '');
-      editor.refresh();
     }
 
     function updateLanguageMeta() {
@@ -1057,7 +1065,10 @@
 
     function restoreSavedCodeIfAny() {
       const saved = localStorage.getItem(`code_${uuid}_${currentLanguage}`);
-      if (saved && saved !== (originalCode[currentLanguage] || '')) {
+      const base = originalCode[currentLanguage] || '';
+
+      // Only bother user if we actually have different saved code
+      if (saved && saved !== base) {
         Swal.fire({
           title: 'Restore saved code?',
           text: 'We found locally saved code for this question. Restore it?',
