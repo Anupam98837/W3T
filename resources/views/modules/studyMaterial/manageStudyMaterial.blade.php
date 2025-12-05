@@ -8,39 +8,39 @@
 <style>
 /* ===== Shell ===== */
 .sm-wrap{max-width:1140px;margin:16px auto 40px;overflow:visible}
-.panel{background:var(--surface);border:1px solid var(--line-strong);border-radius:16px;box-shadow:var(--shadow-2);padding:14px}
+/* .panel{background:var(--surface);border:1px solid var(--line-strong);border-radius:16px;box-shadow:var(--shadow-2);padding:14px} */
 
 /* Toolbar */
-.mfa-toolbar .form-control{height:40px;border-radius:12px;border:1px solid var(--line-strong);background:var(--surface)}
+/* .mfa-toolbar .form-control{height:40px;border-radius:12px;border:1px solid var(--line-strong);background:var(--surface)}
 .mfa-toolbar .form-select{height:40px;border-radius:12px;border:1px solid var(--line-strong);background:var(--surface)}
 .mfa-toolbar .btn{height:40px;border-radius:12px}
 .mfa-toolbar .btn-light{background:var(--surface);border:1px solid var(--line-strong)}
-.mfa-toolbar .btn-primary{background:var(--primary-color);border:none}
+.mfa-toolbar .btn-primary{background:var(--primary-color);border:none} */
 
 /* Table Card */
-.table-wrap.card{position:relative;border:1px solid var(--line-strong);border-radius:16px;background:var(--surface);box-shadow:var(--shadow-2);overflow:visible}
+/* .table-wrap.card{position:relative;border:1px solid var(--line-strong);border-radius:16px;background:var(--surface);box-shadow:var(--shadow-2);overflow:visible}
 .table-wrap .card-body{overflow:visible}
 .table-responsive{overflow:visible !important}
 .table thead th{font-weight:600;color:var(--muted-color);font-size:13px;border-bottom:1px solid var(--line-strong);background:var(--surface)}
 .table thead.sticky-top{z-index:3}
 .table tbody tr{border-top:1px solid var(--line-soft)}
 .table tbody tr:hover{background:var(--page-hover)}
-.small{font-size:12.5px}
+.small{font-size:12.5px} */
 
 /* Sorting */
-.sortable{cursor:pointer;white-space:nowrap}
+/* .sortable{cursor:pointer;white-space:nowrap}
 .sortable .caret{display:inline-block;margin-left:.35rem;opacity:.65}
 .sortable.asc .caret::after{content:"▲";font-size:.7rem}
-.sortable.desc .caret::after{content:"▼";font-size:.7rem}
+.sortable.desc .caret::after{content:"▼";font-size:.7rem} */
 
 /* Dropdowns in table */
-.table-wrap .dropdown{position:relative;z-index:6}
+/* .table-wrap .dropdown{position:relative;z-index:6}
 .table-wrap .dd-toggle{position:relative;z-index:7}
 .dropdown [data-bs-toggle="dropdown"]{border-radius:10px}
 .table-wrap .dropdown-menu{border-radius:12px;border:1px solid var(--line-strong);box-shadow:var(--shadow-2);min-width:220px;z-index:5000}
 .dropdown-item{display:flex;align-items:center;gap:.6rem}
 .dropdown-item i{width:16px;text-align:center}
-.dropdown-item.text-danger{color:var(--danger-color)!important}
+.dropdown-item.text-danger{color:var(--danger-color)!important} */
 
 /* Empty & loader */
 .empty{color:var(--muted-color)}
@@ -156,77 +156,69 @@ html.theme-dark .lib-overlay-check {
     </div>
   </div>
 
-  {{-- ===== Tabs (like Modules) ===== --}}
+  {{-- ===== Tabs (Active + Bin only) ===== --}}
   <ul class="nav nav-tabs mb-3" role="tablist">
-  <li class="nav-item">
-    <a class="nav-link active" href="javascript:void(0)" id="smTabActive" data-scope="active">
-      <i class="fa-solid fa-book-open me-2" aria-hidden="true"></i>
-      Active
-    </a>
-  </li>
-  <li class="nav-item">
-    <a class="nav-link" href="javascript:void(0)" id="smTabArchived" data-scope="archived">
-      <i class="fa-solid fa-box-archive me-2" aria-hidden="true"></i>
-      Archived
-    </a>
-  </li>
-  <li class="nav-item">
-    <a class="nav-link" href="javascript:void(0)" id="smTabBin" data-scope="bin">
-      <i class="fa-solid fa-trash-can me-2" aria-hidden="true"></i>
-      Bin
-    </a>
-  </li>
-</ul>
+    <li class="nav-item">
+      <a class="nav-link active" href="javascript:void(0)" id="smTabActive" data-scope="active">
+        <i class="fa-solid fa-book-open me-2" aria-hidden="true"></i>
+        Active
+      </a>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link" href="javascript:void(0)" id="smTabBin" data-scope="bin">
+        <i class="fa-solid fa-trash-can me-2" aria-hidden="true"></i>
+        Bin
+      </a>
+    </li>
+  </ul>
+{{-- ===== Toolbar Panel (OUTSIDE table card) ===== --}}
+<div class="panel mb-3">
+  <div class="row align-items-center g-2 px-3 pt-3 pb-2 mfa-toolbar" id="listToolbar">
+    <div class="col-12 col-xl d-flex align-items-center flex-wrap gap-2">
 
+      {{-- Per-page --}}
+      <div class="d-flex align-items-center gap-2">
+        <label for="perPageSel" class="text-muted small mb-0">Per page</label>
+        <select id="perPageSel" class="form-select form-select-sm" style="width:auto; min-width:90px;">
+          <option value="10">10</option>
+          <option value="20" selected>20</option>
+          <option value="30">30</option>
+          <option value="50">50</option>
+        </select>
+      </div>
+
+      {{-- Search --}}
+      <div class="position-relative flex-grow-1" style="min-width:260px;">
+        <input id="q" type="text" class="form-control ps-5" placeholder="Search title/description…" disabled>
+        <i class="fa fa-search position-absolute" style="left:12px;top:50%;transform:translateY(-50%);opacity:.6;"></i>
+      </div>
+
+    </div>
+
+    <div class="col-12 col-xl-auto ms-xl-auto d-flex justify-content-xl-end gap-2">
+
+      {{-- Filters button --}}
+      <button type="button" id="btnFilters" class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#smFilterModal">
+        <i class="fa fa-sliders"></i> Filters
+      </button>
+
+      {{-- Create --}}
+      <a
+        id="btnCreate"
+        href="/admin/course/studyMaterial/create"
+        class="btn btn-primary"
+        data-create-url="/admin/course/studyMaterial/create"
+        disabled
+      >
+        <i class="fa fa-plus me-1"></i> New Material
+      </a>
+    </div>
+  </div>
+</div>
 
   {{-- ===== Card: Toolbar + Table ===== --}}
   <div class="card table-wrap">
     <div class="card-body p-0">
-
-      {{-- Inner toolbar (like Modules) --}}
-      {{-- Inner toolbar (like Notices) --}}
-<div class="row align-items-center g-2 px-3 pt-3 pb-2 mfa-toolbar" id="listToolbar">
-  <div class="col-12 col-xl d-flex align-items-center flex-wrap gap-2">
-
-    {{-- Per-page --}}
-    <div class="d-flex align-items-center gap-2">
-      <label for="perPageSel" class="text-muted small mb-0">Per page</label>
-      <select id="perPageSel" class="form-select form-select-sm" style="width:auto; min-width:90px;">
-        <option value="10">10</option>
-        <option value="20" selected>20</option>
-        <option value="30">30</option>
-        <option value="50">50</option>
-      </select>
-    </div>
-
-    {{-- Search --}}
-    <div class="position-relative flex-grow-1" style="min-width:260px;">
-      <input id="q" type="text" class="form-control ps-5" placeholder="Search title/description…" disabled>
-      <i class="fa fa-search position-absolute" style="left:12px;top:50%;transform:translateY(-50%);opacity:.6;"></i>
-    </div>
-
-  </div>
-
-  <div class="col-12 col-xl-auto ms-xl-auto d-flex justify-content-xl-end gap-2">
-
-    {{-- Filters button --}}
-    <button type="button" id="btnFilters" class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#smFilterModal">
-      <i class="fa fa-sliders"></i> Filters
-    </button>
-
-    {{-- Create --}}
-    <a
-      id="btnCreate"
-      href="/admin/course/studyMaterial/create"
-      class="btn btn-primary"
-      data-create-url="/admin/course/studyMaterial/create"
-      disabled
-    >
-      <i class="fa fa-plus me-1"></i> New Material
-    </a>
-  </div>
-</div>
-
       {{-- ===== Table ===== --}}
       <div class="table-responsive">
         <table class="table table-hover table-borderless align-middle mb-0">
@@ -440,6 +432,49 @@ html.theme-dark .lib-overlay-check {
     </div>
   </div>
 </div>
+{{-- ================= Filters Modal ================= --}}
+<div class="modal fade" id="smFilterModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">
+          <i class="fa fa-sliders me-2"></i> Filters
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+
+      <div class="modal-body">
+        <div class="mb-3">
+          <label for="fltStatus" class="form-label">Status</label>
+          <select id="fltStatus" class="form-select">
+            <option value="">All</option>
+            <option value="published">Published</option>
+            <option value="draft">Draft</option>
+            <option value="scheduled">Scheduled</option>
+            {{-- add / adjust status values to match your API --}}
+          </select>
+        </div>
+
+        <div class="mb-0">
+          <label for="fltSort" class="form-label">Sort by</label>
+          <select id="fltSort" class="form-select">
+            <option value="-created_at" selected>Newest first</option>
+            <option value="created_at">Oldest first</option>
+            <option value="title">Title A → Z</option>
+            <option value="-title">Title Z → A</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Close</button>
+        <button type="button" class="btn btn-primary" id="fltApply">
+          <i class="fa fa-filter me-1"></i> Apply
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
 
 {{-- Toasts --}}
 <div class="toast-container position-fixed top-0 end-0 p-3" style="z-index:2100">
@@ -481,9 +516,7 @@ const API = {
   destroy: (id, force=false)=> `/api/study-materials/${encodeURIComponent(id)}${force ? '?force=1' : ''}`,
   restore: (id)=> `/api/study-materials/${encodeURIComponent(id)}/restore`,
   file   : (id)=> `/api/study-materials/file/${encodeURIComponent(id)}`,
-  binIndex : (qs)=> '/api/study-materials/deleted?' + qs.toString(),
-  archive   : (id)=> `/api/study-materials/${encodeURIComponent(id)}/archive`,
-  unarchive : (id)=> `/api/study-materials/${encodeURIComponent(id)}/unarchive`,
+  binIndex : (qs)=> '/api/study-materials/deleted?' + qs.toString()
 };
 
 const H = {
@@ -539,7 +572,6 @@ const perPageSel  = document.getElementById('perPageSel');
 const btnFilters  = document.getElementById('btnFilters');
 
 const smTabActive   = document.getElementById('smTabActive');
-const smTabArchived = document.getElementById('smTabArchived');
 const smTabBin      = document.getElementById('smTabBin');
 
 const fltStatus = document.getElementById('fltStatus');
@@ -549,13 +581,12 @@ const fltApply  = document.getElementById('fltApply');
 let sort    = '-created_at';
 let page    = 1;
 let perPage = 20;
-let scope   = 'active';   // 'active' | 'archived' | 'bin'
+let scope   = 'active';   // 'active' | 'bin'
 let binMode = false;
 let statusFilter = '';
 
 let modulesForTable = [];
 const moduleMaterialsCache = new Map();
-
 
 /* ================= SCOPE HANDLING ================== */
 function setScope(newScope){
@@ -563,9 +594,8 @@ function setScope(newScope){
   binMode = (scope === 'bin');
 
   // Tab active states
-  if (smTabActive && smTabArchived && smTabBin) {
+  if (smTabActive && smTabBin) {
     smTabActive.classList.toggle('active',   scope === 'active');
-    smTabArchived.classList.toggle('active', scope === 'archived');
     smTabBin.classList.toggle('active',      scope === 'bin');
   }
 
@@ -703,21 +733,16 @@ function wire(){
   });
 
   /* ========= Tabs ========= */
-  if (smTabActive && smTabArchived && smTabBin) {
+  if (smTabActive && smTabBin) {
     smTabActive.addEventListener('click', (e)=>{
       e.preventDefault();
       if (scope !== 'active') setScope('active');
-    });
-    smTabArchived.addEventListener('click', (e)=>{
-      e.preventDefault();
-      if (scope !== 'archived') setScope('archived');
     });
     smTabBin.addEventListener('click', (e)=>{
       e.preventDefault();
       if (scope !== 'bin') setScope('bin');
     });
   }
-
 
   document.addEventListener('click', (e)=>{
     const item=e.target.closest('.dropdown-item[data-act]');
@@ -729,14 +754,13 @@ function wire(){
     if(act==='delete')  deleteItem(id);
     if(act==='purge')   purgeItem(id);
     if(act==='restore') restoreItem(id);
-    if(act==='archive')   archiveMaterial(id);
-if(act==='unarchive') unarchiveMaterial(id);
     const toggle=item.closest('.dropdown')?.querySelector('.dd-toggle');
     if(toggle) bootstrap.Dropdown.getOrCreateInstance(toggle).hide();
   });
 
   document.getElementById('viewer').addEventListener('contextmenu', (e)=> e.preventDefault());
 }
+
 async function loadCourses(){
   try{
     const res=await fetch('/api/courses?status=published&per_page=1000',{
@@ -941,29 +965,27 @@ async function loadModuleMaterials(moduleId){
 
   try{
     const usp = new URLSearchParams({
-  course_id: courseSel.value,
-  course_module_id: moduleId,
-  batch_id: batchSel.value,
-  per_page: 500,
-  sort
-});
+      course_id: courseSel.value,
+      course_module_id: moduleId,
+      batch_id: batchSel.value,
+      per_page: 500,
+      sort
+    });
 
-if (q.value.trim()) usp.set('search', q.value.trim());
+    if (q.value.trim()) usp.set('search', q.value.trim());
 
-// status based on tab / filter
-if (scope === 'archived') {
-  usp.set('status', 'archived');
-} else if (statusFilter) {
-  usp.set('status', statusFilter);
-}
+    // status based on filter only
+    if (statusFilter) {
+      usp.set('status', statusFilter);
+    }
 
-if (!binMode) {
-  usp.set('include_deleted','0');
-}
+    if (!binMode) {
+      usp.set('include_deleted','0');
+    }
 
-const url = (scope === 'bin')
-  ? API.binIndex(usp)
-  : API.index(usp);
+    const url = (scope === 'bin')
+      ? API.binIndex(usp)
+      : API.index(usp);
 
     const res = await fetch(url,{
       headers:{Authorization:'Bearer '+TOKEN,Accept:'application/json','Cache-Control':'no-cache'}
@@ -1060,24 +1082,6 @@ function rowActions(r){
       </div>`;
   }
 
-  // ARCHIVED tab
-  if (scope === 'archived') {
-    return `
-      <div class="dropdown text-end" data-bs-display="static">
-        <button type="button" class="btn btn-primary btn-sm dd-toggle" data-bs-toggle="dropdown" aria-expanded="false" title="Actions">
-          <i class="fa fa-ellipsis-vertical"></i>
-        </button>
-        <ul class="dropdown-menu dropdown-menu-end">
-          <li><button class="dropdown-item" data-act="view" data-uuid="${H.esc(r.uuid)}"><i class="fa fa-eye"></i> View</button></li>
-          <li><button class="dropdown-item" data-act="edit" data-id="${r.id}"><i class="fa fa-pen-to-square"></i> Edit</button></li>
-          <li><hr class="dropdown-divider"></li>
-          <li><button class="dropdown-item" data-act="unarchive" data-id="${r.id}"><i class="fa fa-box-open"></i> Unarchive</button></li>
-          <li><hr class="dropdown-divider"></li>
-          <li><button class="dropdown-item text-danger" data-act="delete" data-id="${r.id}"><i class="fa fa-trash"></i> Delete</button></li>
-        </ul>
-      </div>`;
-  }
-
   // ACTIVE tab
   return `
     <div class="dropdown text-end" data-bs-display="static">
@@ -1087,8 +1091,6 @@ function rowActions(r){
       <ul class="dropdown-menu dropdown-menu-end">
         <li><button class="dropdown-item" data-act="view" data-uuid="${H.esc(r.uuid)}"><i class="fa fa-eye"></i> View</button></li>
         <li><button class="dropdown-item" data-act="edit" data-id="${r.id}"><i class="fa fa-pen-to-square"></i> Edit</button></li>
-        <li><hr class="dropdown-divider"></li>
-        <li><button class="dropdown-item" data-act="archive" data-id="${r.id}"><i class="fa fa-box-archive"></i> Archive</button></li>
         <li><hr class="dropdown-divider"></li>
         <li><button class="dropdown-item text-danger" data-act="delete" data-id="${r.id}"><i class="fa fa-trash"></i> Delete</button></li>
       </ul>
@@ -1129,13 +1131,13 @@ async function loadList(){
       sort
     });
     if(q.value.trim()) usp.set('search', q.value.trim());
-      if(!binMode){
+    if(!binMode){
       usp.set('include_deleted','0'); // optional, keep if your API uses it
     }
 
     const url = binMode ? API.binIndex(usp) : API.index(usp);
 
-const res=await fetch(url, {
+    const res=await fetch(url, {
       headers:{Authorization:'Bearer '+TOKEN,Accept:'application/json','Cache-Control':'no-cache'}
     });
     const j=await res.json();
@@ -1187,6 +1189,7 @@ const res=await fetch(url, {
     showLoader(false);
   }
 }
+
 const em_title = document.getElementById('em_title');
 const em_mode  = document.getElementById('em_mode');
 const em_id    = document.getElementById('em_id');
@@ -1241,6 +1244,7 @@ function renderEmFiles(){
         <span class="badge bg-secondary ms-2">Library</span>
       </div>
       <button type="button" class="btn btn-sm btn-outline-danger ms-2" data-type="library" data-idx="${idx}">
+
         <i class="fa fa-trash"></i>
       </button>
     `;
@@ -1469,37 +1473,6 @@ async function purgeItem(id){
     moduleMaterialsCache.clear();
     if(batchSel.value) renderModuleTable();
   }catch(e){ err(e.message||'Purge failed'); }
-}
-async function archiveMaterial(id){
-  try{
-    const res = await fetch(API.archive(id),{
-      method:'POST',
-      headers:{Authorization:'Bearer '+TOKEN,Accept:'application/json'}
-    });
-    const j = await res.json().catch(()=>({}));
-    if(!res.ok) throw new Error(j?.message || 'Archive failed');
-    ok('Material archived');
-    moduleMaterialsCache.clear();
-    if (batchSel.value) renderModuleTable();
-  }catch(e){
-    err(e.message || 'Archive failed');
-  }
-}
-
-async function unarchiveMaterial(id){
-  try{
-    const res = await fetch(API.unarchive(id),{
-      method:'POST',
-      headers:{Authorization:'Bearer '+TOKEN,Accept:'application/json'}
-    });
-    const j = await res.json().catch(()=>({}));
-    if(!res.ok) throw new Error(j?.message || 'Unarchive failed');
-    ok('Material unarchived');
-    moduleMaterialsCache.clear();
-    if (batchSel.value) renderModuleTable();
-  }catch(e){
-    err(e.message || 'Unarchive failed');
-  }
 }
 
 async function restoreItem(id){

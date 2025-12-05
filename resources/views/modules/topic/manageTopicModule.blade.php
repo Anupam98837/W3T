@@ -291,8 +291,8 @@
 @push('scripts')
 <script>
 (function(){
-  const API_TOPICS  = '/api/topics';
-  const API_MODULES = '/api/modules';
+  const API_TOPICS  = '/api/coding_topics';
+  const API_MODULES = '/api/coding_modules';
 
   function getToken(){ return localStorage.getItem('token') || sessionStorage.getItem('token') || ''; }
   function showToast(id, text){ const el=document.getElementById(id); if(!el) return; el.querySelector('.toast-body').textContent=text; (new bootstrap.Toast(el)).show(); }

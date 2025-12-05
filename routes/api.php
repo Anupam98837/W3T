@@ -301,10 +301,7 @@ Route::middleware('checkRole:admin,super_admin,instructor,student')->group(funct
     Route::delete('/study-materials/{id}/force', [StudyMaterialController::class, 'forceDelete']);
     Route::get('/study-materials/deleted', [StudyMaterialController::class, 'indexDeleted']);
     Route::get('/study-materials/bin/batch/{batchKey}', [StudyMaterialController::class, 'binByBatch']);
-     Route::post('/study-materials/{id}/archive',   [StudyMaterialController::class, 'archive']);
-    Route::post('/study-materials/{id}/unarchive', [StudyMaterialController::class, 'unarchive']);
-
-    // View endpoints
+       // View endpoints
     Route::get   ('/study-materials/show/{uuid}',     [StudyMaterialController::class, 'showByUuid']);
     Route::get   ('/study-materials/stream/{uuid}/{fileId}', [StudyMaterialController::class, 'streamInline']);
 });
@@ -480,7 +477,7 @@ Route::middleware('checkRole:admin,super_admin,instructor')->group(function () {
         ->name('user.byUuid');
 });
 // Topic
-Route::prefix('topics')->group(function () {
+Route::prefix('coding_topics')->group(function () {
     Route::get('/',              [TopicController::class, 'index'])->name('topics.index');
     Route::get('{idOrSlug}',     [TopicController::class, 'show'])->name('topics.show');
     Route::post('/',             [TopicController::class, 'store'])->name('topics.store');
@@ -494,7 +491,7 @@ Route::prefix('topics')->group(function () {
 });
 
 // Coding Modules
-Route::prefix('modules')->group(function () {
+Route::prefix('coding_modules')->group(function () {
     Route::get('/',               [CodingModuleController::class, 'index'])->name('modules.index');
     Route::get('{idOrSlug}',      [CodingModuleController::class, 'show'])->name('modules.show');
     Route::post('/',              [CodingModuleController::class, 'store'])->name('modules.store');
@@ -504,9 +501,10 @@ Route::prefix('modules')->group(function () {
     Route::patch('{id}/toggle-status', [CodingModuleController::class, 'toggleStatus'])->name('modules.toggle');
     Route::post('reorder',        [CodingModuleController::class, 'reorder'])->name('modules.reorder');
 });
+Route::post('/judge/execute', [JudgeController::class, 'submit']);
 
 // Coding Questions
-Route::prefix('questions')->group(function () {
+Route::prefix('coding_questions')->group(function () {
     Route::get('/',                   [CodingQuestionController::class, 'index'])->name('questions.index');
     Route::get('{idOrSlug}',          [CodingQuestionController::class, 'show'])->name('questions.show');
     Route::post('/',                  [CodingQuestionController::class, 'store'])->name('questions.store');

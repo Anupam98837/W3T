@@ -1,6 +1,8 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\VIEW\CodingQuestionController as ViewQuestionController;
+
 
 // Route::get('/', function () {
 //     return view('ui.structure');
@@ -172,12 +174,12 @@ Route::get('/admin/compiler/manage', function () {
     return view('pages.users.admin.pages.compiler.testCompiler');
 });
 
-// Route::prefix('admin') // add your middlewares if needed
-//     ->group(function () {
-//         Route::get('topics/{topic}/modules/{module}/questions',
-//             [ViewCodingQuestionController::class, 'manage']
-//         )->name('admin.questions.manage');
-//     });
+Route::prefix('admin') // add your middlewares if needed
+    ->group(function () {
+        Route::get('topics/{topic}/modules/{module}/questions',
+            [ViewQuestionController::class, 'manage']
+        )->name('admin.questions.manage');
+    });
      
 
 // Student Routes

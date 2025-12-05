@@ -19,7 +19,7 @@ class CodingQuestionController extends Controller
     private function findById(int $id, bool $withTrashed = false)
     {
         Log::info('[Questions/findById] Start', ['id' => $id, 'withTrashed' => $withTrashed]);
-        $q = DB::table('questions');
+        $q = DB::table('coding_questions');
         if (!$withTrashed) $q->whereNull('deleted_at');
         $row = $q->where('id', $id)->first();
         Log::info('[Questions/findById] Done', ['found' => (bool)$row]);
@@ -35,7 +35,7 @@ class CodingQuestionController extends Controller
         $slug = $base;
         $i    = 1;
 
-        $query = fn($s) => DB::table('questions')
+        $query = fn($s) => DB::table('coding_questions')
             ->when($ignoreId, fn($q) => $q->where('id', '!=', $ignoreId))
             ->where('module_id', $moduleId)
             ->where('slug', $s)
@@ -89,7 +89,7 @@ class CodingQuestionController extends Controller
 
     /** Upsert per-language rows; optionally prune rows not present in payload */
     /** Upsert per-language rows; optionally prune rows not present in payload */
-private function upsertLanguages(int $questionId, array $items, bool $pruneMissing = false): void
+   private function upsertLanguages(int $questionId, array $items, bool $pruneMissing = false): void
 {
     Log::info('[Questions/upsertLanguages] Start', [
         'question_id' => $questionId,
@@ -145,6 +145,8 @@ private function upsertLanguages(int $questionId, array $items, bool $pruneMissi
         return json_encode([strval($v)], JSON_UNESCAPED_UNICODE);
     };
 
+    $now = now();
+
     foreach ($items as $it) {
         $payload = [
             'question_id'       => $questionId,
@@ -166,19 +168,27 @@ private function upsertLanguages(int $questionId, array $items, bool $pruneMissi
             'forbid_regex'      => $normalizeList($it['forbid_regex'] ?? null),
             'is_enabled'        => isset($it['is_enabled']) ? (bool)$it['is_enabled'] : true,
             'sort_order'        => $it['sort_order']        ?? 0,
-            'updated_at'        => now(),
+            'updated_at'        => $now,
         ];
 
         if (isset($existing[$it['language_key']])) {
+            // UPDATE existing row (do not touch uuid)
             DB::table('question_languages')
                 ->where('id', $existing[$it['language_key']])
                 ->update($payload);
             Log::info('[Questions/upsertLanguages] Updated', ['language_key' => $it['language_key']]);
         } else {
-            $payload['created_at'] = now();
-            DB::table('question_languages')->insert($payload);
+            // INSERT new row => must provide uuid
+            $insertPayload = $payload;
+            $insertPayload['uuid']       = $it['uuid'] ?? (string) Str::uuid();
+            $insertPayload['created_at'] = $now;
+
+            DB::table('question_languages')->insert($insertPayload);
             Log::info('[Questions/upsertLanguages] Inserted', ['language_key' => $it['language_key']]);
+            Log::debug('[Questions/upsertLanguages] PayloadApplied', ['payload' => $insertPayload]);
+            continue;
         }
+
         Log::debug('[Questions/upsertLanguages] PayloadApplied', ['payload' => $payload]);
     }
 
@@ -194,66 +204,76 @@ private function upsertLanguages(int $questionId, array $items, bool $pruneMissi
     Log::info('[Questions/upsertLanguages] Done');
 }
 
-
     /** Upsert snippets by language_key; optionally prune */
-    private function upsertSnippets(int $questionId, array $items, bool $pruneMissing = false): void
-    {
-        Log::info('[Questions/upsertSnippets] Start', [
-            'question_id' => $questionId,
-            'count'       => count($items),
-            'prune'       => $pruneMissing,
-        ]);
-        Log::debug('[Questions/upsertSnippets] Items', ['items' => $items]);
+   /** Upsert snippets by language_key; optionally prune */
+private function upsertSnippets(int $questionId, array $items, bool $pruneMissing = false): void
+{
+    Log::info('[Questions/upsertSnippets] Start', [
+        'question_id' => $questionId,
+        'count'       => count($items),
+        'prune'       => $pruneMissing,
+    ]);
+    Log::debug('[Questions/upsertSnippets] Items', ['items' => $items]);
 
-        $existing = DB::table('question_snippets')
-            ->where('question_id', $questionId)
-            ->pluck('id', 'language_key')->all();
+    $existing = DB::table('question_snippets')
+        ->where('question_id', $questionId)
+        ->pluck('id', 'language_key')->all();
 
-        $seen = [];
-        foreach ($items as $i => $it) {
-            if (!isset($it['language_key']) || !isset($it['template'])) {
-                Log::error('[Questions/upsertSnippets] Invalid item', ['index' => $i, 'item' => $it]);
-                throw new \InvalidArgumentException("snippets[$i] requires language_key and template");
-            }
-            $k = $it['language_key'];
-            if (isset($seen[$k])) {
-                Log::error('[Questions/upsertSnippets] Duplicate language_key', ['language_key' => $k]);
-                throw new \InvalidArgumentException("Duplicate language_key '$k' in snippets");
-            }
-            $seen[$k] = true;
+    $seen = [];
+    $now  = now();
 
-            $payload = [
-                'question_id'  => $questionId,
-                'language_key' => $k,
-                'entry_hint'   => $it['entry_hint'] ?? null,
-                'template'     => $it['template'],
-                'is_default'   => isset($it['is_default']) ? (bool)$it['is_default'] : false,
-                'sort_order'   => $it['sort_order'] ?? 0,
-                'updated_at'   => now(),
-            ];
+    foreach ($items as $i => $it) {
+        if (!isset($it['language_key']) || !isset($it['template'])) {
+            Log::error('[Questions/upsertSnippets] Invalid item', ['index' => $i, 'item' => $it]);
+            throw new \InvalidArgumentException("snippets[$i] requires language_key and template");
+        }
+        $k = $it['language_key'];
+        if (isset($seen[$k])) {
+            Log::error('[Questions/upsertSnippets] Duplicate language_key', ['language_key' => $k]);
+            throw new \InvalidArgumentException("Duplicate language_key '$k' in snippets");
+        }
+        $seen[$k] = true;
 
-            if (isset($existing[$k])) {
-                DB::table('question_snippets')->where('id', $existing[$k])->update($payload);
-                Log::info('[Questions/upsertSnippets] Updated', ['language_key' => $k]);
-            } else {
-                $payload['created_at'] = now();
-                DB::table('question_snippets')->insert($payload);
-                Log::info('[Questions/upsertSnippets] Inserted', ['language_key' => $k]);
-            }
-            Log::debug('[Questions/upsertSnippets] PayloadApplied', ['payload' => $payload]);
+        $payload = [
+            'question_id'  => $questionId,
+            'language_key' => $k,
+            'entry_hint'   => $it['entry_hint'] ?? null,
+            'template'     => $it['template'],
+            'is_default'   => isset($it['is_default']) ? (bool)$it['is_default'] : false,
+            'sort_order'   => $it['sort_order'] ?? 0,
+            'updated_at'   => $now,
+        ];
+
+        if (isset($existing[$k])) {
+            // UPDATE existing (keep uuid as-is)
+            DB::table('question_snippets')->where('id', $existing[$k])->update($payload);
+            Log::info('[Questions/upsertSnippets] Updated', ['language_key' => $k]);
+        } else {
+            // INSERT new => must set uuid
+            $insertPayload = $payload;
+            $insertPayload['uuid']       = $it['uuid'] ?? (string) Str::uuid();
+            $insertPayload['created_at'] = $now;
+
+            DB::table('question_snippets')->insert($insertPayload);
+            Log::info('[Questions/upsertSnippets] Inserted', ['language_key' => $k]);
+            Log::debug('[Questions/upsertSnippets] PayloadApplied', ['payload' => $insertPayload]);
+            continue;
         }
 
-        if ($pruneMissing) {
-            $keep = array_column($items, 'language_key');
-            $deleted = DB::table('question_snippets')
-                ->where('question_id', $questionId)
-                ->whereNotIn('language_key', $keep)
-                ->delete();
-            Log::info('[Questions/upsertSnippets] Pruned', ['deleted' => $deleted]);
-        }
-
-        Log::info('[Questions/upsertSnippets] Done');
+        Log::debug('[Questions/upsertSnippets] PayloadApplied', ['payload' => $payload]);
     }
+
+    if ($pruneMissing) {
+        $keep = array_column($items, 'language_key');
+        $deleted = DB::table('question_snippets')
+            ->where('question_id', $questionId)
+            ->whereNotIn('language_key', $keep)
+            ->delete();
+        Log::info('[Questions/upsertSnippets] Pruned', ['deleted' => $deleted]);
+    }
+
+    Log::info('[Questions/upsertSnippets] Done');
+}
 
     /** Replace (or upsert) tests; optionally prune others. Supports id-based updates too. */
     private function upsertTests(int $questionId, array $items, bool $pruneMissing = false): void
@@ -334,14 +354,14 @@ private function upsertLanguages(int $questionId, array $items, bool $pruneMissi
 
         try {
             $perPage = (int)$r->input('per_page', 20);
-            $q = DB::table('questions')->whereNull('deleted_at');
+            $q = DB::table('coding_questions')->whereNull('deleted_at');
 
             if ($r->filled('topic_id'))   { $q->where('topic_id',  (int)$r->input('topic_id')); }
             if ($r->filled('module_id'))  { $q->where('module_id', (int)$r->input('module_id')); }
             if ($r->filled('status'))     { $q->where('status', $r->input('status')); }
             if ($r->filled('difficulty')) { $q->where('difficulty', $r->input('difficulty')); }
             if ($r->boolean('only_trashed')) {
-                $q = DB::table('questions')->whereNotNull('deleted_at');
+                $q = DB::table('coding_questions')->whereNotNull('deleted_at');
             }
             if ($r->filled('q')) {
                 $term = $r->input('q');
@@ -454,9 +474,10 @@ private function upsertLanguages(int $questionId, array $items, bool $pruneMissi
             Log::info('[Questions/store] Transaction begin');
 
             // Insert question
-            $qid = DB::table('questions')->insertGetId([
+            $qid = DB::table('coding_questions')->insertGetId([
                 'topic_id'        => (int)$data['topic_id'],
                 'module_id'       => (int)$data['module_id'],
+                'uuid'            => (string) Str::uuid(),
                 'title'           => $data['title'],
                 'slug'            => $slug,
                 'difficulty'      => $data['difficulty']  ?? 'medium',
@@ -500,9 +521,9 @@ private function upsertLanguages(int $questionId, array $items, bool $pruneMissi
         Log::info('[Questions/show] Start', ['idOrSlug' => $idOrSlug]);
         try {
             if (is_numeric($idOrSlug)) {
-                $row = DB::table('questions')->where('id', (int)$idOrSlug)->first();
+                $row = DB::table('coding_questions')->where('id', (int)$idOrSlug)->first();
             } else {
-                $row = DB::table('questions')->where('slug', $idOrSlug)->first();
+                $row = DB::table('coding_questions')->where('slug', $idOrSlug)->first();
             }
 
             if (!$row) {
@@ -632,7 +653,7 @@ private function upsertLanguages(int $questionId, array $items, bool $pruneMissi
 
             if (!empty($payload)) {
                 $payload['updated_at'] = now();
-                DB::table('questions')->where('id', (int)$id)->update($payload);
+                DB::table('coding_questions')->where('id', (int)$id)->update($payload);
                 Log::info('[Questions/update] Question updated', ['id' => (int)$id]);
                 Log::debug('[Questions/update] PayloadApplied', ['payload' => $payload]);
             } else {
@@ -671,7 +692,7 @@ private function upsertLanguages(int $questionId, array $items, bool $pruneMissi
                 return response()->json(['status'=>'error','message'=>'Question not found.'], 404);
             }
 
-            DB::table('questions')->where('id', (int)$id)->update([
+            DB::table('coding_questions')->where('id', (int)$id)->update([
                 'deleted_at' => now(),
                 'updated_at' => now(),
             ]);
@@ -690,13 +711,13 @@ private function upsertLanguages(int $questionId, array $items, bool $pruneMissi
     {
         Log::info('[Questions/restore] Start', ['id' => (int)$id]);
         try {
-            $row = DB::table('questions')->where('id', (int)$id)->whereNotNull('deleted_at')->first();
+            $row = DB::table('coding_questions')->where('id', (int)$id)->whereNotNull('deleted_at')->first();
             if (!$row) {
                 Log::warning('[Questions/restore] Not found or not trashed', ['id' => (int)$id]);
                 return response()->json(['status'=>'error','message'=>'Question not found or not trashed.'], 404);
             }
 
-            DB::table('questions')->where('id', (int)$id)->update([
+            DB::table('coding_questions')->where('id', (int)$id)->update([
                 'deleted_at' => null,
                 'updated_at' => now(),
             ]);
@@ -723,7 +744,7 @@ private function upsertLanguages(int $questionId, array $items, bool $pruneMissi
             }
 
             $new = ($row->status === 'active') ? 'draft' : 'active';
-            DB::table('questions')->where('id', (int)$id)->update([
+            DB::table('coding_questions')->where('id', (int)$id)->update([
                 'status'     => $new,
                 'updated_at' => now(),
             ]);
@@ -752,9 +773,9 @@ private function upsertLanguages(int $questionId, array $items, bool $pruneMissi
 
         $v = Validator::make($r->all(), [
             'order'              => 'sometimes|array|min:1',
-            'order.*'            => 'integer|exists:questions,id',
+            'order.*'            => 'integer|exists:coding_questions,id',
             'items'              => 'sometimes|array|min:1',
-            'items.*.id'         => 'required|integer|exists:questions,id',
+            'items.*.id'         => 'required|integer|exists:coding_questions,id',
             'items.*.sort_order' => 'required|integer|min:0',
             'module_id'          => 'nullable|integer|exists:coding_modules,id',
         ]);
@@ -775,13 +796,13 @@ private function upsertLanguages(int $questionId, array $items, bool $pruneMissi
                 foreach ($p['order'] as $idx => $qid) {
                     // If module_id provided, ensure row belongs before updating
                     if (!empty($p['module_id'])) {
-                        $row = DB::table('questions')->where('id', (int)$qid)->first();
+                        $row = DB::table('coding_questions')->where('id', (int)$qid)->first();
                         if (!$row || (int)$row->module_id !== (int)$p['module_id']) {
                             Log::warning('[Questions/reorder] Skip due to module mismatch', ['qid' => $qid, 'module_id' => $p['module_id'] ?? null]);
                             continue;
                         }
                     }
-                    DB::table('questions')->where('id', (int)$qid)->update([
+                    DB::table('coding_questions')->where('id', (int)$qid)->update([
                         'sort_order' => (int)$idx,
                         'updated_at' => now(),
                     ]);
@@ -790,13 +811,13 @@ private function upsertLanguages(int $questionId, array $items, bool $pruneMissi
             } elseif (!empty($p['items'])) {
                 foreach ($p['items'] as $it) {
                     if (!empty($p['module_id'])) {
-                        $row = DB::table('questions')->where('id', (int)$it['id'])->first();
+                        $row = DB::table('coding_questions')->where('id', (int)$it['id'])->first();
                         if (!$row || (int)$row->module_id !== (int)$p['module_id']) {
                             Log::warning('[Questions/reorder] Skip due to module mismatch', ['id' => $it['id'], 'module_id' => $p['module_id'] ?? null]);
                             continue;
                         }
                     }
-                    DB::table('questions')->where('id', (int)$it['id'])->update([
+                    DB::table('coding_questions')->where('id', (int)$it['id'])->update([
                         'sort_order' => (int)$it['sort_order'],
                         'updated_at' => now(),
                     ]);

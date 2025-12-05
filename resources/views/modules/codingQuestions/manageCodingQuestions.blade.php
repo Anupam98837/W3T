@@ -1,5 +1,5 @@
 {{-- resources/views/admin/questions/index.blade.php --}}
-{{-- Tabbed Admin: Code Questions (unchanged UX) + SQL Questions --}}
+{{-- Tabbed Admin: Code Questions (unchanged UX) --}}
 
 @push('styles')
 <style>
@@ -125,6 +125,620 @@
   html.theme-dark .q-item:hover{ background: rgba(255,255,255,.03); }
   html.theme-dark .card-lite, html.theme-dark .lang-card, html.theme-dark .dialect-card{ background:#0b1526; border-color:rgba(255,255,255,.08); }
   html.theme-dark details{ background:#0b1526; border-color:rgba(255,255,255,.12); }
+    /* ===== Layout guards ===== */
+  html, body { 
+    width:100%; 
+    max-width:100%; 
+    overflow-x:hidden; 
+  }
+  .layout, .right-panel, .main-content { 
+    overflow-x:hidden; 
+  }
+
+  /* ===== Page head ===== */
+  .page-head{
+    margin-bottom: 10px;
+  }
+  .page-indicator{
+    display:inline-flex;
+    align-items:center;
+    gap:8px;
+    background: var(--light-color, #ffffff);
+    border:1px solid var(--border-color, #e5e7eb);
+    border-radius:999px;
+    padding:8px 14px;
+    box-shadow:0 4px 12px rgba(15,23,42,.08);
+    color: var(--text-color, #0f172a);
+  }
+  .page-indicator i{
+    color:var(--primary-color, #6366f1);
+    font-size: 14px;
+  }
+  .page-indicator strong{
+    font-size: 14px;
+    font-weight: 600;
+  }
+  .page-sub{ 
+    color: var(--text-muted, #6b7280); 
+    font-size: 12px; 
+    display:flex;
+    align-items:center;
+    gap:6px;
+  }
+
+  /* ===== Tabs ===== */
+  .nav-tabs{
+    border-color: var(--border-color, #e5e7eb);
+    margin-top: 12px;
+  }
+  .nav-tabs .nav-link{
+    border:1px solid transparent;
+    border-radius:999px;
+    padding:6px 14px;
+    font-size:13px;
+    display:inline-flex;
+    align-items:center;
+    gap:6px;
+    color: var(--text-muted, #6b7280);
+    background:transparent;
+    transition: background .15s ease, color .15s ease, border-color .15s ease, box-shadow .15s ease;
+  }
+  .nav-tabs .nav-link i{
+    font-size: 13px;
+  }
+  .nav-tabs .nav-link:hover{
+    background:rgba(99,102,241,.06);
+    color:var(--primary-color, #6366f1);
+  }
+  .nav-tabs .nav-link.active{
+    background:#fff;
+    color:var(--primary-color, #6366f1);
+    border-color: var(--border-color, #e5e7eb);
+    box-shadow:0 4px 10px rgba(15,23,42,.06);
+  }
+
+  /* ===== Toolbar ===== */
+  .q-toolbar{
+    display:flex;
+    gap:10px;
+    justify-content:space-between;
+    align-items:center;
+    margin:16px 0 12px 0;
+    flex-wrap:wrap;
+  }
+  .q-toolbar .left,
+  .q-toolbar .right{
+    display:flex;
+    gap:8px;
+    align-items:center;
+    flex-wrap:wrap;
+  }
+  .q-toolbar .input-group .form-control{
+    font-size:13px;
+    border-radius:999px;
+  }
+  .q-toolbar .input-group-text{
+    border-radius:999px 0 0 999px;
+    font-size:12px;
+  }
+  .q-toolbar .btn{
+    font-size:13px;
+    border-radius:999px;
+    padding:6px 14px;
+  }
+  .q-toolbar .btn-light{
+    border-color: var(--border-color, #e5e7eb);
+    background:#f9fafb;
+  }
+  .q-toolbar .btn-light:hover{
+    background:#f3f4f6;
+  }
+
+  /* ===== 2-column shell ===== */
+  .q-wrap{ 
+    display:grid; 
+    grid-template-columns: 320px minmax(0,1fr); 
+    gap:14px; 
+    align-items:flex-start;
+  }
+  @media (max-width: 992px){
+    .q-wrap{ 
+      grid-template-columns: 1fr; 
+    }
+  }
+
+  /* ===== Left list ===== */
+  .q-list{
+    background: radial-gradient(circle at top left, rgba(129,140,248,.08), transparent 55%) var(--light-color, #f9fafb);
+    border:1px solid var(--border-color, #e5e7eb);
+    border-radius: 14px;
+    overflow:hidden; 
+    display:flex; 
+    flex-direction:column; 
+    min-height: 60vh;
+    box-shadow:0 14px 35px rgba(15,23,42,.10);
+  }
+  .q-list-head{ 
+    padding:10px 12px; 
+    border-bottom:1px solid var(--border-color, #e5e7eb); 
+    display:flex; 
+    gap:8px; 
+    align-items:center; 
+    background:rgba(15,23,42,.02);
+    position: sticky;
+    top:0;
+    z-index:2;
+  }
+  .q-list-head .tiny{
+    font-size:11px;
+    text-transform:uppercase;
+    letter-spacing:.08em;
+  }
+  .q-list-body{ 
+    flex:1; 
+    overflow:auto; 
+  }
+
+  .q-item{
+    display:flex; 
+    align-items:flex-start; 
+    gap:8px;
+    padding:9px 12px; 
+    border-bottom:1px solid rgba(148,163,184,.25);
+    cursor:pointer; 
+    background:transparent; 
+    transition: background .12s ease, box-shadow .12s ease, transform .08s ease, border-left .12s ease;
+    position:relative;
+  }
+  .q-item:last-child{
+    border-bottom:none;
+  }
+  .q-item:hover{
+    background: rgba(148,163,184,.08);
+  }
+  .q-item.active{
+    background: rgba(129,140,248,.16);
+    border-left:3px solid var(--primary-color, #6366f1);
+  }
+  .q-item .drag{ 
+    cursor:grab; 
+    opacity:.7; 
+    padding-top:3px; 
+    color:#9ca3af;
+  }
+  .q-item .drag i{
+    font-size: 12px;
+  }
+  .q-item-title{ 
+    font-weight:600; 
+    font-size:13px; 
+    color: var(--text-color, #0f172a); 
+  }
+  .q-item-sub{ 
+    font-size:11px; 
+    color:#6b7280; 
+    white-space:nowrap; 
+    overflow:hidden; 
+    text-overflow:ellipsis; 
+    max-width: 100%; 
+  }
+  .q-item .badge{
+    font-size:10px;
+    text-transform:uppercase;
+    letter-spacing:.08em;
+    border-radius:999px;
+    padding:4px 8px;
+  }
+
+  /* ===== Right editor ===== */
+  .q-editor{ 
+    background: radial-gradient(circle at top left, rgba(96,165,250,.10), transparent 55%) var(--light-color, #ffffff); 
+    border:1px solid var(--border-color, #e5e7eb); 
+    border-radius: 14px; 
+    overflow:hidden; 
+    box-shadow:0 18px 45px rgba(15,23,42,.12);
+  }
+  .q-editor-head{ 
+    padding:10px 14px; 
+    border-bottom:1px solid var(--border-color, #e5e7eb); 
+    display:flex; 
+    flex-wrap:wrap; 
+    gap:8px; 
+    align-items:center; 
+    backdrop-filter: blur(12px);
+    background:linear-gradient(to right, rgba(15,23,42,.02),rgba(129,140,248,.10));
+  }
+  .q-editor-body{ 
+    padding:16px; 
+  }
+
+  .tiny{ 
+    font-size:12px; 
+  }
+  .form-help{ 
+    font-size:12px; 
+    color:#6b7280; 
+  }
+  .text-muted{ 
+    color:#6b7280; 
+  }
+
+  /* ===== Chips & pill elements ===== */
+  .chip{ 
+    display:inline-flex; 
+    align-items:center; 
+    gap:6px; 
+    padding:2px 9px; 
+    border:1px solid var(--border-color, #e5e7eb);
+    border-radius:999px; 
+    font-size:11px; 
+    background:#ffffff; 
+    color: var(--text-muted, #4b5563);
+    box-shadow:0 1px 3px rgba(15,23,42,.08);
+  }
+  .chip i{
+    font-size: 11px;
+  }
+  .chip .x{ 
+    cursor:pointer; 
+    opacity:.75; 
+    font-size:11px;
+  }
+  .chip .x:hover{
+    opacity:1;
+  }
+
+  /* ===== Cards ===== */
+  .card-lite{ 
+    border:1px solid var(--border-color, #e5e7eb); 
+    border-radius:12px; 
+    padding:12px 12px 10px 12px; 
+    background:#ffffff; 
+    box-shadow:0 6px 18px rgba(15,23,42,.05);
+  }
+  .card-lite h6{ 
+    margin:0 0 10px 0; 
+    font-weight:700; 
+    font-size:13px; 
+    display:flex;
+    align-items:center;
+    gap:6px;
+  }
+  .card-lite h6::before{
+    content:'';
+    width:3px;
+    height:14px;
+    border-radius:999px;
+    background:var(--primary-color, #6366f1);
+  }
+
+  .grid-2{ 
+    display:grid; 
+    grid-template-columns: repeat(2, minmax(0,1fr)); 
+    gap:12px; 
+  }
+  .grid-3{ 
+    display:grid; 
+    grid-template-columns: repeat(3, minmax(0,1fr)); 
+    gap:12px; 
+  }
+  .grid-auto{ 
+    display:grid; 
+    grid-template-columns: repeat(auto-fit, minmax(240px,1fr)); 
+    gap:12px; 
+  }
+
+  @media (max-width: 768px){
+    .grid-2,
+    .grid-3{
+      grid-template-columns: 1fr;
+    }
+  }
+
+  /* ===== WYSIWYG toolbar & editor ===== */
+  .ce-text-toolbar { 
+    display:flex; 
+    flex-wrap:wrap; 
+    gap:.4em; 
+    align-items:center; 
+    margin-bottom:6px; 
+    padding:4px 6px;
+    border-radius:8px;
+    background:linear-gradient(to right,rgba(249,250,251,1),rgba(241,245,249,1));
+    border:1px solid var(--border-color, #e5e7eb);
+  }
+  .ce-text-toolbar button, 
+  .ce-text-toolbar select, 
+  .ce-text-toolbar input[type="color"]{
+    margin-right:0;
+    padding:4px 7px; 
+    font-size:12px; 
+    border:1px solid var(--border-color, #e5e7eb);
+    background:#fff; 
+    border-radius:6px; 
+    cursor:pointer;
+    line-height:1.2;
+    min-height:26px;
+    display:inline-flex;
+    align-items:center;
+    gap:4px;
+    transition: background .12s ease, box-shadow .12s ease, transform .05s ease, border-color .12s ease;
+  }
+  .ce-text-toolbar button i{
+    font-size:12px;
+  }
+  .ce-text-toolbar button:hover,
+  .ce-text-toolbar select:hover{
+    background:#eef2ff;
+    border-color:rgba(99,102,241,.5);
+    box-shadow:0 0 0 1px rgba(129,140,248,.25);
+  }
+  .ce-text-toolbar .sep{ 
+    width:1px; 
+    height:20px; 
+    background:var(--border-color, #e5e7eb); 
+    margin:0 2px; 
+  }
+  .ce-text-area{
+    border:1px solid var(--border-color, #e5e7eb); 
+    border-radius:9px; 
+    min-height:220px; 
+    padding:10px; 
+    outline:none; 
+    background:#ffffff;
+    font-size:13px;
+    line-height:1.5;
+    overflow:auto;
+  }
+  .ce-text-area:focus{ 
+    box-shadow:0 0 0 2px rgba(129,140,248,.25); 
+    border-color:rgba(99,102,241,.7); 
+  }
+  .ce-text-area[placeholder]:empty:before{
+    content: attr(placeholder);
+    color:#9ca3af;
+    font-style:italic;
+  }
+
+  /* ===== Language / Dialect cards ===== */
+  .lang-card,
+  .dialect-card{ 
+    border:1px solid var(--border-color, #e5e7eb); 
+    border-radius:12px; 
+    padding:10px 10px 12px 10px; 
+    background:#ffffff; 
+    margin-bottom:12px; 
+    box-shadow:0 8px 20px rgba(15,23,42,.06);
+  }
+  .lang-card .head,
+  .dialect-card .head{ 
+    display:flex; 
+    gap:8px; 
+    align-items:center; 
+  }
+  .lang-card .drag,
+  .dialect-card .drag{ 
+    cursor:grab; 
+    opacity:.65; 
+    color:#9ca3af;
+  }
+  .lang-card .drag i,
+  .dialect-card .drag i{
+    font-size:12px;
+  }
+  .lang-card .row-actions,
+  .dialect-card .row-actions{ 
+    margin-left:auto; 
+    display:flex; 
+    gap:6px; 
+    align-items:center;
+  }
+  .lang-card details summary,
+  .dialect-card details summary{ 
+    cursor:pointer; 
+  }
+
+  /* ===== Tests ===== */
+  .test-row{ 
+    border:1px dashed var(--border-color, #e5e7eb); 
+    border-radius:10px; 
+    padding:9px; 
+    margin-bottom:8px; 
+    background:#f9fafb; 
+    transition: box-shadow .12s ease, border-color .12s ease, background .12s ease;
+  }
+  .test-row:hover{
+    border-color:rgba(129,140,248,.6);
+    box-shadow:0 10px 20px rgba(15,23,42,.1);
+    background:#f3f4ff;
+  }
+  .test-row .drag{ 
+    cursor:grab; 
+    opacity:.7; 
+    color:#9ca3af;
+  }
+  .test-row .drag i{
+    font-size:12px;
+  }
+
+  /* ===== Info buttons ===== */
+  .i-btn{
+    border:1px solid var(--border-color, #e5e7eb);
+    border-radius:999px;
+    width:20px;
+    height:20px;
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    background:#fff; 
+    font-size:11px; 
+    margin-left:6px; 
+    cursor:pointer;
+    transition: background-color .15s ease, border-color .15s ease, box-shadow .15s ease, color .15s ease, transform .05s ease;
+  }
+  .i-btn:hover{ 
+    background:#eef2ff; 
+    border-color:rgba(99,102,241,.7);
+    box-shadow:0 0 0 2px rgba(129,140,248,.25);
+    color:var(--primary-color, #6366f1);
+    transform: translateY(-0.5px);
+  }
+  .i-btn:focus{ 
+    outline:0; 
+    box-shadow:0 0 0 3px rgba(99,102,241,.35); 
+  }
+
+  /* ===== Pretty details/accordion ===== */
+  details{ 
+    border:1px dashed var(--border-color, #e5e7eb); 
+    border-radius:10px; 
+    padding:8px; 
+    background:#ffffff; 
+  }
+  details > summary{ 
+    list-style:none; 
+    font-weight:600; 
+    display:flex; 
+    align-items:center; 
+    gap:6px; 
+    color: var(--text-color, #0f172a); 
+    font-size:12px;
+  }
+  details > summary::before{ 
+    content: "▸"; 
+    transition: transform .15s ease; 
+    font-size: 11px; 
+    color: var(--text-muted, #6b7280); 
+  }
+  details[open] > summary::before{ 
+    transform: rotate(90deg); 
+  }
+
+  /* ===== Form controls tweak ===== */
+  .form-label{
+    font-size:12px;
+    font-weight:500;
+    color:var(--text-muted, #4b5563);
+    margin-bottom:3px;
+  }
+  .form-control,
+  .form-select{
+    font-size:13px;
+    border-radius:9px;
+  }
+  .form-control:focus,
+  .form-select:focus{
+    border-color:rgba(99,102,241,.7);
+    box-shadow:0 0 0 2px rgba(129,140,248,.25);
+  }
+
+  /* ===== Dark mode ===== */
+  html.theme-dark .page-indicator{
+    background:#020617;
+    border-color:rgba(148,163,184,.4);
+    box-shadow:0 14px 40px rgba(15,23,42,.9);
+  }
+  html.theme-dark .page-sub{
+    color:#9ca3af;
+  }
+  html.theme-dark .nav-tabs .nav-link{
+    color:#9ca3af;
+  }
+  html.theme-dark .nav-tabs .nav-link.active{
+    background:#020617;
+    border-color:rgba(148,163,184,.5);
+    box-shadow:0 10px 28px rgba(15,23,42,1);
+  }
+
+  html.theme-dark .q-item-sub{ 
+    color:#93a4b8; 
+  }
+  html.theme-dark .ce-text-toolbar button, 
+  html.theme-dark .ce-text-toolbar select, 
+  html.theme-dark .ce-text-toolbar input[type="color"]{ 
+    background:#020617; 
+    color:#e5e7eb; 
+    border-color:rgba(148,163,184,.4);
+  }
+  html.theme-dark .ce-text-toolbar{ 
+    background:linear-gradient(to right,rgba(15,23,42,1),rgba(15,23,42,.9)); 
+    border-color:rgba(148,163,184,.5);
+  }
+  html.theme-dark .ce-text-area{ 
+    background:#020617; 
+    color:#e5e7eb; 
+    border-color:rgba(148,163,184,.5); 
+  }
+  html.theme-dark .ce-text-area[placeholder]:empty:before{
+    color:#64748b;
+  }
+
+  html.theme-dark .chip{ 
+    background: rgba(15,23,42,1); 
+    border-color: rgba(148,163,184,.6); 
+    color: #e5e7eb; 
+  }
+  html.theme-dark .chip i{ 
+    color:#a9b7ff; 
+  }
+  html.theme-dark .chip strong{ 
+    color:#fff; 
+  }
+
+  html.theme-dark .q-editor, 
+  html.theme-dark .q-list{ 
+    background:#020617; 
+    border-color:rgba(148,163,184,.5); 
+    box-shadow:0 18px 45px rgba(0,0,0,1);
+  }
+  html.theme-dark .q-editor-head{ 
+    background:linear-gradient(to right,rgba(15,23,42,1),rgba(30,64,175,.6)); 
+    border-bottom-color:rgba(148,163,184,.5); 
+  }
+  html.theme-dark .q-item:hover{ 
+    background: rgba(15,23,42,.8); 
+  }
+  html.theme-dark .card-lite, 
+  html.theme-dark .lang-card, 
+  html.theme-dark .dialect-card{ 
+    background:#020617; 
+    border-color:rgba(148,163,184,.5); 
+    box-shadow:0 12px 30px rgba(0,0,0,1);
+  }
+  html.theme-dark .test-row{
+    background:#020617;
+    border-color:rgba(148,163,184,.6);
+  }
+  html.theme-dark .test-row:hover{
+    background:#020617;
+    box-shadow:0 14px 30px rgba(0,0,0,1);
+  }
+  html.theme-dark details{ 
+    background:#020617; 
+    border-color:rgba(148,163,184,.6); 
+  }
+  html.theme-dark .form-label{
+    color:#cbd5f5;
+  }
+  html.theme-dark .form-control,
+  html.theme-dark .form-select{
+    background:#020617;
+    color:#e5e7eb;
+    border-color:rgba(148,163,184,.6);
+  }
+  html.theme-dark .form-control:focus,
+  html.theme-dark .form-select:focus{
+    border-color:rgba(129,140,248,.9);
+    box-shadow:0 0 0 2px rgba(79,70,229,.7);
+  }
+  html.theme-dark .i-btn{
+    background:#020617;
+    border-color:rgba(148,163,184,.6);
+    color:#e5e7eb;
+  }
+  html.theme-dark .i-btn:hover{
+    background:#111827;
+  }
 </style>
 @endpush
 
@@ -151,11 +765,6 @@
   <li class="nav-item" role="presentation">
     <button class="nav-link active" id="tab-code" data-bs-toggle="tab" data-bs-target="#pane-code" type="button" role="tab" aria-controls="pane-code" aria-selected="true">
       <i class="fa-solid fa-code me-1"></i> Code Questions
-    </button>
-  </li>
-  <li class="nav-item" role="presentation">
-    <button class="nav-link" id="tab-sql" data-bs-toggle="tab" data-bs-target="#pane-sql" type="button" role="tab" aria-controls="pane-sql" aria-selected="false">
-      <i class="fa-solid fa-database me-1"></i> SQL Questions
     </button>
   </li>
 </ul>
@@ -381,117 +990,6 @@
       </section>
     </div>
   </div>
-
-  {{-- ======================= SQL TAB ======================= --}}
-  <div class="tab-pane fade" id="pane-sql" role="tabpanel" aria-labelledby="tab-sql">
-    <div class="q-toolbar">
-      <div class="left">
-        <div class="input-group">
-          <span class="input-group-text"><i class="fa fa-search"></i></span>
-          <input id="sq-search" type="search" class="form-control" placeholder="Search by title, slug, status, difficulty…">
-        </div>
-      </div>
-      <div class="right">
-        <button class="btn btn-primary" id="sq-btnAdd"><i class="fa fa-plus me-2"></i>Add SQL Question</button>
-        <button class="btn btn-light" id="sq-btnRefresh"><i class="fa fa-rotate me-1"></i>Refresh</button>
-      </div>
-    </div>
-
-    <div class="q-wrap">
-      {{-- LEFT --}}
-      <aside class="q-list">
-        <div class="q-list-head">
-          <span class="tiny text-muted">SQL Questions</span>
-          <span class="tiny text-muted ms-auto" id="sq-count">—</span>
-        </div>
-        <div class="q-list-body" id="sq-list"><div class="p-3 text-center text-muted tiny">Loading…</div></div>
-      </aside>
-
-      {{-- RIGHT --}}
-      <section class="q-editor position-relative">
-        <div class="q-editor-head">
-          <div class="chip"><i class="fa fa-database"></i> SQL</div>
-          <div class="chip"><i class="fa fa-layer-group"></i> Topic: <strong class="ms-1">{{ $topicName }}</strong></div>
-          <div class="chip"><i class="fa fa-rectangle-list"></i> Module: <strong class="ms-1">{{ $moduleName }}</strong></div>
-          <div class="ms-auto tiny text-muted" id="sq-saveStatus">—</div>
-        </div>
-
-        <div class="q-editor-body">
-          <form id="sq-form" class="needs-validation" novalidate>
-            <input type="hidden" id="sq-id">
-            <input type="hidden" id="sq-topic"  value="{{ $topicId }}">
-            <input type="hidden" id="sq-module" value="{{ $moduleId }}">
-
-            {{-- Meta --}}
-            <div class="card-lite mb-3">
-              <h6>Meta</h6>
-              <div class="row g-3">
-                <div class="col-md-4">
-                  <label class="form-label">Title</label>
-                  <input class="form-control" id="sq-title" required maxlength="200" placeholder="e.g., Employees earning > 5000">
-                  <div class="invalid-feedback">Title is required.</div>
-                </div>
-                <div class="col-md-4">
-                  <label class="form-label">Slug</label>
-                  <input class="form-control" id="sq-slug" maxlength="200" placeholder="auto-slug">
-                </div>
-                <div class="col-md-2">
-                  <label class="form-label">Difficulty</label>
-                  <select id="sq-difficulty" class="form-select">
-                    <option value="easy">Easy</option>
-                    <option value="medium" selected>Medium</option>
-                    <option value="hard">Hard</option>
-                  </select>
-                </div>
-                <div class="col-md-2">
-                  <label class="form-label">Sort Order</label>
-                  <input type="number" id="sq-sort" class="form-control" value="0" min="0">
-                </div>
-              </div>
-              <div class="row g-3 mt-1">
-                <div class="col-md-3">
-                  <label class="form-label">Status</label>
-                  <select id="sq-status" class="form-select">
-                    <option value="active">Active</option>
-                    <option value="draft">Draft</option>
-                    <option value="archived">Archived</option>
-                  </select>
-                </div>
-              </div>
-            </div>
-
-            {{-- Problem --}}
-            <div class="card-lite mb-3">
-              <h6>Problem Statement</h6>
-              <label class="form-label">Description</label>
-              <textarea id="sq-desc" class="form-control" rows="5" placeholder="Describe the SQL problem…"></textarea>
-            </div>
-
-            {{-- Dialects --}}
-            <div class="card-lite mb-3">
-              <h6>SQL Dialects</h6>
-              <div id="sq-dialects"></div>
-              <button type="button" class="btn btn-sm btn-outline-primary mt-2" id="sq-addDialect"><i class="fa fa-plus me-1"></i>Add Dialect</button>
-              <div class="form-help mt-1">Supports MySQL, PostgreSQL, MongoDB. Each dialect has runtime key, optional time limit, and a starter query.</div>
-            </div>
-
-            {{-- Tests --}}
-            <div class="card-lite mb-3">
-              <h6>Tests</h6>
-              <div id="sq-tests"></div>
-              <button type="button" class="btn btn-sm btn-outline-primary mt-2" id="sq-addTest"><i class="fa fa-plus me-1"></i>Add Test</button>
-              <div class="form-help mt-1">Each test includes <strong>db_key</strong>, input DB setup (schema + seed) and expected rows/output.</div>
-            </div>
-
-            <div class="d-flex gap-2">
-              <button class="btn btn-primary" type="submit" id="sq-save"><i class="fa fa-save me-2"></i>Save</button>
-              <button class="btn btn-outline-danger" type="button" id="sq-delete"><i class="fa fa-trash me-2"></i>Delete</button>
-            </div>
-          </form>
-        </div>
-      </section>
-    </div>
-  </div>
 </div>
 
 {{-- Toasts (shared) --}}
@@ -528,11 +1026,6 @@ function _hdrJSON(){ return { ..._hdr(), 'Content-Type':'application/json' }; }
 function _toNum(v){ const n=Number(v); return Number.isFinite(n)?n:null; }
 function _slugify(s){ return (s||'').toString().trim().toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'').slice(0,200); }
 
-/* =====================================================================================
-   CODE TAB (kept the same, plus one important fix: unique IDs prevent collisions)
-   The previous "Add Language not working" bug was from ID collisions when merging pages.
-   Here, the Code tab uses #btnAddLang and the SQL tab uses #sq-addDialect — no conflicts.
-===================================================================================== */
 (function(){
   "use strict";
   const TOPIC_ID  = {{ json_encode($topicId) }};
@@ -564,14 +1057,35 @@ function _slugify(s){ return (s||'').toString().trim().toLowerCase().replace(/[^
   const runtimeOptionsFor = (lang)=> LANGUAGE_RUNTIMES[lang] || RUNTIME_FALLBACK;
 
   // ===== API =====
-  const API = {
-    list:    () => fetch(`/api/questions?topic_id=${TOPIC_ID}&module_id=${MODULE_ID}&per_page=200`, { headers: _hdr() }),
-    get:     id => fetch(`/api/questions/${id}`, { headers: _hdr() }),
-    create:  payload => fetch('/api/questions', { method:'POST', headers: _hdrJSON(), body: JSON.stringify(payload) }),
-    update: (id,payload)=> fetch(`/api/questions/${id}`, { method:'PUT', headers: _hdrJSON(), body: JSON.stringify(payload) }),
-    delete:  id => fetch(`/api/questions/${id}`, { method:'DELETE', headers: _hdr() }),
-    reorder: order => fetch('/api/questions/reorder', { method:'POST', headers: _hdrJSON(), body: JSON.stringify({ order }) }),
-  };
+ const API = {
+  list:    () => fetch(`/api/coding_questions?topic_id=${TOPIC_ID}&module_id=${MODULE_ID}&per_page=200`, { headers: _hdr() }),
+
+  get:     id => fetch(`/api/coding_questions/${id}`, { headers: _hdr() }),
+
+  create:  payload => fetch('/api/coding_questions', {
+                method:'POST',
+                headers: _hdrJSON(),
+                body: JSON.stringify(payload)
+             }),
+
+  update: (id,payload)=> fetch(`/api/coding_questions/${id}`, {
+                method:'PUT',
+                headers: _hdrJSON(),
+                body: JSON.stringify(payload)
+             }),
+
+  delete:  id => fetch(`/api/coding_questions/${id}`, {
+                method:'DELETE',
+                headers: _hdr()
+             }),
+
+  reorder: order => fetch('/api/coding_questions/reorder', {
+                method:'POST',
+                headers: _hdrJSON(),
+                body: JSON.stringify({ order })
+             }),
+};
+
 
   // ===== DOM =====
   const qList = document.getElementById('qList');
@@ -1406,362 +1920,5 @@ function _slugify(s){ return (s||'').toString().trim().toLowerCase().replace(/[^
   // Boot
   loadList();
 })();
-
-/* =====================================================================================
-   SQL TAB
-===================================================================================== */
-(function(){
-  "use strict";
-  const TOPIC_ID  = {{ json_encode($topicId) }};
-  const MODULE_ID = {{ json_encode($moduleId) }};
-  if(!TOPIC_ID || !MODULE_ID){
-    document.getElementById('pane-sql').innerHTML = `<div class="p-4 text-danger">Missing topic_id or module_id.</div>`;
-    return;
-  }
-
-  const DB_KEYS = ['mysql','postgres','mongodb'];
-  const API = {
-    list:    () => fetch(`/api/sql-questions?topic_id=${TOPIC_ID}&module_id=${MODULE_ID}&per_page=200`, { headers: _hdr() }),
-    get:     id => fetch(`/api/sql-questions/${id}`, { headers: _hdr() }),
-    create:  payload => fetch('/api/sql-questions', { method:'POST', headers: _hdrJSON(), body: JSON.stringify(payload) }),
-    update: (id,payload)=> fetch(`/api/sql-questions/${id}`, { method:'PUT', headers: _hdrJSON(), body: JSON.stringify(payload) }),
-    delete:  id => fetch(`/api/sql-questions/${id}`, { method:'DELETE', headers: _hdr() }),
-  };
-
-  // DOM
-  const listEl = document.getElementById('sq-list'), countEl = document.getElementById('sq-count');
-  const searchEl = document.getElementById('sq-search');
-  const btnAdd = document.getElementById('sq-btnAdd'), btnRefresh = document.getElementById('sq-btnRefresh');
-
-  const form = document.getElementById('sq-form');
-  const sqId = document.getElementById('sq-id');
-  const title = document.getElementById('sq-title');
-  const slug  = document.getElementById('sq-slug');
-  const diff  = document.getElementById('sq-difficulty');
-  const sort  = document.getElementById('sq-sort');
-  const stat  = document.getElementById('sq-status');
-  const desc  = document.getElementById('sq-desc');
-
-  const dWrap = document.getElementById('sq-dialects');
-  const tWrap = document.getElementById('sq-tests');
-
-  const addDialectBtn = document.getElementById('sq-addDialect');
-  const addTestBtn    = document.getElementById('sq-addTest');
-  const saveBtn       = document.getElementById('sq-save');
-  const delBtn        = document.getElementById('sq-delete');
-  const saveStatus    = document.getElementById('sq-saveStatus');
-
-  // State
-  let all=[], view=[], currentId=null;
-  let dialects=[], tests=[];
-
-  // List
-  async function loadList(){
-    listEl.innerHTML='<div class="p-3 text-center text-muted tiny">Loading…</div>';
-    try{
-      const json=await API.list().then(r=>r.json());
-      const rows = Array.isArray(json.data?.data) ? json.data.data
-                : Array.isArray(json.data) ? json.data : (Array.isArray(json) ? json : []);
-      all = rows || []; view=[...all]; renderList(); countEl.textContent=`${all.length} total`;
-      if(all.length) select(all[0].id);
-    }catch(e){ listEl.innerHTML='<div class="p-3 text-danger tiny">Failed to load</div>'; }
-  }
-
-  function renderList(){
-    const q = (searchEl.value||'').toLowerCase().trim();
-    const rows = !q ? view : view.filter(r=>{
-      const s = [r.title,r.slug,r.status,r.difficulty].map(x=>(x||'').toLowerCase()).join(' ');
-      return s.includes(q);
-    });
-    if(!rows.length){ listEl.innerHTML='<div class="p-3 text-center text-muted"><i class="fa-regular fa-folder-open fa-2x mb-2"></i><br>No SQL questions</div>'; return; }
-    listEl.innerHTML='';
-    rows.forEach(r=>{
-      const div=document.createElement('div');
-      div.className='q-item'; div.dataset.id=r.id;
-      div.innerHTML=`
-        <div class="flex-1">
-          <div class="q-item-title">${_esc(r.title||'Untitled')}</div>
-          <div class="q-item-sub">${_esc(r.slug||'')} • ${_esc(r.difficulty||'')}</div>
-        </div>
-        <div class="badge ${r.status==='active'?'bg-success':(r.status==='archived'?'bg-secondary':'bg-warning text-dark')}">${_esc(r.status||'active')}</div>
-      `;
-      div.addEventListener('click', ()=> select(r.id));
-      if(r.id===currentId) div.classList.add('active');
-      listEl.appendChild(div);
-    });
-  }
-  searchEl.addEventListener('input', _debounce(renderList, 200));
-
-  async function select(id){
-    currentId=id; saveStatus.textContent='Loading…';
-    try{
-      const json=await API.get(id).then(r=>r.json());
-      const q=json.data||json;
-
-      sqId.value=q.id||'';
-      title.value=q.title||'';
-      slug.value=q.slug||'';
-      diff.value=q.difficulty||'medium';
-      sort.value=q.sort_order ?? 0;
-      stat.value=q.status || 'active';
-      desc.value=q.description||'';
-
-      const langs = Array.isArray(q.languages)? q.languages : [];
-      const snips = Array.isArray(q.snippets)? q.snippets : [];
-      const sMap = new Map(snips.map(s=>[s.db_key, s]));
-      dialects = (langs||[]).map((L,i)=>({
-        db_key: L.db_key||'mysql',
-        runtime_key: L.runtime_key||'',
-        time_limit_ms: L.time_limit_ms ?? '',
-        sort_order: L.sort_order ?? i,
-        entry_hint: sMap.get(L.db_key)?.entry_hint || '',
-        template:   sMap.get(L.db_key)?.template   || '',
-        is_default: !!(sMap.get(L.db_key)?.is_default)
-      }));
-      snips.forEach(s=>{
-        if(!dialects.find(d=>d.db_key===s.db_key)){
-          dialects.push({
-            db_key: s.db_key, runtime_key:'', time_limit_ms:'',
-            sort_order: dialects.length, entry_hint: s.entry_hint||'',
-            template: s.template||'', is_default: !!s.is_default
-          });
-        }
-      });
-      renderDialects();
-
-      tests=(q.tests||[]).map((t,i)=>({
-        db_key: t.db_key || 'mysql',
-        schema_sql: t.schema_sql || '',
-        seed_data_sql: t.seed_data_sql || '',
-        expected: t.expected || '',
-        visibility: t.visibility || 'hidden',
-        score: t.score ?? 1,
-        is_active: t.is_active !== false,
-        sort_order: t.sort_order ?? i
-      }));
-      renderTests();
-
-      document.querySelectorAll('#sq-list .q-item').forEach(n=>n.classList.toggle('active', String(n.dataset.id)===String(currentId)));
-      saveStatus.textContent='Loaded'; setTimeout(()=>saveStatus.textContent='—', 800);
-    }catch(e){ _err('Failed to load'); saveStatus.textContent='Error'; }
-  }
-
-  // Dialects
-  function dialectCard(d, i){
-    return `
-      <div class="dialect-card" data-idx="${i}">
-        <div class="head mb-2">
-          <strong>Dialect</strong>
-          <div class="row-actions">
-            <button type="button" class="btn btn-sm btn-outline-danger sq-delDialect">Delete</button>
-          </div>
-        </div>
-        <div class="row g-3">
-          <div class="col-md-3">
-            <label class="form-label">db_key</label>
-            <select class="form-select d_db_key">
-              ${DB_KEYS.map(k=>`<option value="${k}" ${d.db_key===k?'selected':''}>${k}</option>`).join('')}
-            </select>
-          </div>
-          <div class="col-md-4">
-            <label class="form-label">runtime_key</label>
-            <input class="form-control d_runtime_key" value="${_esc(d.runtime_key||'')}" placeholder="e.g., postgres:15 / mysql:8">
-          </div>
-          <div class="col-md-3">
-            <label class="form-label">time_limit_ms</label>
-            <input type="number" class="form-control d_time_limit_ms" value="${d.time_limit_ms??''}" min="0" placeholder="3000">
-          </div>
-          <div class="col-md-2">
-            <label class="form-label">Default</label>
-            <select class="form-select d_is_default">
-              <option value="0" ${!d.is_default?'selected':''}>No</option>
-              <option value="1" ${d.is_default?'selected':''}>Yes</option>
-            </select>
-          </div>
-        </div>
-        <div class="mt-2">
-          <label class="form-label">entry_hint</label>
-          <input class="form-control d_entry_hint" value="${_esc(d.entry_hint||'')}" placeholder="Write a SELECT to…">
-        </div>
-        <div class="mt-2">
-          <label class="form-label">template (starter query)</label>
-          <textarea class="form-control d_template" rows="4" placeholder="-- starter query">${_esc(d.template||'')}</textarea>
-        </div>
-      </div>
-    `;
-  }
-  function renderDialects(){
-    dWrap.innerHTML = dialects.map(dialectCard).join('') || '<div class="text-muted small">No dialects yet.</div>';
-    dWrap.querySelectorAll('.sq-delDialect').forEach(btn=>{
-      btn.addEventListener('click', e=>{
-        const card = e.target.closest('[data-idx]');
-        const idx = parseInt(card.dataset.idx,10);
-        dialects.splice(idx,1); renderDialects();
-      });
-    });
-  }
-  addDialectBtn.addEventListener('click', ()=>{
-    dialects.push({db_key:'mysql', runtime_key:'', time_limit_ms:'', entry_hint:'', template:'', is_default: dialects.length===0, sort_order: dialects.length});
-    renderDialects();
-  });
-
-  // Tests
-  function testCard(t,i){
-    return `
-      <div class="test-row" data-test="${i}">
-        <div class="d-flex align-items-center gap-2 mb-2">
-          <strong class="me-auto">Test #${i+1}</strong>
-          <div class="d-flex align-items-center gap-2">
-            <select class="form-select form-select-sm t_visibility" style="width:130px">
-              <option value="sample" ${t.visibility==='sample'?'selected':''}>sample</option>
-              <option value="hidden" ${t.visibility!=='sample'?'selected':''}>hidden</option>
-            </select>
-            <input type="number" class="form-control form-control-sm t_score" style="width:90px" min="0" value="${t.score??1}" placeholder="score">
-            <select class="form-select form-select-sm t_active" style="width:110px">
-              <option value="1" ${t.is_active!==false?'selected':''}>active</option>
-              <option value="0" ${t.is_active===false?'selected':''}>inactive</option>
-            </select>
-            <button type="button" class="btn btn-sm btn-outline-danger sq-delTest">Delete</button>
-          </div>
-        </div>
-        <div class="row g-2">
-          <div class="col-md-3">
-            <label class="form-label">db_key</label>
-            <select class="form-select t_db_key">
-              ${DB_KEYS.map(k=>`<option value="${k}" ${t.db_key===k?'selected':''}>${k}</option>`).join('')}
-            </select>
-          </div>
-          <div class="col-md-9">
-            <label class="form-label">Schema SQL</label>
-            <textarea class="form-control t_schema" rows="3" placeholder="CREATE TABLE…">${_esc(t.schema_sql||'')}</textarea>
-          </div>
-        </div>
-        <div class="row g-2 mt-1">
-          <div class="col-md-6">
-            <label class="form-label">Seed Data SQL</label>
-            <textarea class="form-control t_seed" rows="3" placeholder="INSERT INTO…">${_esc(t.seed_data_sql||'')}</textarea>
-          </div>
-          <div class="col-md-6">
-            <label class="form-label">Expected</label>
-            <textarea class="form-control t_expected" rows="3" placeholder='[{"col": "val"}, …] or tabular text'>${_esc(t.expected||'')}</textarea>
-          </div>
-        </div>
-      </div>
-    `;
-  }
-  function renderTests(){
-        tWrap.innerHTML = tests.map(testCard).join('') || '<div class="text-muted small">No tests yet.</div>';
-        tWrap.querySelectorAll('.sq-delTest').forEach(btn=>{
-          btn.addEventListener('click', e=>{
-            const row = e.target.closest('[data-test]');
-            const i = parseInt(row.dataset.test,10);
-            tests.splice(i,1); renderTests();
-          });
-        });
-      }
-      addTestBtn.addEventListener('click', ()=>{
-        tests.push({db_key:'mysql', schema_sql:'', seed_data_sql:'', expected:'', visibility:'sample', score:1, is_active:true, sort_order:tests.length});
-        renderTests();
-      });
-
-      // CRUD
-      btnAdd.addEventListener('click', ()=>{ reset(); title.focus(); });
-      btnRefresh.addEventListener('click', loadList);
-
-      form.addEventListener('submit', async (e)=>{
-        e.preventDefault();
-        form.classList.add('was-validated');
-        if(!title.value.trim()) return;
-        try{
-          setSaving(true);
-          const payload = buildPayload();
-          let json;
-          if(sqId.value){ json=await API.update(sqId.value,payload).then(r=>r.json()); }
-          else{ json=await API.create(payload).then(r=>r.json()); }
-          if(json.status==='success'){ _ok('Saved'); await loadList(); const id=json.data?.id || sqId.value; if(id) select(id); }
-          else{ throw new Error(json.message||'Save failed'); }
-        }catch(err){ _err(err.message||'Save failed'); }
-        finally{ setSaving(false); }
-      });
-
-      delBtn.addEventListener('click', async ()=>{
-        if(!sqId.value) return;
-        const res=await Swal.fire({title:'Delete?',text:'Cannot undo',icon:'warning',showCancelButton:true});
-        if(!res.isConfirmed) return;
-        try{
-          const json=await API.delete(sqId.value).then(r=>r.json());
-          if(json.status==='success'){ _ok('Deleted'); await loadList(); reset(); }
-          else{ throw new Error(json.message||'Delete failed'); }
-        }catch{ _err('Delete failed'); }
-      });
-
-      // helpers
-      function setSaving(is){
-        saveBtn.disabled = is;
-        saveBtn.innerHTML = is ? '<span class="spinner-border spinner-border-sm me-2"></span>Saving…' : '<i class="fa fa-save me-2"></i>Save';
-        saveStatus.textContent = is ? 'Saving…' : '—';
-      }
-      function reset(){
-        form.reset();
-        sqId.value=''; title.value=''; slug.value=''; diff.value='medium'; sort.value=0; stat.value='active'; desc.value='';
-        dialects=[]; renderDialects();
-        tests=[]; renderTests();
-        saveStatus.textContent='—';
-      }
-      title.addEventListener('input', ()=>{ if(!slug.value.trim()) slug.value = _slugify(title.value); });
-
-      function buildPayload(){
-        dialects = Array.from(dWrap.querySelectorAll('[data-idx]')).map((card,i)=>({
-          db_key: card.querySelector('.d_db_key').value,
-          runtime_key: card.querySelector('.d_runtime_key').value.trim(),
-          time_limit_ms: _toNum(card.querySelector('.d_time_limit_ms').value),
-          entry_hint: card.querySelector('.d_entry_hint').value.trim(),
-          template: card.querySelector('.d_template').value,
-          is_default: card.querySelector('.d_is_default').value === '1',
-          sort_order: i
-        }));
-        tests = Array.from(tWrap.querySelectorAll('[data-test]')).map((card,i)=>({
-          db_key: card.querySelector('.t_db_key').value,
-          schema_sql: card.querySelector('.t_schema').value,
-          seed_data_sql: card.querySelector('.t_seed').value,
-          expected: card.querySelector('.t_expected').value,
-          visibility: card.querySelector('.t_visibility').value,
-          score: _toNum(card.querySelector('.t_score').value) ?? 1,
-          is_active: card.querySelector('.t_active').value === '1',
-          sort_order: i
-        }));
-
-        const languages = dialects.map(d=>({
-          db_key: d.db_key,
-          runtime_key: d.runtime_key || null,
-          time_limit_ms: d.time_limit_ms ?? null,
-          sort_order: d.sort_order
-        }));
-        const snippets = dialects
-          .filter(d => d.template?.trim() || d.entry_hint?.trim() || d.is_default)
-          .map(d=>({
-            db_key: d.db_key,
-            template: d.template || '',
-            entry_hint: d.entry_hint || null,
-            is_default: !!d.is_default,
-            sort_order: d.sort_order
-          }));
-
-        return {
-          topic_id: Number(TOPIC_ID),
-          module_id: Number(MODULE_ID),
-          title: title.value.trim(),
-          slug: slug.value.trim() || undefined,
-          difficulty: diff.value,
-          status: stat.value,
-          sort_order: _toNum(sort.value) ?? 0,
-          description: desc.value,
-          languages, snippets, tests
-        };
-      }
-
-      // boot
-      loadList();
-    })();
-  </script>
+</script>
 @endpush

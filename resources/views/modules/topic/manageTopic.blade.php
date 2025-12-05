@@ -355,7 +355,7 @@
 @push('scripts')
 <script>
 (function(){
-  const API_BASE   = '/api/topics';
+  const API_BASE   = '/api/coding_topics';
   const ASSET_BASE = "{{ asset('') }}";
 
   // ---------- helpers ----------
