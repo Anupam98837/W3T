@@ -8,23 +8,23 @@
 <style>
 /* ===== Shell ===== */
 .cm-wrap{max-width:1140px;margin:16px auto 40px;overflow:visible}
-.panel{background:var(--surface);border:1px solid var(--line-strong);border-radius:16px;box-shadow:var(--shadow-2);padding:14px}
+/* .panel{background:var(--surface);border:1px solid var(--line-strong);border-radius:16px;box-shadow:var(--shadow-2);padding:14px} */
 
 /* Toolbar */
-.mfa-toolbar .form-control{height:40px;border-radius:12px;border:1px solid var(--line-strong);background:var(--surface)}
+/* .mfa-toolbar .form-control{height:40px;border-radius:12px;border:1px solid var(--line-strong);background:var(--surface)}
 .mfa-toolbar .form-select{height:40px;border-radius:12px;border:1px solid var(--line-strong);background:var(--surface)}
 .mfa-toolbar .btn{height:40px;border-radius:12px}
 .mfa-toolbar .btn-light{background:var(--surface);border:1px solid var(--line-strong)}
-.mfa-toolbar .btn-primary{background:var(--primary-color);border:none}
+.mfa-toolbar .btn-primary{background:var(--primary-color);border:none} */
 
 /* Tabs */
-.nav.nav-tabs{border-color:var(--line-strong)}
+/* .nav.nav-tabs{border-color:var(--line-strong)}
 .nav-tabs .nav-link{color:var(--ink)}
 .nav-tabs .nav-link.active{background:var(--surface);border-color:var(--line-strong) var(--line-strong) var(--surface)}
-.tab-content,.tab-pane{overflow:visible}
+.tab-content,.tab-pane{overflow:visible} */
 
 /* Table Card */
-.table-wrap.card{position:relative;border:1px solid var(--line-strong);border-radius:16px;background:var(--surface);box-shadow:var(--shadow-2);overflow:visible}
+/* .table-wrap.card{position:relative;border:1px solid var(--line-strong);border-radius:16px;background:var(--surface);box-shadow:var(--shadow-2);overflow:visible}
 .table-wrap .card-body{overflow:visible}
 .table-responsive{overflow:visible !important}
 .table{--bs-table-bg:transparent}
@@ -32,7 +32,7 @@
 .table thead.sticky-top{z-index:3}
 .table tbody tr{border-top:1px solid var(--line-soft)}
 .table tbody tr:hover{background:var(--page-hover)}
-.small{font-size:12.5px}
+.small{font-size:12.5px} */
 
 /* Sorting */
 .sortable{cursor:pointer;white-space:nowrap}
@@ -545,14 +545,36 @@ html.theme-dark .dropdown-menu{background:#0f172a;border-color:var(--line-strong
     menu.style.left = left + 'px'; menu.style.top = top + 'px'; menu.style.visibility='visible';
   };
   document.addEventListener('show.bs.dropdown', (ev)=>{
-    const dd=ev.target, btn=dd.querySelector('.dd-toggle,[data-bs-toggle="dropdown"]'), menu=dd.querySelector('.dropdown-menu');
-    if(!btn || !menu) return;
-    if(activePortal?.menu?.isConnected){ activePortal.menu.classList.remove('dd-portal'); activePortal.parent.appendChild(activePortal.menu); activePortal=null; }
-    const rect=btn.getBoundingClientRect(); menu.__parent=menu.parentElement; place(menu, rect); activePortal={menu, parent:menu.__parent};
-    const close=()=>{ try{ bootstrap.Dropdown.getOrCreateInstance(btn).hide(); }catch{} };
-    menu.__ls=[ ['resize',close,false], ['scroll',close,true] ];
-    window.addEventListener('resize', close); document.addEventListener('scroll', close, true);
-  });
+  // Always work from the .dropdown wrapper
+  const dd   = ev.target.closest('.dropdown');
+  if (!dd) return;
+
+  const btn  = dd.querySelector('.dd-toggle,[data-bs-toggle="dropdown"]');
+  const menu = dd.querySelector('.dropdown-menu');
+  if (!btn || !menu) return;
+
+  if (activePortal?.menu?.isConnected) {
+    activePortal.menu.classList.remove('dd-portal');
+    activePortal.parent.appendChild(activePortal.menu);
+    activePortal = null;
+  }
+
+  const rect = btn.getBoundingClientRect();
+  menu.__parent = menu.parentElement;
+  place(menu, rect);
+  activePortal = { menu, parent: menu.__parent };
+
+  const close = () => {
+    try { bootstrap.Dropdown.getOrCreateInstance(btn).hide(); } catch {}
+  };
+  menu.__ls = [
+    ['resize', close, false],
+    ['scroll', close, true]
+  ];
+  window.addEventListener('resize', close);
+  document.addEventListener('scroll', close, true);
+});
+
   document.addEventListener('hidden.bs.dropdown', (ev)=>{
     const dd=ev.target; const menu=dd.querySelector('.dropdown-menu.dd-portal') || activePortal?.menu;
     if(!menu) return;

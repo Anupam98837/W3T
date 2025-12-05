@@ -8,24 +8,24 @@
 <style>
 
 .sm-wrap{max-width:1140px;margin:16px auto 40px;overflow:visible}
-.panel{background:var(--surface);border:1px solid var(--line-strong);border-radius:16px;box-shadow:var(--shadow-2);padding:14px}
+/* .panel{background:var(--surface);border:1px solid var(--line-strong);border-radius:16px;box-shadow:var(--shadow-2);padding:14px} */
 
 /* Toolbar */
-.mfa-toolbar .form-control{height:40px;border-radius:12px;border:1px solid var(--line-strong);background:var(--surface)}
+/* .mfa-toolbar .form-control{height:40px;border-radius:12px;border:1px solid var(--line-strong);background:var(--surface)}
 .mfa-toolbar .form-select{height:40px;border-radius:12px;border:1px solid var(--line-strong);background:var(--surface)}
 .mfa-toolbar .btn{height:40px;border-radius:12px}
 .mfa-toolbar .btn-light{background:var(--surface);border:1px solid var(--line-strong)}
-.mfa-toolbar .btn-primary{background:var(--primary-color);border:none}
+.mfa-toolbar .btn-primary{background:var(--primary-color);border:none} */
 
 /* Table Card */
-.table-wrap.card{position:relative;border:1px solid var(--line-strong);border-radius:16px;background:var(--surface);box-shadow:var(--shadow-2);overflow:visible}
+/* .table-wrap.card{position:relative;border:1px solid var(--line-strong);border-radius:16px;background:var(--surface);box-shadow:var(--shadow-2);overflow:visible}
 .table-wrap .card-body{overflow:visible}
 .table-responsive{overflow:visible !important}
 .table thead th{font-weight:600;color:var(--muted-color);font-size:13px;border-bottom:1px solid var(--line-strong);background:var(--surface)}
 .table thead.sticky-top{z-index:3}
 .table tbody tr{border-top:1px solid var(--line-soft)}
 .table tbody tr:hover{background:var(--page-hover)}
-.small{font-size:12.5px}
+.small{font-size:12.5px} */
 
 /* Sorting */
 .sortable{cursor:pointer;white-space:nowrap}
@@ -69,18 +69,7 @@ html.theme-dark .modal-content{background:#0f172a;border-color:var(--line-strong
 html.theme-dark .table thead th{background:#0f172a;border-color:var(--line-strong);color:#94a3b8}
 html.theme-dark .table tbody tr{border-color:var(--line-soft)}
 html.theme-dark .dropdown-menu{background:#0f172a;border-color:var(--line-strong)}
-/* RTE used in create/edit (small toolbar) */
-.toolbar{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px}
-.tool{border:1px solid var(--line-strong);border-radius:10px;background:#fff;padding:6px 9px;cursor:pointer}
-.tool:hover{background:var(--page-hover)}
-.rte-wrap{position:relative}
-.rte{
-  min-height:160px;max-height:400px;overflow:auto;
-  border:1px solid var(--line-strong);border-radius:8px;background:#fff;padding:10px;line-height:1.6;outline:none
-}
-.rte:focus{box-shadow:var(--ring);border-color:var(--accent-color)}
-.rte-ph{position:absolute;top:10px;left:10px;color:#9aa3b2;pointer-events:none;font-size:14px}
-.rte.has-content + .rte-ph{display:none}
+
 </style>
 @endpush
 
@@ -121,25 +110,24 @@ html.theme-dark .dropdown-menu{background:#0f172a;border-color:var(--line-strong
       </a>
     </li>
   </ul>
-
-  {{-- ===== Card ===== --}}
-  <div class="card table-wrap">
-    <div class="card-body p-0">
-
-      {{-- Inner toolbar: search + button (like Modules view) --}}
-<div class="row align-items-center g-2 px-3 pt-3 pb-2 mfa-toolbar" id="listToolbar">
+ <div class="panel mb-3">
+  <div class="row align-items-center g-2 px-3 pt-3 pb-2 mfa-toolbar" id="listToolbar">
 
   <!-- Left section: Per Page + Search -->
   <div class="col-12 col-xl d-flex align-items-center flex-wrap gap-2">
 
     <!-- Per Page -->
     <div class="position-relative">
-      <select id="ddlPerPage" class="form-select" style="width:110px;">
-        <option value="10">10/page</option>
-        <option value="20" selected>20/page</option>
-        <option value="30">30/page</option>
-        <option value="50">50/page</option>
-      </select>
+      <div class="d-flex align-items-center">
+  <label for="ddlPerPage" class="text-muted small mb-0">Per page</label>
+  <select id="ddlPerPage" class="form-select" style="width:110px;">
+    <option value="10">10</option>
+    <option value="20" selected>20</option>
+    <option value="30">30</option>
+    <option value="50">50</option>
+  </select>
+</div>
+
     </div>
 
     <!-- Search -->
@@ -154,7 +142,7 @@ html.theme-dark .dropdown-menu{background:#0f172a;border-color:var(--line-strong
   <div class="col-12 col-xl-auto ms-xl-auto d-flex justify-content-xl-end gap-2">
 
     <!-- Filter Button -->
-    <button class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#filterModal" id="btnFilters">
+    <button class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#filterModal" id="btnFilters">
       <i class="fa fa-filter"></i> Filters
     </button>
 
@@ -167,6 +155,10 @@ html.theme-dark .dropdown-menu{background:#0f172a;border-color:var(--line-strong
 
 </div>
 
+</div>
+  {{-- ===== Card ===== --}}
+  <div class="card table-wrap">
+    <div class="card-body p-0">
       <div class="table-responsive">
         <table class="table table-hover table-borderless align-middle mb-0">
           <thead class="sticky-top">
@@ -518,6 +510,7 @@ const errToast = new bootstrap.Toast(document.getElementById('errToast'));
 const ok  = (m)=>{ document.getElementById('okMsg').textContent  = m||'Done'; okToast.show(); };
 const err = (m)=>{ document.getElementById('errMsg').textContent = m||'Something went wrong'; errToast.show(); };
 const listToolbar = document.getElementById('listToolbar');
+const toolbarPanel = listToolbar ? listToolbar.closest('.panel') : null;
 
 /** API endpoints for Notices */
 const API = {
@@ -626,13 +619,15 @@ function setScope(newScope){
   tabArchived.classList.toggle('active', scope==='archived');
   tabBin.classList.toggle('active',      scope==='bin');
 
+  // 🔹 Show panel only in Active tab
+  if (toolbarPanel) {
+    toolbarPanel.classList.toggle('d-none', scope !== 'active');
+  }
+
   if (scope === 'active') {
-    if (listToolbar) listToolbar.classList.remove('d-none');
     enableFilters(!!courseSel.value);
   } else {
-    if (listToolbar) listToolbar.classList.add('d-none');
     q.disabled = true;
-    // btnCreate.disabled = true;
     if (btnFilters) btnFilters.disabled = true;
   }
 
