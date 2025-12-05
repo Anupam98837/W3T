@@ -164,6 +164,11 @@ Route::get('/user-privileges/manage', function () {
 
 Route::get('/test', function () {
     return view('pages.users.admin.pages.compiler.testCompiler');});
+
+    Route::get('/coding-test/{uuid}', function () {
+        return view('modules.codingTest.codingTest');});
+    
+    
 Route::get('/admin/topic/manage', function () {
     return view('pages.users.admin.pages.topic.manageTopic');
 });

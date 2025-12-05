@@ -23,7 +23,6 @@ use App\Http\Controllers\API\BatchMessageController;
 use App\Http\Controllers\API\TopicController;
 use App\Http\Controllers\API\CodingModuleController;
 use App\Http\Controllers\API\CodingQuestionController;
-use App\Http\Controllers\API\RunnerController;
 use App\Http\Controllers\API\JudgeController;
 
 Route::get('/user', function (Request $request) {
@@ -505,12 +504,17 @@ Route::post('/judge/execute', [JudgeController::class, 'submit']);
 
 // Coding Questions
 Route::prefix('coding_questions')->group(function () {
-    Route::get('/',                   [CodingQuestionController::class, 'index'])->name('questions.index');
-    Route::get('{idOrSlug}',          [CodingQuestionController::class, 'show'])->name('questions.show');
-    Route::post('/',                  [CodingQuestionController::class, 'store'])->name('questions.store');
-    Route::match(['put','patch'], '{id}', [CodingQuestionController::class, 'update'])->name('questions.update');
-    Route::delete('{id}',             [CodingQuestionController::class, 'destroy'])->name('questions.destroy');
-    Route::post('{id}/restore',       [CodingQuestionController::class, 'restore'])->name('questions.restore');
-    Route::patch('{id}/toggle-status', [CodingQuestionController::class, 'toggleStatus'])->name('questions.toggle');
-    Route::post('reorder',            [CodingQuestionController::class, 'reorder'])->name('questions.reorder');
+    Route::get('/',                        [CodingQuestionController::class, 'index'])->name('questions.index');
+
+    // put static/action routes before the catch-all {idOrSlug}
+    Route::post('reorder',                 [CodingQuestionController::class, 'reorder'])->name('questions.reorder');
+
+    Route::post('/',                       [CodingQuestionController::class, 'store'])->name('questions.store');
+    Route::match(['put','patch'], '{id}',  [CodingQuestionController::class, 'update'])->name('questions.update');
+    Route::delete('{id}',                  [CodingQuestionController::class, 'destroy'])->name('questions.destroy');
+    Route::post('{id}/restore',            [CodingQuestionController::class, 'restore'])->name('questions.restore');
+    Route::patch('{id}/toggle-status',     [CodingQuestionController::class, 'toggleStatus'])->name('questions.toggle');
+
+    // keep this LAST so it doesn’t swallow other routes
+    Route::get('{identifier}',             [CodingQuestionController::class, 'show'])->name('questions.show');
 });

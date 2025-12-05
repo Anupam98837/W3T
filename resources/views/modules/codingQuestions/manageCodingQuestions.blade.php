@@ -1,7 +1,8 @@
 {{-- resources/views/admin/questions/index.blade.php --}}
-{{-- Tabbed Admin: Code Questions (unchanged UX) --}}
+{{-- Tabbed Admin: Code Questions --}}
 
 @push('styles')
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"/>
 <style>
   /* Layout guards */
   html, body { width:100%; max-width:100%; overflow-x:hidden; }
@@ -73,7 +74,7 @@
   .grid-3{ display:grid; grid-template-columns: repeat(3,1fr); gap:12px; }
   .grid-auto{ display:grid; grid-template-columns: repeat(auto-fit, minmax(240px,1fr)); gap:12px; }
 
-  /* Editors */
+  /* Editors (generic) */
   .ce-text-toolbar { display:flex; flex-wrap:wrap; gap:.5em; align-items:center; margin-bottom:6px; }
   .ce-text-toolbar button, .ce-text-toolbar select, .ce-text-toolbar input[type="color"]{
     margin-right:4px; padding:4px 8px; font-size:13px; border:1px solid var(--border-color);
@@ -113,26 +114,14 @@
   details > summary::before{ content: "▸"; transition: transform .15s ease; font-size: 12px; color: var(--text-muted); }
   details[open] > summary::before{ transform: rotate(90deg); }
 
-  /* Dark mode */
-  html.theme-dark .q-item-sub{ color:#93a4b8; }
-  html.theme-dark .ce-text-toolbar button, html.theme-dark .ce-text-toolbar select{ background:#0e1a2d; color:#fff; }
-  html.theme-dark .ce-text-area{ background:#0b1526; color:#fff; border-color:rgba(255,255,255,.08); }
-  html.theme-dark .chip{ background: rgba(255,255,255,.06); border-color: rgba(255,255,255,.18); color: #e6edf7; }
-  html.theme-dark .chip i{ color:#a9b7ff; }
-  html.theme-dark .chip strong{ color:#fff; }
-  html.theme-dark .q-editor, html.theme-dark .q-list{ background:#0b1526; border-color:rgba(255,255,255,.08); }
-  html.theme-dark .q-editor-head{ background:transparent; border-bottom-color:rgba(255,255,255,.12); }
-  html.theme-dark .q-item:hover{ background: rgba(255,255,255,.03); }
-  html.theme-dark .card-lite, html.theme-dark .lang-card, html.theme-dark .dialect-card{ background:#0b1526; border-color:rgba(255,255,255,.08); }
-  html.theme-dark details{ background:#0b1526; border-color:rgba(255,255,255,.12); }
-    /* ===== Layout guards ===== */
-  html, body { 
-    width:100%; 
-    max-width:100%; 
-    overflow-x:hidden; 
+  /* ===== Layout guards (duplicate-safe) ===== */
+  html, body {
+    width:100%;
+    max-width:100%;
+    overflow-x:hidden;
   }
-  .layout, .right-panel, .main-content { 
-    overflow-x:hidden; 
+  .layout, .right-panel, .main-content {
+    overflow-x:hidden;
   }
 
   /* ===== Page head ===== */
@@ -158,9 +147,9 @@
     font-size: 14px;
     font-weight: 600;
   }
-  .page-sub{ 
-    color: var(--text-muted, #6b7280); 
-    font-size: 12px; 
+  .page-sub{
+    color: var(--text-muted, #6b7280);
+    font-size: 12px;
     display:flex;
     align-items:center;
     gap:6px;
@@ -235,35 +224,35 @@
   }
 
   /* ===== 2-column shell ===== */
-  .q-wrap{ 
-    display:grid; 
-    grid-template-columns: 320px minmax(0,1fr); 
-    gap:14px; 
+  .q-wrap{
+    display:grid;
+    grid-template-columns: 320px minmax(0,1fr);
+    gap:14px;
     align-items:flex-start;
   }
   @media (max-width: 992px){
-    .q-wrap{ 
-      grid-template-columns: 1fr; 
+    .q-wrap{
+      grid-template-columns: 1fr;
     }
   }
 
-  /* ===== Left list ===== */
+  /* ===== Left list refined ===== */
   .q-list{
     background: radial-gradient(circle at top left, rgba(129,140,248,.08), transparent 55%) var(--light-color, #f9fafb);
     border:1px solid var(--border-color, #e5e7eb);
     border-radius: 14px;
-    overflow:hidden; 
-    display:flex; 
-    flex-direction:column; 
+    overflow:hidden;
+    display:flex;
+    flex-direction:column;
     min-height: 60vh;
     box-shadow:0 14px 35px rgba(15,23,42,.10);
   }
-  .q-list-head{ 
-    padding:10px 12px; 
-    border-bottom:1px solid var(--border-color, #e5e7eb); 
-    display:flex; 
-    gap:8px; 
-    align-items:center; 
+  .q-list-head{
+    padding:10px 12px;
+    border-bottom:1px solid var(--border-color, #e5e7eb);
+    display:flex;
+    gap:8px;
+    align-items:center;
     background:rgba(15,23,42,.02);
     position: sticky;
     top:0;
@@ -274,19 +263,19 @@
     text-transform:uppercase;
     letter-spacing:.08em;
   }
-  .q-list-body{ 
-    flex:1; 
-    overflow:auto; 
+  .q-list-body{
+    flex:1;
+    overflow:auto;
   }
 
   .q-item{
-    display:flex; 
-    align-items:flex-start; 
+    display:flex;
+    align-items:flex-start;
     gap:8px;
-    padding:9px 12px; 
+    padding:9px 12px;
     border-bottom:1px solid rgba(148,163,184,.25);
-    cursor:pointer; 
-    background:transparent; 
+    cursor:pointer;
+    background:transparent;
     transition: background .12s ease, box-shadow .12s ease, transform .08s ease, border-left .12s ease;
     position:relative;
   }
@@ -300,27 +289,27 @@
     background: rgba(129,140,248,.16);
     border-left:3px solid var(--primary-color, #6366f1);
   }
-  .q-item .drag{ 
-    cursor:grab; 
-    opacity:.7; 
-    padding-top:3px; 
+  .q-item .drag{
+    cursor:grab;
+    opacity:.7;
+    padding-top:3px;
     color:#9ca3af;
   }
   .q-item .drag i{
     font-size: 12px;
   }
-  .q-item-title{ 
-    font-weight:600; 
-    font-size:13px; 
-    color: var(--text-color, #0f172a); 
+  .q-item-title{
+    font-weight:600;
+    font-size:13px;
+    color: var(--text-color, #0f172a);
   }
-  .q-item-sub{ 
-    font-size:11px; 
-    color:#6b7280; 
-    white-space:nowrap; 
-    overflow:hidden; 
-    text-overflow:ellipsis; 
-    max-width: 100%; 
+  .q-item-sub{
+    font-size:11px;
+    color:#6b7280;
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
+    max-width: 100%;
   }
   .q-item .badge{
     font-size:10px;
@@ -330,58 +319,58 @@
     padding:4px 8px;
   }
 
-  /* ===== Right editor ===== */
-  .q-editor{ 
-    background: radial-gradient(circle at top left, rgba(96,165,250,.10), transparent 55%) var(--light-color, #ffffff); 
-    border:1px solid var(--border-color, #e5e7eb); 
-    border-radius: 14px; 
-    overflow:hidden; 
+  /* ===== Right editor refined ===== */
+  .q-editor{
+    background: radial-gradient(circle at top left, rgba(96,165,250,.10), transparent 55%) var(--light-color, #ffffff);
+    border:1px solid var(--border-color, #e5e7eb);
+    border-radius: 14px;
+    overflow:hidden;
     box-shadow:0 18px 45px rgba(15,23,42,.12);
   }
-  .q-editor-head{ 
-    padding:10px 14px; 
-    border-bottom:1px solid var(--border-color, #e5e7eb); 
-    display:flex; 
-    flex-wrap:wrap; 
-    gap:8px; 
-    align-items:center; 
+  .q-editor-head{
+    padding:10px 14px;
+    border-bottom:1px solid var(--border-color, #e5e7eb);
+    display:flex;
+    flex-wrap:wrap;
+    gap:8px;
+    align-items:center;
     backdrop-filter: blur(12px);
     background:linear-gradient(to right, rgba(15,23,42,.02),rgba(129,140,248,.10));
   }
-  .q-editor-body{ 
-    padding:16px; 
+  .q-editor-body{
+    padding:16px;
   }
 
-  .tiny{ 
-    font-size:12px; 
+  .tiny{
+    font-size:12px;
   }
-  .form-help{ 
-    font-size:12px; 
-    color:#6b7280; 
+  .form-help{
+    font-size:12px;
+    color:#6b7280;
   }
-  .text-muted{ 
-    color:#6b7280; 
+  .text-muted{
+    color:#6b7280;
   }
 
   /* ===== Chips & pill elements ===== */
-  .chip{ 
-    display:inline-flex; 
-    align-items:center; 
-    gap:6px; 
-    padding:2px 9px; 
+  .chip{
+    display:inline-flex;
+    align-items:center;
+    gap:6px;
+    padding:2px 9px;
     border:1px solid var(--border-color, #e5e7eb);
-    border-radius:999px; 
-    font-size:11px; 
-    background:#ffffff; 
+    border-radius:999px;
+    font-size:11px;
+    background:#ffffff;
     color: var(--text-muted, #4b5563);
     box-shadow:0 1px 3px rgba(15,23,42,.08);
   }
   .chip i{
     font-size: 11px;
   }
-  .chip .x{ 
-    cursor:pointer; 
-    opacity:.75; 
+  .chip .x{
+    cursor:pointer;
+    opacity:.75;
     font-size:11px;
   }
   .chip .x:hover{
@@ -389,17 +378,17 @@
   }
 
   /* ===== Cards ===== */
-  .card-lite{ 
-    border:1px solid var(--border-color, #e5e7eb); 
-    border-radius:12px; 
-    padding:12px 12px 10px 12px; 
-    background:#ffffff; 
+  .card-lite{
+    border:1px solid var(--border-color, #e5e7eb);
+    border-radius:12px;
+    padding:12px 12px 10px 12px;
+    background:#ffffff;
     box-shadow:0 6px 18px rgba(15,23,42,.05);
   }
-  .card-lite h6{ 
-    margin:0 0 10px 0; 
-    font-weight:700; 
-    font-size:13px; 
+  .card-lite h6{
+    margin:0 0 10px 0;
+    font-weight:700;
+    font-size:13px;
     display:flex;
     align-items:center;
     gap:6px;
@@ -412,20 +401,20 @@
     background:var(--primary-color, #6366f1);
   }
 
-  .grid-2{ 
-    display:grid; 
-    grid-template-columns: repeat(2, minmax(0,1fr)); 
-    gap:12px; 
+  .grid-2{
+    display:grid;
+    grid-template-columns: repeat(2, minmax(0,1fr));
+    gap:12px;
   }
-  .grid-3{ 
-    display:grid; 
-    grid-template-columns: repeat(3, minmax(0,1fr)); 
-    gap:12px; 
+  .grid-3{
+    display:grid;
+    grid-template-columns: repeat(3, minmax(0,1fr));
+    gap:12px;
   }
-  .grid-auto{ 
-    display:grid; 
-    grid-template-columns: repeat(auto-fit, minmax(240px,1fr)); 
-    gap:12px; 
+  .grid-auto{
+    display:grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px,1fr));
+    gap:12px;
   }
 
   @media (max-width: 768px){
@@ -435,27 +424,27 @@
     }
   }
 
-  /* ===== WYSIWYG toolbar & editor ===== */
-  .ce-text-toolbar { 
-    display:flex; 
-    flex-wrap:wrap; 
-    gap:.4em; 
-    align-items:center; 
-    margin-bottom:6px; 
+  /* ===== WYSIWYG toolbar & editor (for desc/solution) ===== */
+  .ce-text-toolbar{
+    display:flex;
+    flex-wrap:wrap;
+    gap:.4em;
+    align-items:center;
+    margin-bottom:6px;
     padding:4px 6px;
     border-radius:8px;
     background:linear-gradient(to right,rgba(249,250,251,1),rgba(241,245,249,1));
     border:1px solid var(--border-color, #e5e7eb);
   }
-  .ce-text-toolbar button, 
-  .ce-text-toolbar select, 
+  .ce-text-toolbar button,
+  .ce-text-toolbar select,
   .ce-text-toolbar input[type="color"]{
     margin-right:0;
-    padding:4px 7px; 
-    font-size:12px; 
+    padding:4px 7px;
+    font-size:12px;
     border:1px solid var(--border-color, #e5e7eb);
-    background:#fff; 
-    border-radius:6px; 
+    background:#fff;
+    border-radius:6px;
     cursor:pointer;
     line-height:1.2;
     min-height:26px;
@@ -473,26 +462,26 @@
     border-color:rgba(99,102,241,.5);
     box-shadow:0 0 0 1px rgba(129,140,248,.25);
   }
-  .ce-text-toolbar .sep{ 
-    width:1px; 
-    height:20px; 
-    background:var(--border-color, #e5e7eb); 
-    margin:0 2px; 
+  .ce-text-toolbar .sep{
+    width:1px;
+    height:20px;
+    background:var(--border-color, #e5e7eb);
+    margin:0 2px;
   }
   .ce-text-area{
-    border:1px solid var(--border-color, #e5e7eb); 
-    border-radius:9px; 
-    min-height:220px; 
-    padding:10px; 
-    outline:none; 
+    border:1px solid var(--border-color, #e5e7eb);
+    border-radius:9px;
+    min-height:160px;
+    padding:10px;
+    outline:none;
     background:#ffffff;
     font-size:13px;
     line-height:1.5;
     overflow:auto;
   }
-  .ce-text-area:focus{ 
-    box-shadow:0 0 0 2px rgba(129,140,248,.25); 
-    border-color:rgba(99,102,241,.7); 
+  .ce-text-area:focus{
+    box-shadow:0 0 0 2px rgba(129,140,248,.25);
+    border-color:rgba(99,102,241,.7);
   }
   .ce-text-area[placeholder]:empty:before{
     content: attr(placeholder);
@@ -502,24 +491,24 @@
 
   /* ===== Language / Dialect cards ===== */
   .lang-card,
-  .dialect-card{ 
-    border:1px solid var(--border-color, #e5e7eb); 
-    border-radius:12px; 
-    padding:10px 10px 12px 10px; 
-    background:#ffffff; 
-    margin-bottom:12px; 
+  .dialect-card{
+    border:1px solid var(--border-color, #e5e7eb);
+    border-radius:12px;
+    padding:10px 10px 12px 10px;
+    background:#ffffff;
+    margin-bottom:12px;
     box-shadow:0 8px 20px rgba(15,23,42,.06);
   }
   .lang-card .head,
-  .dialect-card .head{ 
-    display:flex; 
-    gap:8px; 
-    align-items:center; 
+  .dialect-card .head{
+    display:flex;
+    gap:8px;
+    align-items:center;
   }
   .lang-card .drag,
-  .dialect-card .drag{ 
-    cursor:grab; 
-    opacity:.65; 
+  .dialect-card .drag{
+    cursor:grab;
+    opacity:.65;
     color:#9ca3af;
   }
   .lang-card .drag i,
@@ -527,24 +516,24 @@
     font-size:12px;
   }
   .lang-card .row-actions,
-  .dialect-card .row-actions{ 
-    margin-left:auto; 
-    display:flex; 
-    gap:6px; 
+  .dialect-card .row-actions{
+    margin-left:auto;
+    display:flex;
+    gap:6px;
     align-items:center;
   }
   .lang-card details summary,
-  .dialect-card details summary{ 
-    cursor:pointer; 
+  .dialect-card details summary{
+    cursor:pointer;
   }
 
   /* ===== Tests ===== */
-  .test-row{ 
-    border:1px dashed var(--border-color, #e5e7eb); 
-    border-radius:10px; 
-    padding:9px; 
-    margin-bottom:8px; 
-    background:#f9fafb; 
+  .test-row{
+    border:1px dashed var(--border-color, #e5e7eb);
+    border-radius:10px;
+    padding:9px;
+    margin-bottom:8px;
+    background:#f9fafb;
     transition: box-shadow .12s ease, border-color .12s ease, background .12s ease;
   }
   .test-row:hover{
@@ -552,9 +541,9 @@
     box-shadow:0 10px 20px rgba(15,23,42,.1);
     background:#f3f4ff;
   }
-  .test-row .drag{ 
-    cursor:grab; 
-    opacity:.7; 
+  .test-row .drag{
+    cursor:grab;
+    opacity:.7;
     color:#9ca3af;
   }
   .test-row .drag i{
@@ -570,48 +559,42 @@
     display:inline-flex;
     align-items:center;
     justify-content:center;
-    background:#fff; 
-    font-size:11px; 
-    margin-left:6px; 
+    background:#fff;
+    font-size:11px;
+    margin-left:6px;
     cursor:pointer;
     transition: background-color .15s ease, border-color .15s ease, box-shadow .15s ease, color .15s ease, transform .05s ease;
   }
-  .i-btn:hover{ 
-    background:#eef2ff; 
+  .i-btn:hover{
+    background:#eef2ff;
     border-color:rgba(99,102,241,.7);
     box-shadow:0 0 0 2px rgba(129,140,248,.25);
     color:var(--primary-color, #6366f1);
     transform: translateY(-0.5px);
   }
-  .i-btn:focus{ 
-    outline:0; 
-    box-shadow:0 0 0 3px rgba(99,102,241,.35); 
+  .i-btn:focus{
+    outline:0;
+    box-shadow:0 0 0 3px rgba(99,102,241,.35);
   }
 
   /* ===== Pretty details/accordion ===== */
-  details{ 
-    border:1px dashed var(--border-color, #e5e7eb); 
-    border-radius:10px; 
-    padding:8px; 
-    background:#ffffff; 
+  details{
+    border:1px dashed var(--border-color, #e5e7eb);
+    border-radius:10px;
+    padding:8px;
+    background:#ffffff;
   }
-  details > summary{ 
-    list-style:none; 
-    font-weight:600; 
-    display:flex; 
-    align-items:center; 
-    gap:6px; 
-    color: var(--text-color, #0f172a); 
+  details > summary{
+    list-style:none;
+    font-weight:600;
+    display:flex;
+    align-items:center;
+    gap:6px;
+    color: var(--text-color, #0f172a);
     font-size:12px;
   }
-  details > summary::before{ 
-    content: "▸"; 
-    transition: transform .15s ease; 
-    font-size: 11px; 
-    color: var(--text-muted, #6b7280); 
-  }
-  details[open] > summary::before{ 
-    transform: rotate(90deg); 
+  details[open] > summary::before{
+    transform: rotate(90deg);
   }
 
   /* ===== Form controls tweak ===== */
@@ -632,7 +615,7 @@
     box-shadow:0 0 0 2px rgba(129,140,248,.25);
   }
 
-  /* ===== Dark mode ===== */
+  /* ===== Dark mode (refined) ===== */
   html.theme-dark .page-indicator{
     background:#020617;
     border-color:rgba(148,163,184,.4);
@@ -650,59 +633,59 @@
     box-shadow:0 10px 28px rgba(15,23,42,1);
   }
 
-  html.theme-dark .q-item-sub{ 
-    color:#93a4b8; 
+  html.theme-dark .q-item-sub{
+    color:#93a4b8;
   }
-  html.theme-dark .ce-text-toolbar button, 
-  html.theme-dark .ce-text-toolbar select, 
-  html.theme-dark .ce-text-toolbar input[type="color"]{ 
-    background:#020617; 
-    color:#e5e7eb; 
+  html.theme-dark .ce-text-toolbar button,
+  html.theme-dark .ce-text-toolbar select,
+  html.theme-dark .ce-text-toolbar input[type="color"]{
+    background:#020617;
+    color:#e5e7eb;
     border-color:rgba(148,163,184,.4);
   }
-  html.theme-dark .ce-text-toolbar{ 
-    background:linear-gradient(to right,rgba(15,23,42,1),rgba(15,23,42,.9)); 
+  html.theme-dark .ce-text-toolbar{
+    background:linear-gradient(to right,rgba(15,23,42,1),rgba(15,23,42,.9));
     border-color:rgba(148,163,184,.5);
   }
-  html.theme-dark .ce-text-area{ 
-    background:#020617; 
-    color:#e5e7eb; 
-    border-color:rgba(148,163,184,.5); 
+  html.theme-dark .ce-text-area{
+    background:#020617;
+    color:#e5e7eb;
+    border-color:rgba(148,163,184,.5);
   }
   html.theme-dark .ce-text-area[placeholder]:empty:before{
     color:#64748b;
   }
 
-  html.theme-dark .chip{ 
-    background: rgba(15,23,42,1); 
-    border-color: rgba(148,163,184,.6); 
-    color: #e5e7eb; 
+  html.theme-dark .chip{
+    background: rgba(15,23,42,1);
+    border-color: rgba(148,163,184,.6);
+    color: #e5e7eb;
   }
-  html.theme-dark .chip i{ 
-    color:#a9b7ff; 
+  html.theme-dark .chip i{
+    color:#a9b7ff;
   }
-  html.theme-dark .chip strong{ 
-    color:#fff; 
+  html.theme-dark .chip strong{
+    color:#fff;
   }
 
-  html.theme-dark .q-editor, 
-  html.theme-dark .q-list{ 
-    background:#020617; 
-    border-color:rgba(148,163,184,.5); 
+  html.theme-dark .q-editor,
+  html.theme-dark .q-list{
+    background:#020617;
+    border-color:rgba(148,163,184,.5);
     box-shadow:0 18px 45px rgba(0,0,0,1);
   }
-  html.theme-dark .q-editor-head{ 
-    background:linear-gradient(to right,rgba(15,23,42,1),rgba(30,64,175,.6)); 
-    border-bottom-color:rgba(148,163,184,.5); 
+  html.theme-dark .q-editor-head{
+    background:linear-gradient(to right,rgba(15,23,42,1),rgba(30,64,175,.6));
+    border-bottom-color:rgba(148,163,184,.5);
   }
-  html.theme-dark .q-item:hover{ 
-    background: rgba(15,23,42,.8); 
+  html.theme-dark .q-item:hover{
+    background: rgba(15,23,42,.8);
   }
-  html.theme-dark .card-lite, 
-  html.theme-dark .lang-card, 
-  html.theme-dark .dialect-card{ 
-    background:#020617; 
-    border-color:rgba(148,163,184,.5); 
+  html.theme-dark .card-lite,
+  html.theme-dark .lang-card,
+  html.theme-dark .dialect-card{
+    background:#020617;
+    border-color:rgba(148,163,184,.5);
     box-shadow:0 12px 30px rgba(0,0,0,1);
   }
   html.theme-dark .test-row{
@@ -713,9 +696,9 @@
     background:#020617;
     box-shadow:0 14px 30px rgba(0,0,0,1);
   }
-  html.theme-dark details{ 
-    background:#020617; 
-    border-color:rgba(148,163,184,.6); 
+  html.theme-dark details{
+    background:#020617;
+    border-color:rgba(148,163,184,.6);
   }
   html.theme-dark .form-label{
     color:#cbd5f5;
@@ -770,7 +753,7 @@
 </ul>
 
 <div class="tab-content">
-  {{-- ======================= CODE TAB (your original, unchanged) ======================= --}}
+  {{-- ======================= CODE TAB ======================= --}}
   <div class="tab-pane fade show active" id="pane-code" role="tabpanel" aria-labelledby="tab-code">
     <div class="q-toolbar">
       <div class="left">
@@ -816,14 +799,14 @@
               <h6>Meta</h6>
               <div class="grid-3">
                 <div>
-                  <label class="form-label">Title</label>
-                  <span class="i-btn" data-i-title="Title" data-i-text="Human-friendly title shown in the admin list and to users. Max 200 chars.">i</span>
+                  <label class="form-label">Title <span class="text-danger">*</span></label>
+                  <span class="i-btn" data-i-title="Title" data-i-text="Human-friendly title shown in the admin list and to users. Max 200 chars. Required.">i</span>
                   <input class="form-control" id="title" required maxlength="200" placeholder="e.g., Sum Two Integers">
                   <div class="invalid-feedback">Title is required.</div>
                 </div>
                 <div>
                   <label class="form-label">Slug</label>
-                  <span class="i-btn" data-i-title="Slug" data-i-text="URL-safe identifier. Auto-generated from title; you can edit if needed.">i</span>
+                  <span class="i-btn" data-i-title="Slug" data-i-text="URL-safe identifier. Auto-generated from title if empty; you can edit if needed.">i</span>
                   <input class="form-control" id="slug" maxlength="200" placeholder="auto-slug-from-title">
                 </div>
                 <div>
@@ -850,66 +833,59 @@
                   </select>
                 </div>
                 <div>
-                  <label class="form-label">Tags (chips)</label>
-                  <span class="i-btn" data-i-title="Tags" data-i-text="Type a tag and press Enter to add. Tags help with search and categorization.">i</span>
-                  <div class="d-flex flex-wrap gap-2" id="tagsChips"></div>
-                  <input class="form-control mt-1" id="tagsInput" placeholder="Type tag and press Enter">
-                  <div class="form-help">We’ll convert chips to array automatically.</div>
+                  <label class="form-label">Tags (optional)</label>
+                  <input class="form-control" id="tags" placeholder="e.g., arrays, dp, math">
+                  <div class="form-help">Comma-separated tags. Optional, for your own search/filter.</div>
                 </div>
               </div>
             </div>
 
-            {{-- Problem Statement --}}
+            {{-- Problem Statement with WYSIWYG --}}
             <div class="card-lite mb-3">
               <h6>Problem Statement</h6>
-              <div class="mb-2">
+              <div class="mb-3">
                 <label class="form-label">Description</label>
-                <span class="i-btn" data-i-title="Description" data-i-text="The full problem statement. Use the toolbar to format, add links, tables, and images.">i</span>
-                <div class="ce-text-toolbar" data-for="desc">
+                <span class="i-btn" data-i-title="Description" data-i-text="The full problem statement. Supports basic formatting (B, I, U, headings, lists).">i</span>
+                <div class="ce-text-toolbar" data-target="#descEditor">
                   <button type="button" data-cmd="bold"><i class="fa-solid fa-bold"></i></button>
                   <button type="button" data-cmd="italic"><i class="fa-solid fa-italic"></i></button>
                   <button type="button" data-cmd="underline"><i class="fa-solid fa-underline"></i></button>
                   <span class="sep"></span>
-                  <button type="button" data-cmd="insertUnorderedList"><i class="fa fa-list-ul"></i></button>
-                  <button type="button" data-cmd="insertOrderedList"><i class="fa fa-list-ol"></i></button>
+                  <button type="button" data-cmd="h1">H1</button>
+                  <button type="button" data-cmd="h2">H2</button>
+                  <button type="button" data-cmd="p">P</button>
                   <span class="sep"></span>
-                  <button type="button" data-cmd="createLink">🔗</button>
-                  <button type="button" class="btn-insert-image"><i class="fa-regular fa-image"></i> Image URL</button>
-                  <button type="button" class="btn-insert-table"><i class="fa-solid fa-table-cells"></i> Table</button>
-                  <span class="sep"></span>
-                  <select data-cmd="formatBlock">
-                    <option value="p">Paragraph</option>
-                    <option value="h3">H3</option>
-                    <option value="h4">H4</option>
-                    <option value="blockquote">Quote</option>
-                  </select>
-                  <input type="color" data-cmd="foreColor" title="Text color">
+                  <button type="button" data-cmd="ul"><i class="fa-solid fa-list-ul"></i></button>
+                  <button type="button" data-cmd="ol"><i class="fa-solid fa-list-ol"></i></button>
                 </div>
-                <div id="desc" class="ce-text-area" contenteditable="true" placeholder="Describe the problem…"></div>
+                <div id="descEditor"
+                     class="ce-text-area"
+                     contenteditable="true"
+                     data-bind-textarea="#desc"
+                     placeholder="Describe the problem…"></div>
+                <textarea id="desc" class="form-control d-none" rows="8"></textarea>
               </div>
               <div>
                 <label class="form-label">Explanation (optional)</label>
-                <span class="i-btn" data-i-title="Explanation" data-i-text="Optional editorial notes or solution outline shown to admins/mentors or after solving, depending on your app.">i</span>
-                <div class="ce-text-toolbar" data-for="solution">
+                <span class="i-btn" data-i-title="Explanation" data-i-text="Optional editorial notes or solution outline. Supports basic formatting.">i</span>
+                <div class="ce-text-toolbar" data-target="#solutionEditor">
                   <button type="button" data-cmd="bold"><i class="fa-solid fa-bold"></i></button>
                   <button type="button" data-cmd="italic"><i class="fa-solid fa-italic"></i></button>
                   <button type="button" data-cmd="underline"><i class="fa-solid fa-underline"></i></button>
                   <span class="sep"></span>
-                  <button type="button" data-cmd="insertUnorderedList"><i class="fa fa-list-ul"></i></button>
-                  <button type="button" data-cmd="insertOrderedList"><i class="fa fa-list-ol"></i></button>
+                  <button type="button" data-cmd="h1">H1</button>
+                  <button type="button" data-cmd="h2">H2</button>
+                  <button type="button" data-cmd="p">P</button>
                   <span class="sep"></span>
-                  <button type="button" data-cmd="createLink">🔗</button>
-                  <button type="button" class="btn-insert-image"><i class="fa-regular fa-image"></i> Image URL</button>
-                  <button type="button" class="btn-insert-table"><i class="fa-solid fa-table-cells"></i> Table</button>
-                  <span class="sep"></span>
-                  <select data-cmd="formatBlock">
-                    <option value="p">Paragraph</option>
-                    <option value="h4">H4</option>
-                    <option value="blockquote">Quote</option>
-                  </select>
-                  <input type="color" data-cmd="foreColor" title="Text color">
+                  <button type="button" data-cmd="ul"><i class="fa-solid fa-list-ul"></i></button>
+                  <button type="button" data-cmd="ol"><i class="fa-solid fa-list-ol"></i></button>
                 </div>
-                <div id="solution" class="ce-text-area" contenteditable="true" placeholder="Explain the approach…"></div>
+                <div id="solutionEditor"
+                     class="ce-text-area"
+                     contenteditable="true"
+                     data-bind-textarea="#solution"
+                     placeholder="Explain the approach…"></div>
+                <textarea id="solution" class="form-control d-none" rows="6"></textarea>
               </div>
             </div>
 
@@ -919,7 +895,7 @@
               <div class="grid-3">
                 <div>
                   <label class="form-label">Compare Mode</label>
-                  <span class="i-btn" data-i-title="Compare Mode" data-i-text="How to compare expected vs actual output: exact, case-insensitive, tokenized, or floating-point tolerance.">i</span>
+                  <span class="i-btn" data-i-title="Compare Mode" data-i-text="How to compare expected vs actual output.">i</span>
                   <select id="compare_mode" class="form-select">
                     <option value="exact">exact</option>
                     <option value="icase">icase</option>
@@ -949,12 +925,12 @@
               <div class="grid-2 mt-2">
                 <div>
                   <label class="form-label">Float Abs Tol</label>
-                  <span class="i-btn" data-i-title="Float Abs Tol" data-i-text="Absolute tolerance for floating comparisons. Example: 1e-6. Used when compare_mode is float_abs.">i</span>
+                  <span class="i-btn" data-i-title="Float Abs Tol" data-i-text="Absolute tolerance for floating comparisons (float_abs).">i</span>
                   <input type="number" step="any" id="float_abs_tol" class="form-control" placeholder="e.g., 1e-6">
                 </div>
                 <div>
                   <label class="form-label">Float Rel Tol</label>
-                  <span class="i-btn" data-i-title="Float Rel Tol" data-i-text="Relative tolerance for floating comparisons (fraction of expected). Example: 1e-6. Used when compare_mode is float_rel.">i</span>
+                  <span class="i-btn" data-i-title="Float Rel Tol" data-i-text="Relative tolerance for floating comparisons (float_rel).">i</span>
                   <input type="number" step="any" id="float_rel_tol" class="form-control" placeholder="e.g., 1e-6">
                 </div>
               </div>
@@ -963,26 +939,38 @@
               </div>
             </div>
 
-            {{-- Languages (ONE section: runtime + limits + snippet) --}}
+            {{-- Languages --}}
             <div class="card-lite mb-3">
               <h6>Languages</h6>
               <div id="langsWrap"></div>
-              <button type="button" class="btn btn-sm btn-outline-primary mt-2" id="btnAddLang"><i class="fa fa-plus me-1"></i>Add Language</button>
-              <div class="form-help mt-1">Each language card includes runtime/cmds, resource limits, allow/deny and the starter snippet.</div>
+              <button type="button" class="btn btn-sm btn-outline-primary mt-2" id="btnAddLang">
+                <i class="fa fa-plus me-1"></i>Add Language
+              </button>
+              <div class="form-help mt-1">
+                Each language card includes runtime/cmds, limits, allow/deny and starter snippet.
+              </div>
             </div>
 
             {{-- Tests --}}
             <div class="card-lite mb-3">
               <h6>Tests</h6>
               <div id="testsWrap"></div>
-              <button type="button" class="btn btn-sm btn-outline-primary mt-2" id="btnAddTest"><i class="fa fa-plus me-1"></i>Add Test</button>
-              <div class="form-help mt-1">Drag to reorder. Use <strong>sample</strong> for visible tests and <strong>hidden</strong> for secret tests.</div>
+              <button type="button" class="btn btn-sm btn-outline-primary mt-2" id="btnAddTest">
+                <i class="fa fa-plus me-1"></i>Add Test
+              </button>
+              <div class="form-help mt-1">
+                Drag to reorder. Use <strong>sample</strong> for visible tests and <strong>hidden</strong> for secret tests.
+              </div>
             </div>
 
             {{-- Save/Delete --}}
             <div class="d-flex gap-2">
-              <button class="btn btn-primary" type="submit" id="btnSave"><i class="fa fa-save me-2"></i>Save</button>
-              <button class="btn btn-outline-danger" type="button" id="btnDelete"><i class="fa fa-trash me-2"></i>Delete</button>
+              <button class="btn btn-primary" type="submit" id="btnSave">
+                <i class="fa fa-save me-2"></i>Save
+              </button>
+              <button class="btn btn-outline-danger" type="button" id="btnDelete">
+                <i class="fa fa-trash me-2"></i>Delete
+              </button>
             </div>
           </form>
         </div>
@@ -992,7 +980,7 @@
   </div>
 </div>
 
-{{-- Toasts (shared) --}}
+{{-- Toasts --}}
 <div class="toast-container position-fixed top-0 end-0 p-3" style="z-index:1080">
   <div id="toastSuccess" class="toast align-items-center text-bg-success border-0" role="alert">
     <div class="d-flex">
@@ -1014,7 +1002,7 @@
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
 <script>
-/* ============== tiny shared helpers (not global polluted) ============== */
+/* ============== tiny helpers ============== */
 const _isDark = () => (localStorage.getItem('theme') === 'dark');
 const _esc = (s)=> (s??'').toString().replace(/[&<>"']/g, m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m]));
 const _debounce=(fn,ms=350)=>{let t;return(...a)=>{clearTimeout(t);t=setTimeout(()=>fn(...a),ms)}};
@@ -1023,8 +1011,52 @@ const _ok = (m)=>_toast('toastSuccess', m), _err=(m)=>_toast('toastError', m);
 function _getToken(){ return localStorage.getItem('token') || sessionStorage.getItem('token') || ''; }
 function _hdr(){ return { 'Authorization': `Bearer ${_getToken()}` }; }
 function _hdrJSON(){ return { ..._hdr(), 'Content-Type':'application/json' }; }
-function _toNum(v){ const n=Number(v); return Number.isFinite(n)?n:null; }
+/* IMPORTANT: empty string => null, so nullable validation works */
+function _toNum(v){
+  if (v === null || v === undefined) return null;
+  if (typeof v === 'string' && v.trim() === '') return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+}
 function _slugify(s){ return (s||'').toString().trim().toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'').slice(0,200); }
+
+/* ===== WYSIWYG helpers (Description / Explanation) ===== */
+function syncEditorsFromTextareas(){
+  document.querySelectorAll('[data-bind-textarea]').forEach(ed=>{
+    const sel = ed.getAttribute('data-bind-textarea');
+    const ta = sel ? document.querySelector(sel) : null;
+    if (!ta) return;
+    ed.innerHTML = ta.value || '';
+  });
+}
+function syncTextareasFromEditors(){
+  document.querySelectorAll('[data-bind-textarea]').forEach(ed=>{
+    const sel = ed.getAttribute('data-bind-textarea');
+    const ta = sel ? document.querySelector(sel) : null;
+    if (!ta) return;
+    ta.value = ed.innerHTML.trim();
+  });
+}
+function initEditors(){
+  syncEditorsFromTextareas();
+  document.querySelectorAll('.ce-text-toolbar').forEach(tb=>{
+    const targetSel = tb.getAttribute('data-target');
+    const editor = targetSel ? document.querySelector(targetSel) : null;
+    if (!editor) return;
+    tb.querySelectorAll('button[data-cmd]').forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        const cmd = btn.getAttribute('data-cmd');
+        editor.focus();
+        if(cmd === 'h1'){ document.execCommand('formatBlock', false, 'H1'); return; }
+        if(cmd === 'h2'){ document.execCommand('formatBlock', false, 'H2'); return; }
+        if(cmd === 'p'){ document.execCommand('formatBlock', false, 'P'); return; }
+        if(cmd === 'ul'){ document.execCommand('insertUnorderedList', false, null); return; }
+        if(cmd === 'ol'){ document.execCommand('insertOrderedList', false, null); return; }
+        document.execCommand(cmd, false, null);
+      });
+    });
+  });
+}
 
 (function(){
   "use strict";
@@ -1036,9 +1068,8 @@ function _slugify(s){ return (s||'').toString().trim().toLowerCase().replace(/[^
   }
 
   // ===== Presets for dropdowns =====
-  const LANGUAGE_OPTIONS = [
-    'python','cpp','c','java','javascript','typescript','go','ruby','rust','php','csharp','kotlin'
-  ];
+  // Only basic languages now: C, C++, Java, Python
+  const LANGUAGE_OPTIONS = ['c','cpp','java','python'];
   const LANGUAGE_RUNTIMES = {
     python:     ['piston','judge0','dockerlocal'],
     cpp:        ['judge0','dockerlocal','piston'],
@@ -1057,35 +1088,29 @@ function _slugify(s){ return (s||'').toString().trim().toLowerCase().replace(/[^
   const runtimeOptionsFor = (lang)=> LANGUAGE_RUNTIMES[lang] || RUNTIME_FALLBACK;
 
   // ===== API =====
- const API = {
-  list:    () => fetch(`/api/coding_questions?topic_id=${TOPIC_ID}&module_id=${MODULE_ID}&per_page=200`, { headers: _hdr() }),
-
-  get:     id => fetch(`/api/coding_questions/${id}`, { headers: _hdr() }),
-
-  create:  payload => fetch('/api/coding_questions', {
-                method:'POST',
-                headers: _hdrJSON(),
-                body: JSON.stringify(payload)
-             }),
-
-  update: (id,payload)=> fetch(`/api/coding_questions/${id}`, {
-                method:'PUT',
-                headers: _hdrJSON(),
-                body: JSON.stringify(payload)
-             }),
-
-  delete:  id => fetch(`/api/coding_questions/${id}`, {
-                method:'DELETE',
-                headers: _hdr()
-             }),
-
-  reorder: order => fetch('/api/coding_questions/reorder', {
-                method:'POST',
-                headers: _hdrJSON(),
-                body: JSON.stringify({ order })
-             }),
-};
-
+  const API = {
+    list:    () => fetch(`/api/coding_questions?topic_id=${TOPIC_ID}&module_id=${MODULE_ID}&per_page=200`, { headers: _hdr() }),
+    get:     id => fetch(`/api/coding_questions/${id}`, { headers: _hdr() }),
+    create:  payload => fetch('/api/coding_questions', {
+                  method:'POST',
+                  headers: _hdrJSON(),
+                  body: JSON.stringify(payload)
+               }),
+    update: (id,payload)=> fetch(`/api/coding_questions/${id}`, {
+                  method:'PUT',
+                  headers: _hdrJSON(),
+                  body: JSON.stringify(payload)
+               }),
+    delete:  id => fetch(`/api/coding_questions/${id}`, {
+                  method:'DELETE',
+                  headers: _hdr()
+               }),
+    reorder: order => fetch('/api/coding_questions/reorder', {
+                  method:'POST',
+                  headers: _hdrJSON(),
+                  body: JSON.stringify({ order })
+               }),
+  };
 
   // ===== DOM =====
   const qList = document.getElementById('qList');
@@ -1112,11 +1137,10 @@ function _slugify(s){ return (s||'').toString().trim().toLowerCase().replace(/[^
   const float_abs_tol   = document.getElementById('float_abs_tol');
   const float_rel_tol   = document.getElementById('float_rel_tol');
 
-  // Tags chips
-  const tagsChips = document.getElementById('tagsChips');
-  const tagsInput = document.getElementById('tagsInput');
+  // Tags (simple)
+  const tagsInput = document.getElementById('tags');
 
-  // Languages unified
+  // Languages
   const langsWrap  = document.getElementById('langsWrap');
   const btnAddLang = document.getElementById('btnAddLang');
 
@@ -1128,36 +1152,16 @@ function _slugify(s){ return (s||'').toString().trim().toLowerCase().replace(/[^
   const btnDelete = document.getElementById('btnDelete');
   const saveStatus = document.getElementById('saveStatus');
 
+  // WYSIWYG init (description/explanation)
+  initEditors();
+
   // ===== State =====
   let all = [];
   let view = [];
   let currentId = null;
 
-  let langBlocks = []; // unified rows
+  let langBlocks = [];
   let testRows   = [];
-
-  let tags = []; // chips
-  let activeEditor; // <-- declare once
-
-  // ===== Chips =====
-  function renderChips(){
-    tagsChips.innerHTML = '';
-    tags.forEach((t,i)=>{
-      const chip = document.createElement('span');
-      chip.className = 'chip';
-      chip.innerHTML = `<i class="fa fa-tag"></i> ${_esc(t)} <span class="x" title="remove">✕</span>`;
-      chip.querySelector('.x').addEventListener('click', ()=>{ tags.splice(i,1); renderChips(); });
-      tagsChips.appendChild(chip);
-    });
-  }
-  tagsInput.addEventListener('keydown', (e)=>{
-    if(e.key==='Enter'){
-      e.preventDefault();
-      const v = tagsInput.value.trim();
-      if(v && !tags.includes(v)){ tags.push(v); renderChips(); }
-      tagsInput.value='';
-    }
-  });
 
   // ===== List loading =====
   async function loadList(){
@@ -1170,7 +1174,9 @@ function _slugify(s){ return (s||'').toString().trim().toLowerCase().replace(/[^
       qCount.textContent = `${all.length} total`;
       applyFilter();
       if (all.length) select(all[0].id); else resetForm();
-    }catch(e){ qList.innerHTML = `<div class="p-3 text-danger tiny">Failed to load</div>`; }
+    }catch(e){
+      qList.innerHTML = `<div class="p-3 text-danger tiny">Failed to load</div>`;
+    }
   }
 
   function applyFilter(){
@@ -1236,7 +1242,9 @@ function _slugify(s){ return (s||'').toString().trim().toLowerCase().replace(/[^
 
   // ===== Select item =====
   async function select(id){
-    currentId = id; markActive(); saveStatus.textContent = 'Loading…';
+    currentId = id;
+    markActive();
+    saveStatus.textContent = 'Loading…';
     try{
       const json = await API.get(id).then(r=>r.json());
       const q = json.data || json.question || json;
@@ -1249,8 +1257,11 @@ function _slugify(s){ return (s||'').toString().trim().toLowerCase().replace(/[^
       difficulty.value = q.difficulty || 'medium';
       sort_order.value = q.sort_order ?? 0;
 
-      desc.innerHTML = q.description || '';
-      solution.innerHTML = q.solution || '';
+      desc.value = q.description || '';
+      solution.value = q.solution || '';
+
+      // Sync WYSIWYG editors with textarea values
+      syncEditorsFromTextareas();
 
       // Checker
       compare_mode.value    = q.compare_mode || 'exact';
@@ -1260,10 +1271,15 @@ function _slugify(s){ return (s||'').toString().trim().toLowerCase().replace(/[^
       float_rel_tol.value   = q.float_rel_tol ?? '';
 
       // Tags
-      tags = Array.isArray(q.tags) ? q.tags.slice(0) : [];
-      renderChips();
+      if (Array.isArray(q.tags)) {
+        tagsInput.value = q.tags.join(', ');
+      } else if (typeof q.tags === 'string') {
+        tagsInput.value = q.tags;
+      } else {
+        tagsInput.value = '';
+      }
 
-      // Languages unified (merge languages + snippets by language_key)
+      // Languages (merge languages + snippets by language_key)
       const langs = Array.isArray(q.languages) ? q.languages : (q.question_languages||[]);
       const snips = Array.isArray(q.snippets)  ? q.snippets  : (q.question_snippets||[]);
       const snipMap = new Map(snips.map(s=>[s.language_key, s]));
@@ -1307,16 +1323,24 @@ function _slugify(s){ return (s||'').toString().trim().toLowerCase().replace(/[^
       });
       renderLangs();
 
-      // Tests
+      // Tests (keep id so backend updates instead of duplicating)
       testRows = (q.tests || q.question_tests || []).map((t,i)=>({
-        id:t.id, uid:t.uid||null, visibility:t.visibility||'hidden',
-        input:t.input ?? '', expected:t.expected ?? '',
-        score: t.score ?? 1, is_active: !!t.is_active, sort_order: t.sort_order ?? i
+        id: t.id || null,
+        visibility: t.visibility || 'hidden',
+        input: t.input ?? '',
+        expected: t.expected ?? '',
+        score: t.score ?? 1,
+        is_active: !!t.is_active,
+        sort_order: t.sort_order ?? i
       }));
       renderTests();
 
-      saveStatus.textContent = 'Loaded'; setTimeout(()=> saveStatus.textContent='—', 800);
-    }catch(e){ _err('Failed to load question'); saveStatus.textContent = 'Error'; }
+      saveStatus.textContent = 'Loaded';
+      setTimeout(()=> saveStatus.textContent='—', 800);
+    }catch(e){
+      _err('Failed to load question');
+      saveStatus.textContent = 'Error';
+    }
   }
 
   function normalizeToArray(v){
@@ -1330,18 +1354,32 @@ function _slugify(s){ return (s||'').toString().trim().toLowerCase().replace(/[^
 
   function resetForm(){
     form.reset();
-    qid.value=''; title.value=''; slug.value='';
-    desc.innerHTML=''; solution.innerHTML='';
-    compare_mode.value='exact'; trim_output.value='1'; whitespace_mode.value='trim';
-    float_abs_tol.value=''; float_rel_tol.value='';
-    tags = []; renderChips();
-    langBlocks=[]; renderLangs();
-    testRows=[]; renderTests();
+    qid.value='';
+    title.value='';
+    slug.value='';
+    desc.value='';
+    solution.value='';
+    compare_mode.value='exact';
+    trim_output.value='1';
+    whitespace_mode.value='trim';
+    float_abs_tol.value='';
+    float_rel_tol.value='';
+    tagsInput.value = '';
+    langBlocks=[];
+    renderLangs();
+    testRows=[];
+    renderTests();
+    // Reset editors
+    syncEditorsFromTextareas();
   }
 
   // ===== Language block UI =====
   function optionsHTML(list, selected){
-    return list.map(v=>`<option value="${_esc(v)}" ${selected===v?'selected':''}>${_esc(v)}</option>`).join('');
+    const labelMap = { python:'Python', cpp:'C++', c:'C', java:'Java' };
+    return list.map(v=>{
+      const label = labelMap[v] || v;
+      return `<option value="${_esc(v)}" ${selected===v?'selected':''}>${_esc(label)}</option>`;
+    }).join('');
   }
 
   function langCard(row, idx){
@@ -1385,10 +1423,10 @@ function _slugify(s){ return (s||'').toString().trim().toLowerCase().replace(/[^
         <div class="grid-3 mt-2">
           <div>
             <label class="form-label">compile_cmd</label>
-            <span class="i-btn" data-i-title="Compile command" data-i-text="Compilation command for compiled languages. Leave empty for interpreted languages. Example: gcc -O2 main.c -o main">i</span>
+            <span class="i-btn" data-i-title="Compile command" data-i-text="Compilation command for compiled languages. Leave empty for interpreted languages.">i</span>
             <input class="form-control lang_compile_cmd" value="${_esc(row.compile_cmd||'')}" placeholder="gcc -O2 main.c -o main">
           </div>
-            <div>
+          <div>
             <label class="form-label">run_cmd</label>
             <span class="i-btn" data-i-title="Run command" data-i-text="How to execute the program. Example: ./main or python3 main.py">i</span>
             <input class="form-control lang_run_cmd" value="${_esc(row.run_cmd||'')}" placeholder="./main or python3 main.py">
@@ -1417,21 +1455,17 @@ function _slugify(s){ return (s||'').toString().trim().toLowerCase().replace(/[^
             <div>
               <label class="form-label">allow_label</label>
               <select class="form-select lang_allow_label">
-                ${optionsHTML(['headers','imports','modules','packages','paths','none'], row.allow_label||'')}
+                ${['headers','imports','modules','packages','paths','none'].map(v=>`<option value="${_esc(v)}" ${row.allow_label===v?'selected':''}>${_esc(v)}</option>`).join('')}
               </select>
             </div>
             <div>
-              <label class="form-label">allow (chips)</label>
-              <span class="i-btn" data-i-title="Allow list" data-i-text="Whitelist of permitted headers/imports/modules depending on language/runtime. Press Enter to add.">i</span>
-              <div class="chips chips-allow"></div>
-              <input class="form-control chips-input chips-allow-input mt-1" placeholder="Add item and press Enter" value="${_esc((row.allow||[]).join(', '))}" data-prefill>
+              <label class="form-label">allow (comma separated)</label>
+              <input class="form-control lang_allow" value="${_esc((row.allow||[]).join(', '))}" placeholder="e.g., iostream, vector">
             </div>
           </div>
           <div class="mt-2">
-            <label class="form-label">forbid_regex (chips)</label>
-            <span class="i-btn" data-i-title="Forbidden patterns" data-i-text="Regex patterns to block dangerous code or APIs. Press Enter to add.">i</span>
-            <div class="chips chips-forbid"></div>
-            <input class="form-control chips-input chips-forbid-input mt-1" placeholder="Add pattern and press Enter" value="${_esc((row.forbid_regex||[]).join(', '))}" data-prefill>
+            <label class="form-label">forbid_regex (comma separated)</label>
+            <input class="form-control lang_forbid" value="${_esc((row.forbid_regex||[]).join(', '))}" placeholder="e.g., system\\(">
           </div>
         </details>
 
@@ -1440,7 +1474,7 @@ function _slugify(s){ return (s||'').toString().trim().toLowerCase().replace(/[^
           <div class="grid-3 mt-2">
             <div>
               <label class="form-label">entry_hint</label>
-              <span class="i-btn" data-i-title="Entry hint" data-i-text="Short instruction shown next to the starter code (e.g., 'Implement solve()').">i</span>
+              <span class="i-btn" data-i-title="Entry hint" data-i-text="Short instruction shown next to the starter code.">i</span>
               <input class="form-control snip_entry_hint" value="${_esc(row.entry_hint||'')}" placeholder="Implement solve()">
             </div>
             <div>
@@ -1453,7 +1487,7 @@ function _slugify(s){ return (s||'').toString().trim().toLowerCase().replace(/[^
           </div>
           <div class="mt-2">
             <label class="form-label">template</label>
-            <span class="i-btn" data-i-title="Template" data-i-text="Starter code provided to the user. Keep it minimal, compile-ready, and consistent with runtime/commands.">i</span>
+            <span class="i-btn" data-i-title="Template" data-i-text="Starter code provided to the user.">i</span>
             <textarea class="form-control snip_template" rows="6" placeholder="// starter code…">${_esc(row.template||'')}</textarea>
           </div>
         </details>
@@ -1461,100 +1495,51 @@ function _slugify(s){ return (s||'').toString().trim().toLowerCase().replace(/[^
     `;
   }
 
-  function renderChipSet(container, items, onChange){
-    container.innerHTML = '';
-    (items||[]).forEach((t,i)=>{
-      const chip = document.createElement('span');
-      chip.className = 'chip me-1 mb-1';
-      chip.innerHTML = `<i class="fa fa-tag"></i> ${_esc(t)} <span class="x" title="remove">✕</span>`;
-      chip.querySelector('.x').addEventListener('click', ()=>{
-        const arr = (items||[]).slice(0); arr.splice(i,1); onChange(arr); renderChipSet(container, arr, onChange);
-      });
-      container.appendChild(chip);
-    });
-  }
-
   function renderLangs(){
-    langsWrap.innerHTML = langBlocks.map((r,i)=>langCard(r,i)).join('') || `<div class="text-muted small">No languages yet.</div>`;
+    if (!langBlocks.length){
+      langsWrap.innerHTML = `<div class="text-muted small">No languages yet.</div>`;
+      attachInfoButtons();
+      return;
+    }
+    langsWrap.innerHTML = langBlocks.map((r,i)=>langCard(r,i)).join('');
 
     // delete handlers
     langsWrap.querySelectorAll('.btnDelLang').forEach(btn=>{
       btn.addEventListener('click', e=>{
         const card = e.target.closest('[data-lang]');
         const idx = parseInt(card.dataset.lang,10);
-        langBlocks.splice(idx,1); renderLangs();
+        langBlocks.splice(idx,1);
+        renderLangs();
       });
     });
 
-    // drag ordering + dependent dropdowns + chips
+    // drag reorder
     langsWrap.querySelectorAll('[data-lang]').forEach(card=>{
       card.draggable = true;
-      card.addEventListener('dragstart', e=>{ card.classList.add('opacity-50'); e.dataTransfer.effectAllowed='move'; });
-      card.addEventListener('dragend', e=>{ card.classList.remove('opacity-50'); });
-      card.addEventListener('dragover', e=>{ e.preventDefault(); card.classList.add('bg-light'); });
-      card.addEventListener('dragleave', e=>{ card.classList.remove('bg-light'); });
+      card.addEventListener('dragstart', e=>{
+        card.classList.add('opacity-50');
+        e.dataTransfer.effectAllowed='move';
+      });
+      card.addEventListener('dragend', e=>{
+        card.classList.remove('opacity-50');
+        langsWrap.querySelectorAll('.bg-light').forEach(n=>n.classList.remove('bg-light'));
+      });
+      card.addEventListener('dragover', e=>{
+        e.preventDefault();
+        card.classList.add('bg-light');
+      });
+      card.addEventListener('dragleave', e=>{
+        card.classList.remove('bg-light');
+      });
       card.addEventListener('drop', e=>{
-        e.preventDefault(); card.classList.remove('bg-light');
-        const from = parseInt(document.querySelector('[data-lang].opacity-50')?.dataset.lang, 10);
+        e.preventDefault();
+        card.classList.remove('bg-light');
+        const from = parseInt(langsWrap.querySelector('[data-lang].opacity-50')?.dataset.lang, 10);
         const to   = parseInt(card.dataset.lang, 10);
         if (Number.isInteger(from) && Number.isInteger(to) && from !== to) {
           const row = langBlocks.splice(from, 1)[0];
           langBlocks.splice(to, 0, row);
           renderLangs();
-        }
-      });
-
-      const idx = parseInt(card.dataset.lang,10);
-      const selLang = card.querySelector('.lang_language_key');
-      const selRun  = card.querySelector('.lang_runtime_key');
-
-      selLang.addEventListener('change', ()=>{
-        const newLang = selLang.value;
-        const allowed = runtimeOptionsFor(newLang);
-        const current = selRun.value;
-        const chosen = allowed.includes(current) ? current : allowed[0];
-        selRun.innerHTML = allowed.map(v=>`<option value="${_esc(v)}" ${chosen===v?'selected':''}>${_esc(v)}</option>`).join('');
-        if (langBlocks[idx]){
-          langBlocks[idx].language_key = newLang;
-          langBlocks[idx].runtime_key  = chosen;
-          if(!langBlocks[idx].source_filename){ langBlocks[idx].source_filename = defaultSourceFilename(newLang); }
-          if(!langBlocks[idx].run_cmd){ langBlocks[idx].run_cmd = defaultRunCmd(newLang); }
-          if(newLang==='python' && !langBlocks[idx].compile_cmd){ langBlocks[idx].compile_cmd=''; }
-        }
-      });
-      selRun.addEventListener('change', ()=>{ if (langBlocks[idx]) langBlocks[idx].runtime_key = selRun.value; });
-
-      // init chips
-      const allowInput  = card.querySelector('.chips-allow-input');
-      const forbidInput = card.querySelector('.chips-forbid-input');
-      const allowWrap   = card.querySelector('.chips-allow');
-      const forbidWrap  = card.querySelector('.chips-forbid');
-
-      // prefill from the visible CSV (first render only)
-      if (allowInput?.dataset.prefill) {
-        const arr = (allowInput.value||'').split(',').map(s=>s.trim()).filter(Boolean);
-        if (!langBlocks[idx].allow?.length) langBlocks[idx].allow = arr;
-        delete allowInput.dataset.prefill;
-      }
-      if (forbidInput?.dataset.prefill) {
-        const arr = (forbidInput.value||'').split(',').map(s=>s.trim()).filter(Boolean);
-        if (!langBlocks[idx].forbid_regex?.length) langBlocks[idx].forbid_regex = arr;
-        delete forbidInput.dataset.prefill;
-      }
-
-      renderChipSet(allowWrap,  langBlocks[idx].allow,        v=>{ langBlocks[idx].allow = v; });
-      renderChipSet(forbidWrap, langBlocks[idx].forbid_regex, v=>{ langBlocks[idx].forbid_regex = v; });
-
-      allowInput?.addEventListener('keydown', e=>{
-        if(e.key==='Enter'){ e.preventDefault(); const v = allowInput.value.trim();
-          if(v && !langBlocks[idx].allow.includes(v)){ langBlocks[idx].allow.push(v); }
-          allowInput.value=''; renderChipSet(allowWrap, langBlocks[idx].allow, v=>{ langBlocks[idx].allow=v; });
-        }
-      });
-      forbidInput?.addEventListener('keydown', e=>{
-        if(e.key==='Enter'){ e.preventDefault(); const v = forbidInput.value.trim();
-          if(v && !langBlocks[idx].forbid_regex.includes(v)){ langBlocks[idx].forbid_regex.push(v); }
-          forbidInput.value=''; renderChipSet(forbidWrap, langBlocks[idx].forbid_regex, v=>{ langBlocks[idx].forbid_regex=v; });
         }
       });
     });
@@ -1568,14 +1553,6 @@ function _slugify(s){ return (s||'').toString().trim().toLowerCase().replace(/[^
       case 'cpp': return 'main.cpp';
       case 'c': return 'main.c';
       case 'java': return 'Main.java';
-      case 'javascript': return 'main.js';
-      case 'typescript': return 'main.ts';
-      case 'go': return 'main.go';
-      case 'ruby': return 'main.rb';
-      case 'rust': return 'main.rs';
-      case 'php': return 'main.php';
-      case 'csharp': return 'Program.cs';
-      case 'kotlin': return 'Main.kt';
       default: return 'main.txt';
     }
   }
@@ -1585,21 +1562,16 @@ function _slugify(s){ return (s||'').toString().trim().toLowerCase().replace(/[^
       case 'cpp': return './main';
       case 'c': return './main';
       case 'java': return 'java Main';
-      case 'javascript': return 'node main.js';
-      case 'typescript': return 'ts-node main.ts';
-      case 'go': return './main';
-      case 'ruby': return 'ruby main.rb';
-      case 'rust': return './main';
-      case 'php': return 'php main.php';
-      case 'csharp': return './main';
-      case 'kotlin': return 'java -jar main.jar';
       default: return './main';
     }
   }
 
-  // IMPORTANT FIX: ensure the Add Language button is unique to this tab
   btnAddLang.addEventListener('click', ()=>{
-    const lang = 'python';
+    // choose a default language not yet used if possible
+    let lang = 'python';
+    for (const opt of LANGUAGE_OPTIONS){
+      if (!langBlocks.some(b => b.language_key === opt)) { lang = opt; break; }
+    }
     const allowed = runtimeOptionsFor(lang);
     langBlocks.push({
       language_key: lang,
@@ -1618,7 +1590,7 @@ function _slugify(s){ return (s||'').toString().trim().toLowerCase().replace(/[^
   // ===== Tests UI =====
   function testCard(row, idx){
     return `
-      <div class="test-row" data-test="${idx}">
+      <div class="test-row" data-test="${idx}" data-id="${row.id ?? ''}">
         <div class="d-flex align-items-center gap-2 mb-2">
           <span class="drag"><i class="fa fa-grip-vertical"></i></span>
           <strong class="me-auto">Test #${idx+1}</strong>
@@ -1652,67 +1624,128 @@ function _slugify(s){ return (s||'').toString().trim().toLowerCase().replace(/[^
   }
 
   function renderTests(){
-    testsWrap.innerHTML = testRows.map((r,i)=>testCard(r,i)).join('') || `<div class="text-muted small">No tests yet.</div>`;
+    if (!testRows.length){
+      testsWrap.innerHTML = `<div class="text-muted small">No tests yet.</div>`;
+      attachInfoButtons();
+      return;
+    }
+
+    testsWrap.innerHTML = testRows.map((r,i)=>testCard(r,i)).join('');
+
     testsWrap.querySelectorAll('.btnDelTest').forEach(btn=>{
       btn.addEventListener('click', e=>{
         const row = e.target.closest('[data-test]');
         const idx = parseInt(row.dataset.test,10);
-        testRows.splice(idx,1); renderTests();
+        testRows.splice(idx,1);
+        renderTests();
       });
     });
-    // drag
+
+    // drag reorder
     testsWrap.querySelectorAll('[data-test]').forEach(card=>{
       card.draggable=true;
-      card.addEventListener('dragstart', e=>{ card.classList.add('opacity-50'); e.dataTransfer.effectAllowed='move'; });
-      card.addEventListener('dragend', e=>{ card.classList.remove('opacity-50'); });
-      card.addEventListener('dragover', e=>{ e.preventDefault(); card.classList.add('bg-light'); });
-      card.addEventListener('dragleave', e=>{ card.classList.remove('bg-light'); });
+      card.addEventListener('dragstart', e=>{
+        card.classList.add('opacity-50');
+        e.dataTransfer.effectAllowed='move';
+      });
+      card.addEventListener('dragend', e=>{
+        card.classList.remove('opacity-50');
+        testsWrap.querySelectorAll('.bg-light').forEach(n=>n.classList.remove('bg-light'));
+      });
+      card.addEventListener('dragover', e=>{
+        e.preventDefault();
+        card.classList.add('bg-light');
+      });
+      card.addEventListener('dragleave', e=>{
+        card.classList.remove('bg-light');
+      });
       card.addEventListener('drop', e=>{
-        e.preventDefault(); card.classList.remove('bg-light');
-        const from = parseInt(document.querySelector('[data-test].opacity-50')?.dataset.test,10);
+        e.preventDefault();
+        card.classList.remove('bg-light');
+        const from = parseInt(testsWrap.querySelector('[data-test].opacity-50')?.dataset.test,10);
         const to   = parseInt(card.dataset.test,10);
         if(Number.isInteger(from) && Number.isInteger(to) && from!==to){
-          const row = testRows.splice(from,1)[0]; testRows.splice(to,0,row); renderTests();
+          const row = testRows.splice(from,1)[0];
+          testRows.splice(to,0,row);
+          renderTests();
         }
       });
     });
 
     attachInfoButtons();
   }
+
   btnAddTest.addEventListener('click', ()=>{
-    testRows.push({visibility:'sample', input:'', expected:'', score:1, is_active:true, sort_order:testRows.length});
+    testRows.push({
+      id: null,
+      visibility:'sample',
+      input:'',
+      expected:'',
+      score:1,
+      is_active:true,
+      sort_order:testRows.length
+    });
     renderTests();
   });
 
   // ===== Left list DnD persist =====
   let dragSrc = null;
-  function onDragStart(e){ dragSrc = e.currentTarget; e.dataTransfer.effectAllowed='move'; e.currentTarget.classList.add('opacity-50'); }
-  function onDragOver(e){ e.preventDefault(); e.dataTransfer.dropEffect='move'; e.currentTarget.classList.add('bg-light'); }
-  function onDragLeave(e){ e.currentTarget.classList.remove('bg-light'); }
+  function onDragStart(e){
+    dragSrc = e.currentTarget;
+    e.dataTransfer.effectAllowed='move';
+    e.currentTarget.classList.add('opacity-50');
+  }
+  function onDragOver(e){
+    e.preventDefault();
+    e.dataTransfer.dropEffect='move';
+    e.currentTarget.classList.add('bg-light');
+  }
+  function onDragLeave(e){
+    e.currentTarget.classList.remove('bg-light');
+  }
   async function onDrop(e){
     e.preventDefault();
-    const target = e.currentTarget; target.classList.remove('bg-light'); if (dragSrc === target) return;
+    const target = e.currentTarget;
+    target.classList.remove('bg-light');
+    if (dragSrc === target) return;
     const rect = target.getBoundingClientRect();
     const before = (e.clientY - rect.top) < rect.height/2;
     if(before) target.parentNode.insertBefore(dragSrc, target);
     else target.parentNode.insertBefore(dragSrc, target.nextSibling);
     await persistOrder();
   }
-  function onDragEnd(e){ e.currentTarget.classList.remove('opacity-50'); qList.querySelectorAll('.bg-light').forEach(n=>n.classList.remove('bg-light')); }
-  function getIdsFromDOM(){ return Array.from(qList.querySelectorAll('.q-item')).map(n=>parseInt(n.dataset.id,10)).filter(Boolean); }
+  function onDragEnd(e){
+    e.currentTarget.classList.remove('opacity-50');
+    qList.querySelectorAll('.bg-light').forEach(n=>n.classList.remove('bg-light'));
+  }
+  function getIdsFromDOM(){
+    return Array.from(qList.querySelectorAll('.q-item')).map(n=>parseInt(n.dataset.id,10)).filter(Boolean);
+  }
   async function persistOrder(){
     const ids = getIdsFromDOM();
     try{
       const r = await API.reorder(ids).then(r=>r.json());
       if (r.status !== 'success') throw new Error(r.message||'Reorder failed');
       _ok('Order updated');
-      const map = new Map(all.map(x=>[x.id,x])); ids.forEach((id,i)=>{ const row = map.get(id); if(row) row.sort_order = i; });
-    }catch(e){ _err(e.message||'Reorder failed'); }
+      const map = new Map(all.map(x=>[x.id,x]));
+      ids.forEach((id,i)=>{ const row = map.get(id); if(row) row.sort_order = i; });
+    }catch(e){
+      _err(e.message||'Reorder failed');
+    }
   }
 
   // ===== Create / Update / Delete =====
-  btnAdd.addEventListener('click', ()=>{ resetForm(); currentId=null; markActive(); title.focus(); });
-  title.addEventListener('input', ()=>{ if (!slug.value) slug.value = _slugify(title.value); });
+  btnAdd.addEventListener('click', ()=>{
+    resetForm();
+    currentId=null;
+    markActive();
+    title.focus();
+  });
+  btnRefresh.addEventListener('click', loadList);
+
+  title.addEventListener('input', ()=>{
+    if (!slug.value) slug.value = _slugify(title.value);
+  });
 
   form.addEventListener('submit', async (e)=>{
     e.preventDefault();
@@ -1720,13 +1753,17 @@ function _slugify(s){ return (s||'').toString().trim().toLowerCase().replace(/[^
     if(!title.value.trim()) return;
 
     try{
-      btnSave.disabled = true; btnSave.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Saving…';
+      btnSave.disabled = true;
+      btnSave.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Saving…';
       saveStatus.textContent = 'Saving…';
 
       const payload = buildPayload();
       let json;
-      if(qid.value){ json = await API.update(qid.value, payload).then(r=>r.json()); }
-      else{ json = await API.create(payload).then(r=>r.json()); }
+      if(qid.value){
+        json = await API.update(qid.value, payload).then(r=>r.json());
+      } else {
+        json = await API.create(payload).then(r=>r.json());
+      }
 
       if (json.status !== 'success') throw new Error(json.message || 'Save failed');
 
@@ -1735,9 +1772,12 @@ function _slugify(s){ return (s||'').toString().trim().toLowerCase().replace(/[^
       await loadList();
       const newId = json.data?.id || qid.value;
       if (newId) select(newId);
-    }catch(err){ _err(err.message || 'Save failed'); saveStatus.textContent = 'Error';
+    }catch(err){
+      _err(err.message || 'Save failed');
+      saveStatus.textContent = 'Error';
     }finally{
-      btnSave.disabled = false; btnSave.innerHTML = '<i class="fa fa-save me-2"></i>Save';
+      btnSave.disabled = false;
+      btnSave.innerHTML = '<i class="fa fa-save me-2"></i>Save';
       setTimeout(()=> saveStatus.textContent='—', 1000);
     }
   });
@@ -1759,15 +1799,30 @@ function _slugify(s){ return (s||'').toString().trim().toLowerCase().replace(/[^
     try{
       const r = await API.delete(qid.value).then(r=>r.json());
       if (r.status !== 'success') throw new Error(r.message||'Delete failed');
-      _ok('Deleted'); await loadList(); resetForm(); currentId = null; markActive();
-    }catch(e){ _err(e.message||'Delete failed'); }
+      _ok('Deleted');
+      await loadList();
+      resetForm();
+      currentId = null;
+      markActive();
+    }catch(e){
+      _err(e.message||'Delete failed');
+    }
   });
 
   function buildPayload(){
-    // sync langBlocks with DOM inputs before assembling payload
-    langBlocks = Array.from(langsWrap.querySelectorAll('[data-lang]')).map((card,i)=>{
+    // sync WYSIWYG editors into hidden textareas
+    syncTextareasFromEditors();
+
+    // sync langBlocks with DOM inputs
+    const cards = Array.from(langsWrap.querySelectorAll('[data-lang]'));
+    const updatedLangs = cards.map((card,i)=>{
       const idx = parseInt(card.dataset.lang,10);
       const base = langBlocks[idx] || {};
+      const allowStr  = card.querySelector('.lang_allow').value || '';
+      const forbidStr = card.querySelector('.lang_forbid').value || '';
+      const allows = allowStr.split(',').map(s=>s.trim()).filter(Boolean);
+      const forbids = forbidStr.split(',').map(s=>s.trim()).filter(Boolean);
+
       return {
         language_key: card.querySelector('.lang_language_key').value.trim(),
         runtime_key:  card.querySelector('.lang_runtime_key').value.trim(),
@@ -1783,8 +1838,8 @@ function _slugify(s){ return (s||'').toString().trim().toLowerCase().replace(/[^
         max_stdin_tokens: _toNum(card.querySelector('.lang_max_stdin_tokens').value),
         max_args:         _toNum(card.querySelector('.lang_max_args').value),
         allow_label:   card.querySelector('.lang_allow_label').value.trim() || null,
-        allow:         (base.allow||[]),
-        forbid_regex:  (base.forbid_regex||[]),
+        allow:         allows.length ? allows : [],
+        forbid_regex:  forbids.length ? forbids : [],
         is_enabled:    card.querySelector('.lang_enabled').checked,
         sort_order:    i,
         entry_hint:    card.querySelector('.snip_entry_hint').value.trim(),
@@ -1792,9 +1847,11 @@ function _slugify(s){ return (s||'').toString().trim().toLowerCase().replace(/[^
         is_default:    card.querySelector('.snip_is_default').value === '1'
       };
     });
+    langBlocks = updatedLangs;
 
-    // collect tests from DOM
+    // collect tests from DOM (keep id so backend updates instead of duplicating)
     testRows = Array.from(testsWrap.querySelectorAll('[data-test]')).map((card,i)=>({
+      id: card.getAttribute('data-id') ? Number(card.getAttribute('data-id')) : undefined,
       visibility: card.querySelector('.t_visibility').value,
       input: card.querySelector('.t_input').value,
       expected: card.querySelector('.t_expected').value,
@@ -1803,35 +1860,49 @@ function _slugify(s){ return (s||'').toString().trim().toLowerCase().replace(/[^
       sort_order: i
     }));
 
-    // split unified langBlocks into backend arrays
-    const languages = langBlocks.map(b=>({
-      language_key: b.language_key,
-      runtime_key: b.runtime_key,
-      source_filename: b.source_filename,
-      compile_cmd: b.compile_cmd,
-      run_cmd: b.run_cmd,
-      stdout_kb_max: b.stdout_kb_max,
-      time_limit_ms: b.time_limit_ms,
-      memory_limit_kb: b.memory_limit_kb,
-      line_limit: b.line_limit,
-      byte_limit: b.byte_limit,
-      max_inputs: b.max_inputs,
-      max_stdin_tokens: b.max_stdin_tokens,
-      max_args: b.max_args,
-      allow_label: b.allow_label,
-      allow: b.allow,
-      forbid_regex: b.forbid_regex,
-      is_enabled: b.is_enabled,
-      sort_order: b.sort_order
-    }));
+    // dedupe languages by language_key (avoid DB unique errors on snippets)
+    const seenLangs = new Set();
+    const languages = [];
+    const snippets = [];
+    langBlocks.forEach((b,i)=>{
+      if (!b.language_key) return;
+      if (seenLangs.has(b.language_key)) return;
+      seenLangs.add(b.language_key);
 
-    const snippets = langBlocks.map(b=>({
-      language_key: b.language_key,
-      entry_hint: b.entry_hint,
-      template: b.template,
-      is_default: b.is_default,
-      sort_order: b.sort_order
-    }));
+      languages.push({
+        language_key: b.language_key,
+        runtime_key: b.runtime_key,
+        source_filename: b.source_filename,
+        compile_cmd: b.compile_cmd,
+        run_cmd: b.run_cmd,
+        stdout_kb_max: b.stdout_kb_max,
+        time_limit_ms: b.time_limit_ms,
+        memory_limit_kb: b.memory_limit_kb,
+        line_limit: b.line_limit,
+        byte_limit: b.byte_limit,
+        max_inputs: b.max_inputs,
+        max_stdin_tokens: b.max_stdin_tokens,
+        max_args: b.max_args,
+        allow_label: b.allow_label,
+        allow: b.allow,
+        forbid_regex: b.forbid_regex,
+        is_enabled: b.is_enabled,
+        sort_order: b.sort_order
+      });
+
+      snippets.push({
+        language_key: b.language_key,
+        entry_hint: b.entry_hint,
+        template: b.template,
+        is_default: b.is_default,
+        sort_order: b.sort_order
+      });
+    });
+
+    const tagsArr = (tagsInput.value || '')
+      .split(',')
+      .map(t=>t.trim())
+      .filter(Boolean);
 
     return {
       topic_id: Number(TOPIC_ID),
@@ -1843,20 +1914,21 @@ function _slugify(s){ return (s||'').toString().trim().toLowerCase().replace(/[^
       difficulty: difficulty.value,
       sort_order: _toNum(sort_order.value) ?? 0,
 
-      tags,
+      tags: tagsArr.length ? tagsArr : undefined,
 
-      description: desc.innerHTML.trim(),
-      solution: (solution.innerHTML || '').trim() || null,
+      description: desc.value.trim(),
+      solution: (solution.value || '').trim() || null,
 
       compare_mode: compare_mode.value,
       trim_output: (trim_output.value === '1'),
       whitespace_mode: whitespace_mode.value,
-      float_abs_tol: float_abs_tol.value ? Number(float_abs_tol.value) : null,
-      float_rel_tol: float_rel_tol.value ? Number(float_rel_tol.value) : null,
+      float_abs_tol: float_abs_tol.value.trim() !== '' ? Number(float_abs_tol.value) : null,
+      float_rel_tol: float_rel_tol.value.trim() !== '' ? Number(float_rel_tol.value) : null,
 
       languages,
       snippets,
-      tests: testRows
+      tests: testRows,
+      prune_missing_children: true // delete removed tests/languages/snippets server-side
     };
   }
 
@@ -1876,46 +1948,6 @@ function _slugify(s){ return (s||'').toString().trim().toLowerCase().replace(/[^
       });
     });
   }
-
-  // simple WYSIWYG commands
-  // set default active editor ONCE after elements exist
-  activeEditor = desc;
-  document.querySelectorAll('#pane-code .ce-text-toolbar [data-cmd]').forEach(btn=>{
-    btn.addEventListener('click', ()=>{
-      const cmd = btn.getAttribute('data-cmd');
-      let val = null;
-      if (cmd === 'formatBlock' || cmd === 'foreColor') {
-        if (btn.tagName === 'SELECT') val = btn.value;
-        else {
-          const colorInput = btn.previousElementSibling;
-          val = colorInput && colorInput.type === 'color' ? colorInput.value : null;
-        }
-      }
-      (activeEditor||desc).focus(); document.execCommand(cmd, false, val);
-    });
-  });
-  [desc,solution].forEach(ed=> ed.addEventListener('focus', ()=> activeEditor = ed ));
-
-  // image insert/edit
-  document.querySelectorAll('#pane-code .btn-insert-image').forEach(btn=>{
-    btn.addEventListener('click', ()=>{
-      Swal.fire({
-        title: 'Insert Image',
-        input: 'url',
-        inputLabel: 'Image URL',
-        inputValue: 'https://auth-db1635.hstgr.io/themes/pmahomme/img/logo_left.png',
-        showCancelButton: true,
-        background: _isDark() ? '#0b1526' : '#fff',
-        color: _isDark() ? '#e6edf7' : '#111',
-      }).then(res=>{
-        if(res.isConfirmed && res.value){
-          const html = `<img src="${_esc(res.value)}" alt="">`;
-          (activeEditor||desc).focus();
-          document.execCommand('insertHTML', false, html);
-        }
-      });
-    });
-  });
 
   // Boot
   loadList();
