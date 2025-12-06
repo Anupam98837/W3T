@@ -17,6 +17,12 @@ return new class extends Migration {
             $table->string('title', 255);
             $table->string('slug', 140)->unique();
 
+            // 🔹 NEW: category foreign key
+            $table->foreignId('category_id')
+                ->constrained('landingpage_categories')
+                ->cascadeOnDelete()
+                ->cascadeOnUpdate();
+
             // ⬇ changed from text() → longText()
             $table->longText('short_description')->nullable();  // can hold large log-like text
             $table->longText('full_description')->nullable();   // detailed or HTML content

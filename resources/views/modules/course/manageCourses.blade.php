@@ -18,10 +18,10 @@
 .mfa-toolbar .btn-primary{background:var(--primary-color);border:none} */
 
 /* Tabs */
-.nav.nav-tabs{border-color:var(--line-strong)}
+/* .nav.nav-tabs{border-color:var(--line-strong)}
 .nav-tabs .nav-link{color:var(--ink)}
 .nav-tabs .nav-link.active{background:var(--surface);border-color:var(--line-strong) var(--line-strong) var(--surface)}
-.tab-content,.tab-pane{overflow:visible}
+.tab-content,.tab-pane{overflow:visible} */
 
 /* Table Card */
 /* .table-wrap.card{position:relative;border:1px solid var(--line-strong);border-radius:16px;background:var(--surface);box-shadow:var(--shadow-2);overflow:visible}
@@ -32,8 +32,8 @@
 .table thead.sticky-top{z-index:3}
 .table tbody tr{border-top:1px solid var(--line-soft)}
 .table tbody tr:hover{background:var(--page-hover)} */
-td .fw-semibold{color:var(--ink)}
-.small{font-size:12.5px}
+/* td .fw-semibold{color:var(--ink)}
+.small{font-size:12.5px} */
 
 /* Badges (stronger specificity so they don't go white) */
 .table .badge.badge-success{background:var(--success-color) !important;color:#fff !important}

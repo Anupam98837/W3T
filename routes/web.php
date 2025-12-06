@@ -12,7 +12,7 @@ Route::get('/ui', function () {
     return view('ui.ui');
 });
 Route::get('/', function () {
-    return view('pages.landing.home');
+    return view('pages.landing.pages.home');
 });
 
 
@@ -185,7 +185,22 @@ Route::prefix('admin') // add your middlewares if needed
             [ViewQuestionController::class, 'manage']
         )->name('admin.questions.manage');
     });
-     
+// Landing Page dynamic Routes
+  Route::get('/admin/LandingPage/updates/manage', function () {
+    return view('modules.landingPages.manageUpdates');
+});
+ Route::get('/admin/LandingPage/contacts/manage', function () {
+    return view('modules.landingPages.manageContacts');
+});
+ Route::get('/admin/LandingPage/hero-images/manage', function () {
+    return view('modules.landingPages.manageHeroImages');
+});
+Route::get('/admin/LandingPage/categories/manage', function () {
+    return view('modules.landingPages.manageCategories');
+});
+Route::get('/admin/LandingPage/courses/manage', function () {
+    return view('modules.landingPages.manageCourses');
+});
 
 // Student Routes
 Route::get('/student/dashboard', function () {

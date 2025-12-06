@@ -102,19 +102,19 @@ html.theme-dark .dropdown-menu{background:#0f172a;border-color:var(--line-strong
 }
 
 /* Make the regular dropdown escape parents when shown */
-.dropdown-menu.dropdown-menu-end.show {
-  position: fixed !important;       /* fixed ensures it positions relative to viewport */
+/* .dropdown-menu.dropdown-menu-end.show {
+  position: fixed !important;       
   transform: none !important;
-  left: 0 !important;               /* will be overwritten by JS */
-  top: 0 !important;                /* will be overwritten by JS */
-  z-index: 9000 !important;         /* keep above table/footer */
+  left: 0 !important;              
+  top: 0 !important;               
+  z-index: 9000 !important;       
   min-width: 220px;
   overflow: visible !important;
   display: block !important;
-}
+} */
 
 /* Visual style for portal menus */
-.dropdown-menu.dd-portal {
+/* .dropdown-menu.dd-portal {
   position: fixed !important;
   transform: none !important;
   z-index: 9000 !important;
@@ -123,7 +123,7 @@ html.theme-dark .dropdown-menu{background:#0f172a;border-color:var(--line-strong
   border: 1px solid var(--line-strong);
   box-shadow: var(--shadow-2);
   background: var(--surface);
-}
+} */
 
 /* keep dropdown toggle above table row so it remains clickable */
 .table-wrap .dd-toggle { z-index: 7; position: relative; }

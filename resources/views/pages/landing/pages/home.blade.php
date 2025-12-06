@@ -294,7 +294,7 @@
         linear-gradient(135deg,
           color-mix(in oklab, var(--bg-body) 70%, transparent) 0%,
           transparent 55%),
-        url('{{ asset('assets/media/images/web/hero-bg.jpg') }}');
+        /* url('{{ asset('assets/media/images/web/hero-bg.jpg') }}'); */
       background-size: cover;
       background-position: center;
       background-repeat: no-repeat;
@@ -1561,6 +1561,22 @@
       background: #020617;
       border-color: var(--line-strong);
     }
+  
+/* Category Badge (top-right) */
+.lp-category-badge{
+  position:absolute;
+  top:12px;
+  right:12px;
+  background:#fef3c7;
+  color:#b45309;
+  padding:6px 12px;
+  border-radius:999px;
+  font-size:0.75rem;
+  font-weight:600;
+  box-shadow:0 4px 10px rgba(0,0,0,0.08);
+  white-space:nowrap;
+}
+
   </style>
 </head>
 <body class="lp-page">
@@ -1570,19 +1586,16 @@
 
   <!-- Announcement strip -->
   <div class="lp-announcement">
-    <div class="lp-announcement-inner">
-      <div class="lp-announcement-label">Updates</div>
-      <div class="lp-announcement-track">
-        <div class="lp-announcement-scroll">
-          <span>🔥 New Full-Stack TypeScript cohort starting soon – limited seats.</span>
-          <span>🎓 No Job, No Pay model launching for select programs.</span>
-          <span>💼 Mock interviews every weekend with industry engineers.</span>
-          <span>🔥 New Full-Stack TypeScript cohort starting soon – limited seats.</span>
-          <span>🎓 No Job, No Pay model launching for select programs.</span>
-        </div>
+  <div class="lp-announcement-inner">
+    <div class="lp-announcement-label">Updates</div>
+    <div class="lp-announcement-track">
+      <div class="lp-announcement-scroll">
+        {{-- JS will inject <span> elements here --}}
       </div>
     </div>
   </div>
+</div>
+
 
   <!-- Top Nav -->
   <nav class="lp-nav">
@@ -1734,10 +1747,10 @@
 
       <div class="lp-nav-actions">
         <!-- Top contact info -->
-        <div class="lp-nav-contact">
-          <span><i class="fa-solid fa-phone"></i> +91-98765-43210</span>
+        <div class="lp-nav-contact"  id="lpNavContact">
+          <!-- <span><i class="fa-solid fa-phone"></i> +91-98765-43210</span>
           <span><i class="fa-brands fa-whatsapp"></i> WhatsApp: +91-98765-43210</span>
-          <span><i class="fa-solid fa-envelope"></i> support@w3techiez.com</span>
+          <span><i class="fa-solid fa-envelope"></i> support@w3techiez.com</span> -->
         </div>
 
         <button class="lp-btn-primary" id="lpLoginBtn" type="button">Log in</button>
@@ -1762,7 +1775,7 @@
           Build job-ready skills in Full-Stack Development, Data, DevOps, and more — with structured paths, live doubts support, and real projects designed for placements.
         </p>
 
-        <form class="lp-hero-search" action="#" method="get">
+        <form class="lp-hero-search" action="#" method="get" style="display:none">
           <input type="text" class="form-control" placeholder="Search for a course, skill, or technology…">
           <button type="submit" class="lp-btn-primary">
             <i class="fa fa-search me-1"></i> Search
@@ -1795,31 +1808,23 @@
 
       <!-- Right visuals: rotated image stack with arrow navigation -->
       <div class="lp-hero-visual lp-animate lp-animate-delay-1" data-lp-animate="fade">
-        <div class="lp-hero-stack-wrap">
-          <button type="button" class="lp-hero-nav lp-hero-nav-prev" id="heroPrevBtn" aria-label="Previous image">
-            <i class="fa-solid fa-chevron-left"></i>
-          </button>
+  <div class="lp-hero-stack-wrap">
 
-          <div class="lp-hero-stack" id="heroImageStack">
-            <div class="lp-hero-card-img is-active" data-index="0">
-              <img src="https://images.pexels.com/photos/1181675/pexels-photo-1181675.jpeg?auto=compress&cs=tinysrgb&w=800" alt="Course dashboard preview">
-            </div>
-            <div class="lp-hero-card-img is-next" data-index="1">
-              <img src="https://images.pexels.com/photos/1181263/pexels-photo-1181263.jpeg?auto=compress&cs=tinysrgb&w=800" alt="Live class preview">
-            </div>
-            <div class="lp-hero-card-img is-far" data-index="2">
-              <img src="https://images.pexels.com/photos/1181605/pexels-photo-1181605.jpeg?auto=compress&cs=tinysrgb&w=800" alt="Coding session preview">
-            </div>
-            <div class="lp-hero-card-img is-far" data-index="3">
-              <img src="https://images.pexels.com/photos/2422294/pexels-photo-2422294.jpeg?auto=compress&cs=tinysrgb&w=800" alt="Group learning preview">
-            </div>
-          </div>
+    <button type="button" class="lp-hero-nav lp-hero-nav-prev" id="heroPrevBtn">
+      <i class="fa-solid fa-chevron-left"></i>
+    </button>
 
-          <button type="button" class="lp-hero-nav lp-hero-nav-next" id="heroNextBtn" aria-label="Next image">
-            <i class="fa-solid fa-chevron-right"></i>
-          </button>
-        </div>
-      </div>
+    <div class="lp-hero-stack" id="heroImageStack">
+      <!-- JS will render slides here -->
+    </div>
+
+    <button type="button" class="lp-hero-nav lp-hero-nav-next" id="heroNextBtn">
+      <i class="fa-solid fa-chevron-right"></i>
+    </button>
+
+  </div>
+</div>
+
     </div>
   </section>
 
@@ -1875,50 +1880,31 @@
   </section>
 
   <!-- Categories -->
-  <section id="categories" class="lp-section">
-    <div class="lp-section-inner">
-      <div class="lp-section-head">
-        <div>
-          <h2 class="lp-section-title">Explore categories</h2>
-          <div class="lp-section-sub">Pick a track that matches your career goal.</div>
-        </div>
-        <a href="#courses" class="lp-section-link">
-          View all courses <i class="fa fa-arrow-right ms-1"></i>
-        </a>
+  <!-- Categories -->
+<section id="categories" class="lp-section">
+  <div class="lp-section-inner">
+    <div class="lp-section-head">
+      <div>
+        <h2 class="lp-section-title">Explore categories</h2>
+        <div class="lp-section-sub">Pick a track that matches your career goal.</div>
       </div>
+      <a href="#courses" class="lp-section-link">
+        View all courses <i class="fa fa-arrow-right ms-1"></i>
+      </a>
+    </div>
 
-      <div class="lp-cat-grid">
-        <div class="lp-cat-card lp-animate lp-hover-lift" data-lp-animate="fade-up">
-          <div class="lp-cat-icon">
-            <i class="fa-solid fa-code"></i>
-          </div>
-          <div class="lp-cat-name">Full-Stack Development</div>
-          <div class="lp-cat-meta">MERN, TypeScript, Java Spring Boot</div>
+    {{-- JS will populate this grid using API data --}}
+    <div class="lp-cat-grid" id="lpCategoriesGrid">
+      <div class="lp-cat-card lp-animate lp-hover-lift lp-cat-skeleton">
+        <div class="lp-cat-icon">
+          <i class="fa-solid fa-circle-notch fa-spin"></i>
         </div>
-        <div class="lp-cat-card lp-animate lp-hover-lift lp-animate-delay-1" data-lp-animate="fade-up">
-          <div class="lp-cat-icon">
-            <i class="fa-solid fa-database"></i>
-          </div>
-          <div class="lp-cat-name">Data & Analytics</div>
-          <div class="lp-cat-meta">Python, SQL, Power BI, ML basics</div>
-        </div>
-        <div class="lp-cat-card lp-animate lp-hover-lift lp-animate-delay-2" data-lp-animate="fade-up">
-          <div class="lp-cat-icon">
-            <i class="fa-solid fa-shield-halved"></i>
-          </div>
-          <div class="lp-cat-name">Testing & QA Automation</div>
-          <div class="lp-cat-meta">SDET, Selenium, Cypress, API testing</div>
-        </div>
-        <div class="lp-cat-card lp-animate lp-hover-lift lp-animate-delay-3" data-lp-animate="fade-up">
-          <div class="lp-cat-icon">
-            <i class="fa-solid fa-cloud-arrow-up"></i>
-          </div>
-          <div class="lp-cat-name">Cloud & DevOps</div>
-          <div class="lp-cat-meta">AWS, Docker, CI/CD, Linux</div>
-        </div>
+        <div class="lp-cat-name">Loading categories…</div>
+        <div class="lp-cat-meta">Please wait</div>
       </div>
     </div>
-  </section>
+  </div>
+</section>
 
   <!-- Featured courses -->
   <section id="courses" class="lp-section" style="padding-top: 10px;">
@@ -1934,94 +1920,9 @@
       </div>
 
       <div class="lp-course-grid">
-        <!-- Course 1 -->
-        <article class="lp-course-card lp-animate" data-lp-animate="fade-up">
-          <div class="lp-course-thumb">
-            <img src="https://images.pexels.com/photos/1181671/pexels-photo-1181671.jpeg?auto=compress&cs=tinysrgb&w=800" alt="Full-Stack TypeScript course thumbnail">
-          </div>
-          <div class="lp-course-body">
-            <div class="lp-course-title">Full-Stack TypeScript Developer – Zero to Hire</div>
-            <div class="lp-course-meta">
-              <span><i class="fa fa-signal"></i> Intermediate</span>
-              <span><i class="fa fa-clock"></i> 6 months</span>
-              <span><i class="fa fa-user-graduate"></i> Cohort-based</span>
-            </div>
-            <div class="lp-course-summary">
-              Build production-grade apps with React, Node.js, TypeScript, and modern tooling.
-            </div>
-          </div>
-          <div class="lp-course-footer">
-            <div class="lp-price">₹24,999</div>
-            <div class="lp-badge-level">Placement track</div>
-          </div>
-        </article>
+  <!-- Course cards will be injected here via JS -->
+</div>
 
-        <!-- Course 2 -->
-        <article class="lp-course-card lp-animate lp-animate-delay-1" data-lp-animate="fade-up">
-          <div class="lp-course-thumb">
-            <img src="https://images.pexels.com/photos/3861964/pexels-photo-3861964.jpeg?auto=compress&cs=tinysrgb&w=800" alt="SDET QA course thumbnail">
-          </div>
-          <div class="lp-course-body">
-            <div class="lp-course-title">SDET / QA Automation with Java, Selenium & APIs</div>
-            <div class="lp-course-meta">
-              <span><i class="fa fa-signal"></i> Beginner–Intermediate</span>
-              <span><i class="fa fa-clock"></i> 5 months</span>
-              <span><i class="fa fa-laptop-code"></i> Hands-on projects</span>
-            </div>
-            <div class="lp-course-summary">
-              Learn automation frameworks, API testing and CI to become a modern SDET.
-            </div>
-          </div>
-          <div class="lp-course-footer">
-            <div class="lp-price">₹21,999</div>
-            <div class="lp-badge-level">QA specialist</div>
-          </div>
-        </article>
-
-        <!-- Course 3 -->
-        <article class="lp-course-card lp-animate lp-animate-delay-2" data-lp-animate="fade-up">
-          <div class="lp-course-thumb">
-            <img src="https://images.pexels.com/photos/590022/pexels-photo-590022.jpeg?auto=compress&cs=tinysrgb&w=800" alt="Data Analytics course thumbnail">
-          </div>
-          <div class="lp-course-body">
-            <div class="lp-course-title">Data Analytics with Python, SQL & Power BI</div>
-            <div class="lp-course-meta">
-              <span><i class="fa fa-signal"></i> Beginner friendly</span>
-              <span><i class="fa fa-clock"></i> 4 months</span>
-              <span><i class="fa fa-chart-column"></i> Case studies</span>
-            </div>
-            <div class="lp-course-summary">
-              Use data to solve real business problems and build dashboards recruiters love.
-            </div>
-          </div>
-          <div class="lp-course-footer">
-            <div class="lp-price">₹19,999</div>
-            <div class="lp-badge-level">Analytics track</div>
-          </div>
-        </article>
-
-        <!-- Course 4 -->
-        <article class="lp-course-card lp-animate lp-animate-delay-3" data-lp-animate="fade-up">
-          <div class="lp-course-thumb">
-            <img src="https://images.pexels.com/photos/1181355/pexels-photo-1181355.jpeg?auto=compress&cs=tinysrgb&w=800" alt="DevOps course thumbnail">
-          </div>
-          <div class="lp-course-body">
-            <div class="lp-course-title">DevOps Essentials – Docker, CI/CD & Cloud Basics</div>
-            <div class="lp-course-meta">
-              <span><i class="fa fa-signal"></i> Intermediate</span>
-              <span><i class="fa fa-clock"></i> 3 months</span>
-              <span><i class="fa fa-cloud"></i> AWS-ready</span>
-            </div>
-            <div class="lp-course-summary">
-              Learn how modern teams ship faster using containers, automation and cloud.
-            </div>
-          </div>
-          <div class="lp-course-footer">
-            <div class="lp-price">₹17,999</div>
-            <div class="lp-badge-level">DevOps starter</div>
-          </div>
-        </article>
-      </div>
     </div>
   </section>
 
@@ -2393,11 +2294,14 @@
           <div>
             Learn modern tech skills with structured, placement-focused programs built by engineers and educators.
           </div>
-          <div class="lp-footer-contact">
-            <span><i class="fa-solid fa-phone"></i> +91-98765-43210</span>
-            <span><i class="fa-brands fa-whatsapp"></i> WhatsApp: +91-98765-43210</span>
-            <span><i class="fa-solid fa-envelope"></i> support@w3techiez.com</span>
-          </div>
+          <!-- Top contact info (will be filled via JS) -->
+          
+            <div class="lp-nav-contact">
+          <span><i class="fa-solid fa-phone"></i> +91-98765-43210</span>
+          <span><i class="fa-brands fa-whatsapp"></i> WhatsApp: +91-98765-43210</span>
+          <span><i class="fa-solid fa-envelope"></i> support@w3techiez.com</span>
+        </div>
+          
         </div>
         <div>
           <div class="lp-footer-col-title">Academy</div>
@@ -2467,216 +2371,561 @@
       </div>
     </div>
   </div> --}}
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  /* =========================
+     Small helpers
+     ========================= */
+  const qs  = sel => document.querySelector(sel);
+  const qsa = sel => Array.from(document.querySelectorAll(sel));
 
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+  const pageOverlay = qs('#pageOverlay');
+  const showPageOverlay = () => { if (pageOverlay) pageOverlay.style.display = 'flex'; };
+  const hidePageOverlay = () => { if (pageOverlay) pageOverlay.style.display = 'none'; };
 
-  <!-- JS for hero image stack interaction + scroll animations + back-to-top + role/overlay -->
-  <script>
-    document.addEventListener('DOMContentLoaded', function () {
-      /* =========================
-         Page overlay helpers
-         ========================= */
-      const pageOverlay = document.getElementById('pageOverlay');
+  const fetchJson = async (url, opts = {}) => {
+    const res = await fetch(url, { headers: { Accept: 'application/json' }, ...opts });
+    if (!res.ok) {
+      console.warn('[API] Failed:', url, res.status);
+      return null;
+    }
+    try { return await res.json(); } catch { return null; }
+  };
 
-      function showPageOverlay() {
-        if (!pageOverlay) return;
-        pageOverlay.style.display = 'flex';   // or 'block' based on your CSS
+  const isOkPayload = data =>
+    data && (data.status === 'success' || data.success === true) && Array.isArray(data.data);
+
+
+  /* =========================
+     HERO IMAGES (DB-driven stack)
+     ========================= */
+  let heroCards = [];
+  let heroActiveIndex = 0;
+
+  const applyHeroClasses = () => {
+    if (!heroCards.length) return;
+    const total = heroCards.length;
+    const active = heroActiveIndex;
+    const prev = (active - 1 + total) % total;
+    const next = (active + 1) % total;
+
+    heroCards.forEach((card, idx) => {
+      card.classList.remove('is-active', 'is-prev', 'is-next', 'is-far');
+      if (idx === active) card.classList.add('is-active');
+      else if (idx === prev) card.classList.add('is-prev');
+      else if (idx === next) card.classList.add('is-next');
+      else card.classList.add('is-far');
+    });
+  };
+
+  const renderHeroImages = images => {
+    const stack = qs('#heroImageStack');
+    if (!stack) return;
+
+    stack.innerHTML = '';
+    heroCards = [];
+    heroActiveIndex = 0;
+
+    if (!images.length) return;
+
+    images.forEach((img, idx) => {
+      const div = document.createElement('div');
+      div.className = 'lp-hero-card-img';
+      div.dataset.index = idx;
+      div.innerHTML = `<img src="${img.image_url}" alt="${img.img_title || ''}">`;
+      stack.appendChild(div);
+      heroCards.push(div);
+    });
+
+    applyHeroClasses();
+  };
+
+  const loadHeroImages = async () => {
+    const data = await fetchJson("{{ url('api/landing/hero-images/display') }}");
+    if (!isOkPayload(data)) return;
+    renderHeroImages(data.data);
+  };
+
+  const moveHero = dir => {
+    if (heroCards.length <= 1) return;
+    const total = heroCards.length;
+    heroActiveIndex = (heroActiveIndex + dir + total) % total;
+    applyHeroClasses();
+  };
+
+  qs('#heroPrevBtn')?.addEventListener('click', () => moveHero(-1));
+  qs('#heroNextBtn')?.addEventListener('click', () => moveHero(1));
+
+  // Auto-rotation
+  setInterval(() => moveHero(1), 9000);
+
+  loadHeroImages();
+
+
+  /* =========================
+     Scroll "arrival" animation
+     ========================= */
+  const animatedEls = qsa('[data-lp-animate], .lp-animate');
+  if ('IntersectionObserver' in window) {
+    const observer = new IntersectionObserver(entries => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          entry.target.classList.add('is-visible');
+          observer.unobserve(entry.target);
+        }
+      });
+    }, { threshold: 0.18 });
+
+    animatedEls.forEach(el => {
+      if (!el.classList.contains('is-visible')) observer.observe(el);
+    });
+  } else {
+    animatedEls.forEach(el => el.classList.add('is-visible'));
+  }
+
+
+  /* =========================
+     Updates marquee
+     ========================= */
+  const renderUpdatesMarquee = updates => {
+    const scrollEl = qs('.lp-announcement-scroll');
+    if (!scrollEl) {
+      console.warn('[Landing] .lp-announcement-scroll not found');
+      return;
+    }
+
+    scrollEl.innerHTML = '';
+    if (!updates.length) return;
+
+    updates.forEach(item => {
+      const span = document.createElement('span');
+      span.className = 'lp-announcement-item';
+
+      let container = span;
+
+      if (item.url) {
+        const link = document.createElement('a');
+        link.href = item.url;
+        link.target = '_blank';
+        link.rel = 'noopener noreferrer';
+        span.appendChild(link);
+        container = link;
       }
 
-      function hidePageOverlay() {
-        if (!pageOverlay) return;
-        pageOverlay.style.display = 'none';
+      if (item.title) {
+        const titleEl = document.createElement('span');
+        titleEl.className = 'lp-update-title';
+        titleEl.innerHTML = item.title;
+        container.appendChild(titleEl);
       }
 
-      /* =========================
-         Hero image stack
-         ========================= */
-      const stack = document.getElementById('heroImageStack');
-      const cards = stack ? Array.from(stack.querySelectorAll('.lp-hero-card-img')) : [];
-      const prevBtn = document.getElementById('heroPrevBtn');
-      const nextBtn = document.getElementById('heroNextBtn');
-      let activeIndex = 0;
-
-      function updateStack(newIndex){
-        if (!cards.length) return;
-        activeIndex = newIndex;
-        const total = cards.length;
-        const prevIndex = (activeIndex - 1 + total) % total;
-        const nextIndex = (activeIndex + 1) % total;
-
-        cards.forEach((card, idx) => {
-          card.classList.remove('is-active', 'is-prev', 'is-next', 'is-far');
-          if(idx === activeIndex){
-            card.classList.add('is-active');
-          }else if(idx === prevIndex){
-            card.classList.add('is-prev');
-          }else if(idx === nextIndex){
-            card.classList.add('is-next');
-          }else{
-            card.classList.add('is-far');
-          }
-        });
+      if (item.description) {
+        const descEl = document.createElement('span');
+        descEl.className = 'lp-update-desc';
+        descEl.innerHTML = item.description;
+        container.appendChild(descEl);
       }
 
-      if(prevBtn){
-        prevBtn.addEventListener('click', () => {
-          if (!cards.length) return;
-          const total = cards.length;
-          const newIndex = (activeIndex - 1 + total) % total;
-          updateStack(newIndex);
-        });
+      scrollEl.appendChild(span);
+    });
+
+    const original = scrollEl.innerHTML;
+    scrollEl.innerHTML = original + original;
+  };
+
+  const loadLandingUpdates = async () => {
+    const data = await fetchJson("{{ url('api/landing/updates') }}");
+    if (!isOkPayload(data)) return;
+    renderUpdatesMarquee(data.data);
+  };
+
+  loadLandingUpdates();
+
+
+  /* =========================
+     Contacts bar
+     ========================= */
+  const renderContactsBar = contacts => {
+    const bar = qs('#lpNavContact') || qs('.lp-nav-contact');
+    if (!bar) {
+      console.warn('[Landing] lpNavContact container not found');
+      return;
+    }
+
+    bar.innerHTML = '';
+    if (!contacts.length) {
+      bar.style.display = 'none';
+      return;
+    }
+    bar.style.display = '';
+
+    contacts.forEach(item => {
+      const span = document.createElement('span');
+      span.style.display = 'inline-flex';
+      span.style.alignItems = 'center';
+      span.style.gap = '6px';
+
+      if (item.icon) {
+        const i = document.createElement('i');
+        i.className = item.icon;
+        span.appendChild(i);
       }
 
-      if(nextBtn){
-        nextBtn.addEventListener('click', () => {
-          if (!cards.length) return;
-          const total = cards.length;
-          const newIndex = (activeIndex + 1) % total;
-          updateStack(newIndex);
-        });
-      }
+      span.append(item.value || '');
+      bar.appendChild(span);
+    });
+  };
 
-      // Optional: light auto-rotation
-      if(cards.length > 1){
-        setInterval(() => {
-          const total = cards.length;
-          const nextIndex = (activeIndex + 1) % total;
-          updateStack(nextIndex);
-        }, 9000);
-      }
+  const loadLandingContacts = async () => {
+    const data = await fetchJson("{{ url('api/landing/contact') }}");
+    if (!isOkPayload(data)) return;
+    renderContactsBar(data.data);
+  };
 
-      /* =========================
-         Scroll "arrival" animation
-         ========================= */
-      const animatedEls = document.querySelectorAll('[data-lp-animate], .lp-animate');
+  loadLandingContacts();
 
-      if ('IntersectionObserver' in window) {
-        const observer = new IntersectionObserver((entries) => {
-          entries.forEach(entry => {
-            if (entry.isIntersecting) {
-              entry.target.classList.add('is-visible');
-              observer.unobserve(entry.target);
-            }
-          });
-        }, {
-          threshold: 0.18
-        });
 
-        animatedEls.forEach(el => {
-          // Avoid re-observing hero that is already visible on load
-          if (!el.classList.contains('is-visible')) {
-            observer.observe(el);
-          }
-        });
+  /* =========================
+     Categories grid
+     ========================= */
+  const renderCategoriesGrid = categories => {
+    const grid = qs('#lpCategoriesGrid') || qs('.lp-cat-grid');
+    if (!grid) return console.warn('[Landing] Categories grid not found');
+
+    grid.innerHTML = '';
+
+    categories.forEach((cat, idx) => {
+      const card = document.createElement('div');
+      card.className = 'lp-cat-card lp-animate lp-hover-lift';
+      card.dataset.lpAnimate = 'fade-up';
+
+      if (idx === 1) card.classList.add('lp-animate-delay-1');
+      if (idx === 2) card.classList.add('lp-animate-delay-2');
+      if (idx === 3) card.classList.add('lp-animate-delay-3');
+      if (idx >= 4)  card.classList.add('lp-animate-delay-4');
+
+      const iconClass =
+        cat.icon ||
+        cat.icon_class ||
+        'fa-solid fa-circle-dot';
+
+      const titleText =
+        cat.title ||
+        cat.name ||
+        'Untitled category';
+
+      const descHtml =
+        cat.description ||
+        cat.meta ||
+        '';
+
+      const iconWrap = document.createElement('div');
+      iconWrap.className = 'lp-cat-icon';
+
+      const icon = document.createElement('i');
+      icon.className = iconClass;
+      iconWrap.appendChild(icon);
+
+      const nameEl = document.createElement('div');
+      nameEl.className = 'lp-cat-name';
+      nameEl.textContent = titleText;
+
+      const metaEl = document.createElement('div');
+      metaEl.className = 'lp-cat-meta';
+      metaEl.innerHTML = descHtml;
+
+      card.appendChild(iconWrap);
+      card.appendChild(nameEl);
+      card.appendChild(metaEl);
+
+      card.classList.add('is-visible');
+
+      grid.appendChild(card);
+    });
+  };
+
+  const loadLandingCategories = async () => {
+    const data = await fetchJson("{{ url('api/landing/categories/display') }}");
+    if (!isOkPayload(data)) {
+      console.warn('[Landing] categories payload invalid', data);
+      return;
+    }
+    renderCategoriesGrid(data.data);
+  };
+
+  loadLandingCategories();
+
+ /* =========================
+     Featured courses grid
+     ========================= */
+  const renderFeaturedCourses = courses => {
+    const grid = qs('#lpFeaturedCoursesGrid') || qs('.lp-course-grid');
+    if (!grid) {
+      console.warn('[Landing] Featured courses grid not found');
+      return;
+    }
+
+    grid.innerHTML = '';
+    if (!courses.length) return;
+
+    console.log('[Landing] Featured courses sample:', courses[0]); // debug
+
+    // Base URL for public course page: /courses/{course_uuid}
+    const baseCourseUrl = "{{ url('admin/courses') }}";
+
+    courses.forEach((course, idx) => {
+      let imageUrl = '';
+
+      if (Array.isArray(course.images) && course.images.length) {
+        const first = course.images[0];
+        imageUrl =
+          first.url ||
+          first.image_url ||
+          first.image_path ||
+          first.path ||
+          '';
+      } else if (Array.isArray(course.course_images) && course.course_images.length) {
+        const first = course.course_images[0];
+        imageUrl =
+          first.url ||
+          first.image_url ||
+          first.image_path ||
+          first.path ||
+          '';
       } else {
-        // Fallback: show all if IO not supported
-        animatedEls.forEach(el => el.classList.add('is-visible'));
+        imageUrl =
+          course.image_url ||
+          course.img_url ||
+          course.image_path ||
+          course.img_path ||
+          course.thumbnail_url ||
+          course.thumbnail ||
+          course.banner_url ||
+          course.banner_path ||
+          '';
       }
 
-      /* =========================
-         Back-to-top button
-         ========================= */
-      const backTopBtn = document.getElementById('lpBackTop');
-      if (backTopBtn) {
-        window.addEventListener('scroll', () => {
-          if (window.scrollY > 260) {
-            backTopBtn.classList.add('is-visible');
+      const finalImageUrl = imageUrl || "{{ asset('assets/media/images/web/course-placeholder.jpg') }}";
+
+      const categoryLabel =
+        course.category_title ||
+        course.category_name ||
+        course.category ||
+        course.category_label ||
+        course.track_name ||
+        '';
+
+      const titleText =
+        course.title ||
+        course.course_title ||
+        course.name ||
+        'Untitled course';
+
+      const difficultyText =
+        course.level ||
+        course.difficulty ||
+        course.difficulty_label ||
+        'Beginner';
+
+      const languageText =
+        course.language ||
+        course.language_label ||
+        'English';
+
+      const summaryHtml =
+        course.short_description ||
+        course.summary ||
+        course.subtitle ||
+        '';
+
+      let priceText = '';
+      if (course.price_amount != null && course.price_currency) {
+        const amt = Number(course.price_amount);
+        if (!Number.isNaN(amt)) {
+          if (course.price_currency === 'INR') {
+            priceText = `₹${amt.toFixed(2)}`;
           } else {
-            backTopBtn.classList.remove('is-visible');
+            priceText = `${course.price_currency} ${amt.toFixed(2)}`;
           }
-        });
-
-        backTopBtn.addEventListener('click', () => {
-          window.scrollTo({
-            top: 0,
-            behavior: 'smooth'
-          });
-        });
-      }
-
-      /* =========================
-         Helper: get my role from API
-         ========================= */
-      async function getMyRole(token) {
-        if (!token) return "";
-
-        try {
-          const res = await fetch("/api/auth/my-role", {
-            method: "GET",
-            headers: {
-              "Authorization": "Bearer " + token,
-              "Accept": "application/json"
-            }
-          });
-
-          if (!res.ok) {
-            console.warn("[Landing] getMyRole failed:", res.status);
-            return "";
-          }
-
-          const data = await res.json();
-
-          if (data?.status === "success" && data?.role) {
-            return String(data.role).trim().toLowerCase();
-          }
-
-          return "";
-        } catch (err) {
-          console.error("[Landing] getMyRole error:", err);
-          return "";
         }
       }
 
-      /* =========================
-         Login / Dashboard button
-         ========================= */
-      const loginBtn = document.getElementById("lpLoginBtn");
+      const badgeText =
+        course.badge_label ||
+        course.level_badge ||
+        course.course_type ||
+        '';
 
-      if (loginBtn) {
-        const token =
-          sessionStorage.getItem("token") || localStorage.getItem("token");
+      // 🔹 Build course detail URL using UUID only
+      const courseId  = course.uuid || course.course_uuid || course.id;
+      const detailUrl = courseId ? `${baseCourseUrl}/${encodeURIComponent(courseId)}` : '#';
 
-        let role = "";
+      const article = document.createElement('article');
+      article.className = 'lp-course-card lp-animate';
+      article.dataset.lpAnimate = 'fade-up';
+      if (idx === 1) article.classList.add('lp-animate-delay-1');
+      if (idx === 2) article.classList.add('lp-animate-delay-2');
+      if (idx >= 3)  article.classList.add('lp-animate-delay-3');
 
-        function setButtonLabel(isLoggedIn) {
-          loginBtn.textContent = isLoggedIn ? "Dashboard" : "Log in";
-        }
+      const thumb = document.createElement('div');
+      thumb.className = 'lp-course-thumb';
 
-        // Default state
-        setButtonLabel(false);
+      const img = document.createElement('img');
+      img.src = finalImageUrl;
+      img.alt = titleText;
+      thumb.appendChild(img);
 
-        // If token exists, fetch role from API with overlay
-        if (token) {
-          showPageOverlay();
+      if (categoryLabel) {
+        const badge = document.createElement('div');
+        badge.className = 'lp-category-badge';
+        badge.textContent = categoryLabel;
+        thumb.appendChild(badge);
+      }
 
-          getMyRole(token)
-            .then(function (apiRole) {
-              role = apiRole || "";
-              setButtonLabel(!!role);
-            })
-            .catch(function (err) {
-              console.error("[Landing] role fetch error:", err);
-              role = "";
-              setButtonLabel(false);
-            })
-            .finally(function () {
-              hidePageOverlay();
-            });
-        }
+      const body = document.createElement('div');
+      body.className = 'lp-course-body';
 
-        // Button click action
-        loginBtn.addEventListener("click", function () {
-          const currentToken =
-            sessionStorage.getItem("token") || localStorage.getItem("token");
+      const titleEl = document.createElement('div');
+      titleEl.className = 'lp-course-title';
+      titleEl.textContent = titleText;
 
-          if (currentToken && role) {
-            window.location.assign(`/${role}/dashboard`);
-          } else {
-            window.location.assign("/login");
+      const meta = document.createElement('div');
+      meta.className = 'lp-course-meta';
+
+      const spanDiff = document.createElement('span');
+      spanDiff.innerHTML = `<i class="fa fa-signal"></i> ${difficultyText}`;
+      meta.appendChild(spanDiff);
+
+      const spanLang = document.createElement('span');
+      spanLang.innerHTML = `<i class="fa fa-language"></i> ${languageText}`;
+      meta.appendChild(spanLang);
+
+      const summaryEl = document.createElement('div');
+      summaryEl.className = 'lp-course-summary';
+      summaryEl.innerHTML = summaryHtml;
+
+      body.appendChild(titleEl);
+      body.appendChild(meta);
+      body.appendChild(summaryEl);
+
+      article.appendChild(thumb);
+      article.appendChild(body);
+
+      // 🔹 Make entire card clickable to /courses/{uuid}
+      if (detailUrl && detailUrl !== '#') {
+        article.classList.add('lp-course-clickable');
+        article.style.cursor = 'pointer';
+
+        article.addEventListener('click', () => {
+          window.location.href = detailUrl;
+        });
+
+        article.tabIndex = 0;
+        article.addEventListener('keydown', ev => {
+          if (ev.key === 'Enter' || ev.key === ' ') {
+            ev.preventDefault();
+            window.location.href = detailUrl;
           }
         });
+      }
+
+      article.classList.add('is-visible');
+
+      grid.appendChild(article);
+    });
+  };
+
+
+  const loadFeaturedCourses = async () => {
+    const data = await fetchJson("{{ url('api/landing/featured-courses/display') }}");
+
+    if (!data || data.status !== 'success' || !data.data) {
+      console.warn('[Landing] Featured courses payload invalid', data);
+      return;
+    }
+
+    const courses = Array.isArray(data.data)
+      ? data.data
+      : (data.data.featured || []);
+
+    if (!courses.length) {
+      console.warn('[Landing] No featured courses to render');
+      return;
+    }
+
+    renderFeaturedCourses(courses);
+  };
+
+  loadFeaturedCourses();
+
+  /* =========================
+     Back-to-top button
+     ========================= */
+  const backTopBtn = qs('#lpBackTop');
+  if (backTopBtn) {
+    window.addEventListener('scroll', () => {
+      backTopBtn.classList.toggle('is-visible', window.scrollY > 260);
+    });
+    backTopBtn.addEventListener('click', () => {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    });
+  }
+
+
+  /* =========================
+     Role / Login button
+     ========================= */
+  const getMyRole = async token => {
+    if (!token) return '';
+    const res = await fetch('/api/auth/my-role', {
+      method: 'GET',
+      headers: {
+        'Authorization': 'Bearer ' + token,
+        'Accept': 'application/json'
       }
     });
-  </script>
-</body>
-</html>
+    if (!res.ok) return '';
+    const data = await res.json().catch(() => null);
+    if (data?.status === 'success' && data?.role) {
+      return String(data.role).trim().toLowerCase();
+    }
+    return '';
+  };
+
+  const loginBtn = qs('#lpLoginBtn');
+  if (loginBtn) {
+    const token = sessionStorage.getItem('token') || localStorage.getItem('token');
+    let role = '';
+
+    const setButtonLabel = isLoggedIn => {
+      loginBtn.textContent = isLoggedIn ? 'Dashboard' : 'Log in';
+    };
+    setButtonLabel(false);
+
+    if (token) {
+      showPageOverlay();
+      getMyRole(token)
+        .then(r => {
+          role = r || '';
+          setButtonLabel(!!role);
+        })
+        .catch(err => {
+          console.error('[Landing] role fetch error:', err);
+          role = '';
+          setButtonLabel(false);
+        })
+        .finally(hidePageOverlay);
+    }
+
+    loginBtn.addEventListener('click', () => {
+      const currentToken = sessionStorage.getItem('token') || localStorage.getItem('token');
+      if (currentToken && role) {
+        window.location.assign(`/${role}/dashboard`);
+      } else {
+        window.location.assign('/login');
+      }
+    });
+  }
+});
+</script>

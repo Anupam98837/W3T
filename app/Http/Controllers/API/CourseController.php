@@ -237,138 +237,150 @@ private function nextMediaOrderNo(int $courseId): int
     /* =========================
      *  CREATE (POST /api/courses)
      * ========================= */
-    public function store(Request $request)
-    {
-        if ($resp = $this->requireRole($request, ['admin','superadmin'])) return $resp;
-        $this->logWithActor('[Course Store] begin', $request);
+   /* =========================
+ *  CREATE (POST /api/courses)
+ * ========================= */
+public function store(Request $request)
+{
+    if ($resp = $this->requireRole($request, ['admin','superadmin'])) return $resp;
+    $this->logWithActor('[Course Store] begin', $request);
 
-        $data = $request->validate([
-            'title'               => ['required','string','max:255'],
-            'slug'                => ['nullable','string','max:140','unique:courses,slug'],
-            'short_description'   => ['nullable','string'],
-            'full_description'    => ['nullable','string'],
-            'status'              => ['nullable', Rule::in(['draft','published','archived'])],
-            'course_type'         => ['nullable', Rule::in(['free','paid'])],
-            'price_amount'        => ['nullable','numeric','min:0'],
-            'price_currency'      => ['nullable','string','size:3'],
-            'discount_amount'     => ['nullable','numeric','min:0'],
-            'discount_percent'    => ['nullable','numeric','min:0','max:100'],
-            'discount_expires_at' => ['nullable','date'],
-            'is_featured'         => ['nullable','boolean'],
-            'featured_rank'       => ['nullable','integer','min:0'],
-            'order_no'            => ['nullable','integer','min:0'],
-            'level'               => ['nullable','string','max:20'],
-            'language'            => ['nullable','string','max:10'],
-            'publish_at'          => ['nullable','date'],
-            'unpublish_at'        => ['nullable','date','after_or_equal:publish_at'],
-            'metadata'            => ['nullable','array'],
-        ]);
+    $data = $request->validate([
+        'title'               => ['required','string','max:255'],
+        'slug'                => ['nullable','string','max:140','unique:courses,slug'],
 
-        $courseType = $data['course_type'] ?? 'paid';
-        $status     = $data['status']      ?? 'draft';
+        // 🔹 NEW: category is required and must exist in landingpage_categories
+        'category_id'         => ['nullable','integer','exists:landingpage_categories,id'],
 
-        $price = (float)($data['price_amount'] ?? 0);
-        if ($courseType === 'paid' && $price <= 0) {
-            return response()->json([
-                'error'  => 'Validation failed',
-                'fields' => ['price_amount' => ['price_amount must be > 0 for paid courses']],
-            ], 422);
-        }
+        'short_description'   => ['nullable','string'],
+        'full_description'    => ['nullable','string'],
+        'status'              => ['nullable', Rule::in(['draft','published','archived'])],
+        'course_type'         => ['nullable', Rule::in(['free','paid'])],
+        'price_amount'        => ['nullable','numeric','min:0'],
+        'price_currency'      => ['nullable','string','size:3'],
+        'discount_amount'     => ['nullable','numeric','min:0'],
+        'discount_percent'    => ['nullable','numeric','min:0','max:100'],
+        'discount_expires_at' => ['nullable','date'],
+        'is_featured'         => ['nullable','boolean'],
+        'featured_rank'       => ['nullable','integer','min:0'],
+        'order_no'            => ['nullable','integer','min:0'],
+        'level'               => ['nullable','string','max:20'],
+        'language'            => ['nullable','string','max:10'],
+        'publish_at'          => ['nullable','date'],
+        'unpublish_at'        => ['nullable','date','after_or_equal:publish_at'],
+        'metadata'            => ['nullable','array'],
+    ]);
 
-        $currency   = strtoupper($data['price_currency'] ?? 'INR');
-        $discAmt    = array_key_exists('discount_amount',  $data) ? (float)$data['discount_amount']  : null;
-        $discPct    = array_key_exists('discount_percent', $data) ? (float)$data['discount_percent'] : null;
-        $finalPrice = $this->computeFinalPrice($price, $discAmt, $discPct);
+    $courseType = $data['course_type'] ?? 'paid';
+    $status     = $data['status']      ?? 'draft';
 
-        $slug = $data['slug'] ?? $this->makeUniqueSlug($data['title']);
-
-        $a   = $this->actor($request);
-        $now = now();
-        $uuid = (string) Str::uuid();
-
-        $insert = [
-            'uuid'                => $uuid,
-            'title'               => $data['title'],
-            'slug'                => $slug,
-            'short_description'   => $data['short_description'] ?? null,
-            'full_description'    => $data['full_description']  ?? null,
-            'status'              => $status,
-            'course_type'         => $courseType, // free | paid
-            'price_amount'        => $price,
-            'price_currency'      => $currency,
-            'discount_amount'     => $discAmt,
-            'discount_percent'    => $discPct,
-            'discount_expires_at' => $data['discount_expires_at'] ?? null,
-            'is_featured'         => !empty($data['is_featured']) ? 1 : 0,
-            'featured_rank'       => (int)($data['featured_rank'] ?? 0),
-            'order_no'            => (int)($data['order_no'] ?? 0),
-            'level'               => $data['level']    ?? null,
-            'language'            => $data['language'] ?? null,
-            'publish_at'          => $data['publish_at']   ?? null,
-            'unpublish_at'        => $data['unpublish_at'] ?? null,
-            'created_by'          => $a['id'] ?: null,
-            'created_at'          => $now,
-            'created_at_ip'       => $request->ip(),
-            'updated_at'          => $now,
-            'deleted_at'          => null,
-            'metadata'            => isset($data['metadata'])
-                                      ? json_encode($data['metadata'], JSON_UNESCAPED_UNICODE)
-                                      : json_encode(new \stdClass()),
-        ];
-
-        $id = DB::table('courses')->insertGetId($insert);
-
-        $fresh = DB::table('courses')->where('id', $id)->first();
-        if ($fresh) {
-            $fresh->final_price = $this->computeFinalPrice(
-                (float)$fresh->price_amount,
-                $fresh->discount_amount !== null ? (float)$fresh->discount_amount : null,
-                $fresh->discount_percent !== null ? (float)$fresh->discount_percent : null
-            );
-        }
-
-        $this->logActivity(
-            $request,
-            'store',
-            'Created course "'.$insert['title'].'"',
-            'courses',
-            $id,
-            array_keys($insert),
-            null,
-            $fresh ? (array)$fresh : null
-        );
-
-        $link = rtrim((string)config('app.url'), '/').'/admin/courses/'.$id;
-        $this->persistNotification([
-            'title'     => 'Course created',
-            'message'   => '“'.$insert['title'].'” has been created.',
-            'receivers' => $this->adminReceivers(), // now from users table
-            'metadata'  => [
-                'action'     => 'created',
-                'course'     => [
-                    'id'    => $id,
-                    'uuid'  => $uuid,
-                    'title' => $insert['title'],
-                    'slug'  => $slug,
-                    'status'=> $status,
-                    'type'  => $courseType,
-                ],
-                'created_by' => $a,
-            ],
-            'type'      => 'course',
-            'link_url'  => $link,
-            'priority'  => 'normal',
-            'status'    => 'active',
-        ]);
-
-        $this->logWithActor('[Course Store] success', $request, ['course_id' => $id, 'uuid' => $uuid]);
-
+    $price = (float)($data['price_amount'] ?? 0);
+    if ($courseType === 'paid' && $price <= 0) {
         return response()->json([
-            'status'  => 'success',
-            'message' => 'Course created successfully',
-            'data'    => $fresh,
-        ], 201);
+            'error'  => 'Validation failed',
+            'fields' => ['price_amount' => ['price_amount must be > 0 for paid courses']],
+        ], 422);
     }
+
+    $currency   = strtoupper($data['price_currency'] ?? 'INR');
+    $discAmt    = array_key_exists('discount_amount',  $data) ? (float)$data['discount_amount']  : null;
+    $discPct    = array_key_exists('discount_percent', $data) ? (float)$data['discount_percent'] : null;
+    $finalPrice = $this->computeFinalPrice($price, $discAmt, $discPct);
+
+    $slug = $data['slug'] ?? $this->makeUniqueSlug($data['title']);
+
+    $a   = $this->actor($request);
+    $now = now();
+    $uuid = (string) Str::uuid();
+
+    $insert = [
+        'uuid'                => $uuid,
+        'title'               => $data['title'],
+        'slug'                => $slug,
+
+        // 🔹 NEW: persist category
+        'category_id'         => (int)$data['category_id'],
+
+        'short_description'   => $data['short_description'] ?? null,
+        'full_description'    => $data['full_description']  ?? null,
+        'status'              => $status,
+        'course_type'         => $courseType, // free | paid
+        'price_amount'        => $price,
+        'price_currency'      => $currency,
+        'discount_amount'     => $discAmt,
+        'discount_percent'    => $discPct,
+        'discount_expires_at' => $data['discount_expires_at'] ?? null,
+        'is_featured'         => !empty($data['is_featured']) ? 1 : 0,
+        'featured_rank'       => (int)($data['featured_rank'] ?? 0),
+        'order_no'            => (int)($data['order_no'] ?? 0),
+        'level'               => $data['level']    ?? null,
+        'language'            => $data['language'] ?? null,
+        'publish_at'          => $data['publish_at']   ?? null,
+        'unpublish_at'        => $data['unpublish_at'] ?? null,
+        'created_by'          => $a['id'] ?: null,
+        'created_at'          => $now,
+        'created_at_ip'       => $request->ip(),
+        'updated_at'          => $now,
+        'deleted_at'          => null,
+        'metadata'            => isset($data['metadata'])
+                                  ? json_encode($data['metadata'], JSON_UNESCAPED_UNICODE)
+                                  : json_encode(new \stdClass()),
+    ];
+
+    $id = DB::table('courses')->insertGetId($insert);
+
+    $fresh = DB::table('courses')->where('id', $id)->first();
+    if ($fresh) {
+        $fresh->final_price = $this->computeFinalPrice(
+            (float)$fresh->price_amount,
+            $fresh->discount_amount !== null ? (float)$fresh->discount_amount : null,
+            $fresh->discount_percent !== null ? (float)$fresh->discount_percent : null
+        );
+    }
+
+    $this->logActivity(
+        $request,
+        'store',
+        'Created course "'.$insert['title'].'"',
+        'courses',
+        $id,
+        array_keys($insert),
+        null,
+        $fresh ? (array)$fresh : null
+    );
+
+    $link = rtrim((string)config('app.url'), '/').'/admin/courses/'.$id;
+    $this->persistNotification([
+        'title'     => 'Course created',
+        'message'   => '“'.$insert['title'].'” has been created.',
+        'receivers' => $this->adminReceivers(), // now from users table
+        'metadata'  => [
+            'action'     => 'created',
+            'course'     => [
+                'id'    => $id,
+                'uuid'  => $uuid,
+                'title' => $insert['title'],
+                'slug'  => $slug,
+                'status'=> $status,
+                'type'  => $courseType,
+            ],
+            'created_by' => $a,
+        ],
+        'type'      => 'course',
+        'link_url'  => $link,
+        'priority'  => 'normal',
+        'status'    => 'active',
+    ]);
+
+    $this->logWithActor('[Course Store] success', $request, ['course_id' => $id, 'uuid' => $uuid]);
+
+    return response()->json([
+        'status'  => 'success',
+        'message' => 'Course created successfully',
+        'data'    => $fresh,
+    ], 201);
+}
+
 
  public function index(Request $r)
 {
@@ -430,7 +442,6 @@ public function show(Request $r, string $course)
     );
     return response()->json(['data'=>$row]);
 }
-
 public function update(Request $request, string $course)
 {
     if ($resp = $this->requireRole($request, ['admin','superadmin'])) return $resp;
@@ -442,6 +453,10 @@ public function update(Request $request, string $course)
     $data = $request->validate([
         'title'               => ['sometimes','string','max:255'],
         'slug'                => ['sometimes','nullable','string','max:140','unique:courses,slug,'.$id],
+
+        // 🔹 category_id is optional + nullable
+        'category_id'         => ['sometimes','nullable','integer','exists:landingpage_categories,id'],
+
         'short_description'   => ['sometimes','nullable','string'],
         'full_description'    => ['sometimes','nullable','string'],
         'status'              => ['sometimes', Rule::in(['draft','published','archived'])],
@@ -461,21 +476,54 @@ public function update(Request $request, string $course)
         'metadata'            => ['sometimes','nullable','array'],
     ]);
 
+    // =========================
+    // Validate paid course price
+    // =========================
+
     $newType  = $data['course_type'] ?? $row->course_type;
-    $newPrice = array_key_exists('price_amount',$data) ? (float)$data['price_amount'] : (float)$row->price_amount;
+    $newPrice = array_key_exists('price_amount',$data)
+                    ? (float)$data['price_amount']
+                    : (float)$row->price_amount;
+
     if ($newType === 'paid' && $newPrice <= 0) {
-        return response()->json(['error'=>'Validation failed','fields'=>['price_amount'=>['price_amount must be > 0 for paid courses']]], 422);
+        return response()->json([
+            'error'=>'Validation failed',
+            'fields'=>['price_amount'=>['price_amount must be > 0 for paid courses']]
+        ], 422);
     }
 
+    // =========================
+    // Build update array safely
+    // =========================
+
     $upd = [];
+
     foreach ($data as $k => $v) {
-        if ($k === 'metadata') $v = $v !== null ? json_encode($v, JSON_UNESCAPED_UNICODE) : json_encode(new \stdClass());
-        if ($k === 'is_featured') $v = !empty($v) ? 1 : 0;
+
+        if ($k === 'metadata') {
+            // convert to json or empty object
+            $v = $v !== null ? json_encode($v, JSON_UNESCAPED_UNICODE) : json_encode(new \stdClass());
+        }
+
+        if ($k === 'is_featured') {
+            $v = !empty($v) ? 1 : 0;
+        }
+
+        // 🔹 category_id allowed to be null (unassign category)
+        if ($k === 'category_id') {
+            $v = $v !== null ? (int)$v : null;
+        }
+
         $upd[$k] = $v;
     }
+
     $upd['updated_at'] = now();
 
     DB::table('courses')->where('id',$id)->update($upd);
+
+    // =========================
+    // Fetch fresh and compute final price
+    // =========================
 
     $fresh = DB::table('courses')->where('id',$id)->first();
     if ($fresh) {
@@ -486,9 +534,22 @@ public function update(Request $request, string $course)
         );
     }
 
-    $this->logActivity($request,'update','Updated course "'.($fresh->title ?? $row->title).'"','courses',$id,array_keys($upd),(array)$row,$fresh ? (array)$fresh : null);
+    $this->logActivity(
+        $request,
+        'update',
+        'Updated course "'.($fresh->title ?? $row->title).'"',
+        'courses',
+        $id,
+        array_keys($upd),
+        (array)$row,
+        $fresh ? (array)$fresh : null
+    );
 
-    return response()->json(['status'=>'success','message'=>'Course updated','data'=>$fresh]);
+    return response()->json([
+        'status'=>'success',
+        'message'=>'Course updated',
+        'data'=>$fresh
+    ]);
 }
 
 public function destroy(Request $request, string $course)

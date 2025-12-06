@@ -24,6 +24,7 @@ use App\Http\Controllers\API\TopicController;
 use App\Http\Controllers\API\CodingModuleController;
 use App\Http\Controllers\API\CodingQuestionController;
 use App\Http\Controllers\API\JudgeController;
+use App\Http\Controllers\API\LandingPageController;
 
 Route::get('/user', function (Request $request) {
     return $request->user();
@@ -518,3 +519,62 @@ Route::prefix('coding_questions')->group(function () {
     // keep this LAST so it doesn’t swallow other routes
     Route::get('{identifier}',             [CodingQuestionController::class, 'show'])->name('questions.show');
 });
+
+// Admin: manage "Updates" strip (you can wrap with auth middleware)
+Route::prefix('landing')->group(function () {
+    Route::get('updates', [LandingPageController::class, 'updatesIndex'])->name('landing.updates.index');
+    Route::post('updates', [LandingPageController::class, 'updatesStore'])->name('landing.updates.store');
+    Route::put('updates/{id}', [LandingPageController::class, 'updatesUpdate'])->name('landing.updates.update');
+    Route::delete('updates/{id}', [LandingPageController::class, 'updatesDestroy'])->name('landing.updates.destroy');
+     // Updates
+    Route::post('/updates/reorder', [LandingPageController::class, 'updates_reorder']);
+
+    // Hero images
+    Route::post('/hero/reorder', [LandingPageController::class, 'hero_reorder']);
+
+    // Categories
+    Route::post('/categories/reorder', [LandingPageController::class, 'categories_reorder']);
+
+    // Featured courses
+   
+    Route::post('/featured-courses/reorder', [LandingPageController::class, 'featuredCourses_reorder']);
+});
+Route::post('/landing/contacts/reorder', [LandingPageController::class, 'contact_reorder'])
+    ->name('landing.contact.reorder');
+
+Route::get   ('landing/contacts',        [LandingPageController::class, 'contact_index'])->name('landing.contact.index');
+Route::get('landing/contact', [LandingPageController::class, 'contactsDisplay']);
+Route::post  ('landing/contact',        [LandingPageController::class, 'contact_store'])->name('landing.contact.store');
+Route::put   ('landing/contact/{id}',   [LandingPageController::class, 'contact_update'])->name('landing.contact.update');
+Route::patch ('landing/contact/{id}',   [LandingPageController::class, 'contact_update']);
+Route::delete('landing/contact/{id}',   [LandingPageController::class, 'contact_destroy'])->name('landing.contact.destroy');
+
+Route::get   ('landing/hero-images',        [LandingPageController::class, 'hero_index'])->name('landing.hero.index');
+Route::post  ('landing/hero-images',        [LandingPageController::class, 'hero_store'])->name('landing.hero.store');
+Route::put   ('landing/hero-images/{id}',   [LandingPageController::class, 'hero_update'])->name('landing.hero.update');
+Route::patch ('landing/hero-images/{id}',   [LandingPageController::class, 'hero_update']);
+Route::delete('landing/hero-images/{id}',   [LandingPageController::class, 'hero_destroy'])->name('landing.hero.destroy');
+
+// OPTIONAL: public display API for landing page
+Route::get('landing/hero-images/display', [LandingPageController::class, 'hero_display'])
+    ->name('landing.hero.display');
+// Upload from device
+Route::post('uploads/hero-image', [LandingPageController::class, 'upload']);
+
+// Image library for modal ("From Library" button)
+Route::get('media/images', [LandingPageController::class, 'library']);
+
+Route::get   ('landing/categories',        [LandingPageController::class, 'categories_index'])->name('landing.categories.index');
+Route::post  ('landing/categories',        [LandingPageController::class, 'categories_store'])->name('landing.categories.store');
+Route::put   ('landing/categories/{id}',   [LandingPageController::class, 'categories_update'])->name('landing.categories.update');
+Route::patch ('landing/categories/{id}',   [LandingPageController::class, 'categories_update']);
+Route::delete('landing/categories/{id}',   [LandingPageController::class, 'categories_destroy'])->name('landing.categories.destroy');
+
+// public display for landing page
+Route::get('landing/categories/display', [LandingPageController::class, 'categories_display'])
+    ->name('landing.categories.display');
+
+
+Route::get   ('landing/featured-courses',        [LandingPageController::class, 'featuredCourses_index']);
+Route::get('landing/featured-courses/display',   [LandingPageController::class, 'featuredCourses_display']);
+Route::patch('/courses/{course}/featured', [LandingPageController::class, 'toggleFeatured']);

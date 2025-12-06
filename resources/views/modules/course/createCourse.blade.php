@@ -244,9 +244,17 @@
           </div>
           <div class="err" data-for="full_description"></div>
         </div>
-
+          
         <div class="row g-3 mt-2">
-          <div class="col-md-6">
+           <div class="col-md-4">
+  <label class="form-label">Category</label>
+  <select id="category_id" class="form-select">
+    <option value="">No category</option>
+    {{-- options will be injected by JS --}}
+  </select>
+  <div class="err" data-for="category_id"></div>
+</div>
+          <div class="col-md-4">
             <label class="form-label">Course Type</label>
             <select id="course_type" class="form-select">
               <option value="paid" selected>Paid</option>
@@ -254,7 +262,9 @@
             </select>
             <div class="tiny mt-1">Pricing fields show only for <b>Paid</b> courses.</div>
           </div>
-          <div class="col-md-6">
+         
+
+          <div class="col-md-4">
             <label class="form-label">Status</label>
             <select id="status" class="form-select">
               <option value="draft" selected>Draft</option>
@@ -424,7 +434,6 @@
   </div>
 </div>
 @endsection
-
 @push('scripts')
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
@@ -450,11 +459,77 @@
     return;
   }
 
+  // ====== small auth fetch helper ======
+  async function fetchJsonAuth(u){
+    const res = await fetch(u, {
+      headers:{
+        'Authorization':'Bearer '+TOKEN,
+        'Accept':'application/json'
+      }
+    });
+    if(!res.ok) throw Object.assign(new Error('HTTP '+res.status), {status:res.status, url:u, res});
+    const j = await res.json().catch(()=> ({}));
+    return j;
+  }
+
+  /* ===== fields / pricing ===== */
+  const title=$('title'),
+        shortDesc=$('short_description'),
+        ctype=$('course_type'),
+        status=$('status');
+  const price=$('price_amount'),
+        dPct=$('discount_percent'),
+        curr=$('price_currency'),
+        final=$('final_price'),
+        priceBlock=$('priceBlock');
+  const isFeat=$('is_featured'),
+        fRank=$('featured_rank'),
+        ord=$('order_no'),
+        lvl=$('level'),
+        lang=$('language'),
+        pub=$('publish_at'),
+        unpub=$('unpublish_at');
+
+  // 🔹 new: category select ref
+  const categorySel = $('category_id');
+
+  // ====== Load categories into dropdown ======
+  async function loadCategoriesSelect(selectedId = null){
+    if (!categorySel) return;
+
+    // reset base option
+    categorySel.innerHTML = '<option value="">No category</option>';
+
+    try{
+      // adjust endpoint if needed
+      const json = await fetchJsonAuth('/api/landing/categories');
+      const items = json.data || json.items || json || [];
+
+      items.forEach(cat => {
+        if (!cat) return;
+        const opt = document.createElement('option');
+        opt.value = cat.id ?? cat.category_id ?? '';
+        opt.textContent = cat.name || cat.title || cat.label || ('Category #'+opt.value);
+        categorySel.appendChild(opt);
+      });
+
+      if (selectedId != null) {
+        categorySel.value = String(selectedId);
+      }
+    }catch(e){
+      console.error('Failed to load categories', e);
+      // silently keep just "No category"
+    }
+  }
+
   // detect Edit mode (?edit=<uuid or id>)
   const url_ = new URL(location.href);
   const editKey = url_.searchParams.get('edit');
   const isEdit = !!editKey;
   let currentUUID = editKey || null;
+
+  // 🔹 load categories for create mode; edit mode will re-call with selectedId
+  loadCategoriesSelect();
 
   if(isEdit){
     $('pageTitle').textContent = 'Edit Course';
@@ -499,11 +574,6 @@
     const u = prompt('Enter URL (https://…)'); if(u && /^https?:\/\//i.test(u)){ document.execCommand('createLink',false,u); editor.focus(); }
   });
 
-  /* ===== fields / pricing ===== */
-  const title=$('title'), shortDesc=$('short_description'), ctype=$('course_type'), status=$('status');
-  const price=$('price_amount'), dPct=$('discount_percent'), curr=$('price_currency'), final=$('final_price'), priceBlock=$('priceBlock');
-  const isFeat=$('is_featured'), fRank=$('featured_rank'), ord=$('order_no'), lvl=$('level'), lang=$('language'), pub=$('publish_at'), unpub=$('unpublish_at');
-
   function money(v){ const n=Number(v); return isFinite(n)&&n>0?n:0; }
   function pct(v){ const n=Number(v); return isFinite(n)&&n>0?n:0; }
   function recalc(){
@@ -528,7 +598,11 @@
     return true;
   }
   function gateBtn(){ $('to2').disabled = !gateOK(); }
-  ['input','change'].forEach(ev => { title.addEventListener(ev, gateBtn); price.addEventListener(ev, gateBtn); ctype.addEventListener(ev, gateBtn); });
+  ['input','change'].forEach(ev => {
+    title.addEventListener(ev, gateBtn);
+    price.addEventListener(ev, gateBtn);
+    ctype.addEventListener(ev, gateBtn);
+  });
   gateBtn();
 
   $('to2').onclick=()=> setStep(1);
@@ -549,7 +623,12 @@
   $('addTag').onclick=()=>add(tagRow,tagIn);
   $('addCat').onclick=()=>add(catRow,catIn);
   $('addKey').onclick=()=>add(keyRow,keyIn);
-  [tagIn,catIn,keyIn].forEach(inp=> inp.onkeydown=(e)=>{ if(e.key==='Enter'){ e.preventDefault(); (inp===tagIn?$('addTag'):inp===catIn?$('addCat'):$('addKey')).click(); }});
+  [tagIn,catIn,keyIn].forEach(inp=> inp.onkeydown=(e)=>{
+    if(e.key==='Enter'){
+      e.preventDefault();
+      (inp===tagIn?$('addTag'):inp===catIn?$('addCat'):$('addKey')).click();
+    }
+  });
 
   $('addProp').onclick=()=>{
     const k=(pName.value||'').trim(), v=(pVal.value||'').trim(); if(!k||!v) return;
@@ -575,10 +654,14 @@
   function toObjectish(v){
     if(!v) return {};
     if(typeof v === 'string'){
-      try { const j = JSON.parse(v); if(j && typeof j==='object' && !Array.isArray(j)) return j; } catch {}
+      try {
+        const j = JSON.parse(v);
+        if(j && typeof j==='object' && !Array.isArray(j)) return j;
+      } catch {}
       const o={};
       v.split(/[;|,]/).forEach(pair=>{
-        const i = pair.indexOf(':'); if(i>0){ o[pair.slice(0,i).trim()] = pair.slice(i+1).trim(); }
+        const i = pair.indexOf(':');
+        if(i>0){ o[pair.slice(0,i).trim()] = pair.slice(i+1).trim(); }
       });
       return o;
     }
@@ -590,7 +673,13 @@
   function collectProps(){ const o={}; collect(propRow).forEach(t=>{ const i=t.indexOf(':'); if(i>0) o[t.slice(0,i).trim()] = t.slice(i+1).trim(); }); return o; }
 
   /* ===== errors ===== */
-  function fErr(field,msg){ const el=document.querySelector(`.err[data-for="${field}"]`); if(el){ el.textContent=msg||''; el.style.display=msg?'block':'none'; } }
+  function fErr(field,msg){
+    const el=document.querySelector(`.err[data-for="${field}"]`);
+    if(el){
+      el.textContent=msg||'';
+      el.style.display=msg?'block':'none';
+    }
+  }
   function clrErr(){ document.querySelectorAll('.err').forEach(e=>{ e.textContent=''; e.style.display='none'; }); }
 
   // util: to input[type=datetime-local] value (YYYY-MM-DDTHH:MM)
@@ -600,13 +689,6 @@
     if (isNaN(d)) return '';
     const pad = (n)=> String(n).padStart(2,'0');
     return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())+'T'+pad(d.getHours())+':'+pad(d.getMinutes());
-  }
-
-  async function fetchJsonAuth(u){
-    const res = await fetch(u, { headers:{ 'Authorization':'Bearer '+TOKEN, 'Accept':'application/json' }});
-    if(!res.ok) throw Object.assign(new Error('HTTP '+res.status), {status:res.status, url:u, res});
-    const j = await res.json().catch(()=> ({}));
-    return j;
   }
 
   async function getCourseByAny(key){
@@ -641,6 +723,9 @@
     try{
       const c = await getCourseByAny(key);
       currentUUID = c.uuid || key;
+
+      // 🔹 ensure dropdown has categories and select the course's category_id
+      await loadCategoriesSelect(c.category_id ?? null);
 
       // fill fields
       title.value = c.title || '';
@@ -710,6 +795,10 @@
       price_currency:  paid ? (curr.value||'INR') : 'INR',
       discount_percent: paid && dPct.value ? pct(dPct.value) : null,
       discount_amount:  null,
+
+      // 🔹 send nullable FK
+      category_id: (categorySel && categorySel.value) ? Number(categorySel.value) : null,
+
       is_featured: $('is_featured').checked ? 1 : 0,
       featured_rank: Number($('featured_rank').value||0),
       order_no: Number($('order_no').value||0),
@@ -735,12 +824,16 @@
 
     $('busy').classList.add('show');
     try{
-      const url  = isEdit ? `/api/courses/${encodeURIComponent(currentUUID)}` : '/api/courses'; // <-- fixed
+      const url  = isEdit ? `/api/courses/${encodeURIComponent(currentUUID)}` : '/api/courses';
       const meth = isEdit ? 'PUT' : 'POST';
 
       const res = await fetch(url, {
         method:meth,
-        headers:{ 'Authorization':'Bearer '+TOKEN, 'Accept':'application/json', 'Content-Type':'application/json' },
+        headers:{
+          'Authorization':'Bearer '+TOKEN,
+          'Accept':'application/json',
+          'Content-Type':'application/json'
+        },
         body: JSON.stringify(payload(statusOverride))
       });
       const json = await res.json().catch(()=> ({}));
@@ -750,7 +843,8 @@
           icon:'success',
           title: isEdit ? 'Updated' : 'Saved',
           text: isEdit ? 'Course updated successfully' : 'Course created successfully',
-          timer: 900, showConfirmButton:false
+          timer: 900,
+          showConfirmButton:false
         });
         setTimeout(()=> location.replace(baseList), 900);
         return;
@@ -758,7 +852,9 @@
       if(res.status===422){
         const e = json.errors || json.fields || {};
         Object.entries(e).forEach(([k,v])=> fErr(k, Array.isArray(v)? v[0] : String(v)));
-        setStep(0); err(json.message || 'Please fix the highlighted fields.'); return;
+        setStep(0);
+        err(json.message || 'Please fix the highlighted fields.');
+        return;
       }
       if(res.status===403){
         Swal.fire({icon:'error',title:'Unauthorized',html:'If you are <b>Super Admin</b>, ensure the API authorizes this token/role for the endpoint.'});
@@ -766,7 +862,8 @@
       }
       Swal.fire(isEdit?'Update failed':'Save failed', json.message || ('HTTP '+res.status), 'error');
     }catch(ex){
-      console.error(ex); Swal.fire('Network error','Please check your connection and try again.','error');
+      console.error(ex);
+      Swal.fire('Network error','Please check your connection and try again.','error');
     }finally{
       $('busy').classList.remove('show');
     }

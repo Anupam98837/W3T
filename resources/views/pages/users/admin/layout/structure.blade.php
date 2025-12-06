@@ -346,6 +346,8 @@ html.theme-dark .w3-sidebar-scroll::-webkit-scrollbar-thumb {
           
           <a href="/admin/courses/manage" class="w3-link">All Courses</a>
           <a href="/admin/courses/create" class="w3-link" style="display:none">Create Course</a>
+           <a href="/admin/LandingPage/categories/manage" class="w3-link">Categories</a>
+          <a href="/admin/LandingPage/courses/manage" class="w3-link">Featured Courses</a>
           <a href="/admin/courses" class="w3-link">Running Courses</a>
           <a href="/admin/batches/manage" class="w3-link">Batches</a>
         </div>
@@ -435,7 +437,30 @@ html.theme-dark .w3-sidebar-scroll::-webkit-scrollbar-thumb {
   </a>
 </nav>
 
- 
+     <!-- Landing Page Setting -->
+    <div class="w3-nav-section">
+      <div class="w3-section-title">
+        <i class="fa-solid fa-earth-asia"></i>
+        <span class="ms-1">LANDING PAGE SETTING</span>
+      </div>
+      <div class="w3-section-rule"></div>
+    </div>
+
+    <nav class="w3-menu" aria-label="Landing Page Setting">
+      <div class="w3-group">
+        <a href="#" class="w3-link w3-toggle" data-target="sm-landingpage" aria-expanded="false">
+          <i class="fa-solid fa-globe"></i><span>Landing Page</span>
+          <i class="fa fa-chevron-down w3-chev"></i>
+        </a>
+        <div id="sm-landingpage" class="w3-submenu" role="group" aria-label="Landing Page submenu">
+          <a href="/admin/LandingPage/updates/manage" class="w3-link">Updates</a>
+          <a href="/admin/LandingPage/contacts/manage" class="w3-link">Contacts</a>
+          <a href="/admin/LandingPage/hero-images/manage" class="w3-link">Hero Images</a>
+         
+        </div>
+      </div>
+    </nav>
+
     <!-- Operations -->
     <div class="w3-nav-section">
       <div class="w3-section-title"><i class="fa-solid fa-screwdriver-wrench"></i> OPERATIONS</div>
