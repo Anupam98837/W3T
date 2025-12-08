@@ -23,6 +23,13 @@ Route::get('/login', function () {
 });
 
 
+Route::get('/courses/all', function () {
+    return view('modules.course.allCourse');
+});
+
+Route::get('/categories/all', function () {
+    return view('modules.course.allCategory');
+});
 
 
 Route::get('/exam/{quiz}', function (\Illuminate\Http\Request $r, $quiz) {

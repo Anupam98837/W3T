@@ -1,4 +1,5 @@
-@include('pages.landing.components.header')
+
+  @include('pages.landing.components.header')
   <!-- Hero -->
   <section class="lp-hero">
     <div class="lp-hero-inner">
@@ -128,8 +129,8 @@
         <h2 class="lp-section-title">Explore categories</h2>
         <div class="lp-section-sub">Pick a track that matches your career goal.</div>
       </div>
-      <a href="#courses" class="lp-section-link">
-        View all courses <i class="fa fa-arrow-right ms-1"></i>
+      <a href="/categories/all" class="lp-section-link">
+        View all Categories <i class="fa fa-arrow-right ms-1"></i>
       </a>
     </div>
 
@@ -154,8 +155,8 @@
           <h2 class="lp-section-title">Featured job-ready courses</h2>
           <div class="lp-section-sub">Carefully designed tracks that focus on skills, projects, and placements.</div>
         </div>
-        <a href="#" class="lp-section-link">
-          Browse complete catalog <i class="fa fa-arrow-right ms-1"></i>
+        <a href="/courses/all" class="lp-section-link">
+          Browse courses <i class="fa fa-arrow-right ms-1"></i>
         </a>
       </div>
 
@@ -257,7 +258,7 @@
   </section>
 
   <!-- Mentors (beautified) -->
-  <section id="mentors" class="lp-section">
+  <!-- <section id="mentors" class="lp-section">
     <div class="lp-section-inner">
       <div class="lp-section-head">
         <div>
@@ -372,7 +373,7 @@
         </article>
       </div>
     </div>
-  </section>
+  </section> -->
 
   <!-- Testimonials -->
   <section id="reviews" class="lp-section lp-testimonials">
@@ -512,7 +513,7 @@
         </p>
       </div>
       <div class="lp-cta-actions">
-        <button type="button" class="lp-btn-primary">
+        <button type="button" class="lp-btn-primary" style="display:none">
           Get started for free
         </button>
         <button type="button" class="lp-btn-outline">
@@ -521,4 +522,4 @@
       </div>
     </div>
   </section>
-@include('pages.landing.components.footer')
+  @include('pages.landing.components.footer')

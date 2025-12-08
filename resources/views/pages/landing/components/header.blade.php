@@ -9,7 +9,7 @@
   <!-- Bootstrap & Icons -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet"/>
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" rel="stylesheet"/>
-
+  
   <!-- Your global theme -->
   <link rel="stylesheet" href="{{ asset('/assets/css/common/main.css') }}"/>
 
@@ -1576,6 +1576,83 @@
   box-shadow:0 4px 10px rgba(0,0,0,0.08);
   white-space:nowrap;
 }
+.lp-nav-inner{
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 10px 16px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  position: relative; /* 🔹 needed for absolute mobile menu */
+}
+/* Burger button (mobile) */
+.lp-nav-toggle{
+  display: none;
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  border: 1px solid var(--line-strong);
+  background: var(--surface);
+  margin-left: auto;
+  margin-right: 4px;
+  align-items: center;
+  justify-content: center;
+  font-size: 1rem;
+  cursor: pointer;
+}
+
+.lp-nav-toggle i{
+  pointer-events: none;
+}
+/* @media (max-width: 992px){
+  .lp-nav-links{ display:none; }
+} */
+@media (max-width: 992px){
+  /* Show burger button on mobile */
+  .lp-nav-toggle{
+    display: inline-flex;
+  }
+
+  /* Mobile dropdown styles */
+  .lp-nav-links{
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    padding: 10px 16px 12px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--line-strong);
+    box-shadow: var(--shadow-2);
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  /* Default: hidden */
+  .lp-nav:not(.is-open) .lp-nav-links{
+    display: none;
+  }
+
+  /* When nav has .is-open -> show menu */
+  .lp-nav.is-open .lp-nav-links{
+    display: flex;
+  }
+
+  /* Submenus behave like simple stacked sections on mobile */
+  .lp-nav-item{
+    width: 100%;
+  }
+  .lp-submenu{
+    position: static;
+    opacity: 1;
+    transform: none;
+    pointer-events: auto;
+    box-shadow: none;
+    border: none;
+    padding: 4px 0 0;
+    background: transparent;
+  }
+}
+
 
   </style>
 </head>
@@ -1604,146 +1681,89 @@
         <img src="{{ asset('/assets/media/images/web/logo.png') }}" alt="W3Techiez">
         <span>W3Techiez</span>
       </a>
-
+      
       <div class="lp-nav-links">
-        <!-- Courses -->
-        <div class="lp-nav-item">
-          <a href="#courses">
-            Courses <i class="fa-solid fa-chevron-down"></i>
-          </a>
-          <div class="lp-submenu">
-            <div class="lp-submenu-title">Popular Programs</div>
-            <ul class="lp-submenu-links">
-              <li>
-                <a href="#courses">
-                  <span class="label">Full-Stack TypeScript</span>
-                  <span class="meta">Frontend, backend, deployment</span>
-                </a>
-              </li>
-              <li>
-                <a href="#courses">
-                  <span class="label">SDET / QA Automation</span>
-                  <span class="meta">Testing, frameworks, CI</span>
-                </a>
-              </li>
-              <li>
-                <a href="#courses">
-                  <span class="label">Data Analytics</span>
-                  <span class="meta">Python, SQL, dashboards</span>
-                </a>
-              </li>
-              <li>
-                <a href="#courses">
-                  <span class="label">DevOps Essentials</span>
-                  <span class="meta">Docker, CI/CD, cloud basics</span>
-                </a>
-              </li>
-            </ul>
-          </div>
-        </div>
+  <!-- Courses (no dropdown) -->
+  <div class="lp-nav-item">
+    <a href="{{ url('courses/all') }}">
+      Courses
+    </a>
+  </div>
 
-        <!-- Categories -->
-        <div class="lp-nav-item">
-          <a href="#categories">
-            Categories <i class="fa-solid fa-chevron-down"></i>
-          </a>
-          <div class="lp-submenu">
-            <div class="lp-submenu-title">Career Paths</div>
-            <ul class="lp-submenu-links">
-              <li>
-                <a href="#categories">
-                  <span class="label">Full-Stack Developer</span>
-                  <span class="meta">Frontend + backend + deployment</span>
-                </a>
-              </li>
-              <li>
-                <a href="#categories">
-                  <span class="label">SDET / QA Engineer</span>
-                  <span class="meta">Automation, APIs, tools</span>
-                </a>
-              </li>
-              <li>
-                <a href="#categories">
-                  <span class="label">Data Analyst</span>
-                  <span class="meta">Data cleaning, SQL, BI tools</span>
-                </a>
-              </li>
-              <li>
-                <a href="#categories">
-                  <span class="label">Cloud & DevOps</span>
-                  <span class="meta">Infrastructure, CI/CD, monitoring</span>
-                </a>
-              </li>
-            </ul>
-          </div>
-        </div>
+  <!-- Categories (no dropdown) -->
+  <div class="lp-nav-item">
+    <a href="{{ url('categories/all') }}">
+      Categories
+    </a>
+  </div>
 
-        <!-- Why Us -->
-        <div class="lp-nav-item">
+  <!-- Why Us (keeps dropdown) -->
+  <div class="lp-nav-item" style="display:none">
+    <a href="#features">
+      Why Us <i class="fa-solid fa-chevron-down"></i>
+    </a>
+    <div class="lp-submenu">
+      <div class="lp-submenu-title">What you get</div>
+      <ul class="lp-submenu-links">
+        <li>
           <a href="#features">
-            Why Us <i class="fa-solid fa-chevron-down"></i>
+            <span class="label">Structured learning paths</span>
+            <span class="meta">From basics to interview-ready</span>
           </a>
-          <div class="lp-submenu">
-            <div class="lp-submenu-title">What you get</div>
-            <ul class="lp-submenu-links">
-              <li>
-                <a href="#features">
-                  <span class="label">Structured learning paths</span>
-                  <span class="meta">From basics to interview-ready</span>
-                </a>
-              </li>
-              <li>
-                <a href="#features">
-                  <span class="label">Mentor support</span>
-                  <span class="meta">Live doubts, code reviews</span>
-                </a>
-              </li>
-              <li>
-                <a href="#features">
-                  <span class="label">Real projects</span>
-                  <span class="meta">Portfolio-worthy applications</span>
-                </a>
-              </li>
-              <li>
-                <a href="#features">
-                  <span class="label">Placement focus</span>
-                  <span class="meta">Mock interviews, referrals</span>
-                </a>
-              </li>
-            </ul>
-          </div>
-        </div>
+        </li>
+        <li>
+          <a href="#features">
+            <span class="label">Mentor support</span>
+            <span class="meta">Live doubts, code reviews</span>
+          </a>
+        </li>
+        <li>
+          <a href="#features">
+            <span class="label">Real projects</span>
+            <span class="meta">Portfolio-worthy applications</span>
+          </a>
+        </li>
+        <li>
+          <a href="#features">
+            <span class="label">Placement focus</span>
+            <span class="meta">Mock interviews, referrals</span>
+          </a>
+        </li>
+      </ul>
+    </div>
+  </div>
 
-        <!-- Reviews -->
-        <div class="lp-nav-item">
+  <!-- Reviews (keeps dropdown) -->
+  <div class="lp-nav-item" style="display:none">
+    <a href="#reviews">
+      Reviews <i class="fa-solid fa-chevron-down"></i>
+    </a>
+    <div class="lp-submenu">
+      <div class="lp-submenu-title">Success Stories</div>
+      <ul class="lp-submenu-links">
+        <li>
           <a href="#reviews">
-            Reviews <i class="fa-solid fa-chevron-down"></i>
+            <span class="label">Career transitions</span>
+            <span class="meta">From non-CS to developer</span>
           </a>
-          <div class="lp-submenu">
-            <div class="lp-submenu-title">Success Stories</div>
-            <ul class="lp-submenu-links">
-              <li>
-                <a href="#reviews">
-                  <span class="label">Career transitions</span>
-                  <span class="meta">From non-CS to developer</span>
-                </a>
-              </li>
-              <li>
-                <a href="#reviews">
-                  <span class="label">Freshers to first job</span>
-                  <span class="meta">Placement stories and journeys</span>
-                </a>
-              </li>
-              <li>
-                <a href="#reviews">
-                  <span class="label">Working professionals</span>
-                  <span class="meta">Upskilling for better roles</span>
-                </a>
-              </li>
-            </ul>
-          </div>
-        </div>
-      </div>
+        </li>
+        <li>
+          <a href="#reviews">
+            <span class="label">Freshers to first job</span>
+            <span class="meta">Placement stories and journeys</span>
+          </a>
+        </li>
+        <li>
+          <a href="#reviews">
+            <span class="label">Working professionals</span>
+            <span class="meta">Upskilling for better roles</span>
+          </a>
+        </li>
+      </ul>
+    </div>
+  </div>
+</div>
+
 
       <div class="lp-nav-actions">
         <!-- Top contact info -->
@@ -1755,6 +1775,16 @@
 
         <button class="lp-btn-primary" id="lpLoginBtn" type="button">Log in</button>
         {{-- <button class="lp-btn-primary" type="button">Sign up for free</button> --}}
+        <!-- 🔹 Mobile burger button -->
+      <button
+        class="lp-nav-toggle"
+        id="lpNavToggle"
+        type="button"
+        aria-label="Toggle navigation"
+        aria-expanded="false"
+      >
+        <i class="fa-solid fa-bars"></i>
+      </button>
       </div>
     </div>
   </nav>

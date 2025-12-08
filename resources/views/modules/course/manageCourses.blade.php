@@ -141,6 +141,116 @@ html.theme-dark .media-item{background:#0b1020;border-color:var(--line-strong)}
 .table-wrap, .table-wrap .card-body, .table-responsive {
     overflow: auto !important;
 }
+ /* Featured media modal – card grid */
+  #mediaModal .media-list {
+    margin-top: 8px;
+  }
+
+  #mediaModal .media-list.highlight {
+    box-shadow: 0 0 0 1px #bfdbfe;
+    border-radius: 14px;
+    padding: 4px;
+    animation: mediaLibFlash .9s ease-out 1;
+  }
+  @keyframes mediaLibFlash {
+    0%   { box-shadow: 0 0 0 0 rgba(59,130,246,0.7); }
+    100% { box-shadow: 0 0 0 1px rgba(59,130,246,0.4); }
+  }
+
+  #mediaModal .media-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 12px;
+  }
+
+  #mediaModal .media-card {
+    border-radius: 12px;
+    border: 1px solid #e5e7eb;
+    background: #ffffff;
+    padding: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    cursor: grab;
+    transition: box-shadow .15s ease, transform .15s ease, border-color .15s ease;
+  }
+  #mediaModal .media-card:active {
+    cursor: grabbing;
+  }
+  #mediaModal .media-card:hover {
+    box-shadow: 0 10px 18px rgba(15,23,42,0.08);
+    transform: translateY(-1px);
+    border-color: #60a5fa;
+  }
+  #mediaModal .media-card.dragging {
+    opacity: .8;
+    box-shadow: 0 0 0 1px #60a5fa;
+  }
+
+  #mediaModal .media-card .card-thumb {
+    position: relative;
+    width: 100%;
+    padding-top: 62%;
+    border-radius: 10px;
+    overflow: hidden;
+    background: #f3f4f6;
+  }
+  #mediaModal .media-card .card-thumb a {
+    position: absolute;
+    inset: 0;
+    display: block;
+  }
+  #mediaModal .media-card .card-thumb img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  #mediaModal .media-card .card-thumb .icon-center {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+    opacity: .75;
+  }
+
+  #mediaModal .media-card .card-body {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  #mediaModal .media-card .card-body .name {
+    font-size: .82rem;
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  #mediaModal .media-card .card-body .meta {
+    font-size: .75rem;
+    color: #6b7280;
+  }
+
+  #mediaModal .media-card .card-actions {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 4px;
+    margin-top: 4px;
+  }
+  #mediaModal .media-card .btn-icon {
+    border: none;
+    background: transparent;
+    padding: 4px;
+    border-radius: 999px;
+  }
+  #mediaModal .media-card .btn-icon:hover {
+    background: #fee2e2;
+    color: #b91c1c;
+  }
 </style>
 @endpush
 
@@ -1218,13 +1328,13 @@ document.addEventListener('click', (e) => {
       err(e.message || 'Module API error');
     }
   });
-
   /* ========= Media Modal ========= */
   const mediaFiles = document.getElementById('mediaFiles');
   const urlRow     = document.getElementById('urlRow');
   const urlInput   = document.getElementById('urlInput');
   const btnAddUrl  = document.getElementById('btnAddUrl');
   const btnSaveUrl = document.getElementById('btnSaveUrl');
+  const btnFromLib = document.getElementById('btnFromLib');
   const dropzone   = document.getElementById('dropzone');
   const mediaList  = document.getElementById('mediaList');
   const mTitle     = document.getElementById('m_title');
@@ -1235,16 +1345,28 @@ document.addEventListener('click', (e) => {
     currentCourse = { uuid, title, short };
     mTitle.textContent = title || 'Course';
     mSub.textContent   = (short && short.trim()) ? short.trim() : '—';
-    urlRow.style.display='none'; urlInput.value='';
+    urlRow.style.display='none'; 
+    urlInput.value='';
+
     const mediaModal = new bootstrap.Modal(document.getElementById('mediaModal'));
     mediaModal.show();
     loadMedia();
   }
 
   function iconFor(kind){
-    const map={image:'fa-image',video:'fa-film',audio:'fa-music',pdf:'fa-file-pdf',other:'fa-file'};
-    const k=map[kind]||'fa-file';
-    return `<div class="icon"><i class="fa ${k}" style="font-size:14px"></i></div>`;
+    const map = { image:'fa-image', video:'fa-film', audio:'fa-music', pdf:'fa-file-pdf', other:'fa-file' };
+    const k   = map[kind] || 'fa-file';
+    return `<i class="fa ${k}"></i>`;
+  }
+
+  // NEW: Choose from library → scroll to existing items
+  if (btnFromLib) {
+    btnFromLib.addEventListener('click', () => {
+      if (!mediaList) return;
+      mediaList.classList.add('highlight');
+      mediaList.scrollIntoView({ behavior:'smooth', block:'center' });
+      setTimeout(() => mediaList.classList.remove('highlight'), 1200);
+    });
   }
 
   async function loadMedia(){
@@ -1264,36 +1386,61 @@ document.addEventListener('click', (e) => {
         mediaList.innerHTML = `
           <div class="text-center text-muted small py-3">
             <i class="fa fa-image mb-2" style="font-size:22px;opacity:.6;"></i><br/>
-            No featured media yet. Upload files or add a URL.
+            No featured media yet. Upload files, add a URL, or choose from library.
           </div>`;
         return;
       }
 
-      const frag=document.createDocumentFragment();
-      items.forEach(it=>{
-        const div=document.createElement('div');
-        div.className='media-item';
-        div.setAttribute('draggable','true');
-        div.dataset.id=it.id;
-        div.innerHTML=`
-          <div class="handle"><i class="fa fa-grip-lines"></i></div>
-          <div class="info">
-            <div class="d-flex align-items-center gap-2">
-              ${iconFor(it.featured_type)}
-              <div>
-                <div class="url"><a href="${escapeHtml(it.featured_url)}" target="_blank" class="link-underline-opacity-0">${escapeHtml(it.featured_url)}</a></div>
-                <div class="kind">Type: ${escapeHtml(it.featured_type||'other')} • Order: <span class="ord">${it.order_no||0}</span></div>
-              </div>
+      const grid = document.createElement('div');
+      grid.className = 'media-grid';
+      grid.id = 'mediaLibraryList';
+
+      items.forEach(it => {
+        const card = document.createElement('article');
+        card.className = 'media-card';
+        card.setAttribute('draggable','true');
+        card.dataset.id = it.id;
+
+        const urlSafe = escapeHtml(it.featured_url || '');
+        const label   = escapeHtml(it.label || it.filename || it.featured_type?.toUpperCase() || 'Media');
+
+        // thumb
+        let thumbInner;
+        if ((it.featured_type || '').toLowerCase() === 'image') {
+          thumbInner = `
+            <a href="${urlSafe}" target="_blank" rel="noopener">
+              <img src="${urlSafe}" alt="${label}">
+            </a>`;
+        } else {
+          thumbInner = `
+            <a href="${urlSafe}" target="_blank" rel="noopener">
+              <div class="icon-center">${iconFor(it.featured_type)}</div>
+            </a>`;
+        }
+
+        card.innerHTML = `
+          <div class="card-thumb">
+            ${thumbInner}
+          </div>
+          <div class="card-body">
+            <div class="name" title="${urlSafe}">${label}</div>
+            <div class="meta">
+              Type: ${escapeHtml(it.featured_type || 'other')}
+              • Order: <span class="ord">${it.order_no || 0}</span>
             </div>
           </div>
-          <div>
-            <button class="btn-icon" title="Delete" data-del="${it.id}"><i class="fa fa-trash"></i></button>
+          <div class="card-actions">
+            <button class="btn-icon" title="Delete" data-del="${it.id}">
+              <i class="fa fa-trash"></i>
+            </button>
           </div>
         `;
-        frag.appendChild(div);
+
+        grid.appendChild(card);
       });
-      mediaList.innerHTML='';
-      mediaList.appendChild(frag);
+
+      mediaList.innerHTML = '';
+      mediaList.appendChild(grid);
 
       mediaList.querySelectorAll('[data-del]').forEach(btn=>{
         btn.addEventListener('click', ()=> deleteMedia(btn.getAttribute('data-del')));
@@ -1306,6 +1453,138 @@ document.addEventListener('click', (e) => {
       err(e.message);
     }
   }
+
+  async function deleteMedia(id){
+    const {isConfirmed}=await Swal.fire({
+      icon:'warning',
+      title:'Delete media?',
+      showCancelButton:true,
+      confirmButtonText:'Delete',
+      confirmButtonColor:'#ef4444'
+    });
+    if(!isConfirmed) return;
+    try{
+      const res = await fetch(`/api/courses/${encodeURIComponent(currentCourse.uuid)}/media/${encodeURIComponent(id)}`, {
+        method:'DELETE',
+        headers:{'Authorization':'Bearer '+getToken(),'Accept':'application/json'}
+      });
+      if(!res.ok){ const j=await res.json().catch(()=>({})); throw new Error(j?.message||'Delete failed'); }
+      ok('Media deleted');
+      loadMedia();
+    }catch(e){ err(e.message); }
+  }
+
+  mediaFiles.addEventListener('change', async ()=>{
+    if(!mediaFiles.files?.length) return;
+    await uploadFiles(mediaFiles.files);
+    mediaFiles.value='';
+  });
+
+  async function uploadFiles(fileList){
+    const fd=new FormData();
+    Array.from(fileList).forEach(f=> fd.append('files[]', f));
+    try{
+      const res = await fetch(`/api/courses/${encodeURIComponent(currentCourse.uuid)}/media`, {
+        method:'POST',
+        headers:{'Authorization':'Bearer '+getToken()},
+        body: fd
+      });
+      const j=await res.json();
+      if(!res.ok) throw new Error(j?.message||'Upload failed');
+      ok(`Uploaded ${(j?.inserted||[]).length} file(s)`);
+      loadMedia();
+    }catch(e){ err(e.message); }
+  }
+
+  btnAddUrl.addEventListener('click', ()=>{
+    urlRow.style.display = (urlRow.style.display==='none' ? '' : 'none');
+  });
+
+  btnSaveUrl.addEventListener('click', async ()=>{
+    const url=(urlInput.value||'').trim(); 
+    if(!/^https?:\/\//i.test(url)) {
+      return Swal.fire('Invalid URL','Provide a valid http(s) URL.','info');
+    }
+    try{
+      const res=await fetch(`/api/courses/${encodeURIComponent(currentCourse.uuid)}/media`,{
+        method:'POST',
+        headers:{
+          'Authorization':'Bearer '+getToken(),
+          'Content-Type':'application/json',
+          'Accept':'application/json'
+        },
+        body: JSON.stringify({ url })
+      });
+      const j=await res.json();
+      if(!res.ok) throw new Error(j?.message||'Add failed');
+      ok('Media added');
+      urlInput.value='';
+      urlRow.style.display='none';
+      loadMedia();
+    }catch(e){ err(e.message); }
+  });
+
+  ['dragenter','dragover'].forEach(ev=> dropzone.addEventListener(ev, e=>{
+    e.preventDefault(); e.stopPropagation(); dropzone.classList.add('drag');
+  }));
+  ['dragleave','drop'].forEach(ev=> dropzone.addEventListener(ev, e=>{
+    e.preventDefault(); e.stopPropagation(); dropzone.classList.remove('drag');
+  }));
+  dropzone.addEventListener('drop', e=>{
+    const files = e.dataTransfer?.files || []; 
+    if(files.length) uploadFiles(files);
+  });
+
+  function initDragReorder(){
+    const cards = mediaList.querySelectorAll('.media-card');
+    let dragSrc = null;
+
+    cards.forEach(card=>{
+      card.addEventListener('dragstart', e=>{
+        dragSrc = card;
+        card.classList.add('dragging');
+        e.dataTransfer.effectAllowed='move';
+      });
+      card.addEventListener('dragend', ()=>{
+        dragSrc = null;
+        card.classList.remove('dragging');
+      });
+      card.addEventListener('dragover', e=>{
+        e.preventDefault();
+        e.dataTransfer.dropEffect='move';
+      });
+      card.addEventListener('drop', e=>{
+        e.preventDefault();
+        if(!dragSrc || dragSrc===card) return;
+        const grid = mediaList.querySelector('.media-grid');
+        const items=[...grid.querySelectorAll('.media-card')];
+        const srcIdx=items.indexOf(dragSrc);
+        const dstIdx=items.indexOf(card);
+        if(srcIdx<dstIdx) card.after(dragSrc); else card.before(dragSrc);
+        persistReorder();
+      });
+    });
+  }
+
+  async function persistReorder(){
+    const ids=[...mediaList.querySelectorAll('.media-card')].map(n=> Number(n.dataset.id));
+    try{
+      const res = await fetch(`/api/courses/${encodeURIComponent(currentCourse.uuid)}/media/reorder`, {
+        method:'POST',
+        headers:{
+          'Authorization':'Bearer '+getToken(),
+          'Content-Type':'application/json',
+          'Accept':'application/json'
+        },
+        body: JSON.stringify({ ids })
+      });
+      const j=await res.json();
+      if(!res.ok) throw new Error(j?.message||'Reorder failed');
+      ok('Order updated');
+      loadMedia();
+    }catch(e){ err(e.message); }
+  }
+
 
   async function deleteMedia(id){
     const {isConfirmed}=await Swal.fire({icon:'warning',title:'Delete media?',showCancelButton:true,confirmButtonText:'Delete',confirmButtonColor:'#ef4444'});

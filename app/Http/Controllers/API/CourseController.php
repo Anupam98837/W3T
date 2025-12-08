@@ -381,42 +381,90 @@ public function store(Request $request)
     ], 201);
 }
 
-
- public function index(Request $r)
+public function index(Request $r)
 {
-    if ($resp = $this->requireRole($r, ['admin','superadmin'])) return $resp;
-
-    $page     = max(1, (int)$r->query('page', 1));
-    $perPage  = max(1, min(100, (int)$r->query('per_page', 20)));
-    $qText    = trim((string)$r->query('q', ''));
-    $status   = $r->query('status');       // draft|published|archived
-    $type     = $r->query('course_type');  // paid|free
-    $sort     = (string)$r->query('sort', '-created_at'); // or title,status,...
+    $page        = max(1, (int)$r->query('page', 1));
+    $perPage     = max(1, min(100, (int)$r->query('per_page', 20)));
+    $qText       = trim((string)$r->query('q', ''));
+    $status      = $r->query('status');          // draft|published|archived
+    $type        = $r->query('course_type');     // paid|free
+    $sort        = (string)$r->query('sort', '-created_at'); // or title,status,...
     $onlyDeleted = (string)$r->query('only_deleted', '') === '1';
+    $categoryId  = $r->query('category');        // ✅ category filter (category_id on courses)
 
-    // Base query: either deleted or not deleted
-    $q = DB::table('courses');
+    // 🔹 Subquery: pick ONE featured image per course (min featured_url)
+    $mediaSub = DB::table('course_featured_media as cfm2')
+        ->select(
+            'cfm2.course_id',
+            DB::raw('MIN(cfm2.featured_url) as featured_url')
+        )
+        ->groupBy('cfm2.course_id');
+
+    // 🔹 Base query on courses + join featured image
+    $q = DB::table('courses as c')
+        ->leftJoinSub($mediaSub, 'cfm', function ($join) {
+            $join->on('cfm.course_id', '=', 'c.id');
+        })
+        ->select(
+            'c.*',
+            // Expose as thumbnail_url so frontend can use directly
+            DB::raw('cfm.featured_url as thumbnail_url')
+        );
+
+    // Soft delete filter
     if ($onlyDeleted) {
-        $q->whereNotNull('deleted_at');
+        $q->whereNotNull('c.deleted_at');
     } else {
-        $q->whereNull('deleted_at');
+        $q->whereNull('c.deleted_at');
     }
 
+    // Search by title / slug
     if ($qText !== '') {
-        $q->where(function($w) use ($qText){
-            $w->where('title','like',"%$qText%")->orWhere('slug','like',"%$qText%");
+        $q->where(function ($w) use ($qText) {
+            $w->where('c.title', 'like', "%{$qText}%")
+              ->orWhere('c.slug', 'like', "%{$qText}%");
         });
     }
-    if ($status && !$onlyDeleted) $q->where('status', $status); // status filter only for non-deleted listing
-    if ($type)   $q->where('course_type', $type);
 
-    $dir = 'asc'; $col = $sort;
-    if (str_starts_with($sort, '-')) { $dir = 'desc'; $col = ltrim($sort, '-'); }
-    if (!in_array($col, ['created_at','title','status','course_type','order_no','deleted_at'], true)) { $col='created_at'; $dir='desc'; }
+    // Status filter (only for non-deleted)
+    if ($status && !$onlyDeleted) {
+        $q->where('c.status', $status);
+    }
 
+    // Paid / free filter
+    if ($type) {
+        $q->where('c.course_type', $type);
+    }
+
+    // ✅ Category filter (assumes courses.category_id)
+    if ($categoryId) {
+        $q->where('c.category_id', $categoryId);
+    }
+
+    // Sorting
+    $dir = 'asc';
+    $col = $sort;
+    if (str_starts_with($sort, '-')) {
+        $dir = 'desc';
+        $col = ltrim($sort, '-');
+    }
+
+    if (!in_array($col, ['created_at', 'title', 'status', 'course_type', 'order_no', 'deleted_at'], true)) {
+        $col = 'created_at';
+        $dir = 'desc';
+    }
+
+    // Make sure we sort by the aliased table
+    $col = 'c.' . $col;
+
+    // Pagination + fetch
     $total = (clone $q)->count();
-    $rows  = $q->orderBy($col, $dir)->offset(($page-1)*$perPage)->limit($perPage)->get();
+    $rows  = $q->orderBy($col, $dir)
+        ->offset(($page - 1) * $perPage)
+        ->limit($perPage)
+        ->get();
 
+    // Compute final_price_ui on each row
     foreach ($rows as $row) {
         $row->final_price_ui = $this->computeFinalPrice(
             (float)$row->price_amount,
@@ -425,8 +473,16 @@ public function store(Request $request)
         );
     }
 
-    return response()->json(['data'=>$rows,'pagination'=>['page'=>$page,'per_page'=>$perPage,'total'=>$total]]);
+    return response()->json([
+        'data'       => $rows,
+        'pagination' => [
+            'page'     => $page,
+            'per_page' => $perPage,
+            'total'    => $total,
+        ],
+    ]);
 }
+
 
 public function show(Request $r, string $course)
 {

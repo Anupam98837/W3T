@@ -1,13 +1,15 @@
 {{-- resources/views/modules/courses/viewCourse.blade.php --}}
-@section('title', 'View Course')
 
-@push('styles')
+
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"/>
 <link rel="stylesheet" href="{{ asset('assets/css/common/main.css') }}"/>
 
 <style>
 /* ===== Course View (non-breaking on top of main.css) ===== */
-.cv-wrap{max-width:1140px;margin:16px auto 40px}
+.cv-wrap{
+  /* max-width:1140px; */
+  margin:16px 150px 40px
+}
 
 /* Hero */
 .cv-hero{
@@ -73,9 +75,7 @@
   #cvHeroSkel{height:260px}
 }
 </style>
-@endpush
 
-@section('content')
 @php
   // {course} may be id | uuid | slug
   $courseParam = request()->route('course');
@@ -164,9 +164,7 @@
     </div>
   </div>
 </div>
-@endsection
 
-@push('scripts')
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 <script>
 /* ================= Helpers ================= */
@@ -392,4 +390,4 @@ async function loadCourse(){
 
 document.addEventListener('DOMContentLoaded', loadCourse);
 </script>
-@endpush
+

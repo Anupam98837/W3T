@@ -120,35 +120,123 @@ html.theme-dark .dropdown-menu{background:#0f172a;border-color:var(--line-strong
   box-shadow:0 0 0 3px color-mix(in oklab, var(--accent-color) 18%, transparent)
 }
 .dropzone .hint{color:var(--muted-color);font-size:13px}
-
-/* Media list */
+/* Media list → card grid */
 .media-list{margin-top:8px}
-.media-item{
-  display:grid;grid-template-columns:28px 1fr auto;align-items:center;gap:10px;
-  border:1px solid var(--line-strong);border-radius:12px;background:var(--surface-2,#fff);
-  padding:10px 12px;margin-bottom:8px
+
+/* Highlight when "Choose from Library" is clicked */
+.media-list.highlight{
+  box-shadow:0 0 0 1px #bfdbfe;
+  border-radius:14px;
+  padding:4px;
+  animation:mediaLibFlash .9s ease-out 1;
 }
-.media-item .handle{cursor:grab;opacity:.7}
-.media-item.dragging{opacity:.5}
-.media-item .url{
-  font-size:13px;white-space:nowrap;overflow:hidden;
-  text-overflow:ellipsis;max-width:52vw
+@keyframes mediaLibFlash{
+  0%   { box-shadow:0 0 0 0 rgba(59,130,246,0.7); }
+  100% { box-shadow:0 0 0 1px rgba(59,130,246,0.4); }
 }
-.media-item .kind{font-size:12px;color:var(--muted-color)}
-.media-item .btn-icon{
-  border:none;background:transparent;
-  padding:.25rem .4rem;color:#6b7280
+
+.media-grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fill,minmax(150px,1fr));
+  gap:12px;
 }
-.media-item .btn-icon:hover{color:var(--ink)}
-.media-item .icon{
-  width:28px;height:28px;border-radius:8px;
-  display:flex;align-items:center;justify-content:center;
-  border:1px solid var(--line-strong);background:#fff
+
+/* Card */
+.media-card{
+  border-radius:12px;
+  border:1px solid var(--line-strong);
+  background:var(--surface-2,#fff);
+  padding:8px;
+  display:flex;
+  flex-direction:column;
+  gap:6px;
+  cursor:grab;
+  transition:box-shadow .15s ease,transform .15s ease,border-color .15s ease;
+}
+.media-card:active{cursor:grabbing}
+.media-card.dragging{
+  opacity:.8;
+  box-shadow:0 0 0 1px #60a5fa;
+}
+.media-card:hover{
+  box-shadow:0 10px 18px rgba(15,23,42,0.08);
+  transform:translateY(-1px);
+  border-color:#60a5fa;
+}
+
+/* Thumbnail area */
+.media-card .card-thumb{
+  position:relative;
+  width:100%;
+  padding-top:62%;
+  border-radius:10px;
+  overflow:hidden;
+  background:#f3f4f6;
+}
+.media-card .card-thumb a{
+  position:absolute;
+  inset:0;
+  display:block;
+}
+.media-card .card-thumb img{
+  position:absolute;
+  inset:0;
+  width:100%;
+  height:100%;
+  object-fit:cover;
+}
+.media-card .card-thumb .icon-center{
+  position:absolute;
+  inset:0;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-size:22px;
+  opacity:.75;
+}
+
+/* Text/Meta */
+.media-card .card-body{
+  display:flex;
+  flex-direction:column;
+  gap:2px;
+}
+.media-card .card-body .name{
+  font-size:.82rem;
+  font-weight:500;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+.media-card .card-body .meta{
+  font-size:.75rem;
+  color:var(--muted-color);
+}
+
+/* Actions */
+.media-card .card-actions{
+  display:flex;
+  justify-content:flex-end;
+  align-items:center;
+  gap:4px;
+  margin-top:4px;
+}
+.media-card .btn-icon{
+  border:none;
+  background:transparent;
+  padding:.25rem .4rem;
+  border-radius:999px;
+  color:#6b7280;
+}
+.media-card .btn-icon:hover{
+  background:#fee2e2;
+  color:#b91c1c;
 }
 
 /* Dark tweaks for media */
 html.theme-dark .dropzone{background:#0b1020;border-color:var(--line-strong)}
 html.theme-dark .media-item{background:#0b1020;border-color:var(--line-strong)}
+
 </style>
 @endpush
 
@@ -348,7 +436,7 @@ html.theme-dark .media-item{background:#0b1020;border-color:var(--line-strong)}
                 <button id="btnAddUrl" class="btn btn-light" type="button">
                   <i class="fa fa-link me-1"></i>Add via URL
                 </button>
-                <button id="btnChooseLib" class="btn btn-light" type="button">
+                <button id="btnChooseLib" class="btn btn-light" type="button" style="display:none">
                   <i class="fa fa-images me-1"></i>Choose from Library
                 </button>
               </div>
@@ -908,23 +996,23 @@ document.addEventListener('click',(e)=>{
     }
   });
 
-  /* ===== Featured Media JS (same behaviour as Courses page) ===== */
-  const mediaFiles = document.getElementById('mediaFiles');
-  const urlRow     = document.getElementById('urlRow');
-  const urlInput   = document.getElementById('urlInput');
-  const btnAddUrl  = document.getElementById('btnAddUrl');
-  const btnSaveUrl = document.getElementById('btnSaveUrl');
+    /* ===== Featured Media JS (card previews + choose from library) ===== */
+  const mediaFiles   = document.getElementById('mediaFiles');
+  const urlRow       = document.getElementById('urlRow');
+  const urlInput     = document.getElementById('urlInput');
+  const btnAddUrl    = document.getElementById('btnAddUrl');
+  const btnSaveUrl   = document.getElementById('btnSaveUrl');
   const btnChooseLib = document.getElementById('btnChooseLib');
-  const dropzone   = document.getElementById('dropzone');
-  const mediaList  = document.getElementById('mediaList');
-  const mTitle     = document.getElementById('m_title');
-  const mSub       = document.getElementById('m_sub');
-  const mediaCount = document.getElementById('mediaCount');
+  const dropzone     = document.getElementById('dropzone');
+  const mediaList    = document.getElementById('mediaList');
+  const mTitle       = document.getElementById('m_title');
+  const mSub         = document.getElementById('m_sub');
+  const mediaCount   = document.getElementById('mediaCount');
 
   function iconFor(kind){
     const map={image:'fa-image',video:'fa-film',audio:'fa-music',pdf:'fa-file-pdf',other:'fa-file'};
-    const k=map[(kind||'').toLowerCase()]||'fa-file';
-    return `<div class="icon"><i class="fa ${k}" style="font-size:14px"></i></div>`;
+    const k = map[(kind||'').toLowerCase()] || 'fa-file';
+    return `<i class="fa ${k}"></i>`;
   }
 
   function openMedia(uuid, title, short=''){
@@ -932,11 +1020,20 @@ document.addEventListener('click',(e)=>{
     currentCourse = { uuid, title, short };
     mTitle.textContent = title || 'Course';
     mSub.textContent   = (short && short.trim()) ? short.trim() : '—';
-    urlRow.style.display='none'; urlInput.value='';
+    urlRow.style.display='none';
+    urlInput.value='';
     const mediaModal = new bootstrap.Modal(document.getElementById('mediaModal'));
     mediaModal.show();
     loadMedia();
   }
+
+  // "Choose from Library" → scroll to existing cards
+  btnChooseLib?.addEventListener('click', ()=>{
+    if(!mediaList) return;
+    mediaList.classList.add('highlight');
+    mediaList.scrollIntoView({behavior:'smooth', block:'center'});
+    setTimeout(()=> mediaList.classList.remove('highlight'), 1200);
+  });
 
   async function loadMedia(){
     mediaList.innerHTML='<div class="text-center text-muted small py-4"><i class="fa fa-spinner fa-spin me-2"></i>Loading media...</div>';
@@ -951,47 +1048,71 @@ document.addEventListener('click',(e)=>{
       const items = json?.media || json?.data || [];
       mediaCount.textContent = `${items.length} item(s)`;
 
-      if(items.length===0){
+      if(!items.length){
         mediaList.innerHTML = `
           <div class="text-center text-muted small py-3">
             <i class="fa fa-image mb-2" style="font-size:22px;opacity:.6;"></i><br/>
-            No featured media yet. Upload files or add a URL.
+            No featured media yet. Upload files, add a URL, or choose from library.
           </div>`;
         return;
       }
 
-      const frag=document.createDocumentFragment();
+      const grid = document.createElement('div');
+      grid.className = 'media-grid';
+      grid.id = 'mediaLibraryList';
+
       items.forEach(it=>{
-        const div=document.createElement('div');
-        div.className='media-item';
-        div.setAttribute('draggable','true');
-        div.dataset.id=it.id;
-        div.innerHTML=`
-          <div class="handle"><i class="fa fa-grip-lines"></i></div>
-          <div class="info">
-            <div class="d-flex align-items-center gap-2">
-              ${iconFor(it.featured_type || it.type)}
-              <div>
-                <div class="url">
-                  <a href="${esc(it.featured_url || it.url || '')}" target="_blank" class="link-underline-opacity-0">
-                    ${esc(it.featured_url || it.url || '')}
-                  </a>
-                </div>
-                <div class="kind">
-                  Type: ${esc(it.featured_type || it.type || 'other')}
-                  • Order: <span class="ord">${it.order_no||0}</span>
-                </div>
-              </div>
+        const urlRaw = it.featured_url || it.url || '';
+        const urlSafe = esc(urlRaw);
+        // try a nice label
+        let label = it.label || it.filename || '';
+        if(!label && urlRaw){
+          try{
+            const u = new URL(urlRaw, window.location.origin);
+            label = u.pathname.split('/').filter(Boolean).pop() || urlRaw;
+          }catch{ label = urlRaw; }
+        }
+        label = esc(label);
+
+        const kind = (it.featured_type || it.type || 'other').toLowerCase();
+        const isImg = kind === 'image';
+
+        const card = document.createElement('article');
+        card.className = 'media-card';
+        card.setAttribute('draggable','true');
+        card.dataset.id = it.id;
+
+        const thumbInner = isImg
+          ? `<a href="${urlSafe}" target="_blank" rel="noopener">
+               <img src="${urlSafe}" alt="${label || 'Media'}">
+             </a>`
+          : `<a href="${urlSafe}" target="_blank" rel="noopener">
+               <div class="icon-center">${iconFor(kind)}</div>
+             </a>`;
+
+        card.innerHTML = `
+          <div class="card-thumb">
+            ${thumbInner}
+          </div>
+          <div class="card-body">
+            <div class="name" title="${urlSafe}">${label || 'Media file'}</div>
+            <div class="meta">
+              Type: ${esc(it.featured_type || it.type || 'other')}
+              • Order: <span class="ord">${it.order_no || 0}</span>
             </div>
           </div>
-          <div>
-            <button class="btn-icon" title="Delete" data-del="${it.id}"><i class="fa fa-trash"></i></button>
+          <div class="card-actions">
+            <button class="btn-icon" title="Delete" data-del="${it.id}">
+              <i class="fa fa-trash"></i>
+            </button>
           </div>
         `;
-        frag.appendChild(div);
+
+        grid.appendChild(card);
       });
+
       mediaList.innerHTML='';
-      mediaList.appendChild(frag);
+      mediaList.appendChild(grid);
 
       mediaList.querySelectorAll('[data-del]').forEach(btn=>{
         btn.addEventListener('click', ()=> deleteMedia(btn.getAttribute('data-del')));
@@ -1016,7 +1137,8 @@ document.addEventListener('click',(e)=>{
     if(!isConfirmed) return;
     try{
       const res = await fetch(`/api/courses/${encodeURIComponent(currentCourse.uuid)}/media/${encodeURIComponent(id)}`, {
-        method:'DELETE', headers:{'Authorization':'Bearer '+TOKEN,'Accept':'application/json'}
+        method:'DELETE',
+        headers:{'Authorization':'Bearer '+TOKEN,'Accept':'application/json'}
       });
       const j = await res.json().catch(()=>({}));
       if(!res.ok) throw new Error(j?.message||'Delete failed');
@@ -1025,24 +1147,55 @@ document.addEventListener('click',(e)=>{
     }catch(e){ err(e.message || 'Delete failed'); }
   }
 
-  async function uploadFiles(fileList){
-    const fd=new FormData();
-    Array.from(fileList).forEach(f=> fd.append('files[]', f));
-    try{
+    async function uploadFiles(fileList){
+    if (!currentCourse || !currentCourse.uuid) {
+      err('No course selected for upload');
+      return;
+    }
+
+    const fd = new FormData();
+    Array.from(fileList).forEach(f => fd.append('files[]', f));
+
+    try {
+      // Optional: small inline "uploading" feedback
+      mediaList.innerHTML = `
+        <div class="text-center text-muted small py-4">
+          <i class="fa fa-spinner fa-spin me-2"></i>Uploading…
+        </div>`;
+      mediaCount.textContent = 'Uploading…';
+
       const res = await fetch(`/api/courses/${encodeURIComponent(currentCourse.uuid)}/media`, {
-        method:'POST', headers:{'Authorization':'Bearer '+TOKEN}, body: fd
+        method: 'POST',
+        headers: {
+          'Authorization': 'Bearer ' + TOKEN,
+          'Accept': 'application/json'
+        },
+        body: fd
       });
-      const j=await res.json().catch(()=>({}));
-      if(!res.ok) throw new Error(j?.message||'Upload failed');
-      ok('File(s) uploaded');
-      loadMedia();
-    }catch(e){ err(e.message || 'Upload failed'); }
+
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(j?.message || 'Upload failed');
+      }
+
+      const inserted = (j?.inserted || j?.media || j?.data || []);
+      ok(`Uploaded ${inserted.length || fileList.length} file(s)`);
+
+      // 🔴 Force a fresh reload AFTER the API finishes
+      await loadMedia();
+    } catch (e) {
+      console.error(e);
+      err(e.message || 'Upload failed');
+      // keep previous list if loadMedia failed
+      mediaCount.textContent = 'Upload failed';
+    }
   }
 
-  mediaFiles?.addEventListener('change', async ()=>{
-    if(!mediaFiles.files?.length) return;
+  mediaFiles?.addEventListener('change', async () => {
+    if (!mediaFiles.files?.length) return;
     await uploadFiles(mediaFiles.files);
-    mediaFiles.value='';
+    // reset so selecting the same file again still triggers "change"
+    mediaFiles.value = '';
   });
 
   btnAddUrl?.addEventListener('click', ()=>{
@@ -1056,7 +1209,11 @@ document.addEventListener('click',(e)=>{
     try{
       const res=await fetch(`/api/courses/${encodeURIComponent(currentCourse.uuid)}/media`,{
         method:'POST',
-        headers:{'Authorization':'Bearer '+TOKEN,'Content-Type':'application/json','Accept':'application/json'},
+        headers:{
+          'Authorization':'Bearer '+TOKEN,
+          'Content-Type':'application/json',
+          'Accept':'application/json'
+        },
         body: JSON.stringify({ url })
       });
       const j=await res.json().catch(()=>({}));
@@ -1068,19 +1225,10 @@ document.addEventListener('click',(e)=>{
     }catch(e){ err(e.message || 'Add failed'); }
   });
 
-  // Choose from Library → open library page in new tab (you can adjust URL later)
-  btnChooseLib?.addEventListener('click', ()=>{
-    if(!currentCourse?.uuid){
-      Swal.fire('No course selected','Open media for a course first.','info');
-      return;
-    }
-    window.open(`/admin/media-library?course=${encodeURIComponent(currentCourse.uuid)}`, '_blank');
-  });
-
-  ;['dragenter','dragover'].forEach(ev=> dropzone?.addEventListener(ev, e=>{
+  ['dragenter','dragover'].forEach(ev=> dropzone?.addEventListener(ev, e=>{
     e.preventDefault(); e.stopPropagation(); dropzone.classList.add('drag');
   }));
-  ;['dragleave','drop'].forEach(ev=> dropzone?.addEventListener(ev, e=>{
+  ['dragleave','drop'].forEach(ev=> dropzone?.addEventListener(ev, e=>{
     e.preventDefault(); e.stopPropagation(); dropzone.classList.remove('drag');
   }));
   dropzone?.addEventListener('drop', e=>{
@@ -1089,38 +1237,46 @@ document.addEventListener('click',(e)=>{
   });
 
   function initDragReorder(){
-    let dragSrc=null;
-    mediaList.querySelectorAll('.media-item').forEach(it=>{
-      it.addEventListener('dragstart', e=>{
-        dragSrc=it;
-        it.classList.add('dragging');
+    const cards = mediaList.querySelectorAll('.media-card');
+    let dragSrc = null;
+
+    cards.forEach(card=>{
+      card.addEventListener('dragstart', e=>{
+        dragSrc = card;
+        card.classList.add('dragging');
         e.dataTransfer.effectAllowed='move';
       });
-      it.addEventListener('dragend', ()=>{
-        dragSrc=null;
-        it.classList.remove('dragging');
+      card.addEventListener('dragend', ()=>{
+        dragSrc = null;
+        card.classList.remove('dragging');
       });
-      it.addEventListener('dragover', e=>{
+      card.addEventListener('dragover', e=>{
         e.preventDefault();
         e.dataTransfer.dropEffect='move';
       });
-      it.addEventListener('drop', e=>{
+      card.addEventListener('drop', e=>{
         e.preventDefault();
-        if(!dragSrc || dragSrc===it) return;
-        const items=[...mediaList.querySelectorAll('.media-item')];
-        const srcIdx=items.indexOf(dragSrc), dstIdx=items.indexOf(it);
-        if(srcIdx<dstIdx) it.after(dragSrc); else it.before(dragSrc);
+        if(!dragSrc || dragSrc===card) return;
+        const grid = mediaList.querySelector('.media-grid');
+        const items=[...grid.querySelectorAll('.media-card')];
+        const srcIdx=items.indexOf(dragSrc);
+        const dstIdx=items.indexOf(card);
+        if(srcIdx<dstIdx) card.after(dragSrc); else card.before(dragSrc);
         persistReorder();
       });
     });
   }
 
   async function persistReorder(){
-    const ids=[...mediaList.querySelectorAll('.media-item')].map(n=> Number(n.dataset.id));
+    const ids=[...mediaList.querySelectorAll('.media-card')].map(n=> Number(n.dataset.id));
     try{
       const res = await fetch(`/api/courses/${encodeURIComponent(currentCourse.uuid)}/media/reorder`, {
         method:'POST',
-        headers:{'Authorization':'Bearer '+TOKEN,'Content-Type':'application/json','Accept':'application/json'},
+        headers:{
+          'Authorization':'Bearer '+TOKEN,
+          'Content-Type':'application/json',
+          'Accept':'application/json'
+        },
         body: JSON.stringify({ ids })
       });
       const j=await res.json().catch(()=>({}));
@@ -1130,7 +1286,7 @@ document.addEventListener('click',(e)=>{
     }catch(e){ err(e.message || 'Reorder failed'); }
   }
 
-  // Delegated click for media item in dropdown
+  // Delegated click for media action in dropdown (unchanged)
   document.addEventListener('click', (e)=>{
     const item = e.target.closest('.dropdown-item[data-act]');
     if(!item) return;
@@ -1147,6 +1303,7 @@ document.addEventListener('click',(e)=>{
       }
     }
   });
+
 
   // init
   (async ()=>{

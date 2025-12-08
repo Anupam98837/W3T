@@ -1,13 +1,13 @@
 {{-- resources/views/pages/users/admin/pages/course/viewCourse.blade.php --}}
-@extends('pages.users.admin.layout.structure')
+@include('pages.landing.components.header')
 
-@section('title', 'View Course')
+{{-- Page Title --}}
+<title>View Course</title>
 
-@section('content')
-  @include('modules.course.viewCourse')
-@endsection
+{{-- Page Content --}}
+@include('modules.course.viewCourse')
 
-@section('scripts')
+{{-- Page Scripts --}}
 <script>
   document.addEventListener('DOMContentLoaded', function () {
     if (!sessionStorage.getItem('token') && !localStorage.getItem('token')) {
@@ -15,4 +15,5 @@
     }
   });
 </script>
-@endsection
+
+@include('pages.landing.components.footer')

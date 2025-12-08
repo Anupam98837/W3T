@@ -247,8 +247,8 @@
           
         <div class="row g-3 mt-2">
            <div class="col-md-4">
-  <label class="form-label">Category</label>
-  <select id="category_id" class="form-select">
+  <label class="form-label">Category<span class="text-danger">*</span></label> 
+  <select id="category_id" class="form-select" required>
     <option value="">No category</option>
     {{-- options will be injected by JS --}}
   </select>

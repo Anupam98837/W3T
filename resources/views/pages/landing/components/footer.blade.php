@@ -1,5 +1,4 @@
-
-  <!-- Footer -->
+<!-- Footer -->
   <footer class="lp-footer">
     <div class="lp-footer-inner">
       <div class="lp-footer-main">
@@ -373,7 +372,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
   loadLandingCategories();
 
- /* =========================
+
+  /* =========================
      Featured courses grid
      ========================= */
   const renderFeaturedCourses = courses => {
@@ -576,6 +576,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   loadFeaturedCourses();
 
+
   /* =========================
      Back-to-top button
      ========================= */
@@ -641,6 +642,53 @@ document.addEventListener('DOMContentLoaded', () => {
         window.location.assign(`/${role}/dashboard`);
       } else {
         window.location.assign('/login');
+      }
+    });
+  }
+
+
+  /* =========================
+     Mobile burger / nav toggle
+     ========================= */
+  const nav       = qs('.lp-nav');
+  const navToggle = qs('#lpNavToggle');
+
+  if (nav && navToggle) {
+    const updateIcon = (isOpen) => {
+      const icon = navToggle.querySelector('i');
+      if (!icon) return;
+      if (isOpen) {
+        icon.classList.remove('fa-bars');
+        icon.classList.add('fa-xmark');
+      } else {
+        icon.classList.add('fa-bars');
+        icon.classList.remove('fa-xmark');
+      }
+    };
+
+    navToggle.addEventListener('click', () => {
+      const isOpen = nav.classList.toggle('is-open');
+      navToggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+      updateIcon(isOpen);
+    });
+
+    // Close menu when clicking a nav link (mobile)
+    qsa('.lp-nav-links a').forEach(link => {
+      link.addEventListener('click', () => {
+        if (!nav.classList.contains('is-open')) return;
+        nav.classList.remove('is-open');
+        navToggle.setAttribute('aria-expanded', 'false');
+        updateIcon(false);
+      });
+    });
+
+    // Close when clicking outside
+    document.addEventListener('click', (e) => {
+      if (!nav.classList.contains('is-open')) return;
+      if (!nav.contains(e.target)) {
+        nav.classList.remove('is-open');
+        navToggle.setAttribute('aria-expanded', 'false');
+        updateIcon(false);
       }
     });
   }
