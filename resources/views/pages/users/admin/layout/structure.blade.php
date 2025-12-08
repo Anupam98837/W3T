@@ -347,7 +347,6 @@ html.theme-dark .w3-sidebar-scroll::-webkit-scrollbar-thumb {
           <a href="/admin/courses/manage" class="w3-link">All Courses</a>
           <a href="/admin/courses/create" class="w3-link" style="display:none">Create Course</a>
            <a href="/admin/LandingPage/categories/manage" class="w3-link">Categories</a>
-          <a href="/admin/LandingPage/courses/manage" class="w3-link">Featured Courses</a>
           <a href="/admin/courses" class="w3-link">Running Courses</a>
           <a href="/admin/batches/manage" class="w3-link">Batches</a>
         </div>
@@ -456,6 +455,8 @@ html.theme-dark .w3-sidebar-scroll::-webkit-scrollbar-thumb {
           <a href="/admin/LandingPage/updates/manage" class="w3-link">Updates</a>
           <a href="/admin/LandingPage/contacts/manage" class="w3-link">Contacts</a>
           <a href="/admin/LandingPage/hero-images/manage" class="w3-link">Hero Images</a>
+           <a href="/admin/featured/courses/manage" class="w3-link">Featured Courses</a>
+
          
         </div>
       </div>

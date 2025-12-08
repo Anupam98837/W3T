@@ -198,7 +198,7 @@ Route::prefix('admin') // add your middlewares if needed
 Route::get('/admin/LandingPage/categories/manage', function () {
     return view('modules.landingPages.manageCategories');
 });
-Route::get('/admin/LandingPage/courses/manage', function () {
+Route::get('/admin/featured/courses/manage', function () {
     return view('modules.landingPages.manageCourses');
 });
 
