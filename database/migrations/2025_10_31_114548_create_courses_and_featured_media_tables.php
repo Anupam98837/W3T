@@ -38,6 +38,12 @@ return new class extends Migration {
                 ->nullable()
                 ->default(null);
 
+            // 🔹 NEW: display order for landing-page ordering
+            $table->integer('display_order')
+                ->nullable()
+                ->default(null)
+                ->index();
+
             // Soft deletes (for trash)
             $table->softDeletes();
 

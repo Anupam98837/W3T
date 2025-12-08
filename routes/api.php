@@ -25,6 +25,8 @@ use App\Http\Controllers\API\CodingModuleController;
 use App\Http\Controllers\API\CodingQuestionController;
 use App\Http\Controllers\API\JudgeController;
 use App\Http\Controllers\API\LandingPageController;
+use App\Http\Controllers\API\CourseCategoryController;
+
 
 Route::get('/user', function (Request $request) {
     return $request->user();
@@ -564,16 +566,16 @@ Route::post('uploads/hero-image', [LandingPageController::class, 'upload']);
 // Image library for modal ("From Library" button)
 Route::get('media/images', [LandingPageController::class, 'library']);
 
-Route::get   ('landing/categories',        [LandingPageController::class, 'categories_index'])->name('landing.categories.index');
-Route::post  ('landing/categories',        [LandingPageController::class, 'categories_store'])->name('landing.categories.store');
-Route::put   ('landing/categories/{id}',   [LandingPageController::class, 'categories_update'])->name('landing.categories.update');
-Route::patch ('landing/categories/{id}',   [LandingPageController::class, 'categories_update']);
-Route::delete('landing/categories/{id}',   [LandingPageController::class, 'categories_destroy'])->name('landing.categories.destroy');
+Route::get   ('landing/categories',        [CourseCategoryController::class, 'categories_index'])->name('landing.categories.index');
+Route::post  ('landing/categories',        [CourseCategoryController::class, 'categories_store'])->name('landing.categories.store');
+Route::put   ('landing/categories/{id}',   [CourseCategoryController::class, 'categories_update'])->name('landing.categories.update');
+Route::patch ('landing/categories/{id}',   [CourseCategoryController::class, 'categories_update']);
+Route::delete('landing/categories/{id}',   [CourseCategoryController::class, 'categories_destroy'])->name('landing.categories.destroy');
 
 // public display for landing page
-Route::get('landing/categories/display', [LandingPageController::class, 'categories_display'])
+Route::get('landing/categories/display', [CourseCategoryController::class, 'categories_display'])
     ->name('landing.categories.display');
-
+ 
 
 Route::get   ('landing/featured-courses',        [LandingPageController::class, 'featuredCourses_index']);
 Route::get('landing/featured-courses/display',   [LandingPageController::class, 'featuredCourses_display']);

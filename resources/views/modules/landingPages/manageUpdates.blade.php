@@ -318,23 +318,18 @@
 </div>
 
 {{-- Toasts --}}
-<div class="toast-container position-fixed top-0 end-0 p-3" style="z-index:9999">
-  <div id="okToast" class="toast text-bg-success border-0" role="alert" aria-live="assertive" aria-atomic="true">
-    <div class="toast-header">
-      <i class="fa fa-check-circle me-2"></i>
-      <strong class="me-auto">Success</strong>
-      <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
+<div class="toast-container position-fixed top-0 end-0 p-3" style="z-index:2100">
+  <div id="okToast" class="toast text-bg-success border-0">
+    <div class="d-flex">
+      <div id="okMsg" class="toast-body">Done</div>
+      <button class="btn-close btn-close-white m-auto me-2" data-bs-dismiss="toast"></button>
     </div>
-    <div id="okMsg" class="toast-body">Operation completed successfully.</div>
   </div>
-  
-  <div id="errToast" class="toast text-bg-danger border-0 mt-2" role="alert" aria-live="assertive" aria-atomic="true">
-    <div class="toast-header">
-      <i class="fa fa-exclamation-circle me-2"></i>
-      <strong class="me-auto">Error</strong>
-      <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
+  <div id="errToast" class="toast text-bg-danger border-0 mt-2">
+    <div class="d-flex">
+      <div id="errMsg" class="toast-body">Something went wrong</div>
+      <button class="btn-close btn-close-white m-auto me-2" data-bs-dismiss="toast"></button>
     </div>
-    <div id="errMsg" class="toast-body">Something went wrong.</div>
   </div>
 </div>
 @endsection
@@ -439,20 +434,6 @@ document.addEventListener('DOMContentLoaded', function () {
       document.execCommand('insertText', false, text);
     });
   }
-  /* ========== 3-dot dropdown toggle (same pattern as other pages) ========== */
-  document.addEventListener("click", (e) => {
-    const btn = e.target.closest(".dd-toggle");
-    if (!btn) return;
-
-    // Stop the click from bubbling and triggering table handlers
-    e.preventDefault();
-    e.stopPropagation();
-
-    bootstrap.Dropdown.getOrCreateInstance(btn, {
-      autoClose: "outside",
-      boundary: "viewport",
-    }).toggle();
-  });
 
   function getRTEValue(element) {
     if (!element || element.classList.contains('empty')) return '';
@@ -534,7 +515,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
     sortableInstance = Sortable.create(tbody, {
       animation: 150,
-      filter: 'tr:not([data-id])' // ignore placeholder rows
+      filter: 'tr:not([data-id])'
     });
   }
 
@@ -577,13 +558,36 @@ document.addEventListener('DOMContentLoaded', function () {
     updateModal?.show();
   }
 
-  function openEditModal(item) {
-    updIdInput.value = item.id;
-    updOrderInput.value = item.display_order || 0;
-    setRTEValue(rteTitle, item.title || '');
-    setRTEValue(rteDescription, item.description || '');
-    updateModalTitle.innerHTML = '<i class="fa fa-edit me-2"></i>Edit Update';
-    updateModal?.show();
+  function openEditModal(id) {
+    // Fetch the specific update to edit
+    fetch(`${API_BASE}?id=${encodeURIComponent(id)}`, {
+      headers: {
+        'Accept': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest'
+      }
+    })
+    .then(r => r.json().then(j => ({ok: r.ok, j})))
+    .then(({ok, j}) => {
+      if (!ok) throw new Error(j?.message || 'Load failed');
+      
+      const list = j.data || [];
+      const item = list.find(x => String(x.id) === String(id));
+      
+      if (!item) {
+        throw new Error('Update not found');
+      }
+
+      updIdInput.value = item.id;
+      updOrderInput.value = item.display_order || 0;
+      setRTEValue(rteTitle, item.title || '');
+      setRTEValue(rteDescription, item.description || '');
+      updateModalTitle.innerHTML = '<i class="fa fa-edit me-2"></i>Edit Update';
+      updateModal?.show();
+    })
+    .catch(e => {
+      console.error('Error loading update:', e);
+      showToast('error', e.message || 'Failed to load update');
+    });
   }
 
   if (btnCreate) {
@@ -689,7 +693,6 @@ document.addEventListener('DOMContentLoaded', function () {
           day: 'numeric'
         }) : 'N/A';
 
-      // strip HTML for snippet
       let descText = '';
       if (item.description) {
         descText = item.description.replace(/<[^>]*>/g,'');
@@ -723,7 +726,7 @@ document.addEventListener('DOMContentLoaded', function () {
               <ul class="dropdown-menu dropdown-menu-end">
                 <li>
                   <button class="dropdown-item upd-edit-btn"
-                          data-item='${JSON.stringify(item).replace(/'/g,"&#39;")}'>
+                          data-id="${item.id}">
                     <i class="fa fa-pen-to-square"></i> Edit
                   </button>
                 </li>
@@ -857,41 +860,44 @@ document.addEventListener('DOMContentLoaded', function () {
   }
 
   /* =========== Event delegation for dropdown actions =========== */
-  if (tbody) {
-  tbody.addEventListener('click', function(e) {
+  document.addEventListener('click', async function(e) {
     const editBtn = e.target.closest('.upd-edit-btn');
     const delBtn  = e.target.closest('.upd-del-btn');
 
     if (editBtn) {
-      const itemStr = editBtn.dataset.item || '{}';
-      try {
-        const item = JSON.parse(itemStr.replace(/&#39;/g, "'"));
-        openEditModal(item);
-      } catch (error) {
-        console.error('Error parsing item:', error);
-        showToast('error', 'Could not load update for editing');
+      const id = editBtn.dataset.id;
+      if (id) {
+        openEditModal(id);
+        
+        // Close the dropdown
+        const parentDD = editBtn.closest('.dropdown');
+        if (parentDD) {
+          const toggleEl = parentDD.querySelector('[data-bs-toggle="dropdown"]');
+          if (toggleEl) {
+            const inst = bootstrap.Dropdown.getInstance(toggleEl);
+            if (inst) inst.hide();
+          }
+        }
       }
     }
 
     if (delBtn) {
       const id = delBtn.dataset.id;
-      if (id) confirmDelete(id);
-    }
-
-    // ✅ Only close dropdown after clicking a menu item, not the 3-dot button
-    const ddItem = e.target.closest('.dropdown-item');
-    if (ddItem) {
-      const parentDD = ddItem.closest('.dropdown');
-      if (parentDD) {
-        const toggleEl = parentDD.querySelector('[data-bs-toggle="dropdown"]');
-        if (toggleEl) {
-          const inst = bootstrap.Dropdown.getOrCreateInstance(toggleEl);
-          inst.hide();
+      if (id) {
+        // Close the dropdown first
+        const parentDD = delBtn.closest('.dropdown');
+        if (parentDD) {
+          const toggleEl = parentDD.querySelector('[data-bs-toggle="dropdown"]');
+          if (toggleEl) {
+            const inst = bootstrap.Dropdown.getInstance(toggleEl);
+            if (inst) inst.hide();
+          }
         }
+        
+        await confirmDelete(id);
       }
     }
   });
-}
 
   async function confirmDelete(id) {
     const result = await Swal.fire({
@@ -965,6 +971,20 @@ document.addEventListener('DOMContentLoaded', function () {
     });
   }
 
+  /* =========== Dropdown toggle handler =========== */
+  document.addEventListener("click", (e) => {
+    const btn = e.target.closest(".dd-toggle");
+    if (!btn) return;
+
+    e.preventDefault();
+    e.stopPropagation();
+
+    bootstrap.Dropdown.getOrCreateInstance(btn, {
+      autoClose: "outside",
+      boundary: "viewport",
+    }).toggle();
+  });
+
   /* =========== Reorder button handler =========== */
   if (btnReorder) {
     btnReorder.addEventListener('click', async () => {
@@ -990,7 +1010,7 @@ document.addEventListener('DOMContentLoaded', function () {
         btnReorder.disabled = true;
 
         const res = await fetch(`${API_BASE}/reorder`, {
-          method: 'POST', // change to 'POST' if your route uses POST
+          method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             'Accept': 'application/json',
