@@ -249,8 +249,8 @@ public function store(Request $request)
         'title'               => ['required','string','max:255'],
         'slug'                => ['nullable','string','max:140','unique:courses,slug'],
 
-        // 🔹 NEW: category is required and must exist in landingpage_categories
-        'category_id'         => ['nullable','integer','exists:landingpage_categories,id'],
+        // 🔹 NEW: category is required and must exist in course_categories
+        'category_id'         => ['nullable','integer','exists:course_categories,id'],
 
         'short_description'   => ['nullable','string'],
         'full_description'    => ['nullable','string'],
@@ -455,7 +455,7 @@ public function update(Request $request, string $course)
         'slug'                => ['sometimes','nullable','string','max:140','unique:courses,slug,'.$id],
 
         // 🔹 category_id is optional + nullable
-        'category_id'         => ['sometimes','nullable','integer','exists:landingpage_categories,id'],
+        'category_id'         => ['sometimes','nullable','integer','exists:course_categories,id'],
 
         'short_description'   => ['sometimes','nullable','string'],
         'full_description'    => ['sometimes','nullable','string'],

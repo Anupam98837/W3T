@@ -953,7 +953,7 @@ public function contact_reorder(Request $request)
         $q       = trim((string) $request->input('q', ''));
         $sort    = $request->input('sort', '-created_at'); // "-col" = desc
 
-        $query = DB::table('landingpage_categories')
+        $query = DB::table('course_categories')
             ->whereNull('deleted_at');
 
         // 🔎 search on title / description / icon
@@ -1037,7 +1037,7 @@ public function categories_store(Request $request)
     try {
         $now = now();
 
-        $id = DB::table('landingpage_categories')->insertGetId([
+        $id = DB::table('course_categories')->insertGetId([
             'uuid'        => (string) Str::uuid(),
             'created_by'  => Auth::id(),
             'title'       => $validated['title'],
@@ -1048,7 +1048,7 @@ public function categories_store(Request $request)
             'deleted_at'  => null,
         ]);
 
-        $row = DB::table('landingpage_categories')
+        $row = DB::table('course_categories')
             ->where('id', $id)
             ->first();
 
@@ -1093,7 +1093,7 @@ public function categories_update(Request $request, $id)
     ]);
 
     try {
-        $row = DB::table('landingpage_categories')
+        $row = DB::table('course_categories')
             ->where('id', $id)
             ->whereNull('deleted_at')
             ->first();
@@ -1116,11 +1116,11 @@ public function categories_update(Request $request, $id)
             'updated_at'  => now(),
         ];
 
-        DB::table('landingpage_categories')
+        DB::table('course_categories')
             ->where('id', $id)
             ->update($updateData);
 
-        $fresh = DB::table('landingpage_categories')
+        $fresh = DB::table('course_categories')
             ->where('id', $id)
             ->first();
 
@@ -1159,7 +1159,7 @@ public function categories_destroy(Request $request, $id)
     ]);
 
     try {
-        $row = DB::table('landingpage_categories')
+        $row = DB::table('course_categories')
             ->where('id', $id)
             ->whereNull('deleted_at')
             ->first();
@@ -1171,7 +1171,7 @@ public function categories_destroy(Request $request, $id)
             ], 404);
         }
 
-        DB::table('landingpage_categories')
+        DB::table('course_categories')
             ->where('id', $id)
             ->update([
                 'deleted_at' => now(),
@@ -1208,7 +1208,7 @@ public function categories_display()
         'user_id' => Auth::id(),
     ]);
 
-    $rows = DB::table('landingpage_categories')
+    $rows = DB::table('course_categories')
         ->whereNull('deleted_at')
         ->orderBy('created_at', 'desc')
         ->get([
@@ -1245,7 +1245,7 @@ public function categories_reorder(Request $request)
             $now = now();
 
             foreach ($ids as $index => $id) {
-                DB::table('landingpage_categories')
+                DB::table('course_categories')
                     ->where('id', $id)
                     ->whereNull('deleted_at')
                     ->update([
@@ -1393,7 +1393,7 @@ public function featuredCourses_display()
         ->groupBy('cfm2.course_id');
 
     $rows = DB::table('courses')
-        ->leftJoin('landingpage_categories as lc', 'lc.id', '=', 'courses.category_id')
+        ->leftJoin('course_categories as lc', 'lc.id', '=', 'courses.category_id')
         // join the subquery to know which media row is "latest" for each course
         ->leftJoinSub($mediaSub, 'm', function ($join) {
             $join->on('m.course_id', '=', 'courses.id');
