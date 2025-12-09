@@ -315,8 +315,6 @@ const renderCategoriesGrid = categories => {
   const visible = Array.isArray(categories) ? categories.slice(0, 4) : [];
 
   if (visible.length > 1) {
-    // Use up to 4 columns on large screens; the CSS media queries will
-    // still collapse on smaller screens.
     grid.style.gridTemplateColumns = `repeat(${visible.length}, minmax(0,1fr))`;
   } else {
     // Single item: let CSS handle width
@@ -415,7 +413,7 @@ const renderCategoriesGrid = categories => {
     console.log('[Landing] Featured courses sample:', courses[0]); // debug
 
     // Base URL for public course page: /courses/{course_uuid}
-    const baseCourseUrl = "{{ url('admin/courses') }}";
+    const baseCourseUrl = "{{ url('courses') }}";
 
     courses.forEach((course, idx) => {
       let imageUrl = '';
