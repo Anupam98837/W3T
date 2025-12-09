@@ -504,386 +504,477 @@
   </main>
   {{-- Page-specific JS --}}
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-  <script>
-    document.addEventListener('DOMContentLoaded', () => {
-      const qs = sel => document.querySelector(sel);
-      const qsa = sel => Array.from(document.querySelectorAll(sel));
+ <script>
+document.addEventListener('DOMContentLoaded', () => {
+  const qs = sel => document.querySelector(sel);
+  const qsa = sel => Array.from(document.querySelectorAll(sel));
 
-      const grid = qs('#allCoursesGrid');
-      const emptyState = qs('#coursesEmptyState');
-      const pagination = qs('#coursesPagination');
-      const searchInput = qs('#courseSearchInput');
-      const categorySel = qs('#courseCategorySelect');
-      const applyBtn = qs('#courseApplyBtn');
-      const resetBtn = qs('#courseResetBtn');
-      const resetFromEmpty = qs('#resetFromEmpty');
-      const resultsCounter = qs('#resultsCounter');
-      const resultsCount = qs('#resultsCount');
+  const grid = qs('#allCoursesGrid');
+  const emptyState = qs('#coursesEmptyState');
+  const pagination = qs('#coursesPagination');
+  const searchInput = qs('#courseSearchInput');
+  const categorySel = qs('#courseCategorySelect');
+  const applyBtn = qs('#courseApplyBtn');
+  const resetBtn = qs('#courseResetBtn');
+  const resetFromEmpty = qs('#resetFromEmpty');
+  const resultsCounter = qs('#resultsCounter');
+  const resultsCount = qs('#resultsCount');
 
-      let currentPage = 1;
-      const perPage = 12;
-      let totalResults = 0;
+  let currentPage = 1;
+  const perPage = 12;
+  let totalResults = 0;
+  let categoryList = []; // store categories for matching later
 
-      const fetchJson = async (url, opts = {}) => {
-        try {
-          const res = await fetch(url, { 
-            headers: { 
-              'Accept': 'application/json',
-              'X-Requested-With': 'XMLHttpRequest'
-            }, 
-            ...opts 
-          });
-          if (!res.ok) {
-            console.warn('[Courses] API failed:', url, res.status);
-            return null;
-          }
-          return await res.json();
-        } catch (error) {
-          console.warn('[Courses] Network error:', error);
-          return null;
-        }
-      };
-
-      /* ============= Load Categories ============= */
-      const loadCategories = async () => {
-        grid.innerHTML = createSkeletonCards(8);
-        
-        const url = "{{ url('api/landing/categories/display') }}";
-        const data = await fetchJson(url);
-        
-        if (!data || !Array.isArray(data.data)) {
-          console.warn('Failed to load categories');
-          return;
-        }
-
-        categorySel.innerHTML = '<option value="">All Categories</option>';
-        data.data.forEach(cat => {
-          const opt = document.createElement('option');
-          opt.value = cat.id;
-          opt.textContent = cat.title || cat.name || 'Uncategorized';
-          categorySel.appendChild(opt);
-        });
-
-        // Load courses after categories are loaded
-        loadCourses(1);
-      };
-
-      /* ============= Skeleton Loader ============= */
-      const createSkeletonCards = (count) => {
-        let skeleton = '';
-        for (let i = 0; i < count; i++) {
-          skeleton += `
-            <article class="lp-course-card lp-animate is-visible">
-              <div class="lp-course-thumb skeleton-thumb"></div>
-              <div class="lp-course-body">
-                <div class="lp-course-title skeleton-pulse" style="height:24px;background:#f3f4f6;border-radius:6px;margin-bottom:12px;"></div>
-                <div class="lp-course-meta">
-                  <div style="width:80px;height:14px;background:#f3f4f6;border-radius:4px;"></div>
-                  <div style="width:60px;height:14px;background:#f3f4f6;border-radius:4px;"></div>
-                </div>
-                <div class="lp-course-summary">
-                  <div style="height:16px;background:#f3f4f6;border-radius:4px;margin-bottom:6px;"></div>
-                  <div style="height:16px;background:#f3f4f6;border-radius:4px;width:80%;"></div>
-                </div>
-              </div>
-              <div class="lp-course-footer" style="display:none">
-                <div style="width:60px;height:20px;background:#f3f4f6;border-radius:4px;"></div>
-                <div style="width:50px;height:20px;background:#f3f4f6;border-radius:20px;"></div>
-              </div>
-            </article>
-          `;
-        }
-        return skeleton;
-      };
-
-      /* ============= Build API URL ============= */
-      const buildCoursesApiUrl = (page = 1) => {
-        const params = new URLSearchParams();
-        const q = searchInput.value.trim();
-        const c = categorySel.value;
-
-        if (q) params.set('q', q);
-        if (c) params.set('category', c);
-        params.set('page', page);
-        params.set('per_page', perPage);
-
-        return "{{ url('api/courses') }}?" + params.toString();
-      };
-
-      /* ============= Price Formatter ============= */
-      const formatPrice = (course) => {
-        if (course.final_price_ui != null && Number(course.final_price_ui) > 0) {
-          return '₹' + Number(course.final_price_ui).toLocaleString('en-IN');
-        }
-        if (course.price_amount == null || Number(course.price_amount) === 0) {
-          return 'Free';
-        }
-        const amt = Number(course.price_amount);
-        const cur = course.price_currency || 'INR';
-        if (cur === 'INR') {
-          return '₹' + amt.toLocaleString('en-IN');
-        }
-        return cur + ' ' + amt.toLocaleString('en-IN');
-      };
-
-      /* ============= Render Courses Grid ============= */
-      const renderCourses = (items) => {
-        if (!items.length) {
-          emptyState.style.display = 'block';
-          resultsCounter.style.display = 'none';
-          return;
-        }
-
-        emptyState.style.display = 'none';
-        resultsCounter.style.display = 'block';
-        resultsCount.textContent = totalResults.toLocaleString();
-
-        grid.innerHTML = items.map(course => {
-          const imageUrl = course.thumbnail_url || 
-                          course.banner_url || 
-                          "{{ asset('assets/media/images/web/course-placeholder.jpg') }}";
-          
-          const categoryLabel = course.category_title || 
-                              course.category_name || 
-                              course.category || '';
-          
-          const titleText = course.title || course.course_title || 'Untitled Course';
-          const levelText = course.level || 'Beginner';
-          const language = course.language || 'English';
-          const summaryHtml = course.short_description || course.summary || '';
-          
-          const courseId = course.uuid || course.course_uuid || course.id;
-          const detailUrl = courseId ? 
-            "{{ url('courses') }}/" + encodeURIComponent(courseId) : '#';
-
-          return `
-            <article class="lp-course-card lp-animate is-visible"
-                     onclick="window.location.href='${detailUrl}'"
-                     onkeydown="if(event.key === 'Enter') window.location.href='${detailUrl}'"
-                     tabindex="0"
-                     role="button">
-              <div class="lp-course-thumb">
-                <img src="${imageUrl}" alt="${titleText}" loading="lazy">
-                ${categoryLabel ? `<div class="lp-category-badge">${categoryLabel}</div>` : ''}
-              </div>
-              <div class="lp-course-body">
-                <h3 class="lp-course-title">${titleText}</h3>
-                <div class="lp-course-meta">
-                  <span><i class="fa fa-signal"></i> ${levelText}</span>
-                  <span><i class="fa fa-language"></i> ${language}</span>
-                </div>
-                <div class="lp-course-summary">${summaryHtml}</div>
-              </div>
-              <div class="lp-course-footer" style="display:none">
-                <span class="lp-price">${formatPrice(course)}</span>
-                ${levelText ? `<span class="lp-badge-level">${levelText}</span>` : ''}
-              </div>
-            </article>
-          `;
-        }).join('');
-      };
-
-      /* ============= Enhanced Pagination ============= */
-      const renderPagination = (meta) => {
-        pagination.innerHTML = '';
-        if (!meta || !meta.total || meta.total <= meta.per_page) return;
-
-        const totalPages = Math.ceil(meta.total / meta.per_page);
-        const container = document.createElement('nav');
-        container.setAttribute('aria-label', 'Course pagination');
-        
-        const ul = document.createElement('ul');
-        ul.className = 'pagination';
-
-        // Previous button
-        const prevLi = document.createElement('li');
-        prevLi.className = `page-item ${meta.page <= 1 ? 'disabled' : ''}`;
-        const prevBtn = document.createElement('button');
-        prevBtn.type = 'button';
-        prevBtn.className = 'page-link';
-        prevBtn.innerHTML = '<i class="fa fa-chevron-left"></i>';
-        prevBtn.disabled = meta.page <= 1;
-        if (meta.page > 1) {
-          prevBtn.addEventListener('click', () => loadCourses(meta.page - 1));
-        }
-        prevLi.appendChild(prevBtn);
-
-        // Page numbers
-        ul.appendChild(prevLi);
-
-        const maxVisible = 5;
-        let start = Math.max(1, meta.page - Math.floor(maxVisible / 2));
-        let end = Math.min(totalPages, start + maxVisible - 1);
-
-        if (end - start + 1 < maxVisible) {
-          start = Math.max(1, end - maxVisible + 1);
-        }
-
-        if (start > 1) {
-          const firstLi = document.createElement('li');
-          firstLi.className = 'page-item';
-          const firstBtn = document.createElement('button');
-          firstBtn.type = 'button';
-          firstBtn.className = 'page-link';
-          firstBtn.textContent = '1';
-          firstBtn.addEventListener('click', () => loadCourses(1));
-          firstLi.appendChild(firstBtn);
-          ul.appendChild(firstLi);
-          
-          if (start > 2) {
-            const ellipsisLi = document.createElement('li');
-            ellipsisLi.className = 'page-item disabled';
-            const ellipsisSpan = document.createElement('span');
-            ellipsisSpan.className = 'page-link';
-            ellipsisSpan.textContent = '...';
-            ellipsisLi.appendChild(ellipsisSpan);
-            ul.appendChild(ellipsisLi);
-          }
-        }
-
-        for (let i = start; i <= end; i++) {
-          const pageLi = document.createElement('li');
-          pageLi.className = `page-item ${i === meta.page ? 'active' : ''}`;
-          const pageBtn = document.createElement('button');
-          pageBtn.type = 'button';
-          pageBtn.className = 'page-link';
-          pageBtn.textContent = i;
-          if (i !== meta.page) {
-            pageBtn.addEventListener('click', () => loadCourses(i));
-          }
-          pageLi.appendChild(pageBtn);
-          ul.appendChild(pageLi);
-        }
-
-        if (end < totalPages) {
-          if (end < totalPages - 1) {
-            const ellipsisLi = document.createElement('li');
-            ellipsisLi.className = 'page-item disabled';
-            const ellipsisSpan = document.createElement('span');
-            ellipsisSpan.className = 'page-link';
-            ellipsisSpan.textContent = '...';
-            ellipsisLi.appendChild(ellipsisSpan);
-            ul.appendChild(ellipsisLi);
-          }
-          
-          const lastLi = document.createElement('li');
-          lastLi.className = 'page-item';
-          const lastBtn = document.createElement('button');
-          lastBtn.type = 'button';
-          lastBtn.className = 'page-link';
-          lastBtn.textContent = totalPages;
-          lastBtn.addEventListener('click', () => loadCourses(totalPages));
-          lastLi.appendChild(lastBtn);
-          ul.appendChild(lastLi);
-        }
-
-        // Next button
-        const nextLi = document.createElement('li');
-        nextLi.className = `page-item ${meta.page >= totalPages ? 'disabled' : ''}`;
-        const nextBtn = document.createElement('button');
-        nextBtn.type = 'button';
-        nextBtn.className = 'page-link';
-        nextBtn.innerHTML = '<i class="fa fa-chevron-right"></i>';
-        nextBtn.disabled = meta.page >= totalPages;
-        if (meta.page < totalPages) {
-          nextBtn.addEventListener('click', () => loadCourses(meta.page + 1));
-        }
-        nextLi.appendChild(nextBtn);
-        ul.appendChild(nextLi);
-
-        container.appendChild(ul);
-        pagination.appendChild(container);
-      };
-
-      /* ============= Load Courses ============= */
-      /* ============= Load Courses ============= */
-const loadCourses = async (page = 1) => {
-  currentPage = page;
-  
-  // Show loading state
-  grid.innerHTML = createSkeletonCards(8);
-  emptyState.style.display = 'none'; // Hide empty state during loading
-  resultsCounter.style.display = 'none'; // Hide counter during loading
-  
-  const url = buildCoursesApiUrl(page);
-  const data = await fetchJson(url);
-
-  if (!data || !Array.isArray(data.data)) {
-    grid.innerHTML = ''; // Clear the skeleton loaders
-    renderCourses([]);
-    pagination.innerHTML = '';
-    return;
-  }
-
-  totalResults = data.pagination?.total || data.data.length;
-  
-  // Clear the grid before rendering
-  grid.innerHTML = '';
-  renderCourses(data.data);
-  
-  const meta = data.pagination || {
-    page: page,
-    per_page: perPage,
-    total: totalResults
+  const fetchJson = async (url, opts = {}) => {
+    try {
+      const res = await fetch(url, { 
+        headers: { 
+          'Accept': 'application/json',
+          'X-Requested-With': 'XMLHttpRequest'
+        }, 
+        ...opts 
+      });
+      if (!res.ok) {
+        console.warn('[Courses] API failed:', url, res.status);
+        return null;
+      }
+      return await res.json();
+    } catch (error) {
+      console.warn('[Courses] Network error:', error);
+      return null;
+    }
   };
-  renderPagination(meta);
-};
 
-      /* ============= Event Listeners ============= */
-      applyBtn.addEventListener('click', () => loadCourses(1));
-      
-      resetBtn.addEventListener('click', () => {
-        searchInput.value = '';
-        categorySel.value = '';
-        const baseUrl = "{{ url('courses/all') }}";
-        window.history.replaceState({}, '', baseUrl);
-        loadCourses(1);
-      });
-      
-      resetFromEmpty.addEventListener('click', () => {
-        searchInput.value = '';
-        categorySel.value = '';
-        loadCourses(1);
-      });
+  /* ============= Load Categories ============= */
+  const loadCategories = async () => {
+    grid.innerHTML = createSkeletonCards(8);
 
-      searchInput.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') {
-          e.preventDefault();
-          loadCourses(1);
-        }
-      });
+    const url = "{{ url('api/landing/categories/display') }}";
+    const data = await fetchJson(url);
 
-      // Debounced search input
-      let searchTimeout;
-      searchInput.addEventListener('input', () => {
-        clearTimeout(searchTimeout);
-        searchTimeout = setTimeout(() => {
-          if (searchInput.value.trim().length >= 2 || searchInput.value.trim() === '') {
-            loadCourses(1);
-          }
-        }, 500);
-      });
+    if (!data || !Array.isArray(data.data)) {
+      console.warn('Failed to load categories');
+      // still attempt to load courses (no categories available)
+      categorySel.innerHTML = '<option value="">All Categories</option>';
+      loadCourses(1);
+      return;
+    }
 
-      categorySel.addEventListener('change', () => {
-        loadCourses(1);
-      });
+    categoryList = data.data; // keep for later matching
 
-      /* ============= Initialize ============= */
-      const urlParams = new URLSearchParams(window.location.search);
-      const initialCategoryId = urlParams.get('category') || '';
-      const initialQ = urlParams.get('q') || '';
-
-      (async () => {
-        await loadCategories();
-        
-        if (initialCategoryId) {
-          categorySel.value = initialCategoryId;
-        }
-        
-        if (initialQ) {
-          searchInput.value = initialQ;
-        }
-      })();
+    categorySel.innerHTML = '<option value="">All Categories</option>';
+    data.data.forEach(cat => {
+      const opt = document.createElement('option');
+      opt.value = String(cat.id); // normalize to string
+      opt.setAttribute('data-slug', (cat.slug || cat.slug_name || '').toString());
+      opt.textContent = cat.title || cat.name || 'Uncategorized';
+      categorySel.appendChild(opt);
     });
-  </script>
+
+    // After categories are loaded, detect category from URL (if any) and set the select
+    applyInitialCategoryFromUrl();
+
+    // Load courses after categories are loaded
+    loadCourses(1);
+  };
+
+  /* ============= Skeleton Loader ============= */
+  const createSkeletonCards = (count) => {
+    let skeleton = '';
+    for (let i = 0; i < count; i++) {
+      skeleton += `
+        <article class="lp-course-card lp-animate is-visible">
+          <div class="lp-course-thumb skeleton-thumb"></div>
+          <div class="lp-course-body">
+            <div class="lp-course-title skeleton-pulse" style="height:24px;background:#f3f4f6;border-radius:6px;margin-bottom:12px;"></div>
+            <div class="lp-course-meta">
+              <div style="width:80px;height:14px;background:#f3f4f6;border-radius:4px;"></div>
+              <div style="width:60px;height:14px;background:#f3f4f6;border-radius:4px;"></div>
+            </div>
+            <div class="lp-course-summary">
+              <div style="height:16px;background:#f3f4f6;border-radius:4px;margin-bottom:6px;"></div>
+              <div style="height:16px;background:#f3f4f6;border-radius:4px;width:80%;"></div>
+            </div>
+          </div>
+          <div class="lp-course-footer" style="display:none">
+            <div style="width:60px;height:20px;background:#f3f4f6;border-radius:4px;"></div>
+            <div style="width:50px;height:20px;background:#f3f4f6;border-radius:20px;"></div>
+          </div>
+        </article>
+      `;
+    }
+    return skeleton;
+  };
+
+  /* ============= Build API URL ============= */
+  const buildCoursesApiUrl = (page = 1) => {
+    const params = new URLSearchParams();
+    const q = searchInput.value.trim();
+    const c = categorySel.value;
+
+    if (q) params.set('q', q);
+    if (c) params.set('category', c);
+    params.set('page', page);
+    params.set('per_page', perPage);
+
+    return "{{ url('api/courses') }}?" + params.toString();
+  };
+
+  /* ============= Price Formatter ============= */
+  const formatPrice = (course) => {
+    if (course.final_price_ui != null && Number(course.final_price_ui) > 0) {
+      return '₹' + Number(course.final_price_ui).toLocaleString('en-IN');
+    }
+    if (course.price_amount == null || Number(course.price_amount) === 0) {
+      return 'Free';
+    }
+    const amt = Number(course.price_amount);
+    const cur = course.price_currency || 'INR';
+    if (cur === 'INR') {
+      return '₹' + amt.toLocaleString('en-IN');
+    }
+    return cur + ' ' + amt.toLocaleString('en-IN');
+  };
+
+  /* ============= Render Courses Grid ============= */
+  const renderCourses = (items) => {
+    if (!items.length) {
+      grid.innerHTML = '';
+      emptyState.style.display = 'block';
+      resultsCounter.style.display = 'none';
+      return;
+    }
+
+    emptyState.style.display = 'none';
+    resultsCounter.style.display = 'block';
+    resultsCount.textContent = totalResults.toLocaleString();
+
+    grid.innerHTML = items.map(course => {
+      const imageUrl = course.thumbnail_url || 
+                      course.banner_url || 
+                      "{{ asset('assets/media/images/web/course-placeholder.jpg') }}";
+
+      const categoryLabel = course.category_title || 
+                          course.category_name || 
+                          course.category || '';
+
+      const titleText = course.title || course.course_title || 'Untitled Course';
+      const levelText = course.level || 'Beginner';
+      const language = course.language || 'English';
+      const summaryHtml = course.short_description || course.summary || '';
+
+      const courseId = course.uuid || course.course_uuid || course.id;
+      const detailUrl = courseId ? 
+        "{{ url('courses') }}/" + encodeURIComponent(courseId) : '#';
+
+      return `
+        <article class="lp-course-card lp-animate is-visible"
+                 onclick="window.location.href='${detailUrl}'"
+                 onkeydown="if(event.key === 'Enter') window.location.href='${detailUrl}'"
+                 tabindex="0"
+                 role="button">
+          <div class="lp-course-thumb">
+            <img src="${imageUrl}" alt="${titleText}" loading="lazy">
+            ${categoryLabel ? `<div class="lp-category-badge">${categoryLabel}</div>` : ''}
+          </div>
+          <div class="lp-course-body">
+            <h3 class="lp-course-title">${titleText}</h3>
+            <div class="lp-course-meta">
+              <span><i class="fa fa-signal"></i> ${levelText}</span>
+              <span><i class="fa fa-language"></i> ${language}</span>
+            </div>
+            <div class="lp-course-summary">${summaryHtml}</div>
+          </div>
+          <div class="lp-course-footer" style="display:none">
+            <span class="lp-price">${formatPrice(course)}</span>
+            ${levelText ? `<span class="lp-badge-level">${levelText}</span>` : ''}
+          </div>
+        </article>
+      `;
+    }).join('');
+  };
+
+  /* ============= Enhanced Pagination ============= */
+  const renderPagination = (meta) => {
+    pagination.innerHTML = '';
+    if (!meta || !meta.total || meta.total <= meta.per_page) return;
+
+    const totalPages = Math.ceil(meta.total / meta.per_page);
+    const container = document.createElement('nav');
+    container.setAttribute('aria-label', 'Course pagination');
+
+    const ul = document.createElement('ul');
+    ul.className = 'pagination';
+
+    // Previous button
+    const prevLi = document.createElement('li');
+    prevLi.className = `page-item ${meta.page <= 1 ? 'disabled' : ''}`;
+    const prevBtn = document.createElement('button');
+    prevBtn.type = 'button';
+    prevBtn.className = 'page-link';
+    prevBtn.innerHTML = '<i class="fa fa-chevron-left"></i>';
+    prevBtn.disabled = meta.page <= 1;
+    if (meta.page > 1) {
+      prevBtn.addEventListener('click', () => loadCourses(meta.page - 1));
+    }
+    prevLi.appendChild(prevBtn);
+
+    // Page numbers
+    ul.appendChild(prevLi);
+
+    const maxVisible = 5;
+    let start = Math.max(1, meta.page - Math.floor(maxVisible / 2));
+    let end = Math.min(totalPages, start + maxVisible - 1);
+
+    if (end - start + 1 < maxVisible) {
+      start = Math.max(1, end - maxVisible + 1);
+    }
+
+    if (start > 1) {
+      const firstLi = document.createElement('li');
+      firstLi.className = 'page-item';
+      const firstBtn = document.createElement('button');
+      firstBtn.type = 'button';
+      firstBtn.className = 'page-link';
+      firstBtn.textContent = '1';
+      firstBtn.addEventListener('click', () => loadCourses(1));
+      firstLi.appendChild(firstBtn);
+      ul.appendChild(firstLi);
+
+      if (start > 2) {
+        const ellipsisLi = document.createElement('li');
+        ellipsisLi.className = 'page-item disabled';
+        const ellipsisSpan = document.createElement('span');
+        ellipsisSpan.className = 'page-link';
+        ellipsisSpan.textContent = '...';
+        ellipsisLi.appendChild(ellipsisSpan);
+        ul.appendChild(ellipsisLi);
+      }
+    }
+
+    for (let i = start; i <= end; i++) {
+      const pageLi = document.createElement('li');
+      pageLi.className = `page-item ${i === meta.page ? 'active' : ''}`;
+      const pageBtn = document.createElement('button');
+      pageBtn.type = 'button';
+      pageBtn.className = 'page-link';
+      pageBtn.textContent = i;
+      if (i !== meta.page) {
+        pageBtn.addEventListener('click', () => loadCourses(i));
+      }
+      pageLi.appendChild(pageBtn);
+      ul.appendChild(pageLi);
+    }
+
+    if (end < totalPages) {
+      if (end < totalPages - 1) {
+        const ellipsisLi = document.createElement('li');
+        ellipsisLi.className = 'page-item disabled';
+        const ellipsisSpan = document.createElement('span');
+        ellipsisSpan.className = 'page-link';
+        ellipsisSpan.textContent = '...';
+        ellipsisLi.appendChild(ellipsisSpan);
+        ul.appendChild(ellipsisLi);
+      }
+
+      const lastLi = document.createElement('li');
+      lastLi.className = 'page-item';
+      const lastBtn = document.createElement('button');
+      lastBtn.type = 'button';
+      lastBtn.className = 'page-link';
+      lastBtn.textContent = totalPages;
+      lastBtn.addEventListener('click', () => loadCourses(totalPages));
+      lastLi.appendChild(lastBtn);
+      ul.appendChild(lastLi);
+    }
+
+    // Next button
+    const nextLi = document.createElement('li');
+    nextLi.className = `page-item ${meta.page >= totalPages ? 'disabled' : ''}`;
+    const nextBtn = document.createElement('button');
+    nextBtn.type = 'button';
+    nextBtn.className = 'page-link';
+    nextBtn.innerHTML = '<i class="fa fa-chevron-right"></i>';
+    nextBtn.disabled = meta.page >= totalPages;
+    if (meta.page < totalPages) {
+      nextBtn.addEventListener('click', () => loadCourses(meta.page + 1));
+    }
+    nextLi.appendChild(nextBtn);
+    ul.appendChild(nextLi);
+
+    container.appendChild(ul);
+    pagination.appendChild(container);
+  };
+
+  /* ============= Load Courses ============= */
+  const loadCourses = async (page = 1) => {
+    currentPage = page;
+
+    // Show loading state
+    grid.innerHTML = createSkeletonCards(8);
+    emptyState.style.display = 'none'; // Hide empty state during loading
+    resultsCounter.style.display = 'none'; // Hide counter during loading
+
+    const url = buildCoursesApiUrl(page);
+    const data = await fetchJson(url);
+
+    if (!data || !Array.isArray(data.data)) {
+      grid.innerHTML = ''; // Clear the skeleton loaders
+      renderCourses([]);
+      pagination.innerHTML = '';
+      return;
+    }
+
+    totalResults = data.pagination?.total || data.data.length;
+
+    // Clear the grid before rendering
+    grid.innerHTML = '';
+    renderCourses(data.data);
+
+    const meta = data.pagination || {
+      page: page,
+      per_page: perPage,
+      total: totalResults
+    };
+    renderPagination(meta);
+
+    // Update browser URL to reflect selected filters (query params) without reloading
+    updateBrowserUrlWithFilters();
+  };
+
+  /* ============= URL Helpers ============= */
+
+  // Try to extract a category token from multiple places:
+  // 1. query param '?category=...'
+  // 2. path like '/courses/category/<token>' or '/courses/<token>'
+  const detectCategoryTokenFromUrl = () => {
+    const params = new URLSearchParams(window.location.search);
+    const qCategory = params.get('category');
+    if (qCategory) return qCategory;
+
+    // look at path segments
+    const path = window.location.pathname.replace(/\/+$/, ''); // strip trailing slash
+    const parts = path.split('/').filter(Boolean); // remove empty
+    // common patterns:
+    // - /courses/category/<token>
+    // - /courses/<token>
+    const idx = parts.findIndex(p => p === 'courses');
+    if (idx >= 0 && parts.length > idx + 1) {
+      // if pattern /courses/category/<token>
+      if (parts[idx + 1] === 'category' && parts.length > idx + 2) {
+        return decodeURIComponent(parts[idx + 2]);
+      }
+      // otherwise if /courses/<token> and token doesn't look like 'all' or numeric id 'all' means show all
+      const possible = parts[idx + 1];
+      if (possible && possible.toLowerCase() !== 'all') {
+        return decodeURIComponent(possible);
+      }
+    }
+    return null;
+  };
+
+  // Given the detected token, match it against loaded categories.
+  // Accepts id (string / number), slug, title or name (case-insensitive).
+  const matchCategoryTokenToId = (token) => {
+    if (!token || !categoryList.length) return '';
+    const t = String(token).trim();
+
+    // direct id match
+    const byId = categoryList.find(c => String(c.id) === t);
+    if (byId) return String(byId.id);
+
+    // slug match
+    const bySlug = categoryList.find(c => {
+      const slug = (c.slug || c.slug_name || '').toString().toLowerCase();
+      return slug && slug === t.toLowerCase();
+    });
+    if (bySlug) return String(bySlug.id);
+
+    // title/name match
+    const byTitle = categoryList.find(c => (c.title || c.name || '').toString().toLowerCase() === t.toLowerCase());
+    if (byTitle) return String(byTitle.id);
+
+    // partial match fallback (startsWith)
+    const partial = categoryList.find(c => (c.title || c.name || '').toString().toLowerCase().startsWith(t.toLowerCase()));
+    if (partial) return String(partial.id);
+
+    return ''; // no match
+  };
+
+  // Apply initial category logic (called after categories are loaded)
+  const applyInitialCategoryFromUrl = () => {
+    const urlToken = detectCategoryTokenFromUrl();
+    if (!urlToken) return; // no category token present
+
+    // If urlToken is numeric or slug, try to match to id
+    const matchedId = matchCategoryTokenToId(urlToken);
+    if (matchedId) {
+      categorySel.value = matchedId;
+    } else {
+      // If no match, but user provided a numeric id-like token, set it directly (best-effort)
+      if (/^\d+$/.test(urlToken)) {
+        categorySel.value = urlToken;
+      }
+    }
+  };
+
+  // update browser URL (querystring) to reflect filters (without reloading)
+  const updateBrowserUrlWithFilters = () => {
+    const params = new URLSearchParams(window.location.search);
+    const q = searchInput.value.trim();
+    const c = categorySel.value;
+
+    if (q) params.set('q', q); else params.delete('q');
+    if (c) params.set('category', c); else params.delete('category');
+
+    const newUrl = window.location.pathname + (params.toString() ? '?' + params.toString() : '');
+    window.history.replaceState({}, '', newUrl);
+  };
+
+  /* ============= Event Listeners ============= */
+  applyBtn.addEventListener('click', () => loadCourses(1));
+
+  resetBtn.addEventListener('click', () => {
+    searchInput.value = '';
+    categorySel.value = '';
+    const baseUrl = "{{ url('courses/all') }}";
+    window.history.replaceState({}, '', baseUrl);
+    loadCourses(1);
+  });
+
+  resetFromEmpty.addEventListener('click', () => {
+    searchInput.value = '';
+    categorySel.value = '';
+    loadCourses(1);
+  });
+
+  searchInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      loadCourses(1);
+    }
+  });
+
+  // Debounced search input
+  let searchTimeout;
+  searchInput.addEventListener('input', () => {
+    clearTimeout(searchTimeout);
+    searchTimeout = setTimeout(() => {
+      if (searchInput.value.trim().length >= 2 || searchInput.value.trim() === '') {
+        loadCourses(1);
+      }
+    }, 500);
+  });
+
+  categorySel.addEventListener('change', () => {
+    loadCourses(1);
+  });
+
+  /* ============= Initialize ============= */
+  (async () => {
+    // We will load categories which will in turn call loadCourses(1) after detecting URL
+    await loadCategories();
+  })();
+});
+</script>
 </body>
