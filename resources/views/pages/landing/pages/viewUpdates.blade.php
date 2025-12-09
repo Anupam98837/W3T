@@ -7,13 +7,6 @@
 {{-- Page Content --}}
 @include('modules.landingPages.viewUpdates')
 
-{{-- Page Scripts --}}
-<script>
-  document.addEventListener('DOMContentLoaded', function () {
-    if (!sessionStorage.getItem('token') && !localStorage.getItem('token')) {
-      window.location.href = '/';
-    }
-  });
-</script>
+
 
 @include('pages.landing.components.footer')
