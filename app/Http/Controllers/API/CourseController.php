@@ -486,7 +486,6 @@ public function index(Request $r)
 
 public function show(Request $r, string $course)
 {
-    if ($resp = $this->requireRole($r, ['admin','superadmin'])) return $resp;
 
     $row = $this->findCourseOr404($course);
     if (!$row) return response()->json(['error'=>'Course not found'], 404);
@@ -515,7 +514,7 @@ public function update(Request $request, string $course)
 
         'short_description'   => ['sometimes','nullable','string'],
         'full_description'    => ['sometimes','nullable','string'],
-        'status'              => ['sometimes', Rule::in(['draft','published','archived'])],
+'status' => ['sometimes', 'required', Rule::in(['draft','published','archived'])],
         'course_type'         => ['sometimes', Rule::in(['free','paid'])],
         'price_amount'        => ['sometimes','numeric','min:0'],
         'price_currency'      => ['sometimes','string','size:3'],

@@ -91,7 +91,7 @@
     <h1 id="cvTitle" class="cv-title">—</h1>
     <div id="cvSub" class="cv-sub">—</div>
 
-    <div id="cvBadges" class="cv-badges mt-2"><!-- no “Loading” badge --></div>
+    <div id="cvBadges" class="cv-badges mt-2" style="display:none"><!-- no “Loading” badge --></div>
   </div>
 
   {{-- ===== Hero ===== --}}
@@ -149,7 +149,7 @@
       <div class="cv-card cv-details">
         <div class="cv-head">Course Details</div>
         <div class="cv-body">
-          <div class="row py-1"><div class="col-6 lbl">Status</div><div id="dStatus" class="col-6 val">—</div></div>
+          <div class="row py-1" style="display:none;"><div class="col-6 lbl" >Status</div><div id="dStatus" class="col-6 val" style="display:none;">—</div></div>
           <div class="row py-1"><div class="col-6 lbl">Type</div><div id="dType" class="col-6 val">—</div></div>
           <div class="row py-1"><div class="col-6 lbl">Difficulty</div><div id="dDiff" class="col-6 val">—</div></div>
           <div class="row py-1"><div class="col-6 lbl">Language</div><div id="dLang" class="col-6 val">—</div></div>
@@ -304,45 +304,50 @@ async function loadCourse(){
     } else {
       n.thumbs.innerHTML = '';
     }
-
+    
     /* Description */
-    const long = c.full_description || '';
-    n.desc.innerHTML = long
-      ? `<div class="small" style="white-space:pre-wrap">${esc(long)}</div>`
-      : `<div class="text-muted small">No description yet.</div>`;
+    /* Replace the Description section (around line 280) with: */
 
-    /* Modules (accordion; show 1., 2., 3.; HIDE archived) */
-    const visibleMods = mods.filter(md => String(md.status || '').toLowerCase() !== 'archived');
-    if (!visibleMods.length){
-      n.modWrap.innerHTML = '';
-      n.modEmpty.style.display = '';
-    } else {
-      n.modEmpty.style.display = 'none';
-      const id = (i)=>`mod_${i}`;
-      const hid = (i)=>`modh_${i}`;
-      const sorted = visibleMods.slice().sort((a,b)=> (a.order_no ?? 999) - (b.order_no ?? 999));
-      n.modWrap.innerHTML = sorted.map((mod, i)=>`
-        <div class="accordion-item mb-2">
-          <h2 class="accordion-header" id="${hid(i)}">
-            <button class="accordion-button ${i? 'collapsed':''}" type="button"
-                    data-bs-toggle="collapse"
-                    data-bs-target="#${id(i)}"
-                    aria-expanded="${i? 'false':'true'}"
-                    aria-controls="${id(i)}">
-                    <b class="me-2">${i+1}.</b> ${esc(mod.title||'Module')}
-                    <span class="ms-2 badge ${String(mod.status).toLowerCase()==='published'?'badge-success':'badge-warning'} text-uppercase">${esc(mod.status||'-')}</span>
-            </button>
-          </h2>
-          <div id="${id(i)}" class="accordion-collapse collapse ${i? '':'show'}"
-               aria-labelledby="${hid(i)}" data-bs-parent="#cvModWrap">
-            <div class="accordion-body">
-              ${mod.short_description ? `<div class="mb-1">${esc(mod.short_description)}</div>`:''}
-              ${mod.long_description ? `<div class="small text-muted" style="white-space:pre-wrap">${esc(mod.long_description)}</div>`:''}
-            </div>
-          </div>
-        </div>`).join('');
-    }
+/* Description - render HTML directly */
+const long = c.full_description || '';
+n.desc.innerHTML = long
+  ? `<div class="small" style="white-space:pre-wrap">${long}</div>`
+  : `<div class="text-muted small">No description yet.</div>`;
 
+/* Modules (accordion) - render HTML for descriptions */
+const visibleMods = mods.filter(md => String(md.status || '').toLowerCase() !== 'archived');
+if (!visibleMods.length){
+  n.modWrap.innerHTML = '';
+  n.modEmpty.style.display = '';
+} else {
+  n.modEmpty.style.display = 'none';
+  const id = (i)=>`mod_${i}`;
+  const hid = (i)=>`modh_${i}`;
+  const sorted = visibleMods.slice().sort((a,b)=> (a.order_no ?? 999) - (b.order_no ?? 999));
+  n.modWrap.innerHTML = sorted.map((mod, i)=>`
+    <div class="accordion-item mb-2">
+      <h2 class="accordion-header" id="${hid(i)}">
+        <button class="accordion-button ${i? 'collapsed':''}" type="button"
+                data-bs-toggle="collapse"
+                data-bs-target="#${id(i)}"
+                aria-expanded="${i? 'false':'true'}"
+                aria-controls="${id(i)}">
+                <b class="me-2">${i+1}.</b> ${esc(mod.title||'Module')}
+<span class="ms-2 badge ${String(mod.status).toLowerCase()==='published'?'badge-success':'badge-warning'} text-uppercase"
+      style="display:none;">
+    ${esc(mod.status||'-')}
+</span>
+        </button>
+      </h2>
+      <div id="${id(i)}" class="accordion-collapse collapse ${i? '':'show'}"
+           aria-labelledby="${hid(i)}" data-bs-parent="#cvModWrap">
+        <div class="accordion-body">
+          ${mod.short_description ? `<div class="mb-1">${mod.short_description}</div>`:''}
+          ${mod.long_description ? `<div class="small text-muted" style="white-space:pre-wrap">${mod.long_description}</div>`:''}
+        </div>
+      </div>
+    </div>`).join('');
+}
     /* Pricing */
     if (p.is_free){
       n.priceFinal.textContent = 'Free';

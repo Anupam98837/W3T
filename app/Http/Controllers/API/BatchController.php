@@ -526,7 +526,7 @@ public function update(Request $request, $idOrUuid)
      * GET /api/batches/{idOrUuid}/students?q=&per_page=20&page=1
      * Returns students list with "assigned" flag for the given batch (for toggle UI).
      */
-public function studentsIndex(Request $request, $idOrUuid)
+    public function studentsIndex(Request $request, $idOrUuid)
 {
     $batch = $this->findBatch($idOrUuid);
     if (!$batch) return response()->json(['success' => false, 'message' => 'Batch not found'], 404);

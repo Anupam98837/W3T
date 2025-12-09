@@ -492,7 +492,7 @@
           We couldn't find any courses matching your search criteria. 
           Try adjusting your filters or search terms.
         </p>
-        <button id="resetFromEmpty" class="btn-apply mt-3" style="max-width: 200px;">
+        <button id="resetFromEmpty" class="btn-apply mt-3" style="max-width: 200px;display:none;">
           <i class="fa fa-times me-2"></i> Clear all filters
         </button>
       </div>
@@ -796,31 +796,38 @@
       };
 
       /* ============= Load Courses ============= */
-      const loadCourses = async (page = 1) => {
-        currentPage = page;
-        
-        // Show loading state
-        grid.innerHTML = createSkeletonCards(8);
-        
-        const url = buildCoursesApiUrl(page);
-        const data = await fetchJson(url);
+      /* ============= Load Courses ============= */
+const loadCourses = async (page = 1) => {
+  currentPage = page;
+  
+  // Show loading state
+  grid.innerHTML = createSkeletonCards(8);
+  emptyState.style.display = 'none'; // Hide empty state during loading
+  resultsCounter.style.display = 'none'; // Hide counter during loading
+  
+  const url = buildCoursesApiUrl(page);
+  const data = await fetchJson(url);
 
-        if (!data || !Array.isArray(data.data)) {
-          renderCourses([]);
-          pagination.innerHTML = '';
-          return;
-        }
+  if (!data || !Array.isArray(data.data)) {
+    grid.innerHTML = ''; // Clear the skeleton loaders
+    renderCourses([]);
+    pagination.innerHTML = '';
+    return;
+  }
 
-        totalResults = data.pagination?.total || data.data.length;
-        renderCourses(data.data);
-        
-        const meta = data.pagination || {
-          page: page,
-          per_page: perPage,
-          total: totalResults
-        };
-        renderPagination(meta);
-      };
+  totalResults = data.pagination?.total || data.data.length;
+  
+  // Clear the grid before rendering
+  grid.innerHTML = '';
+  renderCourses(data.data);
+  
+  const meta = data.pagination || {
+    page: page,
+    per_page: perPage,
+    total: totalResults
+  };
+  renderPagination(meta);
+};
 
       /* ============= Event Listeners ============= */
       applyBtn.addEventListener('click', () => loadCourses(1));

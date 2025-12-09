@@ -481,7 +481,7 @@
       .then(()=> location.href='/');
     return;
   }
-
+  
   // ====== small auth fetch helper ======
   async function fetchJsonAuth(u){
     const res = await fetch(u, {
@@ -728,15 +728,26 @@
     let lastErr;
     for(const u of candidates){
       try{
+        
         const j = await fetchJsonAuth(u);
-        return j?.data ?? j;
+                return j?.data ?? j;
       }catch(e){
         lastErr = e;
-        if(e.status===401 || e.status===403){
-          throw e; // auth/permission issues → surface immediately
+        
+        // Don't throw immediately on 403 - try other endpoints first
+        if(e.status===401){
+          throw e;
         }
       }
     }
+    
+    // If all failed with 403, show helpful error
+    if(lastErr?.status === 403){
+    
+      console.error('  Current role:', role);
+      console.error('  Token present:', !!TOKEN);
+    }
+    
     throw lastErr || new Error('Not found by any candidate endpoint');
   }
 
