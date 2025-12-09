@@ -31,6 +31,10 @@ Route::get('/categories/all', function () {
     return view('pages.landing.pages.allCategory');
 });
 
+Route::get('/updates/all', function () {
+    return view('pages.landing.pages.viewUpdates');
+});
+
 
 Route::get('/exam/{quiz}', function (\Illuminate\Http\Request $r, $quiz) {
     // Pass the quiz key (uuid or id) to the view
