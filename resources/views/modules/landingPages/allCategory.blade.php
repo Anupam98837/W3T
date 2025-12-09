@@ -1,10 +1,6 @@
 {{-- resources/views/categories/index.blade.php --}}
 
 <body class="lp-page">
-
-  {{-- Shared header --}}
-  @include('pages.landing.components.header')
-
   {{-- Enhanced CSS for categories page --}}
   <style>
    /* Enhanced CSS for categories page using design tokens */
@@ -418,9 +414,6 @@
 
     </div>
   </main>
-
-  {{-- Shared footer --}}
-  @include('pages.landing.components.footer')
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
   <script>

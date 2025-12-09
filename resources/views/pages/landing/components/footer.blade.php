@@ -305,61 +305,87 @@ document.addEventListener('DOMContentLoaded', () => {
   /* =========================
      Categories grid
      ========================= */
-  const renderCategoriesGrid = categories => {
-    const grid = qs('#lpCategoriesGrid') || qs('.lp-cat-grid');
-    if (!grid) return console.warn('[Landing] Categories grid not found');
+const renderCategoriesGrid = categories => {
+  const grid = qs('#lpCategoriesGrid') || qs('.lp-cat-grid');
+  if (!grid) return console.warn('[Landing] Categories grid not found');
 
-    grid.innerHTML = '';
+  grid.innerHTML = '';
 
-    categories.forEach((cat, idx) => {
-      const card = document.createElement('div');
-      card.className = 'lp-cat-card lp-animate lp-hover-lift';
-      card.dataset.lpAnimate = 'fade-up';
+  // show only the first 4 categories
+  const visible = Array.isArray(categories) ? categories.slice(0, 4) : [];
 
-      if (idx === 1) card.classList.add('lp-animate-delay-1');
-      if (idx === 2) card.classList.add('lp-animate-delay-2');
-      if (idx === 3) card.classList.add('lp-animate-delay-3');
-      if (idx >= 4)  card.classList.add('lp-animate-delay-4');
+  if (visible.length > 1) {
+    // Use up to 4 columns on large screens; the CSS media queries will
+    // still collapse on smaller screens.
+    grid.style.gridTemplateColumns = `repeat(${visible.length}, minmax(0,1fr))`;
+  } else {
+    // Single item: let CSS handle width
+    grid.style.gridTemplateColumns = '';
+  }
 
-      const iconClass =
-        cat.icon ||
-        cat.icon_class ||
-        'fa-solid fa-circle-dot';
+  visible.forEach((cat, idx) => {
+    const card = document.createElement('div');
+    card.className = 'lp-cat-card lp-animate lp-hover-lift';
+    card.dataset.lpAnimate = 'fade-up';
 
-      const titleText =
-        cat.title ||
-        cat.name ||
-        'Untitled category';
+    if (idx === 1) card.classList.add('lp-animate-delay-1');
+    if (idx === 2) card.classList.add('lp-animate-delay-2');
+    if (idx === 3) card.classList.add('lp-animate-delay-3');
 
-      const descHtml =
-        cat.description ||
-        cat.meta ||
-        '';
+    const iconClass =
+      cat.icon ||
+      cat.icon_class ||
+      'fa-solid fa-circle-dot';
 
-      const iconWrap = document.createElement('div');
-      iconWrap.className = 'lp-cat-icon';
+    const titleText =
+      cat.title ||
+      cat.name ||
+      'Untitled category';
 
-      const icon = document.createElement('i');
-      icon.className = iconClass;
-      iconWrap.appendChild(icon);
+    const descHtml =
+      cat.description ||
+      cat.meta ||
+      '';
 
-      const nameEl = document.createElement('div');
-      nameEl.className = 'lp-cat-name';
-      nameEl.textContent = titleText;
+    const iconWrap = document.createElement('div');
+    iconWrap.className = 'lp-cat-icon';
 
-      const metaEl = document.createElement('div');
-      metaEl.className = 'lp-cat-meta';
-      metaEl.innerHTML = descHtml;
+    const icon = document.createElement('i');
+    icon.className = iconClass;
+    iconWrap.appendChild(icon);
 
-      card.appendChild(iconWrap);
-      card.appendChild(nameEl);
-      card.appendChild(metaEl);
+    const nameEl = document.createElement('div');
+    nameEl.className = 'lp-cat-name';
+    nameEl.textContent = titleText;
 
-      card.classList.add('is-visible');
+    const metaEl = document.createElement('div');
+    metaEl.className = 'lp-cat-meta';
+    metaEl.innerHTML = descHtml;
 
-      grid.appendChild(card);
-    });
-  };
+    card.appendChild(iconWrap);
+    card.appendChild(nameEl);
+    card.appendChild(metaEl);
+
+    // Make the card clickable if the category has a slug/uuid/url
+    const categoryUrl = cat.url || cat.link || (cat.slug ? `/categories/${encodeURIComponent(cat.slug)}` : null);
+    if (categoryUrl) {
+      card.style.cursor = 'pointer';
+      card.addEventListener('click', () => {
+        window.location.href = categoryUrl;
+      });
+      card.tabIndex = 0;
+      card.addEventListener('keydown', ev => {
+        if (ev.key === 'Enter' || ev.key === ' ') {
+          ev.preventDefault();
+          window.location.href = categoryUrl;
+        }
+      });
+    }
+
+    card.classList.add('is-visible');
+    grid.appendChild(card);
+  });
+};
 
   const loadLandingCategories = async () => {
     const data = await fetchJson("{{ url('api/landing/categories/display') }}");

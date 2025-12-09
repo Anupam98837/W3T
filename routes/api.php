@@ -62,17 +62,17 @@ Route::middleware(['checkRole:admin,super_admin'])->group(function () {
 
 // Course Routes 
     Route::get   ('/courses',              [CourseController::class, 'index']);
+    Route::get('/courses/{course}/view', [CourseController::class, 'viewCourse']);
+        Route::get   ('/courses/{course}',     [CourseController::class, 'show']);    // {id|uuid}
 
 Route::middleware('checkRole:admin,super_admin,student,instructor')->group(function () {
     // Courses
     Route::get('/courses/cards', [CourseController::class, 'listCourseBatchCards']);
-    Route::get   ('/courses/{course}',     [CourseController::class, 'show']);    // {id|uuid}
     Route::post  ('/courses',              [CourseController::class, 'store']);
     Route::put   ('/courses/{course}',     [CourseController::class, 'update']);
     Route::patch ('/courses/{course}',     [CourseController::class, 'update']);
 
     Route::delete('/courses/{course}',     [CourseController::class, 'destroy']);
-    Route::get('/courses/{course}/view', [CourseController::class, 'viewCourse']);
     Route::get('/courses/by-batch/{batch}/view', [CourseController::class, 'viewCourseByBatch']);
        Route::get ('/batches/{batch}/messages',  [BatchMessageController::class, 'index']);
 Route::post('/batches/{batch}/messages',  [BatchMessageController::class, 'store']);

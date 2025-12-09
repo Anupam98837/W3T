@@ -265,16 +265,7 @@ html.theme-dark textarea{
 
       <div class="modal-body">
         <label class="form-label">Title <span class="text-danger">*</span></label>
-        <div class="rte-wrap">
-          <div class="rte-toolbar">
-            <button type="button" class="rte-tool" data-field="title" data-cmd="bold"      title="Bold"><i class="fa fa-bold"></i></button>
-            <button type="button" class="rte-tool" data-field="title" data-cmd="italic"    title="Italic"><i class="fa fa-italic"></i></button>
-            <button type="button" class="rte-tool" data-field="title" data-cmd="underline" title="Underline"><i class="fa fa-underline"></i></button>
-            <button type="button" class="rte-tool" data-field="title" data-cmd="createLink" title="Insert link"><i class="fa fa-link"></i></button>
-          </div>
-          <div id="rteTitle" class="rte empty" contenteditable="true" data-placeholder="Write title…"></div>
-        </div>
-
+<input id="cat_title" class="form-control" placeholder="Category title">
         <label class="form-label mt-3">Icon (optional)</label>
         <input id="cat_icon" class="form-control" placeholder="fa-solid fa-heart">
 
@@ -318,12 +309,10 @@ html.theme-dark textarea{
   </div>
 </div>
 @endsection
-
 @push('scripts')
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
-
 <script>
 document.addEventListener("DOMContentLoaded", () => {
 
@@ -351,9 +340,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
   const idInput       = document.getElementById("cat_id");
   const iconInput     = document.getElementById("cat_icon");
+  const titleInput    = document.getElementById("cat_title"); // now a plain text input
+  const btnSave       = document.getElementById("btnSave");   // Save button
 
-  const rteTitle      = document.getElementById("rteTitle");
-  const rteDesc       = document.getElementById("rteDesc");
+  const rteDesc       = document.getElementById("rteDesc");   // description remains RTE
 
   // Toast helpers
   const okToast  = new bootstrap.Toast(document.getElementById("okToast"));
@@ -392,7 +382,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
     sortableInstance = Sortable.create(tbody, {
       animation: 150,
-      // You can add `handle: ".drag-handle"` later if you add a drag handle column
     });
   }
 
@@ -419,7 +408,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  /* ====== RTE helpers ====== */
+  /* ====== RTE helpers (description only) ====== */
   function syncRtePlaceholder(el) {
     if (!el) return;
     if (el.innerHTML.trim() === "") {
@@ -442,26 +431,26 @@ document.addEventListener("DOMContentLoaded", () => {
     return el.innerHTML.trim();
   }
 
-  [rteTitle, rteDesc].forEach(el => {
-    if (!el) return;
-    syncRtePlaceholder(el);
-    el.addEventListener("focus", () => clearRtePlaceholderOnFocus(el));
-    el.addEventListener("blur", () => {
-      if (el.innerHTML.trim() === "") syncRtePlaceholder(el);
+  // bind only description RTE
+  if (rteDesc) {
+    syncRtePlaceholder(rteDesc);
+    rteDesc.addEventListener("focus", () => clearRtePlaceholderOnFocus(rteDesc));
+    rteDesc.addEventListener("blur", () => {
+      if (rteDesc.innerHTML.trim() === "") syncRtePlaceholder(rteDesc);
     });
-  });
+  }
 
-  // RTE toolbar handler
+  // RTE toolbar handler — only for description now
   document.addEventListener("click", e => {
     const btn = e.target.closest(".rte-tool");
     if (!btn) return;
 
     const field = btn.dataset.field;
     const cmd   = btn.dataset.cmd;
-    let targetEl = null;
 
-    if (field === "title")       targetEl = rteTitle;
-    if (field === "description") targetEl = rteDesc;
+    if (field !== "description") return; // ignore title tools (we removed title RTE)
+
+    const targetEl = rteDesc;
     if (!targetEl) return;
 
     clearRtePlaceholderOnFocus(targetEl);
@@ -623,12 +612,12 @@ document.addEventListener("DOMContentLoaded", () => {
   function openCreate() {
     idInput.value   = "";
     iconInput.value = "";
+    if (titleInput) titleInput.value = "";
 
-    rteTitle.classList.add("empty");
-    rteTitle.innerHTML = rteTitle.dataset.placeholder || "Write title…";
-
-    rteDesc.classList.add("empty");
-    rteDesc.innerHTML = rteDesc.dataset.placeholder || "Write description… (optional)";
+    if (rteDesc) {
+      rteDesc.classList.add("empty");
+      rteDesc.innerHTML = rteDesc.dataset.placeholder || "Write description… (optional)";
+    }
 
     modalTitle.textContent = "Create Category";
     modal.show();
@@ -638,20 +627,18 @@ document.addEventListener("DOMContentLoaded", () => {
     idInput.value   = row.id;
     iconInput.value = row.icon || "";
 
-    if (row.title) {
-      rteTitle.classList.remove("empty");
-      rteTitle.innerHTML = row.title;
-    } else {
-      rteTitle.classList.add("empty");
-      rteTitle.innerHTML = rteTitle.dataset.placeholder || "Write title…";
+    if (titleInput) {
+      titleInput.value = row.title || "";
     }
 
-    if (row.description) {
-      rteDesc.classList.remove("empty");
-      rteDesc.innerHTML = row.description;
-    } else {
-      rteDesc.classList.add("empty");
-      rteDesc.innerHTML = rteDesc.dataset.placeholder || "Write description… (optional)";
+    if (rteDesc) {
+      if (row.description) {
+        rteDesc.classList.remove("empty");
+        rteDesc.innerHTML = row.description;
+      } else {
+        rteDesc.classList.add("empty");
+        rteDesc.innerHTML = rteDesc.dataset.placeholder || "Write description… (optional)";
+      }
     }
 
     modalTitle.textContent = "Edit Category";
@@ -663,7 +650,7 @@ document.addEventListener("DOMContentLoaded", () => {
     e.preventDefault();
 
     const id    = idInput.value;
-    const title = normalizeRte(rteTitle);
+    const title = (titleInput?.value || "").trim();
     const icon  = iconInput.value.trim();
     const desc  = normalizeRte(rteDesc);
 
@@ -683,6 +670,17 @@ document.addEventListener("DOMContentLoaded", () => {
     if (id) {
       url    = `${API}/${id}`;
       method = "PUT";
+    }
+
+    // --- Save button loading state ---
+    let originalSaveHtml = null;
+    if (btnSave) {
+      originalSaveHtml   = btnSave.innerHTML;
+      btnSave.disabled   = true;
+      btnSave.innerHTML  = `
+        <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+        Saving...
+      `;
     }
 
     try {
@@ -709,6 +707,12 @@ document.addEventListener("DOMContentLoaded", () => {
     } catch (ex) {
       console.error(ex);
       err("Error saving category");
+    } finally {
+      // restore Save button
+      if (btnSave && originalSaveHtml !== null) {
+        btnSave.disabled  = false;
+        btnSave.innerHTML = originalSaveHtml;
+      }
     }
   });
 

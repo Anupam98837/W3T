@@ -1,10 +1,6 @@
 {{-- resources/views/courses/index.blade.php --}}
 
 <body class="lp-page">
-
-  {{-- Shared header from landing page --}}
-  @include('pages.landing.components.header')
-
   {{-- Enhanced CSS for better UI --}}
   <style>
     :root {
@@ -478,7 +474,7 @@
                 <div style="height:16px;background:#f3f4f6;border-radius:4px;width:80%;"></div>
               </div>
             </div>
-            <div class="lp-course-footer">
+            <div class="lp-course-footer" style="display:none">
               <div style="width:60px;height:20px;background:#f3f4f6;border-radius:4px;"></div>
               <div style="width:50px;height:20px;background:#f3f4f6;border-radius:20px;"></div>
             </div>
@@ -506,10 +502,6 @@
 
     </div>
   </main>
-
-  {{-- Shared footer from landing page --}}
-  @include('pages.landing.components.footer')
-
   {{-- Page-specific JS --}}
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
   <script>
@@ -594,7 +586,7 @@
                   <div style="height:16px;background:#f3f4f6;border-radius:4px;width:80%;"></div>
                 </div>
               </div>
-              <div class="lp-course-footer">
+              <div class="lp-course-footer" style="display:none">
                 <div style="width:60px;height:20px;background:#f3f4f6;border-radius:4px;"></div>
                 <div style="width:50px;height:20px;background:#f3f4f6;border-radius:20px;"></div>
               </div>
@@ -682,7 +674,7 @@
                 </div>
                 <div class="lp-course-summary">${summaryHtml}</div>
               </div>
-              <div class="lp-course-footer">
+              <div class="lp-course-footer" style="display:none">
                 <span class="lp-price">${formatPrice(course)}</span>
                 ${levelText ? `<span class="lp-badge-level">${levelText}</span>` : ''}
               </div>

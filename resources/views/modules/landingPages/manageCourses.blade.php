@@ -718,7 +718,7 @@ document.addEventListener('click',(e)=>{
     const uuid = r.uuid || r.id;
     const title = r.title || '';
     const editUrl = `${basePanel}/courses/create?edit=${encodeURIComponent(uuid)}`;
-    const viewUrl = `${basePanel}/courses/${encodeURIComponent(uuid)}`;
+    const viewUrl = `/courses/${encodeURIComponent(uuid)}`;
 
     return `
       <div class="dropdown text-end" data-bs-display="static">

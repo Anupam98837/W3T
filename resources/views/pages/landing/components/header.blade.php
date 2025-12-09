@@ -1681,8 +1681,13 @@
         <img src="{{ asset('/assets/media/images/web/logo.png') }}" alt="W3Techiez">
         <span>W3Techiez</span>
       </a>
-      
+  
       <div class="lp-nav-links">
+         <div class="lp-nav-item">
+    <a href="{{ url('/') }}">
+      Home
+    </a>
+  </div>
   <!-- Courses (no dropdown) -->
   <div class="lp-nav-item">
     <a href="{{ url('courses/all') }}">

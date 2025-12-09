@@ -24,11 +24,11 @@ Route::get('/login', function () {
 
 
 Route::get('/courses/all', function () {
-    return view('modules.course.allCourse');
+    return view('pages.landing.pages.allCourse');
 });
 
 Route::get('/categories/all', function () {
-    return view('modules.course.allCategory');
+    return view('pages.landing.pages.allCategory');
 });
 
 
@@ -112,9 +112,9 @@ Route::get('/admin/courses/{uuid}/view', function (string $uuid) {
     ]);
 })->whereUuid('uuid')->name('admin.courses.global');
 
-Route::get('/admin/courses/{course}', fn ($course) =>
-    view('pages.users.admin.pages.course.viewCourse', ['courseParam' => $course])
-)->where('course', '^(?!create$|manage$|view$).+')->name('admin.courses.admin');
+Route::get('/courses/{course}', fn ($course) =>
+    view('pages.landing.pages.viewCourse', ['courseParam' => $course])
+)->where('course', '^(?!create$|manage$|view$).+')->name('pages.courses.admin');
 
 Route::get('/admin/course/studyMaterial/manage', function () {
     return view('pages.users.admin.pages.studyMaterial.manageStudyMaterial');

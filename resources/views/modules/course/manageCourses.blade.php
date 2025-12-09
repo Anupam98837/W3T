@@ -974,7 +974,7 @@ document.addEventListener('click', (e) => {
         </button>
         <ul class="dropdown-menu dropdown-menu-end">
           <li>
-            <a class="dropdown-item view-course-link" href="${basePanel}/courses/${encodeURIComponent(r.uuid)}" title="View Course">
+            <a class="dropdown-item view-course-link" href="courses/${encodeURIComponent(r.uuid)}" title="View Course">
               <i class="fa fa-eye"></i> View Course
             </a>
           </li>
