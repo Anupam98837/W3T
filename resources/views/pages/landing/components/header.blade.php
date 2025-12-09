@@ -1701,7 +1701,11 @@
       Categories
     </a>
   </div>
-
+    <div class="lp-nav-item">
+    <a href="{{ url('/updates/all') }}">
+      Updates
+    </a>
+  </div>
   <!-- Why Us (keeps dropdown) -->
   <div class="lp-nav-item" style="display:none">
     <a href="#features">

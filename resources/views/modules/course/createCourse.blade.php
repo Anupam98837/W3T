@@ -449,9 +449,32 @@
   const ok  = (m)=>{ $('okMsg').textContent  = m||'Done'; okToast.show(); };
   const err = (m)=>{ $('errMsg').textContent = m||'Something went wrong'; errToast.show(); };
 
-  // redirect base (fix: always /courses/manage)
-  const baseList = (role.includes('super')) ? '/super_admin/courses/manage' : '/super_admin/courses/manage';
-  ['cancel1','cancel3'].forEach(id => { const a=$(id); if(a && !a.getAttribute('href')) a.setAttribute('href', baseList); });
+  // redirect base (role-aware; pulls role from sessionStorage or localStorage)
+  function getBaseListForRole(roleStr){
+    if(!roleStr) return '/courses/manage';
+    const r = String(roleStr).toLowerCase().trim();
+
+    // common mappings — adjust to match your backend routes
+    if(r.includes('super') || r.includes('super_admin')) return '/super_admin/courses/manage';
+    if(r.includes('admin'))   return '/admin/courses/manage';
+    if(r.includes('mentor'))  return '/mentor/courses/manage';
+    if(r.includes('instructor') || r.includes('teacher')) return '/instructor/courses/manage';
+    if(r.includes('student') || r.includes('user')) return '/courses/manage';
+
+    // fallback: build a path from raw role (replace spaces with underscore)
+    return `/${r.replace(/\s+/g,'_')}/courses/manage`;
+  }
+
+  // prefer explicit session/local role values (role variable above already does this,
+  // but re-check here to be extra-safe if someone changes the earlier const)
+  const storedRole = sessionStorage.getItem('role') || localStorage.getItem('role') || role || '';
+  const baseList = getBaseListForRole(storedRole);
+
+  // only set cancel links if href isn't already present in markup
+  ['cancel1','cancel3'].forEach(id => {
+    const a = $(id);
+    if (a && !a.getAttribute('href')) a.setAttribute('href', baseList);
+  });
 
   if(!TOKEN){
     Swal.fire('Login needed','Your session expired. Please login again.','warning')
