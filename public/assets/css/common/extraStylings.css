@@ -6,7 +6,7 @@
 /* Toolbar */
 .mfa-toolbar .form-control{height:40px;border-radius:12px;border:1px solid var(--line-strong);background:var(--surface)}
 .mfa-toolbar .form-select{height:40px;border-radius:12px;border:1px solid var(--line-strong);background:var(--surface)}
-.mfa-toolbar .btn{height:40px;border-radius:12px}
+/* .mfa-toolbar .btn{height:40px;border-radius:12px} */
 .mfa-toolbar .btn-light{background:var(--surface);border:1px solid var(--line-strong)}
 .mfa-toolbar .btn-primary{background:var(--primary-color);border:none}
 

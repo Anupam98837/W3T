@@ -26,7 +26,7 @@ use App\Http\Controllers\API\CodingQuestionController;
 use App\Http\Controllers\API\JudgeController;
 use App\Http\Controllers\API\LandingPageController;
 use App\Http\Controllers\API\CourseCategoryController;
-
+use App\Http\Controllers\API\DashboardController;
 
 // Auth Routes
 
@@ -589,3 +589,7 @@ Route::post('batches/{idOrUuid}/students/{userId}/verify', [BatchController::cla
  Route::get('/batches/{batch}/enrollment/status', [BatchController::class, 'checkBatchEnrollment']);
  Route::get('/batches/{idOrUuid}/students/not-verified', [BatchController::class, 'getNotVerifiedStudents']
 );
+Route::middleware(['checkRole:superadmin,admin,instructor,student'])->group(function () {
+    Route::get('/dashboard', [DashboardController::class, 'summary']);                // role-aware single payload
+    Route::get('/dashboard/widgets/{slug}', [DashboardController::class, 'widget']);  // optional lazy widgets
+});

@@ -360,21 +360,9 @@ html.theme-dark .w3-sidebar-scroll::-webkit-scrollbar-thumb {
         <div id="sm-course-modules" class="w3-submenu" role="group" aria-label="Course Modules submenu">
           <a href="/admin/coursesModule/manage" class="w3-link">All Course Modules</a>
         </div>
-      </div> 
-      
-      <!-- Quiz Group Menu - Added -->
-      <div class="w3-group">
-        <a href="#" class="w3-link w3-toggle" data-target="sm-quiz" aria-expanded="false">
-          <i class="fa-solid fa-pen-to-square"></i><span>Quiz</span>
-          <i class="fa fa-chevron-down w3-chev"></i>
-        </a>
-        <div id="sm-quiz" class="w3-submenu" role="group" aria-label="Quiz submenu">
-          <a href="/admin/quizz/manage" class="w3-link">All Quizzes</a>
-          <a href="/admin/quizz/create" class="w3-link">Create Quiz</a>
-        </div>
-      </div>
 
-            <!-- Assignments Group Menu - Added -->
+      </div> 
+       <!-- Assignments Group Menu - Added -->
       <div class="w3-group">
         <a href="#" class="w3-link w3-toggle" data-target="sm-assignments" aria-expanded="false">
           <i class="fa-solid fa-file-lines"></i><span>Assignments</span>
@@ -398,6 +386,42 @@ html.theme-dark .w3-sidebar-scroll::-webkit-scrollbar-thumb {
         </div>
       </div>
     </nav>
+    <!-- Exams Section -->
+<div class="w3-nav-section">
+  <div class="w3-section-title">
+    <i class="fa-solid fa-file-circle-check"></i> EXAMS
+  </div>
+  <div class="w3-section-rule"></div>
+</div>
+
+<nav class="w3-menu" aria-label="Exams">
+
+  <!-- Quiz Group Menu -->
+  <div class="w3-group">
+        <a href="#" class="w3-link w3-toggle" data-target="sm-quiz" aria-expanded="false">
+          <i class="fa-solid fa-pen-to-square"></i><span>Quiz</span>
+          <i class="fa fa-chevron-down w3-chev"></i>
+        </a>
+        <div id="sm-quiz" class="w3-submenu" role="group" aria-label="Quiz submenu">
+          <a href="/admin/quizz/manage" class="w3-link">All Quizzes</a>
+          <a href="/admin/quizz/create" class="w3-link">Create Quiz</a>
+        </div>
+      </div>
+  <!-- Coding Tests Group -->
+<div class="w3-group">
+  <a href="#" class="w3-link w3-toggle" data-target="sm-coding-tests" aria-expanded="false">
+    <i class="fa-solid fa-code"></i><span>Coding Tests</span>
+    <i class="fa fa-chevron-down w3-chev"></i>
+  </a>
+
+  <div id="sm-coding-tests" class="w3-submenu" role="group" aria-label="Coding Tests submenu">
+    <a href="/admin/topic/manage" class="w3-link">Manage Topics</a>
+    <a href="/admin/topic/module/manage" class="w3-link">Manage Topic Modules</a>
+  </div>
+</div>
+
+</nav>
+
     <!-- Users (section header + menu) -->
 <!-- USERS SECTION -->
 <div class="w3-nav-section">

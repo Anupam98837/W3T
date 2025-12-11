@@ -15,7 +15,7 @@
     border:1px solid var(--border-color);
     border-radius:var(--radius-md);
     padding:10px 12px;
-    box-shadow:var(--shadow-sm);
+    /* box-shadow:var(--shadow-sm); */
     color: var(--text-color);
   }
   .page-indicator i{color:var(--primary-color);}

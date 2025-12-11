@@ -510,7 +510,7 @@
     <div class="modal-content">
       <div class="modal-header">
         <h5 class="modal-title"><i class="fa fa-question me-2"></i>Assign Quizzes</h5>
-        <a id="qz_add_btn" href="/admin/quizzes/manage" class="btn btn-primary btn-sm ms-auto"><i class="fa fa-plus me-1"></i> Add Quiz</a>
+        <a id="qz_add_btn" href="/admin/quizz/create" class="btn btn-primary btn-sm ms-auto"><i class="fa fa-plus me-1"></i> Add Quiz</a>
         <button type="button" class="btn-close ms-2" data-bs-dismiss="modal"></button>
       </div>
       <div class="modal-body">
@@ -1010,7 +1010,139 @@ async function openView(uuid){
     vBody.innerHTML = `<div class="d-flex gap-3 align-items-start"><img class="bthumb" style="width:120px;height:80px" src="${esc(r.featured_image||'https://dummyimage.com/200x120/e9e3f5/5e1570.jpg&text=Batch')}" onerror="this.src='https://dummyimage.com/200x120/e9e3f5/5e1570.jpg&text=Batch';this.onerror=null;"><div><div class="h5 mb-1">${esc(r.badge_title||'Untitled')}</div><div class="text-muted small">${esc(r.tagline||'')}</div><div class="mt-1">${badgeStatus(r.status)} <span class="ms-2 badge badge-info text-uppercase">${esc(r.mode||'-')}</span></div></div></div><hr class="my-3"><div class="row g-3"><div><span class="text-muted small">Duration:</span> <strong>${dur}</strong></div><div class="col-md-6"><div><span class="text-muted small">Contact:</span> ${esc(r.contact_number||'-')}</div><div><span class="text-muted small">Note:</span> ${esc(r.badge_note||'-')}</div></div><div class="col-12"><div class="mb-1 fw-semibold">Group Links</div>${linksHtml}</div><div class="col-12"><div class="mb-1 fw-semibold">Description</div><div class="small">${(r.badge_description||'').length?esc(r.badge_description):'<span class="text-muted">—</span>'}</div></div></div>`;
   }catch(e){ vBody.innerHTML = `<div class="text-danger">${esc(e.message||'Failed to load')}</div>`; }
 }
+//Manage Instructor
+const ins_q = document.getElementById('ins_q'),
+      ins_per = document.getElementById('ins_per'),
+      ins_apply = document.getElementById('ins_apply'),
+      ins_assigned = document.getElementById('ins_assigned'),
+      ins_rows = document.getElementById('ins_rows'),
+      ins_loader = document.getElementById('ins_loader'),
+      ins_meta = document.getElementById('ins_meta'),
+      ins_pager = document.getElementById('ins_pager');
 
+let instructorsModal, ins_uuid = null, ins_page = 1;
+function instructorsParams(){
+  const p = new URLSearchParams();
+  if (ins_q.value.trim()) p.set('q', ins_q.value.trim());
+  p.set('per_page', ins_per.value || 20);
+  p.set('page', ins_page);
+  if (ins_assigned.value === 'assigned') p.set('assigned', '1');
+  if (ins_assigned.value === 'unassigned') p.set('assigned', '0');
+  return p.toString();
+}
+
+function openInstructors(uuid){
+  instructorsModal = instructorsModal || new bootstrap.Modal(document.getElementById('instructorsModal'));
+  ins_uuid = uuid;
+  ins_page = 1;
+  ins_assigned.value = 'all';
+  instructorsModal.show();
+  loadInstructors();
+}
+
+ins_apply.addEventListener('click', ()=>{ ins_page = 1; loadInstructors(); });
+ins_per.addEventListener('change', ()=>{ ins_page = 1; loadInstructors(); });
+ins_assigned.addEventListener('change', ()=>{ ins_page = 1; loadInstructors(); });
+
+let insT;
+ins_q.addEventListener('input', ()=>{ clearTimeout(insT); insT = setTimeout(()=>{ ins_page = 1; loadInstructors(); }, 350); });
+
+async function loadInstructors(){
+  if (!ins_uuid) return;
+  ins_loader.style.display = '';
+  // remove existing rows except loader
+  ins_rows.querySelectorAll('tr:not(#ins_loader)').forEach(tr=>tr.remove());
+
+  try{
+    const res = await fetch(`/api/batches/${encodeURIComponent(ins_uuid)}/instructors?` + instructorsParams(), {
+      headers:{ 'Authorization':'Bearer '+TOKEN, 'Accept':'application/json' }
+    });
+    const j = await res.json();
+    if(!res.ok) throw new Error(j?.message || 'Failed to load instructors');
+
+    const items = j?.data || [];
+    const pag = j?.pagination || { current_page: 1, per_page: Number(ins_per.value||20), total: items.length };
+
+    const frag = document.createDocumentFragment();
+    items.forEach(u=>{
+      const assigned = !!u.assigned;
+      const role = u.role_in_batch || 'instructor';
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td class="fw-semibold">${esc(u.name||'-')}</td>
+        <td>${esc(u.email||'-')}</td>
+        <td>${esc(u.phone ?? u.phone_number ?? '-')}</td>
+        <td>
+          <select class="form-select form-select-sm ins-role" ${assigned ? '' : 'disabled'}>
+            <option value="instructor" ${role==='instructor'?'selected':''}>Instructor</option>
+            <option value="tutor" ${role==='tutor'?'selected':''}>Tutor</option>
+            <option value="TA" ${role==='TA'?'selected':''}>TA</option>
+            <option value="mentor" ${role==='mentor'?'selected':''}>Mentor</option>
+          </select>
+        </td>
+        <td class="text-center">
+          <div class="form-check form-switch d-inline-block">
+            <input class="form-check-input ins-tg" type="checkbox" data-id="${u.id}" ${assigned?'checked':''}>
+          </div>
+        </td>`;
+      frag.appendChild(tr);
+    });
+    ins_rows.appendChild(frag);
+
+    // attach toggle listeners
+    ins_rows.querySelectorAll('.ins-tg').forEach(ch=>{
+      ch.addEventListener('change', ()=>{
+        const row = ch.closest('tr');
+        const roleSel = row?.querySelector('.ins-role');
+        const roleVal = roleSel ? roleSel.value : 'instructor';
+        toggleInstructor(Number(ch.dataset.id), ch.checked, ch, roleVal);
+      });
+    });
+
+    // pagination
+    const total = Number(pag.total||0), per = Number(pag.per_page||20), cur = Number(pag.current_page||1);
+    const pages = Math.max(1, Math.ceil(total/per));
+    function li(dis,act,label,t){ const c=['page-item',dis?'disabled':'',act?'active':''].filter(Boolean).join(' '); return `<li class="${c}"><a class="page-link" href="javascript:void(0)" data-page="${t||''}">${label}</a></li>`; }
+    let html=''; html+=li(cur<=1,false,'Prev',cur-1); const w=2,s=Math.max(1,cur-w),e=Math.min(pages,cur+w);
+    for(let i=s;i<=e;i++) html+=li(false,i===cur,i,i);
+    html+=li(cur>=pages,false,'Next',cur+1);
+    ins_pager.innerHTML = html;
+    ins_pager.querySelectorAll('a.page-link[data-page]').forEach(a=> a.addEventListener('click', ()=>{ const t=Number(a.dataset.page); if(!t||t===ins_page) return; ins_page = t; loadInstructors(); }));
+
+    const label = ins_assigned.value==='all' ? 'All' : (ins_assigned.value==='assigned' ? 'Assigned' : 'Unassigned');
+    ins_meta.textContent = `${label} — Page ${cur}/${pages} — ${total} instructor(s)`;
+  }catch(e){
+    err(e.message || 'Load error');
+  }finally{
+    ins_loader.style.display = 'none';
+  }
+}
+
+async function toggleInstructor(userId, assigned, checkboxEl, roleVal){
+  try{
+    const body = assigned ? { user_id: userId, assigned: true, role_in_batch: roleVal || 'instructor' } : { user_id: userId, assigned: false };
+    const res = await fetch(`/api/batches/${encodeURIComponent(ins_uuid)}/instructors/toggle`,{
+      method:'POST',
+      headers:{ 'Authorization':'Bearer '+TOKEN, 'Content-Type':'application/json', 'Accept':'application/json' },
+      body: JSON.stringify(body)
+    });
+    const j = await res.json().catch(()=>({}));
+    if(!res.ok) throw new Error(j?.message || firstError(j) || 'Toggle failed');
+
+    const row = checkboxEl.closest('tr');
+    const roleSel = row?.querySelector('.ins-role');
+    if (roleSel) roleSel.disabled = !assigned;
+    ok(assigned ? 'Instructor assigned to batch' : 'Instructor unassigned');
+
+    // refresh list if filtering hides this row
+    if((ins_assigned.value==='assigned' && !assigned) || (ins_assigned.value==='unassigned' && assigned)){
+      loadInstructors();
+    }
+  }catch(e){
+    if (checkboxEl) checkboxEl.checked = !assigned;
+    err(e.message);
+  }
+}
 /* ================= MANAGE STUDENTS (updated) ================= */
 const st_rows=document.getElementById('st_rows'), st_loader=document.getElementById('st_loader'), st_meta=document.getElementById('st_meta'), st_pager=document.getElementById('st_pager'), st_q=document.getElementById('st_q'), st_per=document.getElementById('st_per'), st_apply=document.getElementById('st_apply');
 const st_assigned=document.getElementById('st_assigned');
@@ -1688,7 +1820,6 @@ async function toggleQuiz(uuid, payload, checkboxEl=null, quiet=false){
 
 ;/* end quizzes section */
 
-/* =================== end of file - rest of code unchanged =================== */
 });
 </script>
 </body>
