@@ -809,112 +809,124 @@
   }
 
   /* ===== payload & submit (fixed syntax + robust metadata) ===== */
-  function payload(statusOverride){
-    const paid = (ctype.value==='paid');
+ function payload(){
+  const paid = (ctype.value==='paid');
 
-    const tags        = uniq(collect(tagRow));
-    const categories  = uniq(collect(catRow));
-    const keywords    = uniq(collect(keyRow));
-    const properties  = toObjectish(collectProps());
+  const tags        = uniq(collect(tagRow));
+  const categories  = uniq(collect(catRow));
+  const keywords    = uniq(collect(keyRow));
+  const properties  = toObjectish(collectProps());
 
-    const metadataObj = { tags, categories, keywords, properties };
+  const metadataObj = { tags, categories, keywords, properties };
 
-    return {
-      title: (title.value||'').trim(),
-      short_description: (shortDesc.value||'') || null,
-      full_description: (editor.innerHTML||'').trim() || null,
-      status: statusOverride || (status.value||'draft'),
-      course_type: ctype.value,
-      price_amount:    paid ? money(price.value) : 0,
-      price_currency:  paid ? (curr.value||'INR') : 'INR',
-      discount_percent: paid && dPct.value ? pct(dPct.value) : null,
-      discount_amount:  null,
+  return {
+    title: (title.value||'').trim(),
+    short_description: (shortDesc.value||'') || null,
+    full_description: (editor.innerHTML||'').trim() || null,
+    status: status.value || 'draft', // ← Always use the dropdown value
+    course_type: ctype.value,
+    price_amount:    paid ? money(price.value) : 0,
+    price_currency:  paid ? (curr.value||'INR') : 'INR',
+    discount_percent: paid && dPct.value ? pct(dPct.value) : null,
+    discount_amount:  null,
 
-      // 🔹 send nullable FK
-      category_id: (categorySel && categorySel.value) ? Number(categorySel.value) : null,
+    category_id: (categorySel && categorySel.value) ? Number(categorySel.value) : null,
 
-      is_featured: $('is_featured').checked ? 1 : 0,
-      featured_rank: Number($('featured_rank').value||0),
-      order_no: Number($('order_no').value||0),
-      level: ($('level').value||null),
-      language: ($('language') && $('language').value) ? $('language').value : null,
-      publish_at: ($('publish_at').value||null),
-      unpublish_at: ($('unpublish_at').value||null),
+    is_featured: $('is_featured').checked ? 1 : 0,
+    featured_rank: Number($('featured_rank').value||0),
+    order_no: Number($('order_no').value||0),
+    level: ($('level').value||null),
+    language: ($('language') && $('language').value) ? $('language').value : null,
+    publish_at: ($('publish_at').value||null),
+    unpublish_at: ($('unpublish_at').value||null),
 
-      // expose both styles for API flexibility
-      tags, categories, keywords, properties,
-      metadata: metadataObj
-    };
+    tags, categories, keywords, properties,
+    metadata: metadataObj
+  };
+}
+
+async function submit(){
+  clrErr();
+  if(!gateOK()){
+    setStep(0);
+    fErr('title', !title.value.trim() ? 'Title is required.' : '');
+    if(ctype.value==='paid' && !(money(price.value)>0)) fErr('price_amount','Price must be > 0 for paid courses.');
+    return;
   }
 
-  async function submit(statusOverride){
-    clrErr();
-    if(!gateOK()){
-      setStep(0);
-      fErr('title', !title.value.trim() ? 'Title is required.' : '');
-      if(ctype.value==='paid' && !(money(price.value)>0)) fErr('price_amount','Price must be > 0 for paid courses.');
+  $('busy').classList.add('show');
+  try{
+    const url  = isEdit ? `/api/courses/${encodeURIComponent(currentUUID)}` : '/api/courses';
+    const meth = isEdit ? 'PUT' : 'POST';
+
+    const res = await fetch(url, {
+      method:meth,
+      headers:{
+        'Authorization':'Bearer '+TOKEN,
+        'Accept':'application/json',
+        'Content-Type':'application/json'
+      },
+      body: JSON.stringify(payload())
+    });
+    const json = await res.json().catch(()=> ({}));
+
+    if(res.ok){
+      Swal.fire({
+        icon:'success',
+        title: isEdit ? 'Updated' : 'Saved',
+        text: isEdit ? 'Course updated successfully' : 'Course created successfully',
+        timer: 900,
+        showConfirmButton:false
+      });
+      setTimeout(()=> location.replace(baseList), 900);
       return;
     }
-
-    $('busy').classList.add('show');
-    try{
-      const url  = isEdit ? `/api/courses/${encodeURIComponent(currentUUID)}` : '/api/courses';
-      const meth = isEdit ? 'PUT' : 'POST';
-
-      const res = await fetch(url, {
-        method:meth,
-        headers:{
-          'Authorization':'Bearer '+TOKEN,
-          'Accept':'application/json',
-          'Content-Type':'application/json'
-        },
-        body: JSON.stringify(payload(statusOverride))
-      });
-      const json = await res.json().catch(()=> ({}));
-
-      if(res.ok){
-        Swal.fire({
-          icon:'success',
-          title: isEdit ? 'Updated' : 'Saved',
-          text: isEdit ? 'Course updated successfully' : 'Course created successfully',
-          timer: 900,
-          showConfirmButton:false
-        });
-        setTimeout(()=> location.replace(baseList), 900);
-        return;
-      }
-      if(res.status===422){
-        const e = json.errors || json.fields || {};
-        Object.entries(e).forEach(([k,v])=> fErr(k, Array.isArray(v)? v[0] : String(v)));
-        setStep(0);
-        err(json.message || 'Please fix the highlighted fields.');
-        return;
-      }
-      if(res.status===403){
-        Swal.fire({icon:'error',title:'Unauthorized',html:'If you are <b>Super Admin</b>, ensure the API authorizes this token/role for the endpoint.'});
-        return;
-      }
-      Swal.fire(isEdit?'Update failed':'Save failed', json.message || ('HTTP '+res.status), 'error');
-    }catch(ex){
-      console.error(ex);
-      Swal.fire('Network error','Please check your connection and try again.','error');
-    }finally{
-      $('busy').classList.remove('show');
+    if(res.status===422){
+      const e = json.errors || json.fields || {};
+      Object.entries(e).forEach(([k,v])=> fErr(k, Array.isArray(v)? v[0] : String(v)));
+      setStep(0);
+      err(json.message || 'Please fix the highlighted fields.');
+      return;
     }
+    if(res.status===403){
+      Swal.fire({icon:'error',title:'Unauthorized',html:'If you are <b>Super Admin</b>, ensure the API authorizes this token/role for the endpoint.'});
+      return;
+    }
+    Swal.fire(isEdit?'Update failed':'Save failed', json.message || ('HTTP '+res.status), 'error');
+  }catch(ex){
+    console.error(ex);
+    Swal.fire('Network error','Please check your connection and try again.','error');
+  }finally{
+    $('busy').classList.remove('show');
   }
+}
+ $('btnDraft').onclick = ()=> {
+  const originalText = $('btnDraft').textContent;
+  status.value = 'draft';
+  $('btnDraft').textContent = 'Saving as Draft...';
+  $('btnDraft').disabled = true;
+  
+  submit().finally(() => {
+    $('btnDraft').textContent = originalText;
+    $('btnDraft').disabled = false;
+  });
+};
 
-  $('btnDraft').onclick = ()=> submit('draft');
-  $('btnPublish').onclick = ()=> submit('published');
-
+$('btnPublish').onclick = ()=> {
+  const originalText = $('btnPublish').textContent;
+  status.value = 'published';
+  $('btnPublish').textContent = 'Publishing...';
+  $('btnPublish').disabled = true;
+  
+  submit().finally(() => {
+    $('btnPublish').textContent = originalText;
+    $('btnPublish').disabled = false;
+  });
+};
   // init
   setStep(0);
   recalc();
 
-  /* =========================================================
-     MEDIA MODAL POLISH (non-invasive, UI only)
-     Adds a data attribute to the specific modal by title so the
-     CSS above scopes only to that modal. Does not change handlers.
-     ========================================================= */
   function tryBeautifyMediaModal(modalEl){
     if(!modalEl) return;
     // safety: only if title matches

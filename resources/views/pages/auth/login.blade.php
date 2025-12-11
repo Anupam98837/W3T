@@ -16,10 +16,6 @@
   <link rel="stylesheet" href="{{ asset('/assets/css/common/main.css') }}"/>
 
   <style>
-    /* =========================
-       Namespaced Login (lx-*)
-       ========================= */
-
     html, body { height:100%; }
     body.lx-auth-body{
       height:100%;

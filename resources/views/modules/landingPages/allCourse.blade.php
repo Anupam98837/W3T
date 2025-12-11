@@ -431,7 +431,7 @@
               <span class="input-group-text bg-white border-end-0">
                 <i class="fa fa-filter text-muted"></i>
               </span>
-              <select id="courseCategorySelect" class="form-select border-start-0 ps-0">
+              <select id="courseCategorySelect" class="form-select border-start-0">
                 <option value="">All Categories</option>
               </select>
             </div>
@@ -504,7 +504,7 @@
   </main>
   {{-- Page-specific JS --}}
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
- <script>
+<script>
 document.addEventListener('DOMContentLoaded', () => {
   const qs = sel => document.querySelector(sel);
   const qsa = sel => Array.from(document.querySelectorAll(sel));
@@ -523,7 +523,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let currentPage = 1;
   const perPage = 12;
   let totalResults = 0;
-  let categoryList = []; // store categories for matching later
+  let categoryList = []; // store categories for matching later (each item should have uuid if available)
 
   const fetchJson = async (url, opts = {}) => {
     try {
@@ -554,19 +554,28 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (!data || !Array.isArray(data.data)) {
       console.warn('Failed to load categories');
-      // still attempt to load courses (no categories available)
+      // fallback: populate an "All Categories" option and still load courses
       categorySel.innerHTML = '<option value="">All Categories</option>';
+      categoryList = [];
       loadCourses(1);
       return;
     }
 
-    categoryList = data.data; // keep for later matching
+    // store categories (prefer uuid when present)
+    categoryList = data.data.map(c => ({
+      id: c.id,
+      uuid: c.uuid || c.category_uuid || null,
+      slug: (c.slug || c.slug_name || '').toString(),
+      title: (c.title || c.name || '').toString()
+    }));
 
     categorySel.innerHTML = '<option value="">All Categories</option>';
     data.data.forEach(cat => {
       const opt = document.createElement('option');
-      opt.value = String(cat.id); // normalize to string
+      // Use UUID as the option value if available, otherwise fall back to numeric id
+      opt.value = String(cat.uuid || cat.id || '');
       opt.setAttribute('data-slug', (cat.slug || cat.slug_name || '').toString());
+      opt.setAttribute('data-id', String(cat.id || ''));
       opt.textContent = cat.title || cat.name || 'Uncategorized';
       categorySel.appendChild(opt);
     });
@@ -610,10 +619,10 @@ document.addEventListener('DOMContentLoaded', () => {
   const buildCoursesApiUrl = (page = 1) => {
     const params = new URLSearchParams();
     const q = searchInput.value.trim();
-    const c = categorySel.value;
+    const c = categorySel.value; // will be UUID (preferred) or fallback id
 
     if (q) params.set('q', q);
-    if (c) params.set('category', c);
+    if (c) params.set('category', c); // backend should accept category UUID here
     params.set('page', page);
     params.set('per_page', perPage);
 
@@ -719,7 +728,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     prevLi.appendChild(prevBtn);
 
-    // Page numbers
     ul.appendChild(prevLi);
 
     const maxVisible = 5;
@@ -845,7 +853,7 @@ document.addEventListener('DOMContentLoaded', () => {
   /* ============= URL Helpers ============= */
 
   // Try to extract a category token from multiple places:
-  // 1. query param '?category=...'
+  // 1. query param '?category=...' (which will now be UUID if links were generated with UUID)
   // 2. path like '/courses/category/<token>' or '/courses/<token>'
   const detectCategoryTokenFromUrl = () => {
     const params = new URLSearchParams(window.location.search);
@@ -855,16 +863,11 @@ document.addEventListener('DOMContentLoaded', () => {
     // look at path segments
     const path = window.location.pathname.replace(/\/+$/, ''); // strip trailing slash
     const parts = path.split('/').filter(Boolean); // remove empty
-    // common patterns:
-    // - /courses/category/<token>
-    // - /courses/<token>
     const idx = parts.findIndex(p => p === 'courses');
     if (idx >= 0 && parts.length > idx + 1) {
-      // if pattern /courses/category/<token>
       if (parts[idx + 1] === 'category' && parts.length > idx + 2) {
         return decodeURIComponent(parts[idx + 2]);
       }
-      // otherwise if /courses/<token> and token doesn't look like 'all' or numeric id 'all' means show all
       const possible = parts[idx + 1];
       if (possible && possible.toLowerCase() !== 'all') {
         return decodeURIComponent(possible);
@@ -874,29 +877,34 @@ document.addEventListener('DOMContentLoaded', () => {
   };
 
   // Given the detected token, match it against loaded categories.
-  // Accepts id (string / number), slug, title or name (case-insensitive).
-  const matchCategoryTokenToId = (token) => {
+  // Prefer matching by UUID, then slug, then title/name, then id.
+  // Returns the value that should be set on the select (uuid if available, else id or '')
+  const matchCategoryTokenToValue = (token) => {
     if (!token || !categoryList.length) return '';
     const t = String(token).trim();
 
-    // direct id match
-    const byId = categoryList.find(c => String(c.id) === t);
-    if (byId) return String(byId.id);
+    // UUID exact match (common UUID pattern includes dashes; but use direct match)
+    const byUuid = categoryList.find(c => c.uuid && String(c.uuid) === t);
+    if (byUuid) return String(byUuid.uuid);
+
+    // direct id match (numeric)
+    const byId = categoryList.find(c => c.id && String(c.id) === t);
+    if (byId) {
+      // prefer to return uuid if present for that category, otherwise return id
+      return String(byId.uuid || byId.id);
+    }
 
     // slug match
-    const bySlug = categoryList.find(c => {
-      const slug = (c.slug || c.slug_name || '').toString().toLowerCase();
-      return slug && slug === t.toLowerCase();
-    });
-    if (bySlug) return String(bySlug.id);
+    const bySlug = categoryList.find(c => c.slug && String(c.slug).toLowerCase() === t.toLowerCase());
+    if (bySlug) return String(bySlug.uuid || bySlug.id);
 
-    // title/name match
-    const byTitle = categoryList.find(c => (c.title || c.name || '').toString().toLowerCase() === t.toLowerCase());
-    if (byTitle) return String(byTitle.id);
+    // title/name exact match
+    const byTitle = categoryList.find(c => c.title && String(c.title).toLowerCase() === t.toLowerCase());
+    if (byTitle) return String(byTitle.uuid || byTitle.id);
 
-    // partial match fallback (startsWith)
-    const partial = categoryList.find(c => (c.title || c.name || '').toString().toLowerCase().startsWith(t.toLowerCase()));
-    if (partial) return String(partial.id);
+    // partial title startsWith fallback
+    const partial = categoryList.find(c => c.title && String(c.title).toLowerCase().startsWith(t.toLowerCase()));
+    if (partial) return String(partial.uuid || partial.id);
 
     return ''; // no match
   };
@@ -906,15 +914,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const urlToken = detectCategoryTokenFromUrl();
     if (!urlToken) return; // no category token present
 
-    // If urlToken is numeric or slug, try to match to id
-    const matchedId = matchCategoryTokenToId(urlToken);
-    if (matchedId) {
-      categorySel.value = matchedId;
+    const matchedVal = matchCategoryTokenToValue(urlToken);
+    if (matchedVal) {
+      categorySel.value = matchedVal;
     } else {
-      // If no match, but user provided a numeric id-like token, set it directly (best-effort)
-      if (/^\d+$/.test(urlToken)) {
-        categorySel.value = urlToken;
-      }
+      // If no match, but user provided a UUID-like token or numeric id, set it directly (best-effort)
+      categorySel.value = urlToken;
     }
   };
 
@@ -977,4 +982,3 @@ document.addEventListener('DOMContentLoaded', () => {
   })();
 });
 </script>
-</body>

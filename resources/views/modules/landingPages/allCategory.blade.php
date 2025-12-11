@@ -417,222 +417,221 @@
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
   <script>
-  document.addEventListener('DOMContentLoaded', () => {
-    const qs = sel => document.querySelector(sel);
-    
-    const grid = qs('#allCategoriesGrid');
-    const emptyState = qs('#categoriesEmptyState');
-    const searchEl = qs('#categoriesSearchInput');
-    const counter = qs('#categoriesCounter');
-    const countSpan = qs('#categoriesCount');
+document.addEventListener('DOMContentLoaded', () => {
+  const qs = sel => document.querySelector(sel);
+  
+  const grid = qs('#allCategoriesGrid');
+  const emptyState = qs('#categoriesEmptyState');
+  const searchEl = qs('#categoriesSearchInput');
+  const counter = qs('#categoriesCounter');
+  const countSpan = qs('#categoriesCount');
 
-    let allCategories = [];
-    let filteredCategories = [];
+  let allCategories = [];
+  let filteredCategories = [];
 
-    const fetchJson = async (url, opts = {}) => {
-      try {
-        const res = await fetch(url, { 
-          headers: { 
-            'Accept': 'application/json',
-            'X-Requested-With': 'XMLHttpRequest'
-          }, 
-          ...opts 
-        });
-        if (!res.ok) {
-          console.warn('[Categories] API failed:', url, res.status);
-          return null;
-        }
-        return await res.json();
-      } catch (error) {
-        console.warn('[Categories] Network error:', error);
+  const fetchJson = async (url, opts = {}) => {
+    try {
+      const res = await fetch(url, { 
+        headers: { 
+          'Accept': 'application/json',
+          'X-Requested-With': 'XMLHttpRequest'
+        }, 
+        ...opts 
+      });
+      if (!res.ok) {
+        console.warn('[Categories] API failed:', url, res.status);
         return null;
       }
+      return await res.json();
+    } catch (error) {
+      console.warn('[Categories] Network error:', error);
+      return null;
+    }
+  };
+
+  // Build URL to /courses/all with category filter
+  // If your backend expects "category" param with UUID, use as-is.
+  // If it expects "category_uuid", set useUuidParam = true
+  const useUuidParam = false; // <-- set true if backend wants "category_uuid" param
+  const buildCoursesUrlForCategory = (catId) => {
+    const base = "{{ url('courses/all') }}";
+    const paramName = useUuidParam ? 'category_uuid' : 'category';
+    const params = new URLSearchParams({ [paramName]: String(catId) });
+    return base + '?' + params.toString();
+  };
+
+  // Generate a unique gradient color based on category index
+  const getCategoryColor = (index) => {
+    const colors = [
+      { bg: 'linear-gradient(135deg, #ebf8ff 0%, #e6fffa 100%)', icon: '#4299e1' },
+      { bg: 'linear-gradient(135deg, #fef3c7 0%, #fce7f3 100%)', icon: '#ed8936' },
+      { bg: 'linear-gradient(135deg, #e0e7ff 0%, #ede9fe 100%)', icon: '#7c3aed' },
+      { bg: 'linear-gradient(135deg, #f0f9ff 0%, #ecfeff 100%)', icon: '#0891b2' },
+      { bg: 'linear-gradient(135deg, #fef3c7 0%, #ffedd5 100%)', icon: '#d97706' },
+      { bg: 'linear-gradient(135deg, #fce7f3 0%, #fbcfe8 100%)', icon: '#db2777' },
+      { bg: 'linear-gradient(135deg, #e0e7ff 0%, #c7d2fe 100%)', icon: '#4f46e5' },
+      { bg: 'linear-gradient(135deg, #d1fae5 0%, #dcfce7 100%)', icon: '#059669' },
+    ];
+    return colors[index % colors.length];
+  };
+
+  // Generate icon based on category name
+  const getCategoryIcon = (categoryName) => {
+    const name = (categoryName || '').toLowerCase();
+    const iconMap = {
+      'web': 'fa-solid fa-code',
+      'mobile': 'fa-solid fa-mobile-screen-button',
+      'design': 'fa-solid fa-palette',
+      'data': 'fa-solid fa-database',
+      'ai': 'fa-solid fa-robot',
+      'cloud': 'fa-solid fa-cloud',
+      'security': 'fa-solid fa-shield-halved',
+      'devops': 'fa-solid fa-server',
+      'business': 'fa-solid fa-chart-line',
+      'marketing': 'fa-solid fa-bullhorn',
+      'finance': 'fa-solid fa-money-bill-trend-up',
+      'health': 'fa-solid fa-heart-pulse',
+      'education': 'fa-solid fa-graduation-cap',
+      'language': 'fa-solid fa-language',
+      'music': 'fa-solid fa-music',
+      'art': 'fa-solid fa-paintbrush',
+      'science': 'fa-solid fa-flask',
+      'math': 'fa-solid fa-calculator',
     };
 
-    // Build URL to /courses/all with category filter
-    const buildCoursesUrlForCategory = (catId) => {
-      const base = "{{ url('courses/all') }}";
-      const params = new URLSearchParams({ category: String(catId) });
-      return base + '?' + params.toString();
-    };
-
-    // Generate a unique gradient color based on category index
-    const getCategoryColor = (index) => {
-      const colors = [
-        { bg: 'linear-gradient(135deg, #ebf8ff 0%, #e6fffa 100%)', icon: '#4299e1' },
-        { bg: 'linear-gradient(135deg, #fef3c7 0%, #fce7f3 100%)', icon: '#ed8936' },
-        { bg: 'linear-gradient(135deg, #e0e7ff 0%, #ede9fe 100%)', icon: '#7c3aed' },
-        { bg: 'linear-gradient(135deg, #f0f9ff 0%, #ecfeff 100%)', icon: '#0891b2' },
-        { bg: 'linear-gradient(135deg, #fef3c7 0%, #ffedd5 100%)', icon: '#d97706' },
-        { bg: 'linear-gradient(135deg, #fce7f3 0%, #fbcfe8 100%)', icon: '#db2777' },
-        { bg: 'linear-gradient(135deg, #e0e7ff 0%, #c7d2fe 100%)', icon: '#4f46e5' },
-        { bg: 'linear-gradient(135deg, #d1fae5 0%, #dcfce7 100%)', icon: '#059669' },
-      ];
-      return colors[index % colors.length];
-    };
-
-    // Generate icon based on category name
-    const getCategoryIcon = (categoryName) => {
-      const name = (categoryName || '').toLowerCase();
-      const iconMap = {
-        'web': 'fa-solid fa-code',
-        'mobile': 'fa-solid fa-mobile-screen-button',
-        'design': 'fa-solid fa-palette',
-        'data': 'fa-solid fa-database',
-        'ai': 'fa-solid fa-robot',
-        'cloud': 'fa-solid fa-cloud',
-        'security': 'fa-solid fa-shield-halved',
-        'devops': 'fa-solid fa-server',
-        'business': 'fa-solid fa-chart-line',
-        'marketing': 'fa-solid fa-bullhorn',
-        'finance': 'fa-solid fa-money-bill-trend-up',
-        'health': 'fa-solid fa-heart-pulse',
-        'education': 'fa-solid fa-graduation-cap',
-        'language': 'fa-solid fa-language',
-        'music': 'fa-solid fa-music',
-        'art': 'fa-solid fa-paintbrush',
-        'science': 'fa-solid fa-flask',
-        'math': 'fa-solid fa-calculator',
-      };
-
-      // Check for keywords in category name
-      for (const [keyword, icon] of Object.entries(iconMap)) {
-        if (name.includes(keyword)) {
-          return icon;
-        }
-      }
-
-      // Default icons based on first letter or common patterns
-      if (name.includes('programming') || name.includes('coding') || name.includes('development')) {
-        return 'fa-solid fa-code';
-      }
-      if (name.includes('design') || name.includes('ui') || name.includes('ux')) {
-        return 'fa-solid fa-pen-ruler';
-      }
-      if (name.includes('business') || name.includes('management') || name.includes('entrepreneur')) {
-        return 'fa-solid fa-briefcase';
-      }
-      if (name.includes('art') || name.includes('creative') || name.includes('drawing')) {
-        return 'fa-solid fa-paintbrush';
-      }
-
-      // Fallback to default icon
-      return 'fa-solid fa-folder-open';
-    };
-
-    const renderCategories = (categories) => {
-      grid.innerHTML = '';
-
-      if (!categories.length) {
-        emptyState.style.display = 'block';
-        counter.style.display = 'none';
-        return;
-      }
-
-      emptyState.style.display = 'none';
-      counter.style.display = 'block';
-      countSpan.textContent = categories.length.toLocaleString();
-
-      const categoriesHtml = categories.map((cat, index) => {
-        const catId = cat.id || cat.uuid;
-        const targetUrl = catId ? buildCoursesUrlForCategory(catId) : '#';
-        const iconClass = cat.icon || cat.icon_class || getCategoryIcon(cat.title || cat.name);
-        const titleText = cat.title || cat.name || 'Untitled Category';
-        const descHtml = cat.description || cat.meta || 'Specialized courses and learning paths';
-        const colorStyle = getCategoryColor(index);
-
-        return `
-          <div class="category-card lp-animate is-visible"
-               data-lp-animate="fade-up"
-               style="animation-delay: ${(index % 6) * 100}ms">
-            <div class="category-icon" style="background: ${colorStyle.bg}; color: ${colorStyle.icon}">
-              <i class="${iconClass}"></i>
-            </div>
-            <h3 class="category-name">${titleText}</h3>
-            <div class="category-meta">${descHtml}</div>
-            <div class="category-arrow">
-              Explore courses
-              <i class="fa fa-arrow-right"></i>
-            </div>
-            <a href="${targetUrl}" 
-               class="category-link" 
-               aria-label="Browse ${titleText} courses"
-               title="Browse ${titleText} courses">
-            </a>
-          </div>
-        `;
-      }).join('');
-
-      grid.innerHTML = categoriesHtml;
-    };
-
-    const filterAndRender = () => {
-      const term = (searchEl.value || '').toLowerCase().trim();
-      
-      if (!term) {
-        filteredCategories = allCategories;
-        renderCategories(allCategories);
-        return;
-      }
-      
-      filteredCategories = allCategories.filter(cat => {
-        const title = (cat.title || cat.name || '').toLowerCase();
-        const desc = (cat.description || cat.meta || '').toLowerCase();
-        return title.includes(term) || desc.includes(term);
-      });
-      
-      renderCategories(filteredCategories);
-    };
-
-    const loadCategories = async () => {
-      // Show skeleton loaders
-      grid.innerHTML = Array(6).fill(0).map(() => `
-        <div class="skeleton-category">
-          <div class="skeleton-icon"></div>
-          <div class="skeleton-name"></div>
-          <div class="skeleton-meta"></div>
-          <div class="skeleton-meta"></div>
-          <div class="skeleton-meta-short"></div>
-        </div>
-      `).join('');
-
-      try {
-        const data = await fetchJson("{{ url('api/landing/categories') }}");
-        
-        if (!data || !Array.isArray(data.data)) {
-          throw new Error('Invalid data format');
-        }
-        
-        allCategories = data.data;
-        filteredCategories = allCategories;
-        renderCategories(allCategories);
-      } catch (error) {
-        console.error('Failed to load categories:', error);
-        grid.innerHTML = '';
-        emptyState.style.display = 'block';
-        counter.style.display = 'none';
-      }
-    };
-
-    // Debounced search
-    let searchTimeout;
-    if (searchEl) {
-      searchEl.addEventListener('input', () => {
-        clearTimeout(searchTimeout);
-        searchTimeout = setTimeout(filterAndRender, 300);
-      });
-      
-      // Clear search on Escape key
-      searchEl.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape') {
-          searchEl.value = '';
-          filterAndRender();
-        }
-      });
+    for (const [keyword, icon] of Object.entries(iconMap)) {
+      if (name.includes(keyword)) return icon;
     }
 
-    // Initialize
-    loadCategories();
-  });
-  </script>
-</body>
+    if (name.includes('programming') || name.includes('coding') || name.includes('development')) {
+      return 'fa-solid fa-code';
+    }
+    if (name.includes('design') || name.includes('ui') || name.includes('ux')) {
+      return 'fa-solid fa-pen-ruler';
+    }
+    if (name.includes('business') || name.includes('management') || name.includes('entrepreneur')) {
+      return 'fa-solid fa-briefcase';
+    }
+    if (name.includes('art') || name.includes('creative') || name.includes('drawing')) {
+      return 'fa-solid fa-paintbrush';
+    }
+
+    return 'fa-solid fa-folder-open';
+  };
+
+  const renderCategories = (categories) => {
+    grid.innerHTML = '';
+
+    if (!categories.length) {
+      emptyState.style.display = 'block';
+      counter.style.display = 'none';
+      return;
+    }
+
+    emptyState.style.display = 'none';
+    counter.style.display = 'block';
+    countSpan.textContent = categories.length.toLocaleString();
+
+    const categoriesHtml = categories.map((cat, index) => {
+      // **Prefer UUID** if present (cat.uuid), else fall back to cat.id
+      const catId = cat.uuid || cat.id || null;
+      const targetUrl = catId ? buildCoursesUrlForCategory(catId) : '#';
+      const iconClass = cat.icon || cat.icon_class || getCategoryIcon(cat.title || cat.name);
+      const titleText = cat.title || cat.name || 'Untitled Category';
+      const descHtml = cat.description || cat.meta || 'Specialized courses and learning paths';
+      const colorStyle = getCategoryColor(index);
+
+      return `
+        <div class="category-card lp-animate is-visible"
+             data-lp-animate="fade-up"
+             style="animation-delay: ${(index % 6) * 100}ms">
+          <div class="category-icon" style="background: ${colorStyle.bg}; color: ${colorStyle.icon}">
+            <i class="${iconClass}"></i>
+          </div>
+          <h3 class="category-name">${titleText}</h3>
+          <div class="category-meta">${descHtml}</div>
+          <div class="category-arrow">
+            Explore courses
+            <i class="fa fa-arrow-right"></i>
+          </div>
+          <a href="${targetUrl}" 
+             class="category-link" 
+             aria-label="Browse ${titleText} courses"
+             title="Browse ${titleText} courses">
+          </a>
+        </div>
+      `;
+    }).join('');
+
+    grid.innerHTML = categoriesHtml;
+  };
+
+  const filterAndRender = () => {
+    const term = (searchEl.value || '').toLowerCase().trim();
+    
+    if (!term) {
+      filteredCategories = allCategories;
+      renderCategories(allCategories);
+      return;
+    }
+    
+    filteredCategories = allCategories.filter(cat => {
+      const title = (cat.title || cat.name || '').toLowerCase();
+      const desc = (cat.description || cat.meta || '').toLowerCase();
+      return title.includes(term) || desc.includes(term);
+    });
+    
+    renderCategories(filteredCategories);
+  };
+
+  const loadCategories = async () => {
+    // Show skeleton loaders
+    grid.innerHTML = Array(6).fill(0).map(() => `
+      <div class="skeleton-category">
+        <div class="skeleton-icon"></div>
+        <div class="skeleton-name"></div>
+        <div class="skeleton-meta"></div>
+        <div class="skeleton-meta"></div>
+        <div class="skeleton-meta-short"></div>
+      </div>
+    `).join('');
+
+    try {
+      const data = await fetchJson("{{ url('api/landing/categories') }}");
+      
+      if (!data || !Array.isArray(data.data)) {
+        throw new Error('Invalid data format');
+      }
+      
+      allCategories = data.data;
+      filteredCategories = allCategories;
+      renderCategories(allCategories);
+    } catch (error) {
+      console.error('Failed to load categories:', error);
+      grid.innerHTML = '';
+      emptyState.style.display = 'block';
+      counter.style.display = 'none';
+    }
+  };
+
+  // Debounced search
+  let searchTimeout;
+  if (searchEl) {
+    searchEl.addEventListener('input', () => {
+      clearTimeout(searchTimeout);
+      searchTimeout = setTimeout(filterAndRender, 300);
+    });
+    
+    // Clear search on Escape key
+    searchEl.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        searchEl.value = '';
+        filterAndRender();
+      }
+    });
+  }
+
+  // Initialize
+  loadCategories();
+});
+</script>

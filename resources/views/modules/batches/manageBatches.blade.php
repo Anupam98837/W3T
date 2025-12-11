@@ -103,6 +103,11 @@
     html.theme-dark .mfa-toolbar .form-select{background:#0f172a;color:#e5e7eb;border-color:var(--line-strong)}
     html.theme-dark .rte{background:#0f172a;border-color:var(--line-strong);color:#e5e7eb}
     html.theme-dark .tool{background:#0f172a;border-color:var(--line-strong);color:#e5e7eb}
+    .verify-content.hidden {
+    opacity: 0;
+    pointer-events: none;
+}
+
     </style>
 </head>
 <body>
@@ -425,7 +430,16 @@
             </div>
             <div class="table-responsive">
               <table class="table table-hover align-middle st-table mb-0">
-                <thead><tr><th>Name</th><th style="width:30%;">Email</th><th style="width:20%;">Phone</th><th class="text-center" style="width:110px;">Select</th></tr></thead>
+<thead>
+  <tr>
+    <th>Name</th>
+    <th style="width:28%;">Email</th>
+    <th style="width:16%;">Phone</th>
+    <th style="width:14%;">Enrollment Status</th>
+    <th style="width:110px;" class="text-center">Select</th>
+    <th class="text-center" style="width:110px;">Verification</th>
+  </tr>
+</thead>
                 <tbody id="st_rows">
                   <tr id="st_loader" style="display:none;"><td colspan="4" class="p-3"><div class="placeholder-wave"><div class="placeholder col-12 mb-2" style="height:16px;"></div><div class="placeholder col-12 mb-2" style="height:16px;"></div><div class="placeholder col-12 mb-2" style="height:16px;"></div></div></td></tr>
                 </tbody>
@@ -637,11 +651,10 @@
 </div>
 @endsection
 
-<!-- Scripts -->
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <script>
-  document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', function() {
 /* =================== AUTH / GLOBALS =================== */
 const TOKEN = localStorage.getItem('token') || sessionStorage.getItem('token') || '';
 if (!TOKEN){ Swal.fire('Login needed','Your session expired. Please login again.','warning').then(()=> location.href='/'); }
@@ -666,6 +679,14 @@ function fmtDateTime(iso){ if(!iso) return '-'; const d=new Date(iso); return is
 function badgeStatus(s){ s=(s||'').toString().toLowerCase(); const map={active:'success',inactive:'warning',archived:'secondary'}; const cls=map[s]||'secondary'; return `<span class="badge badge-${cls} text-uppercase">${esc(s||'-')}</span>`; }
 function firstError(j){ if(j?.errors){ const k=Object.keys(j.errors)[0]; if(k){ const v=j.errors[k]; return Array.isArray(v)?v[0]:String(v); } } return j?.message||''; }
 function humanYMD(s,e){ const sd=new Date(s), ed=new Date(e); if(isNaN(sd)||isNaN(ed)||ed<sd) return '-'; let y=ed.getFullYear()-sd.getFullYear(), m=ed.getMonth()-sd.getMonth(), d=ed.getDate()-sd.getDate(); if(d<0){ const prevDays=new Date(ed.getFullYear(),ed.getMonth(),0).getDate(); d+=prevDays; m-=1; } if(m<0){ m+=12; y-=1; } const parts=[]; if(y>0) parts.push(y+' '+(y===1?'year':'years')); if(m>0) parts.push(m+' '+(m===1?'month':'months')); if(d>0||!parts.length) parts.push(d+' '+(d===1?'day':'days')); return parts.join(' '); }
+
+/* New helper: enrollment badge render */
+function badgeEnrollment(s){
+  const st = (s||'').toString().toLowerCase();
+  const map = { enrolled:'success', pending:'warning', invited:'info', unassigned:'secondary' };
+  const cls = map[st] || 'secondary';
+  return `<span class="badge badge-${cls} text-capitalize enrollment-badge">${esc(s||'-')}</span>`;
+}
 
 /* =================== ELEMENTS & STATE =================== */
 const courseSel = document.getElementById('courseSel');
@@ -990,32 +1011,285 @@ async function openView(uuid){
   }catch(e){ vBody.innerHTML = `<div class="text-danger">${esc(e.message||'Failed to load')}</div>`; }
 }
 
+/* ================= MANAGE STUDENTS (updated) ================= */
 const st_rows=document.getElementById('st_rows'), st_loader=document.getElementById('st_loader'), st_meta=document.getElementById('st_meta'), st_pager=document.getElementById('st_pager'), st_q=document.getElementById('st_q'), st_per=document.getElementById('st_per'), st_apply=document.getElementById('st_apply');
 const st_assigned=document.getElementById('st_assigned');
 const csvFile=document.getElementById('csvFile'), csvDrop=document.getElementById('csvDrop'), csvHint=document.getElementById('csvHint'), csvSummary=document.getElementById('csvSummary');
 let studentsModal, st_uuid=null, st_page=1;
+
+/* NEW: fetch list of user_ids that are 'not_verified' for the current batch */
+async function fetchNotVerifiedIds(batchUuid){
+  try{
+    const res = await fetch(`/api/batches/${encodeURIComponent(batchUuid)}/students/not-verified`, {
+      headers: { 'Authorization': 'Bearer ' + TOKEN, 'Accept': 'application/json' }
+    });
+    if(!res.ok){
+      // non-fatal: return empty set if endpoint fails
+      try { const j = await res.json(); console.warn('not-verified fetch failed', j); } catch(_) {}
+      return new Set();
+    }
+    const j = await res.json();
+    // The API returns data as an array of user_ids. Support either {data: [...] } or raw array.
+    const arr = Array.isArray(j) ? j : (Array.isArray(j?.data) ? j.data : []);
+    return new Set(arr.map(x => Number(x)));
+  }catch(e){
+    console.error('Failed to fetch not-verified list', e);
+    return new Set();
+  }
+}
 function studentsParams(){ const p=new URLSearchParams(); if(st_q.value.trim()) p.set('q',st_q.value.trim()); p.set('per_page',st_per.value||20); p.set('page',st_page); if(st_assigned.value==='assigned') p.set('assigned','1'); if(st_assigned.value==='unassigned') p.set('assigned','0'); return p.toString(); }
 function openStudents(uuid){ studentsModal = studentsModal || new bootstrap.Modal(document.getElementById('studentsModal')); st_uuid=uuid; st_page=1; st_assigned.value='all'; studentsModal.show(); loadStudents(); }
 st_apply.addEventListener('click',()=>{ st_page=1; loadStudents(); }); st_per.addEventListener('change',()=>{ st_page=1; loadStudents(); }); st_assigned.addEventListener('change',()=>{ st_page=1; loadStudents(); });
 let stT; st_q.addEventListener('input',()=>{ clearTimeout(stT); stT=setTimeout(()=>{ st_page=1; loadStudents(); },350); });
-async function loadStudents(){ if(!st_uuid) return; st_loader.style.display=''; st_rows.querySelectorAll('tr:not(#st_loader)').forEach(tr=>tr.remove()); try{ const res=await fetch(`/api/batches/${encodeURIComponent(st_uuid)}/students?`+studentsParams(),{headers:{'Authorization':'Bearer '+TOKEN,'Accept':'application/json'}}); const j=await res.json(); if(!res.ok) throw new Error(j?.message||'Failed to load students'); let items=j?.data||[]; const pag=j?.pagination||{current_page:1,per_page:Number(st_per.value||20),total:items.length}; if(st_assigned.value==='assigned') items = items.filter(u=> !!u.assigned); if(st_assigned.value==='unassigned') items = items.filter(u=> !u.assigned); const frag=document.createDocumentFragment(); items.forEach(u=>{ const tr=document.createElement('tr'); tr.innerHTML=`<td class="fw-semibold">${esc(u.name||'-')}</td><td>${esc(u.email||'-')}</td><td>${esc((u.phone_number ?? u.phone ?? '-'))}</td><td class="text-center"><div class="form-check form-switch d-inline-block"><input class="form-check-input st-tg" type="checkbox" data-id="${u.id}" ${u.assigned?'checked':''}></div></td>`; frag.appendChild(tr); }); st_rows.appendChild(frag); st_rows.querySelectorAll('.st-tg').forEach(ch=>{ ch.addEventListener('change',()=>{ toggleStudent(Number(ch.dataset.id), ch.checked, ch); }); }); const total=Number(pag.total||0), per=Number(pag.per_page||20), cur=Number(pag.current_page||1); const pages=Math.max(1,Math.ceil(total/per)); function li(dis,act,label,t){ const c=['page-item',dis?'disabled':'',act?'active':''].filter(Boolean).join(' '); return `<li class="${c}"><a class="page-link" href="javascript:void(0)" data-page="${t||''}">${label}</a></li>`; } let html=''; html+=li(cur<=1,false,'Prev',cur-1); const w=2,s=Math.max(1,cur-w),e=Math.min(pages,cur+w); for(let i=s;i<=e;i++) html+=li(false,i===cur,i); html+=li(cur>=pages,false,'Next',cur+1); st_pager.innerHTML=html; st_pager.querySelectorAll('a.page-link[data-page]').forEach(a=> a.addEventListener('click',()=>{ const t=Number(a.dataset.page); if(!t||t===st_page) return; st_page=t; loadStudents(); })); const label = st_assigned.value==='all' ? 'All' : (st_assigned.value==='assigned' ? 'Assigned' : 'Unassigned'); st_meta.textContent=`${label} — Page ${cur}/${pages} — ${total} student(s)`; }catch(e){ err(e.message); } finally{ st_loader.style.display='none'; } }
-async function toggleStudent(userId, assigned, checkboxEl){ try{ const res=await fetch(`/api/batches/${encodeURIComponent(st_uuid)}/students/toggle`,{ method:'POST', headers:{'Authorization':'Bearer '+TOKEN,'Content-Type':'application/json','Accept':'application/json'}, body:JSON.stringify({user_id:userId,assigned:!!assigned}) }); const j=await res.json().catch(()=>({})); if(!res.ok) throw new Error(j?.message||firstError(j)||'Toggle failed'); ok(assigned ? 'Student assigned to batch' : 'Student removed from batch'); if((st_assigned.value==='assigned' && !assigned) || (st_assigned.value==='unassigned' && assigned)){ loadStudents(); } }catch(e){ if(checkboxEl) checkboxEl.checked = !assigned; err(e.message); } }
+function badgeVerified(isVerified){
+  if (!isVerified) return '';
+  return `<span class="badge bg-success ms-2">Verified</span>`;
+}
 
-const ins_q=document.getElementById('ins_q'), ins_per=document.getElementById('ins_per'), ins_apply=document.getElementById('ins_apply'), ins_assigned=document.getElementById('ins_assigned'), ins_rows=document.getElementById('ins_rows'), ins_loader=document.getElementById('ins_loader'), ins_meta=document.getElementById('ins_meta'), ins_pager=document.getElementById('ins_pager');
-let instructorsModal, ins_uuid=null, ins_page=1;
-function instructorsParams(){ const p = new URLSearchParams(); if (ins_q.value.trim()) p.set('q', ins_q.value.trim()); p.set('per_page', ins_per.value || 20); p.set('page', ins_page); if (ins_assigned.value === 'assigned') p.set('assigned', '1'); if (ins_assigned.value === 'unassigned') p.set('assigned', '0'); return p.toString(); }
-function openInstructors(uuid){ instructorsModal = instructorsModal || new bootstrap.Modal(document.getElementById('instructorsModal')); ins_uuid = uuid; ins_page = 1; ins_assigned.value = 'all'; instructorsModal.show(); loadInstructors(); }
-ins_apply.addEventListener('click', ()=>{ ins_page=1; loadInstructors(); }); ins_per.addEventListener('change', ()=>{ ins_page=1; loadInstructors(); }); ins_assigned.addEventListener('change', ()=>{ ins_page=1; loadInstructors(); });
-let insT; ins_q.addEventListener('input', ()=>{ clearTimeout(insT); insT = setTimeout(()=>{ ins_page=1; loadInstructors(); }, 350); });
-async function loadInstructors(){ if (!ins_uuid) return; ins_loader.style.display = ''; ins_rows.querySelectorAll('tr:not(#ins_loader)').forEach(tr=>tr.remove()); try{ const res = await fetch(`/api/batches/${encodeURIComponent(ins_uuid)}/instructors?` + instructorsParams(), { headers:{ 'Authorization':'Bearer '+TOKEN, 'Accept':'application/json' } }); const j = await res.json(); if(!res.ok) throw new Error(j?.message || 'Failed to load instructors'); const items = j?.data || []; const pag = j?.pagination || { current_page: 1, per_page: Number(ins_per.value||20), total: items.length }; const frag = document.createDocumentFragment(); items.forEach(u=>{ const assigned = !!u.assigned; const role = u.role_in_batch || 'instructor'; const tr = document.createElement('tr'); tr.innerHTML = `<td class="fw-semibold">${esc(u.name||'-')}</td><td>${esc(u.email||'-')}</td><td>${esc(u.phone ?? u.phone_number ?? '-')}</td><td><select class="form-select form-select-sm ins-role" ${assigned?'':'disabled'}><option value="instructor" ${role==='instructor'?'selected':''}>Instructor</option><option value="tutor" ${role==='tutor'?'selected':''}>Tutor</option><option value="TA" ${role==='TA'?'selected':''}>TA</option><option value="mentor" ${role==='mentor'?'selected':''}>Mentor</option></select></td><td class="text-center"><div class="form-check form-switch d-inline-block"><input class="form-check-input ins-tg" type="checkbox" data-id="${u.id}" ${assigned?'checked':''}></div></td>`; frag.appendChild(tr); }); ins_rows.appendChild(frag); ins_rows.querySelectorAll('.ins-tg').forEach(ch=>{ ch.addEventListener('change', ()=>{ const row = ch.closest('tr'); const roleSel = row?.querySelector('.ins-role'); const roleVal = roleSel ? roleSel.value : 'instructor'; toggleInstructor(Number(ch.dataset.id), ch.checked, ch, roleVal); }); }); const total=Number(pag.total||0), per=Number(pag.per_page||20), cur=Number(pag.current_page||1); const pages=Math.max(1,Math.ceil(total/per)); function li(dis,act,label,t){ const c=['page-item',dis?'disabled':'',act?'active':''].filter(Boolean).join(' '); return `<li class="${c}"><a class="page-link" href="javascript:void(0)" data-page="${t||''}">${label}</a></li>`; } let html=''; html+=li(cur<=1,false,'Prev',cur-1); const w=2,s=Math.max(1,cur-w),e=Math.min(pages,cur+w); for(let i=s;i<=e;i++) html+=li(false,i===cur,i); html+=li(cur>=pages,false,'Next',cur+1); ins_pager.innerHTML=html; ins_pager.querySelectorAll('a.page-link[data-page]').forEach(a=> a.addEventListener('click',()=>{ const t=Number(a.dataset.page); if(!t||t===ins_page) return; ins_page=t; loadInstructors(); })); const label = ins_assigned.value==='all' ? 'All' : (ins_assigned.value==='assigned' ? 'Assigned' : 'Unassigned'); ins_meta.textContent = `${label} — Page ${cur}/${pages} — ${total} instructor(s)`; }catch(e){ err(e.message || 'Load error'); }finally{ ins_loader.style.display='none'; } }
-async function toggleInstructor(userId, assigned, checkboxEl, roleVal){ try{ const body = assigned ? { user_id: userId, assigned: true, role_in_batch: roleVal || 'instructor' } : { user_id: userId, assigned: false }; const res = await fetch(`/api/batches/${encodeURIComponent(ins_uuid)}/instructors/toggle`,{ method:'POST', headers:{ 'Authorization':'Bearer '+TOKEN, 'Content-Type':'application/json', 'Accept':'application/json' }, body: JSON.stringify(body) }); const j = await res.json().catch(()=>({})); if(!res.ok) throw new Error(j?.message || firstError(j) || 'Toggle failed'); const row = checkboxEl.closest('tr'); const roleSel = row?.querySelector('.ins-role'); if (roleSel) roleSel.disabled = !assigned; ok(assigned ? 'Instructor assigned to batch' : 'Instructor unassigned'); if((ins_assigned.value==='assigned' && !assigned) || (ins_assigned.value==='unassigned' && assigned)){ loadInstructors(); } }catch(e){ if (checkboxEl) checkboxEl.checked = !assigned; err(e.message); } }
+/* REPLACED loadStudents: now queries "not-verified" first and uses it to decide verification column visibility */
+async function loadStudents(){
+  if(!st_uuid) return;
+  st_loader.style.display='';
+  st_rows.querySelectorAll('tr:not(#st_loader)').forEach(tr=>tr.remove());
 
+  // Fetch not-verified ids first (so UI can map show/hide verification toggles)
+  const notVerifiedSet = await fetchNotVerifiedIds(st_uuid);
+
+  try{
+    const res=await fetch(`/api/batches/${encodeURIComponent(st_uuid)}/students?`+studentsParams(),{headers:{'Authorization':'Bearer '+TOKEN,'Accept':'application/json'}});
+    const j=await res.json();
+    if(!res.ok) throw new Error(j?.message||'Failed to load students');
+    let items=j?.data||[];
+    const pag=j?.pagination||{current_page:1,per_page:Number(st_per.value||20),total:items.length};
+
+    if(st_assigned.value==='assigned') items = items.filter(u=> !!u.assigned);
+    if(st_assigned.value==='unassigned') items = items.filter(u=> !u.assigned);
+
+    const frag=document.createDocumentFragment();
+    items.forEach(u=>{
+      const tr=document.createElement('tr');
+
+      // Determine values (backend may provide `enrollment_status` and `verified` boolean)
+      const isNotVerified = notVerifiedSet.has(Number(u.id));
+      
+      // For not-verified students, select toggle should be OFF by default
+      // For others, use the actual assigned status
+      const shouldBeAssigned = isNotVerified ? false : !!u.assigned;
+      const enrollmentStatus = u.enrollment_status || (shouldBeAssigned ? 'enrolled' : 'unassigned');
+      const verified = !!u.verified;
+
+      // Render row: Name | Email | Phone | Enrollment Status | Assigned toggle | Verified toggle
+      // If user is NOT in notVerifiedSet, we hide the verify cell (display:none) to match your requirement.
+      tr.innerHTML = `
+        <td class="fw-semibold">${esc(u.name||'-')}</td>
+        <td>${esc(u.email||'-')}</td>
+        <td>${esc((u.phone_number ?? u.phone ?? '-'))}</td>
+        <td class="text-center align-middle enrollment-cell">${badgeEnrollment(enrollmentStatus)}</td>
+        <td class="text-center align-middle">
+          <div class="form-check form-switch d-inline-block">
+            <input class="form-check-input st-tg" type="checkbox" data-id="${u.id}" ${shouldBeAssigned?'checked':''}>
+          </div>
+        </td>
+        <td class="text-center align-middle verify-cell" style="${isNotVerified ? '' : 'visibility:hidden;'}">
+          <div class="form-check form-switch d-inline-block">
+            <input class="form-check-input st-verify" type="checkbox" data-id="${u.id}" ${verified?'checked':''}>
+          </div>
+        </td>
+      `;
+      frag.appendChild(tr);
+    });
+    st_rows.appendChild(frag);
+
+    /* ================= ASSIGN TOGGLE (existing) ================= */
+   st_rows.querySelectorAll('.st-tg').forEach(ch=>{
+      ch.addEventListener('change', ()=>{
+        toggleStudent(Number(ch.dataset.id), ch.checked, ch);
+      });
+    });
+
+    st_rows.querySelectorAll('.st-verify').forEach(ch=>{
+      ch.addEventListener('change', async ()=>{
+        const userId = Number(ch.dataset.id);
+        const checked = !!ch.checked;
+        const row = ch.closest('tr');
+        const assignCheckbox = row?.querySelector('.st-tg');
+
+        // If turning ON verification
+        if(checked){
+          // Always ensure student is assigned first
+          if(assignCheckbox && !assignCheckbox.checked){
+            // Optimistically update the select checkbox UI first
+            assignCheckbox.checked = true;
+            
+            // Disable verify control while assign is in-flight
+            ch.disabled = true;
+            try{
+              // Call the API to assign
+              const res=await fetch(`/api/batches/${encodeURIComponent(st_uuid)}/students/toggle`,{
+                method:'POST',
+                headers:{'Authorization':'Bearer '+TOKEN,'Content-Type':'application/json','Accept':'application/json'},
+                body:JSON.stringify({user_id:userId,assigned:true})
+              });
+              const j=await res.json().catch(()=>({}));
+              if(!res.ok) throw new Error(j?.message||firstError(j)||'Toggle failed');
+              
+              ok('Student assigned to batch');
+              
+              // Update enrollment badge if provided
+              const enrollCell = row.querySelector('.enrollment-cell');
+              const newStatus = (j?.data?.enrollment_status) || 'enrolled';
+              if(enrollCell) enrollCell.innerHTML = badgeEnrollment(newStatus);
+              
+              // After successful assignment, call verify API
+              await verifyStudent(userId, true, ch);
+            }catch(e){
+              // Revert both checkboxes on error
+              assignCheckbox.checked = false;
+              ch.checked = false;
+              err(e.message);
+            } finally {
+              ch.disabled = false;
+            }
+          } else {
+            // Already assigned, just verify
+            try{
+              await verifyStudent(userId, true, ch);
+            }catch(e){
+              // verifyStudent handles revert and toasts
+            }
+          }
+        } else {
+          // Turning OFF verification - just update verification, don't touch assignment
+          try{
+            await verifyStudent(userId, false, ch);
+          }catch(e){
+            // verifyStudent handles revert and toasts
+          }
+        }
+      });
+    });
+
+    const total=Number(pag.total||0), per=Number(pag.per_page||20), cur=Number(pag.current_page||1);
+    const pages=Math.max(1,Math.ceil(total/per));
+    function li(dis,act,label,t){ const c=['page-item',dis?'disabled':'',act?'active':''].filter(Boolean).join(' '); return `<li class="${c}"><a class="page-link" href="javascript:void(0)" data-page="${t||''}">${label}</a></li>`; }
+    let html='';
+    html+=li(cur<=1,false,'Prev',cur-1);
+    const w=2,s=Math.max(1,cur-w),e=Math.min(pages,cur+w);
+    for(let i=s;i<=e;i++) html+=li(false,i===cur,i);
+    html+=li(cur>=pages,false,'Next',cur+1);
+    st_pager.innerHTML=html;
+    st_pager.querySelectorAll('a.page-link[data-page]').forEach(a=>a.addEventListener('click',()=>{
+      const t=Number(a.dataset.page); if(!t||t===st_page) return; st_page=t; loadStudents();
+    }));
+    const label = st_assigned.value==='all' ? 'All' : (st_assigned.value==='assigned' ? 'Assigned' : 'Unassigned');
+    st_meta.textContent=`${label} — Page ${cur}/${pages} — ${total} student(s)`;
+  }catch(e){
+    err(e.message);
+  } finally{
+    st_loader.style.display='none';
+  }
+}
+/**
+ * toggleStudent (assign/unassign)
+ * - updates assignment on the server
+ * - syncs verify checkbox enabled/disabled state
+ */
+async function toggleStudent(userId, assigned, checkboxEl){
+  const row = checkboxEl.closest('tr');
+  const verifyEl = row?.querySelector('.st-verify');
+  try{
+    const res=await fetch(`/api/batches/${encodeURIComponent(st_uuid)}/students/toggle`,{
+      method:'POST',
+      headers:{'Authorization':'Bearer '+TOKEN,'Content-Type':'application/json','Accept':'application/json'},
+      body:JSON.stringify({user_id:userId,assigned:!!assigned})
+    });
+    const j=await res.json().catch(()=>({}));
+    if(!res.ok) throw new Error(j?.message||firstError(j)||'Toggle failed');
+
+    // Success: show toast
+    ok(assigned ? 'Student assigned to batch' : 'Student removed from batch');
+
+    // Update verify checkbox: enable only when assigned
+    if(verifyEl){
+      verifyEl.disabled = !assigned;
+      if(!assigned){
+        // also uncheck verification locally (server likely has removed association)
+        verifyEl.checked = false;
+      }
+    }
+
+    // Update enrollment badge cell if server sent back enrollment_status
+    if(row){
+      const enrollCell = row.querySelector('.enrollment-cell');
+      const newStatus = (j?.data?.enrollment_status) || (assigned ? 'enrolled' : 'unassigned');
+      if(enrollCell) enrollCell.innerHTML = badgeEnrollment(newStatus);
+    }
+
+    // If current filter view requires refresh (assigned/unassigned filter), reload
+    if((st_assigned.value==='assigned' && !assigned) || (st_assigned.value==='unassigned' && assigned)){
+      loadStudents();
+    }
+  }catch(e){
+    // revert UI toggle if error
+    if(checkboxEl) checkboxEl.checked = !assigned;
+    err(e.message);
+  }
+}
+
+/**
+ * verifyStudent (new)
+ * - calls POST /api/batches/{uuid}/students/{userId}/verify
+ * - payload: { verified: true/false }
+ * - reverts checkbox on error and updates enrollment badge on success if returned
+ */
+async function verifyStudent(userId, verified, checkboxEl){
+  const row = checkboxEl.closest('tr');
+  try{
+    // optimistic: disable control while request in flight
+    checkboxEl.disabled = true;
+    const res = await fetch(`/api/batches/${encodeURIComponent(st_uuid)}/students/${encodeURIComponent(userId)}/verify`, {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + TOKEN, 'Content-Type': 'application/json', 'Accept': 'application/json' },
+      body: JSON.stringify({ verified: !!verified })
+    });
+    const j = await res.json().catch(()=>({}));
+    if(!res.ok) throw new Error(j?.message || firstError(j) || 'Verification failed');
+
+    // Update UI based on response if provided
+    // server may return { success: true, data: { verified: true, enrollment_status: 'enrolled' } }
+    const data = j?.data || {};
+    const newVerified = (typeof data.verified === 'boolean') ? data.verified : verified;
+    const newEnrollmentStatus = data.enrollment_status || null;
+
+    // reflect final checked state
+    checkboxEl.checked = !!newVerified;
+    ok(newVerified ? 'Student verified' : 'Verification removed');
+
+    // update enrollment badge if server returned one
+    if(newEnrollmentStatus && row){
+      const enrollCell = row.querySelector('.enrollment-cell');
+      if(enrollCell) enrollCell.innerHTML = badgeEnrollment(newEnrollmentStatus);
+    }
+  }catch(e){
+    // revert checkbox state on error
+    checkboxEl.checked = !verified;
+    err(e.message);
+  }finally{
+    // only enable if still assigned
+    const assignedCheckbox = row?.querySelector('.st-tg');
+    const stillAssigned = !!assignedCheckbox?.checked;
+    checkboxEl.disabled = !stillAssigned;
+  }
+}
+
+/* CSV upload and other student helpers remain unchanged (kept from your original script) */
 ;['dragenter','dragover'].forEach(ev=> csvDrop?.addEventListener(ev,e=>{e.preventDefault();e.stopPropagation();csvDrop.classList.add('drag');}));
 ;['dragleave','drop'].forEach(ev=> csvDrop?.addEventListener(ev,e=>{e.preventDefault();e.stopPropagation();csvDrop.classList.remove('drag');}));
 csvDrop?.addEventListener('drop',e=>{const files=e.dataTransfer?.files||[]; if(files.length) handleCsv(files[0]);});
 document.getElementById('csvFile')?.addEventListener('change',()=>{ const f=document.getElementById('csvFile'); if(f.files?.length) handleCsv(f.files[0]); });
 async function handleCsv(file){ if(!file || !/\.csv$/i.test(file.name)) return Swal.fire('Invalid file','Please choose a .csv file','info'); if(!studentsModal) studentsModal=new bootstrap.Modal(document.getElementById('studentsModal')); csvHint.textContent=`Uploading ${file.name}…`; const fd=new FormData(); fd.append('csv', file); try{ const res=await fetch(`/api/batches/${encodeURIComponent(st_uuid)}/students/upload-csv`,{method:'POST',headers:{'Authorization':'Bearer '+TOKEN},body:fd}); const j=await res.json().catch(()=>({})); if(!res.ok) throw new Error(j?.message||firstError(j)||'Upload failed'); const s=j.summary||{}; csvSummary.style.display=''; csvSummary.innerHTML=`<div class="alert alert-success mb-2"><div class="fw-semibold mb-1">Import Summary</div><div class="small">Created users: <b>${s.created_users||0}</b></div><div class="small">Updated users: <b>${s.updated_users||0}</b></div><div class="small">Enrolled to batch: <b>${s.enrolled||0}</b></div></div>${(Array.isArray(s.errors)&&s.errors.length)?`<div class="alert alert-warning small"><div class="fw-semibold mb-1">Errors (${s.errors.length})</div>${s.errors.map(x=>`<div>• ${esc(x)}</div>`).join('')}</div>`:''}`; csvHint.textContent='Done.'; ok('CSV processed'); loadStudents(); }catch(e){ csvHint.textContent='Failed.'; err(e.message); } }
 
+/* =================== BATCH FORM / EDITOR (unchanged) =================== */
 const bm_title = document.getElementById('bm_title');
 const bm_mode = document.getElementById('bm_mode');
 const bm_uuid = document.getElementById('bm_uuid');
@@ -1195,10 +1469,12 @@ async function saveBatch(){
   } 
 }
 
+/* =================== ARCHIVE / DELETE / RESTORE (unchanged) =================== */
 async function archiveBatch(uuid){ const {isConfirmed}=await Swal.fire({icon:'question',title:'Archive batch?',showCancelButton:true,confirmButtonText:'Archive',confirmButtonColor:'#8b5cf6'}); if(!isConfirmed) return; try{ const res=await fetch(`/api/batches/${encodeURIComponent(uuid)}/archive`,{method:'PATCH',headers:{'Authorization':'Bearer '+TOKEN,'Accept':'application/json'}}); const j=await res.json().catch(()=>({})); if(!res.ok) throw new Error(firstError(j)||'Archive failed'); ok('Batch archived'); load('active'); }catch(e){ err(e.message); } }
 async function unarchiveBatch(uuid){ try{ const res=await fetch(`/api/batches/${encodeURIComponent(uuid)}`,{method:'PATCH',headers:{'Authorization':'Bearer '+TOKEN,'Content-Type':'application/json','Accept':'application/json'},body:JSON.stringify({status:'active'})}); const j=await res.json().catch(()=>({})); if(!res.ok) throw new Error(firstError(j)||'Unarchive failed'); ok('Batch unarchived'); load('archived'); load('active'); }catch(e){ err(e.message); } }
 async function deleteBatch(uuid){ const {isConfirmed}=await Swal.fire({icon:'warning',title:'Delete batch?',text:'This moves the batch to Bin (soft delete).',showCancelButton:true,confirmButtonText:'Delete',confirmButtonColor:'#ef4444'}); if(!isConfirmed) return; try{ const res=await fetch(`/api/batches/${encodeURIComponent(uuid)}`,{method:'DELETE',headers:{'Authorization':'Bearer '+TOKEN,'Accept':'application/json'}}); const j=await res.json().catch(()=>({})); if(!res.ok) throw new Error(firstError(j)||'Delete failed'); ok('Batch deleted'); load('active'); }catch(e){ err(e.message); } }
 async function restoreBatch(uuid){ try{ const res=await fetch(`/api/batches/${encodeURIComponent(uuid)}/restore`,{method:'POST',headers:{'Authorization':'Bearer '+TOKEN,'Accept':'application/json'}}); const j=await res.json().catch(()=>({})); if(!res.ok) throw new Error(firstError(j)||'Restore failed'); ok('Batch restored'); load('bin'); load('active'); }catch(e){ err(e.message); } }
+
 
 /* ================= QUIZZES (Assign Quiz UI) ================= */
 const qz_q = document.getElementById('qz_q'), qz_per = document.getElementById('qz_per'), qz_apply = document.getElementById('qz_apply'), qz_assigned = document.getElementById('qz_assigned'), qz_rows = document.getElementById('qz_rows'), qz_loader = document.getElementById('qz_loader'), qz_meta = document.getElementById('qz_meta'), qz_pager = document.getElementById('qz_pager');

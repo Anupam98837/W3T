@@ -28,11 +28,6 @@ use App\Http\Controllers\API\LandingPageController;
 use App\Http\Controllers\API\CourseCategoryController;
 
 
-Route::get('/user', function (Request $request) {
-    return $request->user();
-})->middleware('auth:sanctum');
-
-
 // Auth Routes
 
 Route::post('/auth/login',  [UserController::class, 'login']);
@@ -40,6 +35,12 @@ Route::post('/auth/logout', [UserController::class, 'logout'])
     ->middleware('checkRole');
 Route::get('/auth/check',   [UserController::class, 'authenticateToken']);
 Route::get('/auth/my-role', [UserController::class, 'getMyRole']);
+Route::post('/auth/register', [UserController::class, 'register']);
+Route::get('/user', function (Request $request) {
+    return $request->user();
+})->middleware('auth:sanctum');
+
+
 
 // Users Routes 
 
@@ -60,10 +61,7 @@ Route::middleware(['checkRole:admin,super_admin'])->group(function () {
 });
 
 
-// Course Routes 
-    Route::get   ('/courses',              [CourseController::class, 'index']);
-    Route::get('/courses/{course}/view', [CourseController::class, 'viewCourse']);
-        Route::get   ('/courses/{course}',     [CourseController::class, 'show']);    // {id|uuid}
+
 
 Route::middleware('checkRole:admin,super_admin,student,instructor')->group(function () {
     // Courses
@@ -93,7 +91,10 @@ Route::post('/batches/{batch}/messages',  [BatchMessageController::class, 'store
     Route::delete('/courses/{course}/force', [CourseController::class, 'forceDestroy']);
 
 });
-
+// Course Routes 
+    Route::get   ('/courses',              [CourseController::class, 'index']);
+    Route::get('/courses/{course}/view', [CourseController::class, 'viewCourse']);
+    Route::get   ('/courses/{course}',     [CourseController::class, 'show']);    // {id|uuid}
 
 Route::middleware('checkRole:admin,super_admin')->group(function () {
     Route::get(   '/mailer',             [MailerController::class, 'index']);
@@ -580,3 +581,11 @@ Route::get('landing/categories/display', [CourseCategoryController::class, 'cate
 Route::get   ('landing/featured-courses',        [LandingPageController::class, 'featuredCourses_index']);
 Route::get('landing/featured-courses/display',   [LandingPageController::class, 'featuredCourses_display']);
 Route::patch('/courses/{course}/featured', [LandingPageController::class, 'toggleFeatured']);
+
+//Students Enroll & verify 
+Route::post('batches/{idOrUuid}/students/enroll', [BatchController::class, 'enrollStudent']);
+Route::post('batches/{idOrUuid}/students/{userId}/verify', [BatchController::class, 'verifyStudent']);
+
+ Route::get('/batches/{batch}/enrollment/status', [BatchController::class, 'checkBatchEnrollment']);
+ Route::get('/batches/{idOrUuid}/students/not-verified', [BatchController::class, 'getNotVerifiedStudents']
+);

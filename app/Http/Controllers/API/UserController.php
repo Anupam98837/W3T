@@ -804,4 +804,97 @@ public function index(Request $request)
             }
         }
     }
+    /**
+ * POST /api/auth/register
+ * Body: { name, email, phone_number, password, password_confirmation }
+ * Always registers as role = student
+ */
+public function register(Request $request)
+{
+    $v = Validator::make($request->all(), [
+        'name'              => 'required|string|max:150',
+        'email'             => 'required|email|max:255',
+        'phone_number'      => 'required|string|max:32',
+        'password'          => 'required|string|min:8|confirmed', // expects password_confirmation
+    ]);
+
+    if ($v->fails()) {
+        return response()->json(['status' => 'error', 'errors' => $v->errors()], 422);
+    }
+
+    $data = $v->validated();
+
+    // Uniqueness checks
+    if (DB::table('users')->where('email', $data['email'])->exists()) {
+        return response()->json(['status'=>'error','message'=>'Email already exists'], 422);
+    }
+    if (!empty($data['phone_number']) &&
+        DB::table('users')->where('phone_number', $data['phone_number'])->exists()) {
+        return response()->json(['status'=>'error','message'=>'Phone number already exists'], 422);
+    }
+
+    // UUID & unique slug
+    do { $uuid = (string) Str::uuid(); }
+    while (DB::table('users')->where('uuid', $uuid)->exists());
+
+    $base = Str::slug($data['name']);
+    do { $slug = $base . '-' . Str::lower(Str::random(24)); }
+    while (DB::table('users')->where('slug', $slug)->exists());
+
+    // Force role to student (normalized)
+    [$role, $roleShort] = $this->normalizeRole('student', null);
+
+    try {
+        $now = now();
+        $userId = DB::table('users')->insertGetId([
+            'uuid'                     => $uuid,
+            'name'                     => $data['name'],
+            'email'                    => $data['email'],
+            'phone_number'             => $data['phone_number'],
+            'password'                 => Hash::make($data['password']),
+            'image'                    => null,
+            'address'                  => null,
+            'role'                     => $role,
+            'role_short_form'          => $roleShort,
+            'slug'                     => $slug,
+            'status'                   => 'active',
+            'remember_token'           => Str::random(60),
+            'created_by'               => null,
+            'created_at'               => $now,
+            'created_at_ip'            => $request->ip(),
+            'updated_at'               => $now,
+            'metadata'                 => json_encode([
+                'timezone' => 'Asia/Kolkata',
+                'source'   => 'api_register',
+            ], JSON_UNESCAPED_UNICODE),
+        ]);
+
+        $user = DB::table('users')->where('id', $userId)->first();
+
+        // Issue an access token (short TTL). Adjust TTL if you want "remember me" here.
+        $expiresAt = now()->addHours(12);
+        $plainToken = $this->issueToken((int)$userId, $expiresAt);
+
+        // Update last_login markers (optional: treat registration as first login)
+        DB::table('users')->where('id', $userId)->update([
+            'last_login_at' => now(),
+            'last_login_ip' => $request->ip(),
+            'updated_at'    => now(),
+        ]);
+
+        return response()->json([
+            'status'       => 'success',
+            'message'      => 'Registration successful',
+            'access_token' => $plainToken,
+            'token_type'   => 'Bearer',
+            'expires_at'   => $expiresAt->toIso8601String(),
+            'user'         => $this->publicUserPayload($user),
+        ], 201);
+
+    } catch (\Throwable $e) {
+        Log::error('[Auth Register] failed', ['error' => $e->getMessage()]);
+        return response()->json(['status'=>'error','message'=>'Could not register user'], 500);
+    }
+}
+
 }

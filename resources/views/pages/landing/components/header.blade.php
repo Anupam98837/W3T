@@ -630,9 +630,18 @@
     @media (max-width: 992px){
       .lp-cat-grid{ grid-template-columns: repeat(2, minmax(0,1fr)); }
     }
-    @media (max-width: 576px){
-      .lp-cat-grid{ grid-template-columns: 1fr; }
-    }
+      /* --- Mobile category layout hard override --- */
+      @media (max-width: 576px){
+        .lp-cat-grid{
+          display: flex !important;
+          flex-wrap: wrap !important;
+          gap: 12px;
+        }
+ 
+        .lp-cat-card{
+          flex: 0 0 calc(50% - 8px);  /* two per row on most phones */
+        }
+      }
     .lp-cat-card{
       background: var(--surface);
       border: 1px solid var(--line-strong);

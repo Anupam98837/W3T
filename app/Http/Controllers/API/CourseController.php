@@ -254,7 +254,7 @@ public function store(Request $request)
 
         'short_description'   => ['nullable','string'],
         'full_description'    => ['nullable','string'],
-        'status'              => ['nullable', Rule::in(['draft','published','archived'])],
+        'status'              => ['required', Rule::in(['draft','published','archived'])],
         'course_type'         => ['nullable', Rule::in(['free','paid'])],
         'price_amount'        => ['nullable','numeric','min:0'],
         'price_currency'      => ['nullable','string','size:3'],
@@ -390,7 +390,63 @@ public function index(Request $r)
     $type        = $r->query('course_type');     // paid|free
     $sort        = (string)$r->query('sort', '-created_at'); // or title,status,...
     $onlyDeleted = (string)$r->query('only_deleted', '') === '1';
-    $categoryId  = $r->query('category');        // ✅ category filter (category_id on courses)
+
+    // Accept ?category=... (expects UUID from frontend)
+    $categoryToken = trim((string)$r->query('category', ''));
+
+    // Resolve course_categories.uuid -> numeric id (course_categories.id)
+    $categoryFilterId = null;
+    if ($categoryToken !== '') {
+        try {
+            // Ensure table exists before querying
+            if (\Schema::hasTable('course_categories')) {
+                $token = $categoryToken;
+
+                // first try exact uuid match
+                $catQuery = DB::table('course_categories')->select('id', 'uuid');
+
+                $cat = $catQuery->where('uuid', $token)->first();
+
+                // if not found and token numeric, try id
+                if (!$cat && ctype_digit($token)) {
+                    $cat = DB::table('course_categories')->select('id', 'uuid')->where('id', (int)$token)->first();
+                }
+
+                // if still not found: try UUID without dashes match (32 hex chars)
+                if (!$cat) {
+                    $maybeHex = preg_replace('/[^a-fA-F0-9]/', '', $token);
+                    if (strlen($maybeHex) === 32) {
+                        $cat = DB::table('course_categories')
+                            ->select('id', 'uuid')
+                            ->whereRaw("LOWER(REPLACE(`uuid`, '-', '')) = ?", [mb_strtolower($maybeHex)])
+                            ->first();
+                    }
+                }
+
+                if ($cat) {
+                    $categoryFilterId = (int)$cat->id;
+                    \Log::info('[Courses.index] matched course_categories', [
+                        'token' => $categoryToken,
+                        'matched_id' => $categoryFilterId,
+                        'matched_uuid' => $cat->uuid ?? null,
+                    ]);
+                } else {
+                    \Log::info('[Courses.index] category token provided but not matched in course_categories', [
+                        'token' => $categoryToken,
+                    ]);
+                }
+            } else {
+                \Log::warning('[Courses.index] course_categories table not found; skipping category filter');
+            }
+        } catch (\Exception $ex) {
+            \Log::error('[Courses.index] error resolving course_categories token', [
+                'token' => $categoryToken,
+                'error' => $ex->getMessage(),
+            ]);
+            // continue without applying category filter
+            $categoryFilterId = null;
+        }
+    }
 
     // 🔹 Subquery: pick ONE featured image per course (min featured_url)
     $mediaSub = DB::table('course_featured_media as cfm2')
@@ -436,9 +492,9 @@ public function index(Request $r)
         $q->where('c.course_type', $type);
     }
 
-    // ✅ Category filter (assumes courses.category_id)
-    if ($categoryId) {
-        $q->where('c.category_id', $categoryId);
+    // ✅ Apply category filter (course_categories.id resolved from uuid)
+    if (!empty($categoryFilterId)) {
+        $q->where('c.category_id', $categoryFilterId);
     }
 
     // Sorting
@@ -483,7 +539,6 @@ public function index(Request $r)
     ]);
 }
 
-
 public function show(Request $r, string $course)
 {
 
@@ -514,7 +569,7 @@ public function update(Request $request, string $course)
 
         'short_description'   => ['sometimes','nullable','string'],
         'full_description'    => ['sometimes','nullable','string'],
-'status' => ['sometimes', 'required', Rule::in(['draft','published','archived'])],
+        'status'              => ['sometimes', Rule::in(['draft','published','archived'])],
         'course_type'         => ['sometimes', Rule::in(['free','paid'])],
         'price_amount'        => ['sometimes','numeric','min:0'],
         'price_currency'      => ['sometimes','string','size:3'],

@@ -513,9 +513,9 @@
         </p>
       </div>
       <div class="lp-cta-actions">
-        <button type="button" class="lp-btn-primary" style="display:none">
-          Get started for free
-        </button>
+        <a  href="/register" class="lp-btn-primary">
+          Register With Us 
+</a>
         <button type="button" class="lp-btn-outline">
           Talk to an advisor
         </button>

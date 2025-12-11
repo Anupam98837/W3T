@@ -371,7 +371,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     if (btnReorder) {
       btnReorder.classList.remove("btn-outline-secondary");
-      btnReorder.classList.add("btn-success");
+      // btnReorder.classList.add("btn-success");
       btnReorder.innerHTML = '<i class="fa fa-floppy-disk me-1"></i>Save order';
     }
 

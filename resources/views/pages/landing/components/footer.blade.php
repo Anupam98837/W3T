@@ -13,9 +13,9 @@
           <!-- Top contact info (will be filled via JS) -->
           
             <div class="lp-nav-contact">
-          <span><i class="fa-solid fa-phone"></i> +91-98765-43210</span>
+          <!-- <span><i class="fa-solid fa-phone"></i> +91-98765-43210</span>
           <span><i class="fa-brands fa-whatsapp"></i> WhatsApp: +91-98765-43210</span>
-          <span><i class="fa-solid fa-envelope"></i> support@w3techiez.com</span>
+          <span><i class="fa-solid fa-envelope"></i> support@w3techiez.com</span> -->
         </div>
           
         </div>
@@ -236,12 +236,12 @@ document.addEventListener('DOMContentLoaded', () => {
         container.appendChild(titleEl);
       }
 
-      if (item.description) {
-        const descEl = document.createElement('span');
-        descEl.className = 'lp-update-desc';
-        descEl.innerHTML = item.description;
-        container.appendChild(descEl);
-      }
+      // if (item.description) {
+      //   const descEl = document.createElement('span');
+      //   descEl.className = 'lp-update-desc';
+      //   descEl.innerHTML = item.description;
+      //   container.appendChild(descEl);
+      // }
 
       scrollEl.appendChild(span);
     });
@@ -262,45 +262,64 @@ document.addEventListener('DOMContentLoaded', () => {
   /* =========================
      Contacts bar
      ========================= */
+    /* =========================
+     Contacts bar (populate all matching containers: header + footer)
+     ========================= */
   const renderContactsBar = contacts => {
-    const bar = qs('#lpNavContact') || qs('.lp-nav-contact');
-    if (!bar) {
-      console.warn('[Landing] lpNavContact container not found');
+    // find all containers that should receive the contact items
+    const containers = Array.from(document.querySelectorAll('#lpNavContact, .lp-nav-contact'));
+    if (!containers.length) {
+      console.warn('[Landing] no contact containers found (#lpNavContact or .lp-nav-contact)');
       return;
     }
 
-    bar.innerHTML = '';
-    if (!contacts.length) {
-      bar.style.display = 'none';
+    // If no contacts, hide all containers
+    if (!Array.isArray(contacts) || contacts.length === 0) {
+      containers.forEach(bar => {
+        bar.innerHTML = '';
+        bar.style.display = 'none';
+      });
       return;
     }
-    bar.style.display = '';
 
-    contacts.forEach(item => {
-      const span = document.createElement('span');
-      span.style.display = 'inline-flex';
-      span.style.alignItems = 'center';
-      span.style.gap = '6px';
+    // For each container, render the same items
+    containers.forEach(bar => {
+      bar.innerHTML = '';           // clear previous
+      bar.style.display = '';       // show container
 
-      if (item.icon) {
-        const i = document.createElement('i');
-        i.className = item.icon;
-        span.appendChild(i);
-      }
+      contacts.forEach(item => {
+        const span = document.createElement('span');
+        span.style.display = 'inline-flex';
+        span.style.alignItems = 'center';
+        span.style.gap = '6px';
+        span.style.marginRight = '10px'; // slight spacing between items
 
-      span.append(item.value || '');
-      bar.appendChild(span);
+        if (item.icon) {
+          const i = document.createElement('i');
+          i.className = item.icon;
+          i.setAttribute('aria-hidden', 'true');
+          span.appendChild(i);
+        }
+
+        // allow string or html-safe content; prefer plain text
+        const textNode = document.createTextNode(item.value || '');
+        span.appendChild(textNode);
+
+        bar.appendChild(span);
+      });
     });
   };
 
   const loadLandingContacts = async () => {
     const data = await fetchJson("{{ url('api/landing/contact') }}");
-    if (!isOkPayload(data)) return;
+    if (!isOkPayload(data)) {
+      console.warn('[Landing] contacts payload invalid', data);
+      return;
+    }
     renderContactsBar(data.data);
   };
 
   loadLandingContacts();
-
 
   /* =========================
      Categories grid

@@ -37,99 +37,85 @@ class CourseCategoryController extends Controller
     /**
      * Admin: List categories with search, sort & pagination.
      */
-    public function categories_index(Request $request)
-    {
-        Log::info('[LandingPage] categories_index: fetching categories', [
-            'user_id'  => Auth::id(),
-            'ip'       => $request->ip(),
-            'page'     => $request->input('page'),
-            'per_page' => $request->input('per_page'),
-            'q'        => $request->input('q'),
-            'sort'     => $request->input('sort'),
+   public function categories_index(Request $request)
+{
+    Log::info('[LandingPage] categories_index: fetching categories', [
+        'user_id'  => Auth::id(),
+        'ip'       => $request->ip(),
+        'page'     => $request->input('page'),
+        'per_page' => $request->input('per_page'),
+        'q'        => $request->input('q'),
+    ]);
+
+    try {
+        $perPage = (int) $request->input('per_page', 20);
+        $perPage = $perPage > 0 ? $perPage : 20;
+
+        $page = (int) $request->input('page', 1);
+        $page = $page > 0 ? $page : 1;
+
+        $q = trim((string) $request->input('q', ''));
+
+        $query = DB::table('course_categories')
+            ->whereNull('deleted_at');
+
+        // 🔎 search on title / description / icon
+        if ($q !== '') {
+            $query->where(function ($qq) use ($q) {
+                $qq->where('title', 'like', "%{$q}%")
+                    ->orWhere('description', 'like', "%{$q}%")
+                    ->orWhere('icon', 'like', "%{$q}%");
+            });
+        }
+
+        $total = $query->count();
+
+        // Order by display_order (non-null first), then by id for stable ordering
+        // ISNULL(display_order) ensures rows with a value appear before NULLs.
+        $rows = $query
+            ->orderByRaw('ISNULL(display_order), display_order')
+            ->orderBy('id')
+            ->offset(($page - 1) * $perPage)
+            ->limit($perPage)
+            ->get();
+
+        Log::info('[LandingPage] categories_index: fetched categories', [
+            'user_id' => Auth::id(),
+            'ip'      => $request->ip(),
+            'count'   => $rows->count(),
+            'total'   => $total,
         ]);
 
-        try {
-            $perPage = (int) $request->input('per_page', 20);
-            $perPage = $perPage > 0 ? $perPage : 20;
+        return response()->json([
+            'status'     => 'success',
+            'message'    => 'Categories fetched successfully.',
+            'data'       => $rows,
+            'pagination' => [
+                'page'      => $page,
+                'per_page'  => $perPage,
+                'total'     => $total,
+                'from'      => $total ? (($page - 1) * $perPage + 1) : null,
+                'to'        => $total ? (($page - 1) * $perPage + $rows->count()) : null,
+            ],
+        ], 200);
+    } catch (Throwable $e) {
+        Log::error('[LandingPage] ERROR: categories_index: fetch failed', [
+            'user_id' => Auth::id(),
+            'ip'      => $request->ip(),
+            'error'   => $e->getMessage(),
+            'line'    => $e->getLine(),
+            'file'    => $e->getFile(),
+        ]);
 
-            $page = (int) $request->input('page', 1);
-            $page = $page > 0 ? $page : 1;
-
-            $q = trim((string) $request->input('q', ''));
-
-            // "-col" = desc, "col" = asc
-            $sortRaw = (string) $request->input('sort', '-created_at');
-            if ($sortRaw === '') {
-                $sortRaw = '-created_at';
-            }
-
-            $dir = str_starts_with($sortRaw, '-') ? 'desc' : 'asc';
-            $col = ltrim($sortRaw, '-');
-
-            // Allowed sort columns
-            $allowedSortCols = ['title', 'description', 'icon', 'created_at', 'display_order'];
-            if (!in_array($col, $allowedSortCols, true)) {
-                $col = 'created_at';
-            }
-
-            $query = DB::table('course_categories')
-                ->whereNull('deleted_at');
-
-            // 🔎 search on title / description / icon
-            if ($q !== '') {
-                $query->where(function ($qq) use ($q) {
-                    $qq->where('title', 'like', "%{$q}%")
-                        ->orWhere('description', 'like', "%{$q}%")
-                        ->orWhere('icon', 'like', "%{$q}%");
-                });
-            }
-
-            $total = $query->count();
-
-            $rows = $query
-                ->orderBy($col, $dir)
-                ->orderBy('id') // stable
-                ->offset(($page - 1) * $perPage)
-                ->limit($perPage)
-                ->get();
-
-            Log::info('[LandingPage] categories_index: fetched categories', [
-                'user_id' => Auth::id(),
-                'ip'      => $request->ip(),
-                'count'   => $rows->count(),
-                'total'   => $total,
-            ]);
-
-            return response()->json([
-                'status'     => 'success',
-                'message'    => 'Categories fetched successfully.',
-                'data'       => $rows,
-                'pagination' => [
-                    'page'      => $page,
-                    'per_page'  => $perPage,
-                    'total'     => $total,
-                    'from'      => $total ? (($page - 1) * $perPage + 1) : null,
-                    'to'        => $total ? (($page - 1) * $perPage + $rows->count()) : null,
-                ],
-            ], 200);
-        } catch (Throwable $e) {
-            Log::error('[LandingPage] ERROR: categories_index: fetch failed', [
-                'user_id' => Auth::id(),
-                'ip'      => $request->ip(),
-                'error'   => $e->getMessage(),
-                'line'    => $e->getLine(),
-                'file'    => $e->getFile(),
-            ]);
-
-            return response()->json([
-                'status'     => 'error',
-                'message'    => 'Failed to fetch categories.',
-                'error'      => $e->getMessage(), // hide in prod if needed
-                'data'       => [],
-                'pagination' => null,
-            ], 500);
-        }
+        return response()->json([
+            'status'     => 'error',
+            'message'    => 'Failed to fetch categories.',
+            'error'      => $e->getMessage(), // hide in prod if needed
+            'data'       => [],
+            'pagination' => null,
+        ], 500);
     }
+}
 
     /**
      * Admin: Create a new category.

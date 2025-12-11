@@ -22,6 +22,9 @@ Route::get('/login', function () {
     return view('pages.auth.login');
 });
 
+Route::get('/register', function () {
+    return view('pages.auth.register');
+});
 
 Route::get('/courses/all', function () {
     return view('pages.landing.pages.allCourse');
@@ -172,7 +175,6 @@ Route::get('/user-privileges/manage', function () {
 })->name('modules.privileges.assign.user');
 
 //Coding Routes
-
 Route::get('/test', function () {
     return view('pages.users.admin.pages.compiler.testCompiler');});
 
@@ -222,7 +224,7 @@ Route::get('/student/courses', function () {
     return view('pages.users.student.pages.course.courses');
 });
 
-Route::get('/courses/{batch}/view', function($batchUuid) {
+Route::get('/mycourses/{batch}/view', function($batchUuid) {
     return view('modules.course.viewCourse.viewCourseLayout', ['batchUuid' => $batchUuid]);
 })->name('student.course.view');
 
