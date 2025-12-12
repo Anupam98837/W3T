@@ -852,6 +852,32 @@ public function mediaDestroy(Request $request, string $course, string $media)
 
     return response()->json(['status'=>'success','message'=>'Media deleted']);
 }
+//media hard delete
+public function mediaHardDestroy(Request $request, string $course, string $media)
+{
+    if ($resp = $this->requireRole($request, ['admin','superadmin'])) return $resp;
+
+    $row = $this->findCourseOr404($course);
+    if (!$row) return response()->json(['error'=>'Course not found'], 404);
+
+    $mq = DB::table('course_featured_media')->where('course_id', $row->id)->whereNull('deleted_at');
+    if (ctype_digit($media)) {
+        $mq->where('id', (int)$media);
+    } else {
+        $mq->where('uuid', $media);
+    }
+
+    $m = $mq->first();
+    if (!$m) return response()->json(['error'=>'Media not found'], 404);
+
+    // Optionally log before deletion so you retain the old data
+    $this->logActivity($request, 'destroy', 'Hard deleted featured media (before delete)', 'course_featured_media', (int)$m->id, [], (array)$m, null);
+
+    // Hard delete the row
+    DB::table('course_featured_media')->where('id', $m->id)->delete();
+
+    return response()->json(['status'=>'success','message'=>'Media permanently deleted']);
+}
 
 
 public function viewCourse(Request $r, string $key)
@@ -1510,11 +1536,8 @@ public function forceDestroy(Request $request, string $course)
 
         // delete media rows (permanent)
         DB::table('course_featured_media')->where('course_id', $id)->delete();
-
-        // delete other dependent rows if needed (course_modules, batch relationships, etc.)
-        // NOTE: You may want to selectively delete related tables depending on your app logic.
         DB::table('course_modules')->where('course_id', $id)->delete();
-        // Optionally delete batches? Usually batches may be kept — comment out if you prefer:
+        // Optionally delete batches? Usually batches may be kept — comment ou     t if you prefer:
         // DB::table('batches')->where('course_id', $id)->delete();
 
         // finally delete the course row

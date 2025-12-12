@@ -80,6 +80,8 @@ Route::post('/batches/{batch}/messages',  [BatchMessageController::class, 'store
     Route::post  ('/courses/{course}/media',           [CourseController::class, 'mediaUpload']);   // multipart OR JSON {url}
     Route::post  ('/courses/{course}/media/reorder',   [CourseController::class, 'mediaReorder']);  // {ids:[...]} or {orders:{id:pos}}
     Route::delete('/courses/{course}/media/{media}',   [CourseController::class, 'mediaDestroy']);  // {id|uuid}
+    Route::delete('/courses/{course}/media/{media}/force',   [CourseController::class, 'mediaHardDestroy']);  // {id|uuid}
+
     // list deleted
     Route::get('/courses/deleted', [CourseController::class, 'indexDeleted']);
     
