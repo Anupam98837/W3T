@@ -134,9 +134,9 @@ Route::get('/admin/assignments/create', function () {
     return view('pages.users.admin.pages.assignments.createAssignment');
 });
  
-// Route::get('/admin/assignments/manage', function () {
-//     return view('pages.users.admin.pages.assignments.manageAssignments');
-// });
+Route::get('/admin/assignments/manage', function () {
+    return view('pages.users.admin.pages.assignments.manageAssignment');
+});
 
 Route::get('/admin/courses/{uuid}/view', function (string $uuid) {
     return view('modules.course.viewCourse.viewCourseLayout', [

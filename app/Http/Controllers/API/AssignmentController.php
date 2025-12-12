@@ -526,7 +526,7 @@ public function update(Request $r, $id)
  */
 public function indexDeleted(Request $r)
 {
-    if ($res = $this->requireRole($r, ['admin','super_admin'])) return $res;
+        Log::info('This is a test log message.');
 
     $page     = max(1, (int)$r->query('page', 1));
     $perPage  = max(1, min(100, (int)$r->query('per_page', 20)));

@@ -416,7 +416,7 @@
           <a id="cancel3" class="btn btn-light" href="/super_admin/courses/manage">Cancel</a>
           <div class="d-flex gap-2">
             <button id="btnDraft" type="button" class="btn btn-outline-primary">Save Draft</button>
-            <button id="btnPublish" type="button" class="btn btn-primary">Publish Course</button>
+            <button id="btnPublish" type="button" class="btn btn-primary">Save Course</button>
           </div>
         </div>
       </div>
@@ -914,8 +914,7 @@ async function submit(){
 
 $('btnPublish').onclick = ()=> {
   const originalText = $('btnPublish').textContent;
-  status.value = 'published';
-  $('btnPublish').textContent = 'Publishing...';
+  $('btnPublish').textContent = 'Saving...';
   $('btnPublish').disabled = true;
   
   submit().finally(() => {

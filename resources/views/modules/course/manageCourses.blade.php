@@ -974,7 +974,7 @@ document.addEventListener('click', (e) => {
         </button>
         <ul class="dropdown-menu dropdown-menu-end">
           <li>
-            <a class="dropdown-item view-course-link" href="courses/${encodeURIComponent(r.uuid)}" title="View Course">
+            <a class="dropdown-item view-course-link" href="/courses/${encodeURIComponent(r.uuid)}" title="View Course">
               <i class="fa fa-eye"></i> View Course
             </a>
           </li>
@@ -1035,7 +1035,7 @@ document.addEventListener('click', (e) => {
         rowHTML = `
           <td>
             <div class="fw-semibold">
-              <a href="${basePanel}/courses/${encodeURIComponent(r.uuid)}"
+              <a href="/courses/${encodeURIComponent(r.uuid)}"
                  class="link-offset-2 link-underline-opacity-0 view-course-link">${escapeHtml(r.title||'')}</a>
             </div>
             <div class="text-muted small">${escapeHtml(r.slug||'')}</div>
@@ -1051,7 +1051,7 @@ document.addEventListener('click', (e) => {
         rowHTML = `
           <td>
             <div class="fw-semibold">
-              <a href="${basePanel}/courses/${encodeURIComponent(r.uuid)}"
+              <a href="/courses/${encodeURIComponent(r.uuid)}"
                  class="link-offset-2 link-underline-opacity-0 view-course-link">${escapeHtml(r.title||'')}</a>
             </div>
             <div class="text-muted small">${escapeHtml(r.slug||'')}</div>

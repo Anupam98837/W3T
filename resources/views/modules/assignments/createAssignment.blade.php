@@ -574,23 +574,27 @@
   const batchSel  = $('batch_select');
 
   async function fetchCourses(){
-    courseSel.innerHTML = '<option value="">Loading...</option>';
-    try{
-      const res = await fetch(COURSES_API + '?per_page=200', { headers:{ 'Authorization':'Bearer '+TOKEN }});
-      const json = await res.json().catch(()=> ({}));
-      const rows = (json && json.data) ? json.data : (Array.isArray(json) ? json : []);
-      courseSel.innerHTML = '<option value="">— Select course —</option>';
-      rows.forEach(function(c){
-        const opt = document.createElement('option');
-        opt.value = (c && c.id) != null ? c.id : '';
-        opt.textContent = (c && c.title) != null ? c.title : '';
-        courseSel.appendChild(opt);
-      });
-    }catch(e){
-      courseSel.innerHTML = '<option value="">— Failed to load —</option>';
-      console.error(e);
-    }
+  courseSel.innerHTML = '<option value="">Loading...</option>';
+  try{
+    const res = await fetch(COURSES_API + '?per_page=200', { headers:{ 'Authorization':'Bearer '+TOKEN }});
+    const json = await res.json().catch(()=> ({}));
+    const rows = (json && json.data) ? json.data : (Array.isArray(json) ? json : []);
+    courseSel.innerHTML = '<option value="">— Select course —</option>';
+    rows.forEach(function(c){
+      const opt = document.createElement('option');
+      opt.value = (c && c.id) != null ? c.id : '';
+      opt.textContent = (c && c.title) != null ? c.title : '';
+      courseSel.appendChild(opt);
+    });
+    // return rows so callers can await and use them
+    return rows;
+  }catch(e){
+    courseSel.innerHTML = '<option value="">— Failed to load —</option>';
+    console.error(e);
+    // rethrow so caller knows it failed
+    throw e;
   }
+}
 
   async function fetchModulesFor(courseId){
     moduleSel.innerHTML = '<option value="">Loading modules...</option>'; moduleSel.disabled = true;
@@ -1321,79 +1325,187 @@ if(btnLibAddSelected){
        library_urls: libraryUrls   
     };
   }
+// robust loadAssignment that waits for courses and selects course reliably
+async function loadAssignment(key){
+  const busyEl = $('busy');
+  if(busyEl) busyEl.classList.add('show');
+  try{
+    // Try multiple possible endpoints for assignment
+    const endpoints = [
+      `/api/assignments/${encodeURIComponent(key)}`,
+      `/api/assignments/show/${encodeURIComponent(key)}`,
+      `/api/assignments/${encodeURIComponent(key)}/edit`
+    ];
 
-  /* ===== load (Edit mode) ===== */
-  async function loadAssignment(key){
-    $('busy').classList.add('show');
-    try{
-      const res = await fetch(`/api/assignments/${encodeURIComponent(key)}`, {
-        headers:{ 'Authorization':'Bearer '+TOKEN, 'Accept':'application/json' }
-      });
-      const json = await res.json().catch(()=> ({}));
-      
-      if(!res.ok) throw new Error(json?.message || 'Load failed');
-      
-      const a = json?.data || json;
-      if(!a) throw new Error('Assignment not found');
-
-      currentUUID = a.uuid || a.id || key;
-
-      // fill fields
-      if(a.course_id) {
-        courseSel.value = a.course_id;
-        // Trigger cascade to load modules and batches
-        await fetchModulesFor(a.course_id);
-        await fetchBatchesFor(a.course_id);
-        
-        // Now set the module and batch values
-        setTimeout(() => {
-          if(a.course_module_id) moduleSel.value = a.course_module_id;
-          if(a.batch_id) batchSel.value = a.batch_id;
-        }, 500);
+    let res = null, json = null;
+    for (const ep of endpoints) {
+      try {
+        res = await fetch(ep, { headers:{ 'Authorization':'Bearer '+TOKEN, 'Accept':'application/json' }});
+        const text = await res.text().catch(()=>null);
+        json = text ? JSON.parse(text) : null;
+        if(res && res.ok) break;
+      } catch(innerErr){
+        res = null; json = null;
       }
-      
-      $('title').value = a.title || '';
-      $('slug').value = a.slug || '';
-      $('instructions').innerHTML = a.instructions || '';
-      $('status').value = a.status || 'published';
-      $('submission_type').value = a.submission_type || 'file';
-      $('attempts_allowed').value = a.attempts_allowed || 3;
-      $('total_marks').value = a.total_marks || '';
-      $('pass_marks').value = a.pass_marks || '';
-      
-      // Load allowed submission types if they exist
-      if(a.allowed_submission_types && Array.isArray(a.allowed_submission_types)) {
-        allowedSubmissionTypes = [...a.allowed_submission_types];
-        renderSelectedChips();
-      }
-      
-      if(a.due_at){
-        const d = new Date(a.due_at);
-        if(!isNaN(d)) $('due_at').value = d.toISOString().slice(0,16);
-      }
-      if(a.end_at){
-        const d = new Date(a.end_at);
-        if(!isNaN(d)) $('end_at').value = d.toISOString().slice(0,16);
-      }
-
-      allowLate.checked = !!a.allow_late_submissions;
-      $('late_penalty').value = a.late_penalty || '';
-      syncLatePenalty();
-
-      // Update RTE placeholder
-      document.querySelectorAll('.rte-ph').forEach(ph => {
-        const editor = ph.previousElementSibling;
-        const hasContent = (editor.textContent || '').trim().length > 0 || (editor.innerHTML||'').trim().length > 0;
-        editor.classList.toggle('has-content', hasContent);
-      });
-      
-    }catch(e){
-      console.error(e);
-      throw e;
-    }finally{
-      $('busy').classList.remove('show');
     }
+
+    if(!res || !res.ok){
+      const message = (json && (json.message || json.error)) || 'Not found';
+      throw new Error('Load failed: ' + message);
+    }
+
+    const a = json?.data || json;
+    if(!a) throw new Error('Assignment not found');
+
+    currentUUID = a.uuid || a.id || key;
+
+    // 1) Ensure course options are loaded
+    try {
+      // If you have an ensureCoursesLoaded wrapper, use it; otherwise call fetchCourses()
+      if(typeof ensureCoursesLoaded === 'function'){
+        await ensureCoursesLoaded();
+      } else {
+        await fetchCourses();
+      }
+    } catch(e){
+      // courses failed to load — we'll still attempt to set course and create option if needed
+      console.warn('Warning: fetchCourses failed while loading assignment', e);
+    }
+
+    // Helper: try to pick the best candidate option for the course
+    function pickCourseOption(courseIdCandidates = [], courseTitleCandidate){
+      if(!courseSel) return null;
+      // 1) exact match on option.value
+      for(const cand of courseIdCandidates){
+        if(cand == null) continue;
+        const opt = Array.from(courseSel.options).find(o => String(o.value) === String(cand));
+        if(opt) return opt;
+      }
+      // 2) match data-uuid attribute (some options may have data-uuid)
+      for(const cand of courseIdCandidates){
+        if(cand == null) continue;
+        const opt = Array.from(courseSel.options).find(o => (o.dataset && o.dataset.uuid) && String(o.dataset.uuid) === String(cand));
+        if(opt) return opt;
+      }
+      // 3) match by visible text/title (fallback)
+      if(courseTitleCandidate){
+        const opt = Array.from(courseSel.options).find(o => (o.textContent||'').trim() === (courseTitleCandidate||'').trim());
+        if(opt) return opt;
+      }
+      return null;
+    }
+
+    // Build possible ids to try. The assignment payload might use course_id (id), course_uuid, or nested objects.
+    const courseIdCandidates = [];
+    if(a.course_id !== undefined && a.course_id !== null) courseIdCandidates.push(a.course_id);
+    if(a.course_uuid !== undefined && a.course_uuid !== null) courseIdCandidates.push(a.course_uuid);
+    if(a.course && (a.course.id || a.course.uuid)) {
+      if(a.course.id) courseIdCandidates.push(a.course.id);
+      if(a.course.uuid) courseIdCandidates.push(a.course.uuid);
+    }
+    // also try the currentUUID if that's actually the course id in some apps
+    courseIdCandidates.push(a.id || a.uuid || null);
+
+    const courseTitleCandidate = a.course_title || a.course_name || a.course?.title || a.course?.name || a.course_name || a.title;
+
+    let picked = pickCourseOption(courseIdCandidates, courseTitleCandidate);
+
+    // If nothing matched, attempt loose matching by checking numeric/string equality
+    if(!picked){
+      // attempt more aggressive matching: compare without type strictness
+      const vals = Array.from(courseSel.options).map(o => ({opt:o, v:String(o.value), uuid:(o.dataset && o.dataset.uuid? String(o.dataset.uuid): null), txt:(o.textContent||'').trim()}));
+      for(const cand of courseIdCandidates){
+        if(!cand) continue;
+        const sc = String(cand);
+        const found = vals.find(x => x.v === sc || x.uuid === sc);
+        if(found){ picked = found.opt; break; }
+      }
+    }
+
+    // If still nothing — insert a new option so select shows something useful (helps when backend returns id not present in list)
+    if(!picked){
+      const newOpt = document.createElement('option');
+      // prefer human-readable label
+      const label = courseTitleCandidate || (`Course ${courseIdCandidates.find(Boolean) || key}`);
+      // set value preferring numeric id if present, otherwise UUID or first candidate
+      const v = (a.course_id != null) ? a.course_id : (a.course?.id != null ? a.course.id : (a.course_uuid || a.course?.uuid || courseIdCandidates.find(Boolean) || ''));
+      newOpt.value = v;
+      newOpt.textContent = label;
+      // if we have uuid, set data-uuid to help future matches
+      if(a.course_uuid) newOpt.dataset.uuid = a.course_uuid;
+      // append and pick
+      courseSel.appendChild(newOpt);
+      picked = newOpt;
+    }
+
+    // finally set the select to the chosen option value
+    if(picked){
+      courseSel.value = picked.value;
+    }
+
+    // Trigger cascade: fetch modules & batches for the selected course
+    const cidToUse = courseSel.value || (a.course_id || a.course?.id || a.course_uuid || a.course?.uuid || null);
+    if(cidToUse){
+      await fetchModulesFor(cidToUse);
+      await fetchBatchesFor(cidToUse);
+      // now set module & batch values (they should exist after the fetch)
+      if(a.course_module_id && moduleSel) moduleSel.value = a.course_module_id;
+      if(a.batch_id && batchSel) batchSel.value = a.batch_id;
+      // sometimes backend keeps module/batch as nested objects:
+      if(!moduleSel.value && a.course_module && a.course_module.id) moduleSel.value = a.course_module.id;
+      if(!batchSel.value && a.batch && a.batch.id) batchSel.value = a.batch.id;
+    }
+
+    // fill other fields
+    if($('title')) $('title').value = a.title || '';
+    if($('slug')) $('slug').value = a.slug || '';
+    if($('instructions')) $('instructions').innerHTML = a.instructions || '';
+    if($('status')) $('status').value = a.status || 'published';
+    if($('submission_type')) $('submission_type').value = a.submission_type || 'file';
+    if($('attempts_allowed')) $('attempts_allowed').value = a.attempts_allowed || 3;
+    if($('total_marks')) $('total_marks').value = a.total_marks || '';
+    if($('pass_marks')) $('pass_marks').value = a.pass_marks || '';
+
+    if(a.allowed_submission_types && Array.isArray(a.allowed_submission_types)) {
+      allowedSubmissionTypes = [...a.allowed_submission_types];
+      renderSelectedChips();
+    }
+
+    if(a.due_at && $('due_at')) { const d = new Date(a.due_at); if(!isNaN(d)) $('due_at').value = d.toISOString().slice(0,16); }
+    if(a.end_at && $('end_at')) { const d = new Date(a.end_at); if(!isNaN(d)) $('end_at').value = d.toISOString().slice(0,16); }
+
+    if(allowLate && typeof a.allow_late_submissions !== 'undefined') allowLate.checked = !!a.allow_late_submissions;
+    if($('late_penalty')) $('late_penalty').value = a.late_penalty || '';
+    syncLatePenalty();
+
+    // library attachments normalization
+    if(a.library_urls && Array.isArray(a.library_urls) && a.library_urls.length){
+      libraryUrls = Array.from(new Set(a.library_urls));
+      renderLibraryList();
+    } else if(a.attachments || a.attachment){
+      libraryUrls = [];
+      const raw = a.attachments || a.attachment || [];
+      const arr = Array.isArray(raw) ? raw : (raw ? [raw] : []);
+      arr.forEach(t => { const n = normalizeAttach(t); if(n && n.url) libraryUrls.push(n.url); });
+      libraryUrls = Array.from(new Set(libraryUrls));
+      renderLibraryList();
+    }
+
+    // update RTE visuals
+    document.querySelectorAll('.rte-ph').forEach(ph => {
+      const editor = ph.previousElementSibling;
+      if(!editor) return;
+      const hasContent = (editor.textContent || '').trim().length > 0 || (editor.innerHTML||'').trim().length > 0;
+      editor.classList.toggle('has-content', hasContent);
+    });
+
+  }catch(e){
+    console.error(e);
+    throw e;
+  }finally{
+    if(busyEl) busyEl.classList.remove('show');
   }
+}
 
   /* ===== submit ===== */
   $('btnSave').addEventListener('click', async ()=>{

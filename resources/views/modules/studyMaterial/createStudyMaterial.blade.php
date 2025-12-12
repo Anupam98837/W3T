@@ -507,7 +507,13 @@
     }
   }
 
-  dz.addEventListener('click', ()=> input.click());
+ dz.addEventListener('click', (e)=> {
+
+  if (e.target.closest('label[for="attachments"]') || e.target.closest('#attachments')) return;
+
+  input.click();
+});
+
   input.addEventListener('change', ()=> addFiles(input.files));
   ['dragenter','dragover'].forEach(ev=>{
     dz.addEventListener(ev, e=>{ e.preventDefault(); e.stopPropagation(); dz.classList.add('drag'); });

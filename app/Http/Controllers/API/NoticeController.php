@@ -349,11 +349,10 @@ class NoticeController extends Controller
             'title'             => $r->title,
             'slug'              => $slug,
             'message_html'      => $r->input('message_html'),
-            'attachments'       => $stored ? json_encode($stored) : null,
+            'attachments_json'  => $stored ? json_encode($stored) : null,
             'priority'          => $r->input('priority', 'normal'),
             'status'            => $r->input('status', 'draft'),
             'created_by'        => $actor['id'] ?: 0,
-            'created_at_ip'     => $r->input('created_at_ip'),
             'created_at'        => $now,
             'updated_at'        => $now,
         ]);
@@ -406,7 +405,7 @@ class NoticeController extends Controller
         if ($r->filled('priority')) $update['priority'] = $r->input('priority');
         if ($r->filled('status')) $update['status'] = $r->input('status');
 
-        $stored = $this->jsonDecode($row->attachments);
+        $stored = $this->jsonDecode($row->attachments_json ?? null);
         if (!is_array($stored)) $stored = [];
 
         // Handle removals
@@ -447,7 +446,7 @@ class NoticeController extends Controller
         $stored = $this->appendFilesAndLibraryUrls($r, $storageFolder, $stored);
 
         // Persist updated attachments
-        $update['attachments'] = $stored ? json_encode($stored) : null;
+        $update['attachments_json'] = $stored ? json_encode($stored) : null;
         $update['updated_at'] = Carbon::now();
 
         DB::table('notices')->where('id', (int)$id)->update($update);
@@ -515,7 +514,7 @@ public function unarchive(Request $r, $id)
         if (!$row) return response()->json(['error'=>'Not found'], 404);
 
         // Delete attached files (best-effort) - only local files
-        $attachments = $this->jsonDecode($row->attachments);
+        $attachments = $this->jsonDecode($row->attachments_json ?? null);
         foreach ($attachments as $a) {
             try {
                 // Only delete locally stored files, not external URLs
@@ -610,7 +609,7 @@ public function unarchive(Request $r, $id)
         $row = DB::table('notices')->where('uuid', $uuid)->whereNull('deleted_at')->first();
         if (!$row) return response()->json(['error'=>'Not found'], 404);
 
-        $row->attachments = $this->jsonDecode($row->attachments);
+        $row->attachments = $this->jsonDecode($row->attachments_json ?? null);
         return response()->json($row);
     }
 
@@ -625,7 +624,7 @@ public function unarchive(Request $r, $id)
         $row = DB::table('notices')->where('uuid', $uuid)->whereNull('deleted_at')->first();
         if (!$row) return response()->json(['error' => 'Not found'], 404);
 
-        $attachments = $this->jsonDecode($row->attachments);
+        $attachments = $this->jsonDecode($row->attachments_json ?? null);
         $file = null;
         foreach ($attachments as $a) {
             if (($a['id'] ?? null) === $fileId) { 
@@ -679,111 +678,112 @@ public function unarchive(Request $r, $id)
     /* =========================================================
      |  View Notices by Batch (RBAC-aware)
      * ========================================================= */
-    public function viewByBatch(Request $r, string $batchKey)
-    {
-        // ---- roles
-        $role = (string) $r->attributes->get('auth_role');
-        $uid  = (int) ($r->attributes->get('auth_tokenable_id') ?? 0);
-        if (!$role || !in_array($role, ['superadmin','admin','instructor','student'], true)) {
-            return response()->json(['error' => 'Unauthorized Access'], 403);
-        }
-        $isAdminLike = in_array($role, ['superadmin','admin'], true);
-        $isInstructor = $role === 'instructor';
-        $isStudent    = $role === 'student';
+     public function viewByBatch(Request $r, string $batchKey)
+     {
+         // ---- roles
+         $role = (string) $r->attributes->get('auth_role');
+         $uid  = (int) ($r->attributes->get('auth_tokenable_id') ?? 0);
+         if (!$role || !in_array($role, ['superadmin','admin','instructor','student'], true)) {
+             return response()->json(['error' => 'Unauthorized Access'], 403);
+         }
+         $isAdminLike = in_array($role, ['superadmin','admin'], true);
+         $isInstructor = $role === 'instructor';
+         $isStudent    = $role === 'student';
 
-        // resolve batch
-        $bq = DB::table('batches')->whereNull('deleted_at');
-        if (ctype_digit($batchKey)) {
-            $bq->where('id', (int)$batchKey);
-        } elseif (Str::isUuid($batchKey)) {
-            $bq->where('uuid', $batchKey);
-        } elseif (Schema::hasColumn('batches','slug')) {
-            $bq->where('slug', $batchKey);
-        } else {
-            return response()->json(['error' => 'Batch not found'], 404);
-        }
-        $batch = $bq->first();
-        if (!$batch) return response()->json(['error' => 'Batch not found'], 404);
+         // resolve batch
+         $bq = DB::table('batches')->whereNull('deleted_at');
+         if (ctype_digit($batchKey)) {
+             $bq->where('id', (int)$batchKey);
+         } elseif (Str::isUuid($batchKey)) {
+             $bq->where('uuid', $batchKey);
+         } elseif (Schema::hasColumn('batches','slug')) {
+             $bq->where('slug', $batchKey);
+         } else {
+             return response()->json(['error' => 'Batch not found'], 404);
+         }
+         $batch = $bq->first();
+         if (!$batch) return response()->json(['error' => 'Batch not found'], 404);
 
-        // pivot detection
-        $biUserCol = Schema::hasColumn('batch_instructors','user_id')
-            ? 'user_id'
-            : (Schema::hasColumn('batch_instructors','instructor_id') ? 'instructor_id' : null);
+         // pivot detection
+         $biUserCol = Schema::hasColumn('batch_instructors','user_id')
+             ? 'user_id'
+             : (Schema::hasColumn('batch_instructors','instructor_id') ? 'instructor_id' : null);
 
-        $bsUserCol = Schema::hasColumn('batch_students','user_id')
-            ? 'user_id'
-            : (Schema::hasColumn('batch_students','student_id') ? 'student_id' : null);
+         $bsUserCol = Schema::hasColumn('batch_students','user_id')
+             ? 'user_id'
+             : (Schema::hasColumn('batch_students','student_id') ? 'student_id' : null);
 
-        // RBAC: instructor assigned?
-        if ($isInstructor) {
-            if (!$biUserCol) {
-                return response()->json(['error'=>'Schema issue: batch_instructors needs user_id OR instructor_id'], 500);
-            }
-            $assigned = DB::table('batch_instructors')
-                ->where('batch_id', $batch->id)
-                ->whereNull('deleted_at')
-                ->where($biUserCol, $uid)
-                ->exists();
-            if (!$assigned) return response()->json(['error' => 'Forbidden'], 403);
-        }
+         // RBAC: instructor assigned?
+         if ($isInstructor) {
+             if (!$biUserCol) {
+                 return response()->json(['error'=>'Schema issue: batch_instructors needs user_id OR instructor_id'], 500);
+             }
+             $assigned = DB::table('batch_instructors')
+                 ->where('batch_id', $batch->id)
+                 ->whereNull('deleted_at')
+                 ->where($biUserCol, $uid)
+                 ->exists();
+             if (!$assigned) return response()->json(['error' => 'Forbidden'], 403);
+         }
 
-        if ($isStudent) {
-            if (!$bsUserCol) {
-                return response()->json(['error'=>'Schema issue: batch_students needs user_id OR student_id'], 500);
-            }
-            $enrolled = DB::table('batch_students')
-                ->where('batch_id', $batch->id)
-                ->whereNull('deleted_at')
-                ->where($bsUserCol, $uid)
-                ->exists();
-            if (!$enrolled) return response()->json(['error' => 'Forbidden'], 403);
-        }
+         if ($isStudent) {
+             if (!$bsUserCol) {
+                 return response()->json(['error'=>'Schema issue: batch_students needs user_id OR student_id'], 500);
+             }
+             $enrolled = DB::table('batch_students')
+                 ->where('batch_id', $batch->id)
+                 ->whereNull('deleted_at')
+                 ->where($bsUserCol, $uid)
+                 ->exists();
+             if (!$enrolled) return response()->json(['error' => 'Forbidden'], 403);
+         }
 
-        // load course
-        $course = DB::table('courses')
-            ->where('id', $batch->course_id)
-            ->whereNull('deleted_at')
-            ->first();
-        if (!$course) {
-            return response()->json(['error' => 'Course not found for this batch'], 404);
-        }
+         // load course
+         $course = DB::table('courses')
+             ->where('id', $batch->course_id)
+             ->whereNull('deleted_at')
+             ->first();
+         if (!$course) {
+             return response()->json(['error' => 'Course not found for this batch'], 404);
+         }
 
-        // load modules for this course (students see published only)
-        $isStaff = $isAdminLike || $isInstructor;
-        $modQ = DB::table('course_modules')
-            ->where('course_id', $course->id)
-            ->whereNull('deleted_at')
-            ->orderBy('order_no')->orderBy('id');
-        if (!$isStaff) $modQ->where('status', 'published');
-        $modules = $modQ->get();
+         // load modules for this course (students see published only)
+         $isStaff = $isAdminLike || $isInstructor;
+         $modQ = DB::table('course_modules')
+             ->where('course_id', $course->id)
+             ->whereNull('deleted_at')
+             ->orderBy('order_no')->orderBy('id');
+         if (!$isStaff) $modQ->where('status', 'published');
+         $modules = $modQ->get();
 
-        // load notices for this batch
-        $nQ = DB::table('notices as n')
-            ->leftJoin('course_modules as cm', 'cm.id', '=', 'n.course_module_id')
-            ->leftJoin('users as creator', 'creator.id', '=', 'n.created_by')
-            ->where('n.batch_id', $batch->id)
-            ->whereNull('n.deleted_at')
-            ->whereNull('cm.deleted_at')
-            ->select(
-                'n.id',
-                'n.uuid',
-                'n.title',
-                'n.slug',
-                'n.message_html',
-                'n.visibility_scope',
-                'n.attachments',
-                'n.priority',
-                'n.status',
-                'n.course_module_id',
-                'n.created_by',
-                'cm.title as module_title',
-                'cm.uuid as module_uuid',
-                'n.created_at',
-                'n.updated_at',
-                'creator.name as created_by_name'
-            )
-            ->orderBy('cm.order_no')
-            ->orderBy('n.created_at', 'desc');
+         // load notices for this batch
+         $nQ = DB::table('notices as n')
+             ->leftJoin('course_modules as cm', 'cm.id', '=', 'n.course_module_id')
+             ->leftJoin('users as creator', 'creator.id', '=', 'n.created_by')
+             ->where('n.batch_id', $batch->id)
+             ->whereNull('n.deleted_at')
+             ->whereNull('cm.deleted_at')
+             ->select(
+                 'n.id',
+                 'n.uuid',
+                 'n.title',
+                 'n.slug',
+                 'n.message_html',
+                 'n.visibility_scope',
+                 // select the DB column attachments_json but alias to attachments so existing code works
+                 'n.attachments_json as attachments',
+                 'n.priority',
+                 'n.status',
+                 'n.course_module_id',
+                 'n.created_by',
+                 'cm.title as module_title',
+                 'cm.uuid as module_uuid',
+                 'n.created_at',
+                 'n.updated_at',
+                 'creator.name as created_by_name'
+             )
+             ->orderBy('cm.order_no')
+             ->orderBy('n.created_at', 'desc');
 
         if (!$isStaff) {
             $nQ->where('cm.status', 'published');
@@ -806,7 +806,7 @@ public function unarchive(Request $r, $id)
                 ];
             }
 
-            $attachments = $this->jsonDecode($notice->attachments);
+            $attachments = $this->jsonDecode($notice->attachments ?? null);
             $nData = [
                 'id' => (int)$notice->id,
                 'uuid' => $notice->uuid,
@@ -907,7 +907,7 @@ public function unarchive(Request $r, $id)
         ]);
 
         return response()->json(['data' => $payload]);
-    }
+     }
 
     /* =========================================================
      |  Create notice by batch (resolve batch by id|uuid|slug)
@@ -1019,7 +1019,7 @@ public function unarchive(Request $r, $id)
             'title'             => $r->title,
             'slug'              => $slug,
             'message_html'      => $r->input('message_html'),
-            'attachments'       => $stored ? json_encode($stored) : null,
+            'attachments_json'  => $stored ? json_encode($stored) : null,
             'priority'          => $r->input('priority', 'normal'),
             'status'            => $r->input('status', 'draft'),
             'created_by'        => $actor['id'] ?: 0,
@@ -1083,9 +1083,11 @@ public function unarchive(Request $r, $id)
             ->orderBy('deleted_at', 'desc')
             ->get()
             ->map(function($row){
-                if (is_string($row->attachments)) {
-                    try { $row->attachments = json_decode($row->attachments, true) ?: []; }
+                if (is_string($row->attachments_json)) {
+                    try { $row->attachments = json_decode($row->attachments_json, true) ?: []; }
                     catch (\Throwable $e) { $row->attachments = []; }
+                } else {
+                    $row->attachments = [];
                 }
                 return $row;
             });

@@ -369,8 +369,9 @@ html.theme-dark .w3-sidebar-scroll::-webkit-scrollbar-thumb {
           <i class="fa fa-chevron-down w3-chev"></i>
         </a>
         <div id="sm-assignments" class="w3-submenu" role="group" aria-label="Assignments submenu">
-          <!-- <a href="/admin/assignments/manage" class="w3-link">All Assignments</a> -->
           <a href="/admin/assignments/create" class="w3-link">Create Assignment</a>
+          <a href="/admin/assignments/manage" class="w3-link">All Assignments</a>
+
         </div>
       </div>
 

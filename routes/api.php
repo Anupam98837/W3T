@@ -224,15 +224,14 @@ Route::middleware('checkRole:admin,super_admin,instructor, student')->group(func
     Route::post  ('/assignments',                   [AssignmentController::class, 'store']);
     Route::match(['put','patch'], '/assignments/{assignment}', [AssignmentController::class, 'update']);
     Route::delete('/assignments/{assignment}',      [AssignmentController::class, 'destroy']);
-
+    Route::get   ('/assignments/bin',                         [AssignmentController::class, 'indexDeleted']);
     // Optional: assignments under a course (list/create) — keeps parity with courses routes
     Route::get   ('/courses/{course}/assignments',          [AssignmentController::class, 'index']);
     Route::post  ('/courses/{course}/assignments',          [AssignmentController::class, 'store']);
     
 // New: hard delete / bin / restore
 Route::delete('/assignments/{assignment}/force',          [AssignmentController::class, 'forceDelete']); // hard delete
-Route::get   ('/assignments/bin',                         [AssignmentController::class, 'indexDeleted']); // list deleted (system-wide)
-Route::post  ('/assignments/{assignment}/restore',        [AssignmentController::class, 'restore']);     // restore soft-deleted
+ Route::post  ('/assignments/{assignment}/restore',        [AssignmentController::class, 'restore']);     // restore soft-deleted
 
 // Batch-scoped assignment endpoints
 Route::get   ('/batches/{batchKey}/assignments',          [AssignmentController::class, 'viewAssignmentByBatch']);
