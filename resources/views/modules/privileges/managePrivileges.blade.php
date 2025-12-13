@@ -88,7 +88,6 @@ html.theme-dark .dropdown-menu{background:#0f172a;border-color:var(--line-strong
 .card,
 .panel,
 .cm-wrap {
-  overflow: visible !important;
   transform: none !important;   /* transforms create new stacking contexts and break fixed/absolute positioning */
 }
 

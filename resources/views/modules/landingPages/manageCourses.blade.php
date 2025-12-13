@@ -83,7 +83,6 @@ html.theme-dark .dropdown-menu{background:#0f172a;border-color:var(--line-strong
 .table-wrap,
 .card,
 .fc-wrap {
-  overflow: visible !important;
   transform: none !important;
 }
 

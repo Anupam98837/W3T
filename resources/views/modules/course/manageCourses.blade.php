@@ -145,16 +145,12 @@ html.theme-dark .dropzone{background:#0b1020;border-color:var(--line-strong)}
 html.theme-dark .media-item{background:#0b1020;border-color:var(--line-strong)}
 
 /* Dropdown visibility safety nets */
-.table-wrap, .table-wrap .card-body, .table-responsive { overflow: visible !important; }
 .table-wrap .dropdown { position: relative; }
 .table-wrap .dropdown-menu { z-index: 2050; }
 
 /* File button look */
 .btn-light{background:var(--surface);border:1px solid var(--line-strong)}
 
-.table-wrap, .table-wrap .card-body, .table-responsive {
-    overflow: visible !important;
-}
  /* Featured media modal – card grid */
   #mediaModal .media-list {
     margin-top: 8px;
