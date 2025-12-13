@@ -307,41 +307,52 @@ class UserController extends Controller
     }
 
     /**
-     * GET /api/users?page=&per_page=&q=&status=
-     * Paginated list.
-     */
+ * GET /api/users?page=&per_page=&q=&status=
+ * Paginated list.
+ */
 public function index(Request $request)
 {
     $page   = max(1, (int)$request->query('page', 1));
     $pp     = min(100, max(1, (int)$request->query('per_page', 20)));
     $q      = trim((string)$request->query('q', ''));
-    // If the param is absent, default to 'active'; if it's 'all', apply no filter
-    $status = $request->has('status') ? (string)$request->query('status') : 'active';
+
+    // NEW: Default is 'all' -> show both active & inactive
+    $status = $request->query('status', 'all');
 
     $base = DB::table('users')->whereNull('deleted_at');
+
+    // Apply filter only if status is NOT 'all' and not empty
     if ($status !== 'all' && $status !== '') {
         $base->where('status', $status);
     }
+
     if ($q !== '') {
         $like = "%{$q}%";
         $base->where(function($w) use ($like){
-            $w->where('name','LIKE',$like)->orWhere('email','LIKE',$like);
+            $w->where('name', 'LIKE', $like)
+              ->orWhere('email', 'LIKE', $like);
         });
     }
 
     $total = (clone $base)->count();
+
     $rows  = $base->orderBy('name')
-        ->offset(($page-1)*$pp)->limit($pp)
+        ->offset(($page - 1) * $pp)
+        ->limit($pp)
         ->select('id','name','email','image','role','role_short_form','status')
         ->get();
 
     return response()->json([
-        'status'=>'success',
-        'data'=>$rows,
-        'meta'=>['page'=>$page,'per_page'=>$pp,'total'=>$total,'total_pages'=>(int)ceil($total/$pp)],
+        'status' => 'success',
+        'data'   => $rows,
+        'meta'   => [
+            'page'        => $page,
+            'per_page'    => $pp,
+            'total'       => $total,
+            'total_pages' => (int)ceil($total / $pp),
+        ],
     ]);
 }
-
 
     /**
      * GET /api/users/{id}

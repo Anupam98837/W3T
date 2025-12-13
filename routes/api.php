@@ -27,7 +27,7 @@ use App\Http\Controllers\API\JudgeController;
 use App\Http\Controllers\API\LandingPageController;
 use App\Http\Controllers\API\CourseCategoryController;
 use App\Http\Controllers\API\DashboardController;
-
+use App\Http\Controllers\API\BatchCodingQuestionController;
 // Auth Routes
 
 Route::post('/auth/login',  [UserController::class, 'login']);
@@ -217,6 +217,7 @@ Route::middleware('checkRole:admin,super_admin,instructor,student')->group(funct
 
 
 // Assignments (admin, super_admin, instructor)
+    Route::get   ('/assignments/bin',                         [AssignmentController::class, 'indexDeleted']);
 Route::middleware('checkRole:admin,super_admin,instructor, student')->group(function () {
     // Generic assignment endpoints
     Route::get   ('/assignments',                   [AssignmentController::class, 'index']);
@@ -224,7 +225,6 @@ Route::middleware('checkRole:admin,super_admin,instructor, student')->group(func
     Route::post  ('/assignments',                   [AssignmentController::class, 'store']);
     Route::match(['put','patch'], '/assignments/{assignment}', [AssignmentController::class, 'update']);
     Route::delete('/assignments/{assignment}',      [AssignmentController::class, 'destroy']);
-    Route::get   ('/assignments/bin',                         [AssignmentController::class, 'indexDeleted']);
     // Optional: assignments under a course (list/create) — keeps parity with courses routes
     Route::get   ('/courses/{course}/assignments',          [AssignmentController::class, 'index']);
     Route::post  ('/courses/{course}/assignments',          [AssignmentController::class, 'store']);
@@ -505,7 +505,6 @@ Route::prefix('coding_modules')->group(function () {
     Route::patch('{id}/toggle-status', [CodingModuleController::class, 'toggleStatus'])->name('modules.toggle');
     Route::post('reorder',        [CodingModuleController::class, 'reorder'])->name('modules.reorder');
 });
-Route::post('/judge/execute', [JudgeController::class, 'submit']);
 
 // Coding Questions
 Route::prefix('coding_questions')->group(function () {
@@ -593,4 +592,19 @@ Route::post('batches/{idOrUuid}/students/{userId}/verify', [BatchController::cla
 Route::middleware(['checkRole:superadmin,admin,instructor,student'])->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'summary']);                // role-aware single payload
     Route::get('/dashboard/widgets/{slug}', [DashboardController::class, 'widget']);  // optional lazy widgets
+});
+
+// Coding test Judge Routes
+ 
+Route::middleware(['checkRole:superadmin,admin,instructor,student'])->group(function () {
+    Route::prefix('judge')->group(function () {
+        Route::post('/execute', [JudgeController::class, 'run']);    
+        Route::post('/submit',  [JudgeController::class, 'submit']);  
+    });
+    Route::prefix('batches/{batch}/coding-questions')->group(function () {
+        Route::get('/',                         [BatchCodingQuestionController::class, 'index']);
+        Route::post('/assign',                  [BatchCodingQuestionController::class, 'assign']);  
+        Route::delete('/{questionUuid}',        [BatchCodingQuestionController::class, 'unassign']);
+    });
+ 
 });

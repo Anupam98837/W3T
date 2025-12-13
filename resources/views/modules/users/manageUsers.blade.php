@@ -522,15 +522,32 @@ document.addEventListener('DOMContentLoaded', function(){
     modalRole.value   = roleFilter;
     modalSort.value   = sort;
   });
+/* ----- APPLY FILTERS: hide modal first, then fetch on hidden ----- */
+btnApplyFilters.addEventListener('click', () => {
+  statusFilter = modalStatus.value;
+  roleFilter   = modalRole.value;
+  sort         = modalSort.value;
+  page = 1;
 
-  btnApplyFilters.addEventListener('click',()=>{
-    statusFilter = modalStatus.value;
-    roleFilter   = modalRole.value;
-    sort         = modalSort.value;
-    page=1;
-    filterModal.hide();
-    fetchUsers();
-  });
+  // hide the modal — fetching will run after it's fully hidden
+  filterModal.hide();
+});
+
+/* when the modal is fully hidden, run fetch and also cleanup leftover backdrops */
+filterModalEl.addEventListener('hidden.bs.modal', () => {
+  // safe place to fetch — modal DOM is fully cleaned up by Bootstrap now
+  fetchUsers().catch(ex => err(ex.message));
+
+  // defensive cleanup in case a backdrop or body class was left behind
+  try {
+    document.querySelectorAll('.modal-backdrop').forEach(b => b.remove());
+    document.body.classList.remove('modal-open');
+    document.body.style.overflow = '';
+    document.body.style.paddingRight = '';
+  } catch (cleanEx) {
+    console.warn('Modal cleanup failed', cleanEx);
+  }
+});
 
   btnReset.addEventListener('click',()=>{
     statusFilter='all';

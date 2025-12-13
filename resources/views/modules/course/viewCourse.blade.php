@@ -6,20 +6,36 @@
 
 <style>
 /* ===== Course View (non-breaking on top of main.css) ===== */
+/* Centered, responsive wrapper */
 .cv-wrap{
-  /* max-width:1140px; */
-  margin:16px 40px
+  max-width: 1140px;       /* keeps layout from getting too wide */
+  margin: 16px auto;       /* centers horizontally across viewports & zooms */
+  padding: 0 20px;         /* small side padding for narrow viewports */
+  box-sizing: border-box;  /* include padding in width calculations */
 }
 
 /* Hero */
 .cv-hero{
-  border-radius:16px;overflow:hidden;box-shadow:var(--shadow-2);
-  border:1px solid var(--line-strong);background:#000;min-height:220px;
-  display:flex;align-items:center;justify-content:center;
+  border-radius:16px;
+  overflow:hidden;
+  box-shadow:var(--shadow-2);
+  border:1px solid var(--line-strong);
+  background:#000;
+  min-height:220px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  width:100%;              /* use full width of wrapper */
 }
+
+/* Hero image (responsive & centered). Hidden until load like before. */
 .cv-hero img{
-  max-height:380px;max-width:100%;width:auto;height:auto;
-  object-fit:contain;display:none; /* revealed after it loads */
+  display:none;            /* still hidden until loaded by JS */
+  margin: 0 auto;          /* center within hero */
+  max-width:100%;          /* never exceed container width */
+  height:auto;
+  max-height:60vh;         /* keep hero from overtaking the viewport */
+  object-fit:contain;
 }
 
 /* Titles */
@@ -28,7 +44,12 @@
 .cv-badges .badge{margin-right:6px}
 
 /* Cards */
-.cv-card{background:var(--surface);border:1px solid var(--line-strong);border-radius:16px;box-shadow:var(--shadow-2)}
+.cv-card{
+  background:var(--surface);
+  border:1px solid var(--line-strong);
+  border-radius:16px;
+  box-shadow:var(--shadow-2);
+}
 .cv-card .cv-head{padding:12px 14px;border-bottom:1px solid var(--line-strong);font-weight:600}
 .cv-card .cv-body{padding:14px}
 
@@ -44,14 +65,24 @@
 .cv-cta .btn{height:42px;border-radius:12px}
 
 /* Gallery — compact strip */
-#cvThumbs{margin-top:.5rem}
+#cvThumbs{margin-top:.5rem; justify-content:center;} /* ensure thumbs centered */
 .cv-thumbs .thumb{
-  display:block;width:100%;padding:0;border:1px solid var(--line-strong);
-  border-radius:10px;overflow:hidden;background:transparent;cursor:pointer
+  display:block;
+  width:100%;
+  padding:0;
+  border:1px solid var(--line-strong);
+  border-radius:10px;
+  overflow:hidden;
+  background:transparent;
+  cursor:pointer;
+  box-sizing: border-box;
 }
 /* keep as safety; main sizing is inline to defeat overrides */
 #cvThumbs .thumb img{
-  width:100% !important;height:56px !important;object-fit:cover !important;display:block !important;
+  width:100% !important;
+  height:56px !important;
+  object-fit:cover !important;
+  display:block !important;
 }
 .cv-thumbs .thumb.active{outline:2px solid var(--primary-color);outline-offset:2px}
 .cv-thumbs .thumb:focus-visible{outline:2px solid var(--primary-color);outline-offset:3px}
@@ -64,15 +95,37 @@
 .placeholder{background:linear-gradient(90deg,#0001,#0000000d,#0001);border-radius:8px}
 
 /* Hero skeleton (quiet, no big “Loading…” image) */
-#cvHeroSkel{width:100%;height:380px;border-radius:16px;border:1px solid var(--line-strong);display:block}
+#cvHeroSkel{
+  width:100%;
+  height:380px;
+  border-radius:16px;
+  border:1px solid var(--line-strong);
+  display:block;
+  box-sizing: border-box;
+}
 
 /* Loading state toggles */
 .is-loading #cvHeroSkel{display:block}
 .is-loading #cvCover{display:none}
 
-/* Responsive */
+/* make sure modals / cards don't overflow at odd scales */
+.cv-card, .cv-mod, .cv-price { width: 100%; box-sizing: border-box; }
+
+/* Responsive adjustments */
+@media (max-width: 1200px){
+  .cv-wrap{ max-width: 980px; }
+  #cvHeroSkel{ height:340px; }
+}
 @media (max-width: 992px){
-  #cvHeroSkel{height:260px}
+  .cv-wrap{ padding: 0 12px; }
+  #cvHeroSkel{ height:260px; }
+  .cv-hero img{ max-height:46vh; }
+}
+@media (max-width: 576px){
+  .cv-wrap{ margin:12px auto; padding: 0 10px; }
+  #cvHeroSkel{ height:200px; border-radius:12px; }
+  .cv-hero{ min-height:180px; }
+  .cv-hero img{ max-height:40vh; }
 }
 
 </style>

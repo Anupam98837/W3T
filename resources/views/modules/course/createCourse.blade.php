@@ -53,6 +53,25 @@
   .rte:focus{box-shadow:var(--ring);border-color:var(--accent-color)}
   .rte-ph{position:absolute;top:12px;left:12px;color:#9aa3b2;pointer-events:none;font-size:var(--fs-14)}
   .rte.has-content + .rte-ph{display:none}
+  /* RTE active visual state when editor focused / has formatting applied */
+.rte.active {
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--accent-color) 18%, transparent);
+  border-color: var(--accent-color);
+  outline: none;
+}
+
+/* toolbar button active state */
+.tool.active {
+  background: color-mix(in oklab, var(--accent-color) 14%, transparent);
+  border-color: color-mix(in oklab, var(--accent-color) 28%, transparent);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+  transform: translateY(-1px);
+}
+
+/* small tweak so icon colors contrast when active */
+.tool.active i {
+  color: var(--accent-color);
+}
 
   /* ===== Chips ===== */
   .chip-row{display:flex;flex-wrap:wrap;gap:8px}
@@ -593,9 +612,75 @@
 
   document.querySelectorAll('.tool[data-cmd]').forEach(b=> b.addEventListener('click',()=>{ document.execCommand(b.dataset.cmd,false,null); editor.focus(); togglePh(); }));
   document.querySelectorAll('.tool[data-format]').forEach(b=> b.addEventListener('click',()=>{ document.execCommand('formatBlock',false,b.dataset.format); editor.focus(); togglePh(); }));
-  $('btnLink').addEventListener('click',()=>{
+  $('btnLink').addEventListener('click',()=>{ 
     const u = prompt('Enter URL (https://…)'); if(u && /^https?:\/\//i.test(u)){ document.execCommand('createLink',false,u); editor.focus(); }
   });
+
+  // ===== toolbar active-state syncing =====
+  (function(){
+    const tools = Array.from(document.querySelectorAll('.tool'));
+    // Map format names to the exact formatBlock values we expect
+    const knownFormats = { H1:'h1', H2:'h2', H3:'h3' };
+
+    function isFormatActive(format) {
+      try {
+        const val = (document.queryCommandValue('formatBlock') || '').toLowerCase();
+        if(!val) return false;
+        return val.includes((knownFormats[format] || format).toLowerCase());
+      } catch {
+        return false;
+      }
+    }
+
+    function updateToolStates(){
+      // update each toolbar button active class
+      tools.forEach(btn => {
+        btn.classList.remove('active');
+        const cmd = btn.dataset.cmd;
+        const fmt = btn.dataset.format;
+        try {
+          if (cmd) {
+            // queryCommandState works for bold, italic, underline, insertUnorderedList, insertOrderedList, etc.
+            if (document.queryCommandState(cmd)) btn.classList.add('active');
+          } else if (fmt) {
+            if (isFormatActive(fmt)) btn.classList.add('active');
+          }
+        } catch(e){
+          // ignore - some commands may not be supported in all browsers
+        }
+      });
+
+      // rte gets an 'active' class while focused or when user clicked a formatting tool
+      editor.classList.toggle('active', document.activeElement === editor || hasContent());
+    }
+
+    // update state after commands run (use a tiny delay so execCommand has applied)
+    tools.forEach(b => b.addEventListener('click', () => setTimeout(updateToolStates, 40)));
+
+    // special-case link button: after createLink prompt we should refresh states
+    document.getElementById('btnLink').addEventListener('click', () => {
+      // existing prompt handler runs; schedule update
+      setTimeout(updateToolStates, 120);
+    });
+
+    // selection / cursor changes — keep UI in sync
+    document.addEventListener('selectionchange', () => {
+      // only update when selection is inside the editor to avoid extra work
+      const sel = document.getSelection();
+      if (!sel) return;
+      const node = sel.anchorNode;
+      if (!node) return;
+      if (editor.contains(node) || node === editor) {
+        updateToolStates();
+      }
+    });
+
+    // keyboard/mouse interactions inside editor
+    ['keyup','mouseup','input','blur','focus'].forEach(ev => editor.addEventListener(ev, updateToolStates));
+
+    // initial sync
+    updateToolStates();
+  })();
 
   function money(v){ const n=Number(v); return isFinite(n)&&n>0?n:0; }
   function pct(v){ const n=Number(v); return isFinite(n)&&n>0?n:0; }
@@ -1011,4 +1096,5 @@ $('btnPublish').onclick = ()=> {
   mo.observe(document.body, {childList:true, subtree:true});
 })();
 </script>
+
 @endpush

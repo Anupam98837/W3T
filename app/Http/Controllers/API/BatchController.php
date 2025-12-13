@@ -128,22 +128,24 @@ class BatchController extends Controller
         return $s ? Carbon::parse($s) : null;
     }
 
-    protected function daysDuration(?string $start, ?string $end, bool $inclusive = true): ?int
+    protected function daysDuration(?string $start, ?string $end): ?int
 {
     if (!$start || !$end) return null;
+
     try {
         $s = \Carbon\Carbon::parse($start)->startOfDay();
         $e = \Carbon\Carbon::parse($end)->startOfDay();
+
         if ($e->lt($s)) return null;
-        $days = $s->diffInDays($e);
-        return $inclusive ? ($days + 1) : $days;
+
+        // Always inclusive
+        return $s->diffInDays($e) + 1;
+
     } catch (\Throwable $e) {
         return null;
     }
 }
-
-
-    
+   
     /* =========================================================
      |                       Batches
      |=========================================================*/

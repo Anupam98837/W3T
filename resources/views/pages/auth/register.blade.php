@@ -254,6 +254,25 @@ body.lx-auth-body {
     @keyframes lx-orbitB{ 0%{transform:translate(0,0);} 50%{transform:translate(-6px, 6px);} 100%{transform:translate(0,0);} }
     @keyframes lx-chip{ 0%,100%{ transform:translateY(0);} 50%{ transform:translateY(-6px);} }
     @keyframes lx-twinkle{ 0%{opacity:.22;} 50%{opacity:.34;} 100%{opacity:.22;} }
+    /* Hide browser-native password reveal buttons */
+
+/* Chrome / Edge (WebKit-based) */
+input[type="password"]::-ms-reveal,
+input[type="password"]::-ms-clear {
+    display: none !important;
+}
+
+input[type="password"]::-webkit-textfield-decoration-container,
+input[type="password"]::-webkit-password-toggle-button,
+input[type="password"]::-webkit-credentials-auto-fill-button {
+    display: none !important;
+}
+
+/* Safari iOS sometimes adds its own icon — hide it */
+input[type="password"]::-webkit-textfield-decoration-container {
+    opacity: 0 !important;
+}
+
   </style>
 </head>
 <body class="lx-auth-body">

@@ -136,6 +136,9 @@
 
 @endsection
 @push('scripts')
+<!-- SweetAlert2 (swal) CDN -->
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 <script>
 (function(){
@@ -156,19 +159,29 @@
   })();
 
   const TOKEN = localStorage.getItem('token') || sessionStorage.getItem('token') || '';
-  if(!TOKEN){ alert('Login required'); location.href='/'; return; }
+  if(!TOKEN){
+    // use swal and then redirect
+    Swal.fire({
+      icon: 'warning',
+      title: 'Login required',
+      text: 'You must be logged in to continue.',
+      allowOutsideClick: false,
+      confirmButtonText: 'Go to login'
+    }).then(()=> { location.href='/'; });
+    return;
+  }
 
   // ===== API endpoints — aligned with your Laravel routes =====
   const API = {
-  index: (qs)=> '/api/assignments?' + qs.toString(),
-  show: (assignment)=> `/api/assignments/${encodeURIComponent(assignment)}`,
-  destroy: (id, force=false)=> force
-    ? `/api/assignments/${encodeURIComponent(id)}/force`
-    : `/api/assignments/${encodeURIComponent(id)}`,
-  restore: (id)=> `/api/assignments/${encodeURIComponent(id)}/restore`,
-  file: (id)=> `/api/assignments/file/${encodeURIComponent(id)}`,
-  binIndex: (qs)=> '/api/assignments/bin?' + (qs ? qs.toString() : '')
-};
+    index: (qs)=> '/api/assignments?' + qs.toString(),
+    show: (assignment)=> `/api/assignments/${encodeURIComponent(assignment)}`,
+    destroy: (id, force=false)=> force
+      ? `/api/assignments/${encodeURIComponent(id)}/force`
+      : `/api/assignments/${encodeURIComponent(id)}`,
+    restore: (id)=> `/api/assignments/${encodeURIComponent(id)}/restore`,
+    file: (id)=> `/api/assignments/file/${encodeURIComponent(id)}`,
+    binIndex: (qs)=> '/api/assignments/bin?' + (qs ? qs.toString() : '')
+  };
 
 
   const H = {
@@ -428,11 +441,11 @@
 
       const act = item.dataset.act, id = item.dataset.id, uuid = item.dataset.uuid;
       if(act==='view') openView(uuid);
-else if(act==='edit') {
-  // prefer uuid if available (dropdown items should include data-uuid)
-  const key = uuid || id;
-  location.href = `/admin/assignments/create?edit=${encodeURIComponent(key)}`;
-}
+      else if(act==='edit') {
+        // prefer uuid if available (dropdown items should include data-uuid)
+        const key = uuid || id;
+        location.href = `/admin/assignments/create?edit=${encodeURIComponent(key)}`;
+      }
       else if(act==='delete') deleteItem(id);
       else if(act==='purge') purgeItem(id);
       else if(act==='restore') restoreItem(id);
@@ -577,7 +590,7 @@ else if(act==='edit') {
       if(statusFilter) usp.set('status', statusFilter);
       if(!binMode) usp.set('include_deleted','0');
 
-const url = scope==='bin' ? API.binIndex(usp) : API.index(usp);
+      const url = scope==='bin' ? API.binIndex(usp) : API.index(usp);
       const res = await fetch(url, { headers:{Authorization:'Bearer '+TOKEN,Accept:'application/json','Cache-Control':'no-cache'}, signal: ac.signal });
       const j = await res.json();
       if(!res.ok) throw new Error(j?.message||'Load failed');
@@ -664,7 +677,7 @@ const url = scope==='bin' ? API.binIndex(usp) : API.index(usp);
 
     try{
       const usp = new URLSearchParams({ course_id: courseSel?.value, batch_id: batchSel?.value, per_page: perPage, page, sort });
-if(q && q.value && q.value.trim()) usp.set('q', q.value.trim());
+      if(q && q.value && q.value.trim()) usp.set('q', q.value.trim());
       if(!binMode) usp.set('include_deleted','0');
 
       const url = scope==='bin' ? API.binIndex(usp) : API.index(usp);
@@ -726,7 +739,7 @@ if(q && q.value && q.value.trim()) usp.set('q', q.value.trim());
   /* ================= view / preview ================= */
   let lastObjectUrl = null;
   async function openView(assignmentKey){
-    if(!vModal){ alert('Viewer not available'); return; }
+    if(!vModal){ Swal.fire({icon:'error',title:'Viewer not available'}); return; }
     try{
       const res = await fetch(API.show(assignmentKey),{ headers:{Authorization:'Bearer '+TOKEN,Accept:'application/json'} });
       const row = await res.json();
@@ -760,7 +773,7 @@ if(q && q.value && q.value.trim()) usp.set('q', q.value.trim());
       vModal.show();
     }catch(e){
       console.error(e);
-      alert(e.message||'Failed to open');
+      Swal.fire({ icon:'error', title:'Failed to open', text: e.message || 'Unable to load assignment.' });
     }
   }
 
@@ -796,6 +809,8 @@ if(q && q.value && q.value.trim()) usp.set('q', q.value.trim());
       if(asViewer) asViewer.innerHTML = '<div class="text-muted small">Preview not supported for this type.</div>';
     }catch(e){
       if(asViewer) asViewer.innerHTML = `<div class="text-danger small">${H.esc(e.message||'Preview failed')}</div>`;
+      console.error(e);
+      Swal.fire({ icon:'error', title:'Preview failed', text: e.message || 'Could not load the file preview.' });
     }
   }
 
@@ -809,10 +824,68 @@ if(q && q.value && q.value.trim()) usp.set('q', q.value.trim());
 
   function formatBytes(n){ if(!n) return '0 B'; if(n<1024) return n+' B'; if(n<1024*1024) return (n/1024).toFixed(1)+' KB'; return (n/(1024*1024)).toFixed(1)+' MB'; }
 
-  /* ================= CRUD helpers ================= */
-  async function deleteItem(id){ if(!confirm('Move assignment to bin?')) return; try{ const res = await fetch(API.destroy(id,false),{ method:'DELETE', headers:{ Authorization:'Bearer '+TOKEN, Accept:'application/json' } }); const j = await res.json().catch(()=>({})); if(!res.ok) throw new Error(j.message||'Delete failed'); alert('Moved to Bin'); moduleAssignmentsCache.clear(); if(batchSel && batchSel.value) renderModuleTable(); }catch(e){ alert(e.message||'Delete failed'); } }
-  async function purgeItem(id){ if(!confirm('Delete permanently? This cannot be undone.')) return; try{ const res = await fetch(API.destroy(id,true),{ method:'DELETE', headers:{ Authorization:'Bearer '+TOKEN, Accept:'application/json' } }); const j = await res.json().catch(()=>({})); if(!res.ok) throw new Error(j.message||'Purge failed'); alert('Deleted permanently'); moduleAssignmentsCache.clear(); if(batchSel && batchSel.value) renderModuleTable(); }catch(e){ alert(e.message||'Purge failed'); } }
-  async function restoreItem(id){ try{ const res = await fetch(API.restore(id),{ method:'POST', headers:{ Authorization:'Bearer '+TOKEN, Accept:'application/json' } }); const j = await res.json().catch(()=>({})); if(!res.ok) throw new Error(j.message||'Restore failed'); alert('Restored'); moduleAssignmentsCache.clear(); if(batchSel && batchSel.value) renderModuleTable(); }catch(e){ alert(e.message||'Restore failed'); } }
+  /* ================= CRUD helpers (swal-enabled) ================= */
+  async function deleteItem(id){
+    const { value } = await Swal.fire({
+      title: 'Move assignment to bin?',
+      text: 'You can restore it from the Bin later.',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonText: 'Move to Bin',
+      cancelButtonText: 'Cancel'
+    });
+    if(!value) return;
+
+    try{
+      const res = await fetch(API.destroy(id,false),{ method:'DELETE', headers:{ Authorization:'Bearer '+TOKEN, Accept:'application/json' } });
+      const j = await res.json().catch(()=>({}));
+      if(!res.ok) throw new Error(j.message||'Delete failed');
+      await Swal.fire({ icon:'success', title:'Moved to Bin' });
+      moduleAssignmentsCache.clear();
+      if(batchSel && batchSel.value) renderModuleTable();
+    }catch(e){
+      console.error(e);
+      Swal.fire({ icon:'error', title:'Delete failed', text: e.message||'Failed to move to bin' });
+    }
+  }
+
+  async function purgeItem(id){
+    const { value } = await Swal.fire({
+      title: 'Delete permanently?',
+      text: 'This cannot be undone.',
+      icon: 'error',
+      showCancelButton: true,
+      confirmButtonText: 'Delete permanently',
+      cancelButtonText: 'Cancel'
+    });
+    if(!value) return;
+
+    try{
+      const res = await fetch(API.destroy(id,true),{ method:'DELETE', headers:{ Authorization:'Bearer '+TOKEN, Accept:'application/json' } });
+      const j = await res.json().catch(()=>({}));
+      if(!res.ok) throw new Error(j.message||'Purge failed');
+      await Swal.fire({ icon:'success', title:'Deleted permanently' });
+      moduleAssignmentsCache.clear();
+      if(batchSel && batchSel.value) renderModuleTable();
+    }catch(e){
+      console.error(e);
+      Swal.fire({ icon:'error', title:'Purge failed', text: e.message||'Failed to delete permanently' });
+    }
+  }
+
+  async function restoreItem(id){
+    try{
+      const res = await fetch(API.restore(id),{ method:'POST', headers:{ Authorization:'Bearer '+TOKEN, Accept:'application/json' } });
+      const j = await res.json().catch(()=>({}));
+      if(!res.ok) throw new Error(j.message||'Restore failed');
+      await Swal.fire({ icon:'success', title:'Restored' });
+      moduleAssignmentsCache.clear();
+      if(batchSel && batchSel.value) renderModuleTable();
+    }catch(e){
+      console.error(e);
+      Swal.fire({ icon:'error', title:'Restore failed', text: e.message||'Failed to restore' });
+    }
+  }
 
   // Expose loadList for 'flat' mode if needed
   window.asLoadList = loadList;

@@ -831,7 +831,7 @@ html.theme-dark .media-item{background:#0b1020;border-color:var(--line-strong)}
   .btn-loading .btn-label{visibility:hidden}
   .btn-loading .btn-spinner{display:inline-block !important}
   .btn-spinner{display:none;width:1rem;height:1rem;border:.2rem solid #0001;border-top-color:#fff;border-radius:50%;vertical-align:-.125em;animation:rot 1s linear infinite}
-
+  
   /* Preview modal styles */
   .preview-container {max-height: 70vh; overflow: auto;}
   .preview-image {max-width: 100%; max-height: 60vh; border-radius: 8px;}
@@ -842,3 +842,33 @@ html.theme-dark .media-item{background:#0b1020;border-color:var(--line-strong)}
   html.theme-dark .file-row{background:#0b1020;border-color:var(--line-strong)}
   html.theme-dark .file-row:hover{background:#131d35;}
   html.theme-dark .preview-text {background: #1a2335;}
+
+  
+.rte-wrap{position:relative}
+  .rte{
+    min-height:300px;max-height:600px;overflow:auto;
+    border:1px solid var(--line-strong);border-radius:12px;background:#fff;padding:12px;line-height:1.6;outline:none
+  }
+  .rte:focus{box-shadow:var(--ring);border-color:var(--accent-color)}
+  .rte-ph{position:absolute;top:12px;left:12px;color:#9aa3b2;pointer-events:none;font-size:var(--fs-14)}
+  .rte.has-content + .rte-ph{display:none}
+  /* RTE active visual state when editor focused / has formatting applied */
+.rte.active {
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--accent-color) 18%, transparent);
+  border-color: var(--accent-color);
+  outline: none;
+}
+
+/* toolbar button active state */
+.tool.active {
+  background: color-mix(in oklab, var(--accent-color) 14%, transparent);
+  border-color: color-mix(in oklab, var(--accent-color) 28%, transparent);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+  transform: translateY(-1px);
+}
+
+/* small tweak so icon colors contrast when active */
+.tool.active i {
+  color: var(--accent-color);
+}
+html.theme-dark .rte{background:#0f172a;border-color:var(--line-strong);color:#e5e7eb}

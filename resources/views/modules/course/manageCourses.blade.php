@@ -61,7 +61,21 @@ tr.is-deleted td{background:color-mix(in oklab, var(--danger-color) 6%, transpar
 /* Default dropdown menu (when not portaled) */
 .table-wrap .dropdown-menu{border-radius:12px;border:1px solid var(--line-strong);box-shadow:var(--shadow-2);min-width:220px;z-index:5000}
 /* Portaled dropdown menu (moved to body) */
-.dropdown-menu.dd-portal{position:fixed!important;left:0;top:0;transform:none!important;z-index:5000;border-radius:12px;border:1px solid var(--line-strong);box-shadow:var(--shadow-2);min-width:220px;background:var(--surface)}
+/* PORTALED DROPDOWN — ensure it covers content and sits above table rows */
+.dropdown-menu.dd-portal{
+  position: fixed !important;
+  left: 0 !important;
+  top: 0 !important;
+  transform: none !important;
+  z-index: 99999 !important;               /* very high z-index to outrank other elements */
+  min-width: 220px;
+  border-radius: 12px;
+  border: 1px solid var(--line-strong);
+  box-shadow: 0 12px 30px rgba(15,23,42,0.12);
+  background: var(--surface);
+  overflow: visible !important;            /* ensure contents aren't clipped */
+  padding: .375rem 0;
+}
 .dropdown-item{display:flex;align-items:center;gap:.6rem}
 .dropdown-item i{width:16px;text-align:center}
 .dropdown-item.text-danger{color:var(--danger-color)!important}
@@ -139,7 +153,7 @@ html.theme-dark .media-item{background:#0b1020;border-color:var(--line-strong)}
 .btn-light{background:var(--surface);border:1px solid var(--line-strong)}
 
 .table-wrap, .table-wrap .card-body, .table-responsive {
-    overflow: auto !important;
+    overflow: visible !important;
 }
  /* Featured media modal – card grid */
   #mediaModal .media-list {
@@ -251,6 +265,8 @@ html.theme-dark .media-item{background:#0b1020;border-color:var(--line-strong)}
     background: #fee2e2;
     color: #b91c1c;
   }
+
+  
 </style>
 @endpush
 
@@ -931,7 +947,7 @@ document.addEventListener('click', (e) => {
 
     if (scope === 'bin') {
       return `
-        <div class="dropdown text-end" data-bs-display="static">
+        <div class="dropdown text-end" data-bs-display="static" data-bs-boundary="viewport">
           <button type="button" class="btn btn-light btn-sm dd-toggle" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false" title="Actions">
             <i class="fa fa-ellipsis-vertical"></i>
           </button>

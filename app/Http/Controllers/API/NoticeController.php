@@ -301,7 +301,7 @@ class NoticeController extends Controller
      * ========================================================= */
     public function store(Request $r)
     {
-        if ($res = $this->requireRole($r, ['admin','superadmin','instructor'])) return $res;
+        
         $actor = $this->actor($r);
 
         $v = Validator::make($r->all(), [

@@ -559,7 +559,82 @@
     </div>
   </div>
 </div>
-
+ 
+{{-- ================= Assign Coding Questions (modal) ================= --}}
+<div class="modal fade" id="codingQuestionsModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="fa fa-code me-2"></i>Assign Coding Questions</h5>
+        <a id="cq_add_btn" href="/admin/coding-questions/create" class="btn btn-primary btn-sm ms-auto">
+          <i class="fa fa-plus me-1"></i> Add Coding Question
+        </a>
+        <button type="button" class="btn-close ms-2" data-bs-dismiss="modal"></button>
+      </div>
+ 
+      <div class="modal-body">
+        <div class="d-flex align-items-center justify-content-between mstab-head">
+          <div class="left-tools d-flex align-items-center gap-2 flex-wrap">
+            <input id="cq_q" class="form-control" style="width:260px" placeholder="Search by title/difficulty…">
+            <label class="text-muted small mb-0">Per page</label>
+            <select id="cq_per" class="form-select" style="width:90px">
+              <option>10</option><option selected>20</option><option>30</option><option>50</option>
+            </select>
+ 
+            <label class="text-muted small mb-0">Assigned</label>
+            <select id="cq_assigned" class="form-select" style="width:150px">
+              <option value="all" selected>All</option>
+              <option value="assigned">Assigned</option>
+              <option value="unassigned">Unassigned</option>
+            </select>
+ 
+            <button id="cq_apply" class="btn btn-primary">
+              <i class="fa fa-check me-1"></i>Apply
+            </button>
+          </div>
+ 
+          <div class="text-muted small" id="cq_meta">—</div>
+        </div>
+ 
+        <div class="table-responsive">
+          <table class="table table-hover align-middle st-table mb-0">
+            <thead>
+  <tr>
+    <th>Title</th>
+    <th style="width:120px;">Difficulty</th>
+    <th style="width:140px;" class="text-center">Max Attempts</th>
+    <th style="width:220px;" class="text-center">Batch Attempts</th>
+    <th class="text-center" style="width:110px;">Assign</th>
+  </tr>
+</thead>
+ 
+ 
+            <tbody id="cq_rows">
+              <tr id="cq_loader" style="display:none;">
+                <td colspan="6" class="p-3">
+                  <div class="placeholder-wave">
+                    <div class="placeholder col-12 mb-2" style="height:16px;"></div>
+                    <div class="placeholder col-12 mb-2" style="height:16px;"></div>
+                    <div class="placeholder col-12 mb-2" style="height:16px;"></div>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+ 
+        <div class="d-flex justify-content-end p-2">
+          <ul id="cq_pager" class="pagination mb-0"></ul>
+        </div>
+      </div>
+ 
+      <div class="modal-footer">
+        <button class="btn btn-light" data-bs-dismiss="modal">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+ 
 {{-- ================= Create / Edit Batch (modal) ================= --}}
 <div class="modal fade" id="batchModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-xl modal-dialog-scrollable">
@@ -678,7 +753,38 @@ function fmtDate(iso){ if(!iso) return '-'; const d=new Date(iso); return isNaN(
 function fmtDateTime(iso){ if(!iso) return '-'; const d=new Date(iso); return isNaN(d)?esc(iso):d.toLocaleString(undefined,{year:'numeric',month:'short',day:'2-digit',hour:'2-digit',minute:'2-digit'}); }
 function badgeStatus(s){ s=(s||'').toString().toLowerCase(); const map={active:'success',inactive:'warning',archived:'secondary'}; const cls=map[s]||'secondary'; return `<span class="badge badge-${cls} text-uppercase">${esc(s||'-')}</span>`; }
 function firstError(j){ if(j?.errors){ const k=Object.keys(j.errors)[0]; if(k){ const v=j.errors[k]; return Array.isArray(v)?v[0]:String(v); } } return j?.message||''; }
-function humanYMD(s,e){ const sd=new Date(s), ed=new Date(e); if(isNaN(sd)||isNaN(ed)||ed<sd) return '-'; let y=ed.getFullYear()-sd.getFullYear(), m=ed.getMonth()-sd.getMonth(), d=ed.getDate()-sd.getDate(); if(d<0){ const prevDays=new Date(ed.getFullYear(),ed.getMonth(),0).getDate(); d+=prevDays; m-=1; } if(m<0){ m+=12; y-=1; } const parts=[]; if(y>0) parts.push(y+' '+(y===1?'year':'years')); if(m>0) parts.push(m+' '+(m===1?'month':'months')); if(d>0||!parts.length) parts.push(d+' '+(d===1?'day':'days')); return parts.join(' '); }
+function humanYMD(s,e){
+  // return '-' on invalid / end-before-start (based on original inputs)
+  const origSd = new Date(s), origEd = new Date(e);
+  if(isNaN(origSd) || isNaN(origEd) || origEd < origSd) return '-';
+
+  // Make calculation **inclusive** by shifting the start one day earlier.
+  // This has the effect of counting the start date itself.
+  const sd = new Date(origSd);
+  sd.setDate(sd.getDate() - 1);
+  const ed = new Date(origEd);
+
+  let y = ed.getFullYear() - sd.getFullYear();
+  let m = ed.getMonth() - sd.getMonth();
+  let d = ed.getDate() - sd.getDate();
+
+  if (d < 0) {
+    const prevDays = new Date(ed.getFullYear(), ed.getMonth(), 0).getDate();
+    d += prevDays;
+    m -= 1;
+  }
+  if (m < 0) {
+    m += 12;
+    y -= 1;
+  }
+  const parts = [];
+  if (y > 0) parts.push(y + ' ' + (y === 1 ? 'year' : 'years'));
+  if (m > 0) parts.push(m + ' ' + (m === 1 ? 'month' : 'months'));
+  // show days when >0, or if nothing else present show at least "1 day" (inclusive)
+  if (d > 0 || !parts.length) parts.push(d + ' ' + (d === 1 ? 'day' : 'days'));
+
+  return parts.join(' ');
+}
 
 /* New helper: enrollment badge render */
 function badgeEnrollment(s){
@@ -840,6 +946,7 @@ function wiring(){
     if(act==='edit') openEditModal(uuid);
     if(act==='instructors') openInstructors(uuid);
     if(act==='quizzes') openQuizzes(uuid);            // <-- Assign Quiz action
+    if(act==='coding') openCodingQuestions(uuid);    
     if(act==='assign') openStudents(uuid);
     if(act==='archive') return archiveBatch(uuid);
     if(act==='unarchive') return unarchiveBatch(uuid);
@@ -886,7 +993,12 @@ function applyFromURL(){}
 
 function rowActions(scope, r){
   if(scope==='active'){
-    return `<div class="dropdown text-end" data-bs-display="static"><button type="button" class="btn btn-primary btn-sm dd-toggle" data-bs-toggle="dropdown" aria-expanded="false" title="Actions"><i class="fa fa-ellipsis-vertical"></i></button><ul class="dropdown-menu dropdown-menu-end"><li><button class="dropdown-item" data-act="view" data-uuid="${r.uuid}"><i class="fa fa-circle-info"></i> View Batch</button></li><li><button class="dropdown-item" data-act="edit" data-uuid="${r.uuid}"><i class="fa fa-pen-to-square"></i> Edit Batch</button></li><li><button class="dropdown-item" data-act="instructors" data-uuid="${r.uuid}"><i class="fa fa-chalkboard-user"></i> Assign Instructor</button></li><li><button class="dropdown-item" data-act="quizzes" data-uuid="${r.uuid}"><i class="fa fa-question"></i> Assign Quiz</button></li><li><button class="dropdown-item" data-act="assign" data-uuid="${r.uuid}"><i class="fa fa-user-plus"></i> Manage Students</button></li><li><hr class="dropdown-divider"></li><li><button class="dropdown-item" data-act="archive" data-uuid="${r.uuid}"><i class="fa fa-box-archive"></i> Archive</button></li><li><button class="dropdown-item text-danger" data-act="delete" data-uuid="${r.uuid}"><i class="fa fa-trash"></i> Delete</button></li></ul></div>`;
+    return `<div class="dropdown text-end" data-bs-display="static"><button type="button" class="btn btn-primary btn-sm dd-toggle" data-bs-toggle="dropdown" aria-expanded="false" title="Actions"><i class="fa fa-ellipsis-vertical"></i></button><ul class="dropdown-menu dropdown-menu-end"><li><button class="dropdown-item" data-act="view" data-uuid="${r.uuid}"><i class="fa fa-circle-info"></i> View Batch</button></li><li><button class="dropdown-item" data-act="edit" data-uuid="${r.uuid}"><i class="fa fa-pen-to-square"></i> Edit Batch</button></li><li><button class="dropdown-item" data-act="instructors" data-uuid="${r.uuid}"><i class="fa fa-chalkboard-user"></i> Assign Instructor</button></li><li><button class="dropdown-item" data-act="quizzes" data-uuid="${r.uuid}"><i class="fa fa-question"></i> Assign Quiz</button></li><li>
+  <button class="dropdown-item" data-act="coding" data-uuid="${r.uuid}">
+    <i class="fa fa-code"></i> Assign Coding Question
+  </button>
+</li>
+<li><button class="dropdown-item" data-act="assign" data-uuid="${r.uuid}"><i class="fa fa-user-plus"></i> Manage Students</button></li><li><hr class="dropdown-divider"></li><li><button class="dropdown-item" data-act="archive" data-uuid="${r.uuid}"><i class="fa fa-box-archive"></i> Archive</button></li><li><button class="dropdown-item text-danger" data-act="delete" data-uuid="${r.uuid}"><i class="fa fa-trash"></i> Delete</button></li></ul></div>`;
   }
   if(scope==='archived'){
     return `<div class="dropdown text-end" data-bs-display="static"><button type="button" class="btn btn-primary btn-sm dd-toggle" data-bs-toggle="dropdown"><i class="fa fa-ellipsis-vertical"></i></button><ul class="dropdown-menu dropdown-menu-end"><li><button class="dropdown-item" data-act="view" data-uuid="${r.uuid}"><i class="fa fa-circle-info"></i> View Batch</button></li><li><hr class="dropdown-divider"></li><li><button class="dropdown-item" data-act="unarchive" data-uuid="${r.uuid}"><i class="fa fa-box-open"></i> Unarchive</button></li><li><button class="dropdown-item text-danger" data-act="delete" data-uuid="${r.uuid}"><i class="fa fa-trash"></i> Delete</button></li></ul></div>`;
@@ -1547,58 +1659,103 @@ async function openEditModal(uuid){
 gl_add.addEventListener('click', ()=> addGlRow('',''));
 [bm_start,bm_end].forEach(el=> el.addEventListener('change', ()=>{ bm_dur_prev.value = (bm_start.value && bm_end.value) ? humanYMD(bm_start.value,bm_end.value) : ''; }));
 bm_image.addEventListener('change', ()=>{ if (bm_image.files && bm_image.files[0]) bm_img_prev.src = URL.createObjectURL(bm_image.files[0]); else bm_img_prev.src='https://dummyimage.com/120x80/e9e3f5/5e1570.jpg&text=Batch+Image'; });
+/* Replace old: bm_save.addEventListener('click', saveBatch);
+   and the old async function saveBatch() {...}
+   with the following: */
+
+function setSaveLoading(on, text) {
+  if (!bm_save) return;
+  if (on) {
+    bm_save.disabled = true;
+    // store previous content to restore later
+    if (!bm_save.dataset.prevHtml) bm_save.dataset.prevHtml = bm_save.innerHTML;
+    bm_save.innerHTML = `<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>${esc(text || 'Saving…')}`;
+    bm_save.setAttribute('aria-busy', 'true');
+  } else {
+    bm_save.disabled = false;
+    if (bm_save.dataset.prevHtml) bm_save.innerHTML = bm_save.dataset.prevHtml;
+    bm_save.removeAttribute('aria-busy');
+    delete bm_save.dataset.prevHtml;
+  }
+}
 
 bm_save.addEventListener('click', saveBatch);
-async function saveBatch(){ 
-  if(!bm_title_input.value.trim()) return Swal.fire('Title required','Please enter a badge title.','info'); 
-  if(!bm_course_id.value) return Swal.fire('Course missing','Pick a course from the toolbar.','info'); 
-  if(bm_start.value && bm_end.value && (new Date(bm_end.value) < new Date(bm_start.value))) return Swal.fire('Invalid dates','End date cannot be before start date.','info'); 
-  const fd=new FormData(); 
-  fd.append('course_id', bm_course_id.value); 
-  fd.append('badge_title', bm_title_input.value.trim()); 
-  
-  // Use editor content instead of textarea
-  if(bm_desc_editor.innerHTML.trim()) fd.append('badge_description', bm_desc_editor.innerHTML.trim()); 
-  
-  if(bm_tagline.value.trim()) fd.append('tagline', bm_tagline.value.trim()); 
-  fd.append('mode', bm_mode_select.value); 
-  if(bm_contact.value.trim()) fd.append('contact_number', bm_contact.value.trim()); 
-  if(bm_note.value.trim()) fd.append('badge_note', bm_note.value.trim()); 
-  fd.append('status', bm_status.value); 
-  if(bm_start.value) fd.append('starts_on', bm_start.value); 
-  if(bm_end.value) fd.append('ends_on', bm_end.value); 
-  const kv=collectGroupLinks(); 
-  const keys=Object.keys(kv); 
-  if(keys.length){ 
-    keys.forEach(k=> fd.append(`group_links[${k}]`, kv[k])); 
-  } else { 
-    fd.append('group_links[]',''); 
-  } 
-  if(bm_image.files && bm_image.files[0]) fd.append('featured_image', bm_image.files[0]); 
-  try{ 
-    let url='/api/batches', method='POST'; 
-    if (bm_mode.value==='edit' && bm_uuid.value) { 
-      url = `/api/batches/${encodeURIComponent(bm_uuid.value)}`; 
-      fd.append('_method','PATCH'); 
-      method = 'POST'; 
-    } 
-    const res = await fetch(url,{ 
-      method, 
-      headers:{ 
-        'Authorization':'Bearer '+TOKEN, 
-        'Accept':'application/json', 
-        'Cache-Control':'no-cache' 
-      }, 
-      body: fd 
-    }); 
-    const j = await res.json().catch(()=>({})); 
-    if(!res.ok) throw new Error(firstError(j)||'Save failed'); 
-    ok('Batch saved'); 
-    bootstrap.Modal.getOrCreateInstance(document.getElementById('batchModal')).hide(); 
-    load('active'); 
-  }catch(e){ 
-    err(e.message||'Save failed'); 
-  } 
+
+async function saveBatch(){
+  if(!bm_title_input.value.trim()) return Swal.fire('Title required','Please enter a badge title.','info');
+  if(!bm_course_id.value) return Swal.fire('Course missing','Pick a course from the toolbar.','info');
+  if(bm_start.value && bm_end.value && (new Date(bm_end.value) < new Date(bm_start.value))) return Swal.fire('Invalid dates','End date cannot be before start date.','info');
+
+  const fd=new FormData();
+  fd.append('course_id', bm_course_id.value);
+  fd.append('badge_title', bm_title_input.value.trim());
+
+  if(bm_desc_editor.innerHTML.trim()) fd.append('badge_description', bm_desc_editor.innerHTML.trim());
+  if(bm_tagline.value.trim()) fd.append('tagline', bm_tagline.value.trim());
+  fd.append('mode', bm_mode_select.value);
+  if(bm_contact.value.trim()) fd.append('contact_number', bm_contact.value.trim());
+  if(bm_note.value.trim()) fd.append('badge_note', bm_note.value.trim());
+  fd.append('status', bm_status.value);
+  if(bm_start.value) fd.append('starts_on', bm_start.value);
+  if(bm_end.value) fd.append('ends_on', bm_end.value);
+  const kv=collectGroupLinks();
+  const keys=Object.keys(kv);
+  if(keys.length){
+    keys.forEach(k=> fd.append(`group_links[${k}]`, kv[k]));
+  } else {
+    fd.append('group_links[]','');
+  }
+  if(bm_image.files && bm_image.files[0]) fd.append('featured_image', bm_image.files[0]);
+
+  // Turn on Save button loading UI
+  setSaveLoading(true, 'Saving');
+
+  try{
+    let url='/api/batches', method='POST';
+    if (bm_mode.value==='edit' && bm_uuid.value) {
+      url = `/api/batches/${encodeURIComponent(bm_uuid.value)}`;
+      fd.append('_method','PATCH');
+      method = 'POST';
+    }
+
+    // show immediate table loader so users see activity in the list
+    if (currentCourseId) {
+      // clear current rows and show loader for active tab
+      clearBody('active');
+      showLoader('active', true);
+      document.querySelector(tabs.active.meta).textContent = 'Saving…';
+    }
+
+    const res = await fetch(url,{
+      method,
+      headers:{
+        'Authorization':'Bearer '+TOKEN,
+        'Accept':'application/json',
+        'Cache-Control':'no-cache'
+      },
+      body: fd
+    });
+    const j = await res.json().catch(()=>({}));
+    if(!res.ok) throw new Error(firstError(j)||'Save failed');
+
+    ok('Batch saved');
+
+    // Hide modal before reloading list (keeps modal closing smooth)
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('batchModal')).hide();
+
+    // After save: reload active list (load() shows loader too). Keep the loader visible for a short moment.
+    await load('active');
+
+  }catch(e){
+    console.error('Save error:', e);
+    err(e.message||'Save failed');
+
+    // If we showed the active loader earlier, hide it so user can retry
+    showLoader('active', false);
+  } finally {
+    // restore Save button state
+    setSaveLoading(false);
+  }
 }
 
 /* =================== ARCHIVE / DELETE / RESTORE (unchanged) =================== */
@@ -1819,7 +1976,268 @@ async function toggleQuiz(uuid, payload, checkboxEl=null, quiet=false){
 }
 
 ;/* end quizzes section */
-
+/* ================= CODING QUESTIONS (Assign Coding Question UI) ================= */
+const cq_q = document.getElementById('cq_q'),
+      cq_per = document.getElementById('cq_per'),
+      cq_apply = document.getElementById('cq_apply'),
+      cq_assigned = document.getElementById('cq_assigned'),
+      cq_rows = document.getElementById('cq_rows'),
+      cq_loader = document.getElementById('cq_loader'),
+      cq_meta = document.getElementById('cq_meta'),
+      cq_pager = document.getElementById('cq_pager');
+ 
+let codingQuestionsModal, cq_batch_uuid = null, cq_page = 1;
+ 
+function cqParams(){
+  const p = new URLSearchParams();
+  if (cq_q.value.trim()) p.set('q', cq_q.value.trim());
+  p.set('per_page', cq_per.value || 20);
+  p.set('page', cq_page);
+  if (cq_assigned.value === 'assigned') p.set('assigned', '1');
+  if (cq_assigned.value === 'unassigned') p.set('assigned', '0');
+  return p.toString();
+}
+ 
+function clampAttempts(v, maxAttempts){
+  const hardMax = Math.min(50, Number(maxAttempts) || 1);   // backend max=50
+  let n = parseInt(v, 10);
+  if (!Number.isFinite(n) || n < 1) n = hardMax;          // default = max attempts
+  if (n > hardMax) n = hardMax;
+  return n;
+}
+ 
+// Your controller returns: question_id, question_uuid, total_attempts, attempt_allowed
+function getMaxAttempts(item){
+  return Number(item.total_attempts ?? 1) || 1;
+}
+function getBatchAttempts(item){
+  const v = item.attempt_allowed;
+  return (v === null || v === undefined) ? '' : Number(v);
+}
+ 
+function openCodingQuestions(batchUuid){
+  codingQuestionsModal = codingQuestionsModal || new bootstrap.Modal(document.getElementById('codingQuestionsModal'));
+  cq_batch_uuid = batchUuid;
+  cq_page = 1;
+  cq_assigned.value = 'all';
+  codingQuestionsModal.show();
+  loadCodingQuestions();
+}
+ 
+cq_apply.addEventListener('click', ()=>{ cq_page = 1; loadCodingQuestions(); });
+cq_per.addEventListener('change', ()=>{ cq_page = 1; loadCodingQuestions(); });
+cq_assigned.addEventListener('change', ()=>{ cq_page = 1; loadCodingQuestions(); });
+ 
+let cqT;
+cq_q.addEventListener('input', ()=>{
+  clearTimeout(cqT);
+  cqT = setTimeout(()=>{ cq_page = 1; loadCodingQuestions(); }, 350);
+});
+ 
+// ✅ ASSIGN = POST /assign (your route)
+async function assignCodingQuestion(batchUuid, questionUuid, attemptAllowed, quiet=false){
+  const res = await fetch(`/api/batches/${encodeURIComponent(batchUuid)}/coding-questions/assign`, {
+    method: 'POST',
+    headers: { 'Authorization':'Bearer '+TOKEN, 'Content-Type':'application/json', 'Accept':'application/json' },
+    body: JSON.stringify({
+      question_uuid: questionUuid,
+      attempt_allowed: attemptAllowed,
+      publish_to_students: 1,
+      assign_status: 1
+    })
+  });
+  const j = await res.json().catch(()=>({}));
+  if(!res.ok) throw new Error(j?.message || firstError(j) || 'Assign failed');
+  if(!quiet) ok('Coding question assigned');
+  return j;
+}
+ 
+// ✅ UNASSIGN = DELETE /{questionUuid} (your route)
+async function unassignCodingQuestion(batchUuid, questionUuid, quiet=false){
+  const res = await fetch(`/api/batches/${encodeURIComponent(batchUuid)}/coding-questions/${encodeURIComponent(questionUuid)}`, {
+    method: 'DELETE',
+    headers: { 'Authorization':'Bearer '+TOKEN, 'Accept':'application/json' }
+  });
+  const j = await res.json().catch(()=>({}));
+  if(!res.ok) throw new Error(j?.message || firstError(j) || 'Unassign failed');
+  if(!quiet) ok('Coding question unassigned');
+  return j;
+}
+ 
+async function loadCodingQuestions(){
+  if(!cq_batch_uuid) return;
+ 
+  cq_loader.style.display = '';
+  cq_rows.querySelectorAll('tr:not(#cq_loader)').forEach(tr=>tr.remove());
+ 
+  try{
+    const res = await fetch(`/api/batches/${encodeURIComponent(cq_batch_uuid)}/coding-questions?${cqParams()}`, {
+      headers:{ 'Authorization':'Bearer '+TOKEN, 'Accept':'application/json' }
+    });
+ 
+    const j = await res.json().catch(()=>({}));
+    if(!res.ok) throw new Error(j?.message || 'Failed to load coding questions');
+ 
+    const items = Array.isArray(j?.data) ? j.data : [];
+    const pag = j?.pagination || { current_page: 1, per_page: Number(cq_per.value||20), total: items.length };
+ 
+    const frag = document.createDocumentFragment();
+ 
+    items.forEach(qn=>{
+      const assigned = !!qn.assigned;
+ 
+      // ✅ FIX: use controller keys
+      const questionId   = Number(qn.question_id);
+      const questionUuid = (qn.question_uuid || '').toString();
+ 
+      const title = qn.title || 'Untitled';
+      const difficulty = (qn.difficulty || '—').toString();
+      const maxAttempts = getMaxAttempts(qn);
+ 
+      // Attempts input always editable (user can set first)
+      let batchAttempts = getBatchAttempts(qn);
+      if (batchAttempts === '') batchAttempts = maxAttempts;
+ 
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td class="fw-semibold">${esc(title)}</td>
+        <td class="text-capitalize">${esc(difficulty)}</td>
+ 
+        <td class="text-center">
+          <span class="badge badge-info">${esc(maxAttempts)}</span>
+        </td>
+ 
+        <td class="text-center">
+          <input
+            class="form-control form-control-sm cq-attempt"
+            type="number"
+            min="1"
+            max="${esc(Math.min(50, maxAttempts))}"
+            value="${esc(batchAttempts)}"
+            style="width:120px; margin-inline:auto; text-align:center;"
+          >
+          <div class="small text-muted mt-1">1 — ${esc(Math.min(50, maxAttempts))}</div>
+        </td>
+ 
+        <td class="text-center">
+          <div class="form-check form-switch d-inline-block">
+            <input
+              class="form-check-input cq-tg"
+              type="checkbox"
+              data-qid="${esc(questionId)}"
+              data-uuid="${esc(questionUuid)}"
+              ${assigned ? 'checked' : ''}
+              ${questionUuid ? '' : 'disabled'}
+            >
+          </div>
+        </td>
+      `;
+      frag.appendChild(tr);
+    });
+ 
+    cq_rows.appendChild(frag);
+ 
+    // ✅ Toggle assign/unassign
+    cq_rows.querySelectorAll('.cq-tg').forEach(ch=>{
+      ch.addEventListener('change', async ()=>{
+        const row = ch.closest('tr');
+        const attemptEl = row.querySelector('.cq-attempt');
+        const max = Number(attemptEl.max || 1);
+ 
+        const questionUuid = ch.dataset.uuid;
+        if(!questionUuid){
+          ch.checked = !ch.checked;
+          return err('Question UUID missing from API response');
+        }
+ 
+        const wantAssigned = !!ch.checked;
+        const attemptAllowed = clampAttempts(attemptEl.value, max);
+ 
+        ch.disabled = true;
+        attemptEl.disabled = true;
+ 
+        try{
+          if(wantAssigned){
+            await assignCodingQuestion(cq_batch_uuid, questionUuid, attemptAllowed);
+          }else{
+            await unassignCodingQuestion(cq_batch_uuid, questionUuid);
+          }
+ 
+          // reload if filter will hide it
+          if ((cq_assigned.value==='assigned' && !wantAssigned) || (cq_assigned.value==='unassigned' && wantAssigned)){
+            loadCodingQuestions();
+          }
+        }catch(e){
+          ch.checked = !wantAssigned;
+          err(e.message);
+        }finally{
+          ch.disabled = false;
+          attemptEl.disabled = false;
+        }
+      });
+    });
+ 
+    // ✅ Save attempts (ONLY if already assigned)
+    cq_rows.querySelectorAll('.cq-attempt').forEach(inp=>{
+      inp.addEventListener('blur', async ()=>{
+        const row = inp.closest('tr');
+        const ch = row.querySelector('.cq-tg');
+        if(!ch?.checked) return; // only save when assigned
+ 
+        const questionUuid = ch.dataset.uuid;
+        if(!questionUuid) return;
+ 
+        const max = Number(inp.max || 1);
+        const attemptAllowed = clampAttempts(inp.value, max);
+        inp.value = String(attemptAllowed);
+ 
+        try{
+          await assignCodingQuestion(cq_batch_uuid, questionUuid, attemptAllowed, true);
+          ok('Attempts updated');
+        }catch(e){
+          err(e.message || 'Failed to update attempts');
+        }
+      });
+    });
+ 
+    // pagination
+    const total = Number(pag.total||items.length),
+          per   = Number(pag.per_page||20),
+          cur   = Number(pag.current_page||1);
+    const pages = Math.max(1, Math.ceil(total/per));
+ 
+    function li(dis,act,label,t){
+      return `<li class="page-item ${dis?'disabled':''} ${act?'active':''}">
+                <a class="page-link" href="javascript:void(0)" data-page="${t||''}">${label}</a>
+              </li>`;
+    }
+    let html='';
+    html+=li(cur<=1,false,'Prev',cur-1);
+    const w=2,s=Math.max(1,cur-w),e=Math.min(pages,cur+w);
+    for(let i=s;i<=e;i++) html+=li(false,i===cur,i,i);
+    html+=li(cur>=pages,false,'Next',cur+1);
+ 
+    cq_pager.innerHTML = html;
+    cq_pager.querySelectorAll('a.page-link[data-page]').forEach(a=>{
+      a.addEventListener('click', ()=>{
+        const t = Number(a.dataset.page);
+        if(!t || t===cq_page) return;
+        cq_page = t;
+        loadCodingQuestions();
+      });
+    });
+ 
+    cq_meta.textContent = `Page ${cur} of ${pages} — ${total} coding question(s)`;
+ 
+  }catch(e){
+    console.error(e);
+    err(e.message || 'Failed to load coding questions');
+  }finally{
+    cq_loader.style.display = 'none';
+  }
+}
+/* end coding questions section */
+ 
 });
 </script>
 </body>
