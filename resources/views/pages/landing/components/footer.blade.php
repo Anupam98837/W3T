@@ -22,27 +22,27 @@
         <div>
           <div class="lp-footer-col-title">Academy</div>
           <ul class="lp-footer-links">
-            <li><a href="#courses">All courses</a></li>
-            <li><a href="#categories">Career tracks</a></li>
-            <li><a href="#features">Why W3Techiez</a></li>
-            <li><a href="#">Corporate training</a></li>
+            <li><a href="/courses/all">All courses</a></li>
+            <li><a href="/categories/all">Career tracks</a></li>
+            <li><a href="/about-us">About us</a></li>
+            <!-- <li><a href="#">Corporate training</a></li> -->
           </ul>
         </div>
         <div>
           <div class="lp-footer-col-title">Support</div>
           <ul class="lp-footer-links">
-            <li><a href="#">Help center</a></li>
-            <li><a href="#">Contact us</a></li>
-            <li><a href="#">Scholarships</a></li>
-            <li><a href="#">Student community</a></li>
+            <!-- <li><a href="#">Help center</a></li> -->
+            <li><a href="/contact-us">Contact us</a></li>
+            <!-- <li><a href="#">Scholarships</a></li> -->
+            <!-- <li><a href="#">Student community</a></li> -->
           </ul>
         </div>
         <div>
           <div class="lp-footer-col-title">Legal</div>
           <ul class="lp-footer-links">
-            <li><a href="#">Terms of use</a></li>
-            <li><a href="#">Privacy policy</a></li>
-            <li><a href="#">Refund policy</a></li>
+            <li><a href="/terms&conditions">Terms of use</a></li>
+            <li><a href="/privacypolicy">Privacy policy</a></li>
+            <li><a href="/refundpolicy">Refund policy</a></li>
           </ul>
         </div>
       </div>

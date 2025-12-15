@@ -28,6 +28,12 @@ use App\Http\Controllers\API\LandingPageController;
 use App\Http\Controllers\API\CourseCategoryController;
 use App\Http\Controllers\API\DashboardController;
 use App\Http\Controllers\API\BatchCodingQuestionController;
+use App\Http\Controllers\API\TermsController;
+use App\Http\Controllers\API\PrivacyPolicyController;
+use App\Http\Controllers\API\RefundPolicyController;
+use App\Http\Controllers\API\AboutUsController;
+use App\Http\Controllers\API\ContactUsController;
+
 // Auth Routes
 
 Route::post('/auth/login',  [UserController::class, 'login']);
@@ -49,8 +55,9 @@ Route::middleware(['checkRole:instructor,author,admin,super_admin'])->group(func
     Route::get('/users/all',  [UserController::class, 'all']);     
     Route::get('/users/{id}', [UserController::class, 'show']);    
 });
+Route::get('/profile', [UserController::class, 'getProfile']);
 
-Route::middleware(['checkRole:admin,super_admin'])->group(function () {
+Route::middleware(['checkRole:admin,super_admin,student,instructor'])->group(function () {
     Route::post('/users',                        [UserController::class, 'store']);      
     Route::match(['put','patch'], '/users/{id}', [UserController::class, 'update']);     
     Route::delete('/users/{id}',                 [UserController::class, 'destroy']);      
@@ -608,3 +615,48 @@ Route::middleware(['checkRole:superadmin,admin,instructor,student'])->group(func
     });
  
 });
+
+//Terms & Condition
+Route::prefix('terms')->group(function () {
+    Route::get('/', [TermsController::class, 'index']);
+    Route::get('/check', [TermsController::class, 'check']);
+    Route::post('/', [TermsController::class, 'store']);
+    Route::put('/', [TermsController::class, 'update']);  
+    Route::delete('/', [TermsController::class, 'destroy']);
+});
+
+//Privacy Policy
+Route::prefix('privacy-policy')->group(function () {
+    Route::get('/', [PrivacyPolicyController::class, 'index']);
+    Route::get('/check', [PrivacyPolicyController::class, 'check']);
+    Route::post('/', [PrivacyPolicyController::class, 'store']);
+    Route::put('/', [PrivacyPolicyController::class, 'update']);  
+    Route::delete('/', [PrivacyPolicyController::class, 'destroy']);
+});
+
+
+//Refund Policy
+Route::prefix('refund-policy')->group(function () {
+    Route::get('/', [RefundPolicyController::class, 'index']);
+    Route::get('/check', [RefundPolicyController::class, 'check']);
+    Route::post('/', [RefundPolicyController::class, 'store']);
+    Route::put('/', [RefundPolicyController::class, 'update']);    
+    Route::delete('/', [RefundPolicyController::class, 'destroy']);
+});
+//About Us 
+Route::get('/about-us', [AboutUsController::class, 'index']);
+Route::get('/about-us/check', [AboutUsController::class, 'check']);
+
+Route::post('/about-us', [AboutUsController::class, 'store']); // create
+Route::put('/about-us', [AboutUsController::class, 'update']);
+
+Route::delete('/about-us', [AboutUsController::class, 'destroy']);
+
+//Contact Us
+/* Public */
+Route::post('/contact-us', [ContactUsController::class, 'store']);
+
+/* Admin */
+Route::get('/contact-us', [ContactUsController::class, 'index']);
+Route::get('/contact-us/{id}', [ContactUsController::class, 'show']);
+Route::delete('/contact-us/{id}', [ContactUsController::class, 'destroy']);

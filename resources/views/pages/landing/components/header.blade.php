@@ -1661,6 +1661,16 @@
     background: transparent;
   }
 }
+.lp-announcement-link{
+  display: block;
+  text-decoration: none;
+  color: inherit;
+}
+
+.lp-announcement-link:hover{
+  text-decoration: none;
+}
+
 
 
   </style>
@@ -1671,16 +1681,19 @@
   @include('partials.overlay')
 
   <!-- Announcement strip -->
+  <a href="{{ url('/updates/all') }}" class="lp-announcement-link">
   <div class="lp-announcement">
-  <div class="lp-announcement-inner">
-    <div class="lp-announcement-label">Updates</div>
-    <div class="lp-announcement-track">
-      <div class="lp-announcement-scroll">
-        {{-- JS will inject <span> elements here --}}
+    <div class="lp-announcement-inner">
+      <div class="lp-announcement-label">Updates</div>
+      <div class="lp-announcement-track">
+        <div class="lp-announcement-scroll">
+          {{-- JS will inject <span> elements here --}}
+        </div>
       </div>
     </div>
   </div>
-</div>
+</a>
+
 
 
   <!-- Top Nav -->
@@ -1711,10 +1724,17 @@
     </a>
   </div>
     <div class="lp-nav-item">
-    <a href="{{ url('/updates/all') }}">
-      Updates
-    </a>
-  </div>
+  <a href="{{ url('/about-us') }}">
+    About Us
+  </a>
+</div>
+
+<div class="lp-nav-item">
+  <a href="{{ url('/contact-us') }}">
+    Contact Us
+  </a>
+</div>
+
   <!-- Why Us (keeps dropdown) -->
   <div class="lp-nav-item" style="display:none">
     <a href="#features">
