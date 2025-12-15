@@ -1,5 +1,5 @@
 {{-- pages/users/super_admin/pages/mailers/manageMailers.blade.php --}}
-@extends('pages.users.admin.layout.structure')
+@extends('pages.users.instructor.layout.structure')
 
 @push('styles')
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"/>

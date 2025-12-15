@@ -90,7 +90,6 @@ Route::get('/super_admin/courses/{course}', fn ($course) =>
 
 
 // Admin Routes 
-
 Route::get('/admin/dashboard', function () {
     return view('pages.users.admin.pages.common.dashboard');
 })->name('dashboard');
@@ -156,7 +155,7 @@ Route::get('/admin/assignments/manage', function () {
 
 Route::get('/admin/courses/{uuid}/view', function (string $uuid) {
     return view('modules.course.viewCourse.viewCourseLayout', [
-        'courseParam' => $uuid,   // <-- pass to Blade; JS will use this directly
+        'courseParam' => $uuid,  
     ]);
 })->whereUuid('uuid')->name('admin.courses.view');
 
@@ -215,32 +214,43 @@ Route::prefix('admin') // add your middlewares if needed
         )->name('admin.questions.manage');
     });
 // Landing Page dynamic Routes
-  Route::get('/admin/LandingPage/updates/manage', function () {
+ Route::get('/admin/landing-page/updates/manage', function () {
     return view('pages.users.admin.pages.landingPages.manageUpdates');
 });
- Route::get('/admin/LandingPage/contacts/manage', function () {
+
+Route::get('/admin/landing-page/contacts/manage', function () {
     return view('pages.users.admin.pages.landingPages.manageContacts');
 });
- Route::get('/admin/LandingPage/hero-images/manage', function () {
+
+Route::get('/admin/landing-page/hero-images/manage', function () {
     return view('pages.users.admin.pages.landingPages.manageHeroImages');
 });
-Route::get('/admin/LandingPage/categories/manage', function () {
+
+Route::get('/admin/landing-page/categories/manage', function () {
     return view('pages.users.admin.pages.landingPages.manageCategories');
 });
+
 Route::get('/admin/featured/courses/manage', function () {
     return view('pages.users.admin.pages.landingPages.manageCourses');
 });
-Route::get('/admin/LandingPage/Term&Conditions/manage', function () {
+
+Route::get('/admin/landing-page/terms-and-conditions/manage', function () {
     return view('pages.users.admin.pages.landingPages.manageTermsAndCondition');
 });
-Route::get('/admin/LandingPage/Refund-Policy/manage', function () {
+
+Route::get('/admin/landing-page/refund-policy/manage', function () {
     return view('pages.users.admin.pages.landingPages.manageRefundPolicy');
 });
-Route::get('/admin/LandingPage/Privacy-Policy/manage', function () {
+
+Route::get('/admin/landing-page/privacy-policy/manage', function () {
     return view('pages.users.admin.pages.landingPages.managePrivacyPolicy');
 });
-Route::get('/admin/LandingPage/About-Us/manage', function () {
+
+Route::get('/admin/landing-page/about-us/manage', function () {
     return view('pages.users.admin.pages.landingPages.manageAboutUs');
+});
+Route::get('/admin/landing-page/enquiry/manage', function () {
+    return view('pages.users.admin.pages.landingPages.manageEnquiry');
 });
 
 // Student Routes
@@ -259,14 +269,6 @@ Route::get('/mycourses/{batch}/view', function($batchUuid) {
 Route::get('/exam/results/{resultId}/view', function ($resultId) {
     return view('modules.course.viewCourse.viewCourseTabs.examResult', ['resultId' => $resultId]);
 });
-
-
-
-
-
-
-
-
 
 
 // Instructor Routes
@@ -302,6 +304,19 @@ Route::get('/admin/notice/create', function () {
 
 
 
-Route::get('/profile', function () {
+
+Route::get('/admin/profile', function () {
     return view('pages.users.admin.pages.common.profile');
+});
+
+Route::get('/student/profile', function () {
+    return view('pages.users.student.pages.common.profile');
+});
+
+Route::get('/instructor/profile', function () {
+    return view('pages.users.instructor.pages.common.profile');
+});
+
+Route::get('/super-admin/profile', function () {
+    return view('pages.users.super_admin.pages.common.profile');
 });

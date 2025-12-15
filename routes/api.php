@@ -42,6 +42,7 @@ Route::post('/auth/logout', [UserController::class, 'logout'])
     ->middleware('checkRole');
 Route::get('/auth/check',   [UserController::class, 'authenticateToken']);
 Route::get('/auth/my-role', [UserController::class, 'getMyRole']);
+Route::get('/profile', [UserController::class, 'getProfile']);
 Route::post('/auth/register', [UserController::class, 'register']);
 Route::get('/user', function (Request $request) {
     return $request->user();
@@ -57,14 +58,16 @@ Route::middleware(['checkRole:instructor,author,admin,super_admin'])->group(func
     Route::get('/users/{id}', [UserController::class, 'show']);    
 });
  
+ Route::post('/users',                        [UserController::class, 'store']);      
+    Route::match(['put','patch'], '/users/{id}', [UserController::class, 'update']);   
+     Route::patch('/users/{id}/password',         [UserController::class, 'updatePassword']);
+    Route::post('/users/{id}/image',             [UserController::class, 'updateImage']);   
 Route::middleware(['checkRole:admin,super_admin'])->group(function () {
-    Route::post('/users',                        [UserController::class, 'store']);      
-    Route::match(['put','patch'], '/users/{id}', [UserController::class, 'update']);    
+   
     Route::delete('/users/{id}',                 [UserController::class, 'destroy']);      
     Route::post('/users/{id}/restore',           [UserController::class, 'restore']);    
     Route::delete('/users/{id}/force',           [UserController::class, 'forceDelete']);  
-    Route::patch('/users/{id}/password',         [UserController::class, 'updatePassword']);
-    Route::post('/users/{id}/image',             [UserController::class, 'updateImage']);  
+   
 });
  
  
@@ -667,3 +670,5 @@ Route::post('/contact-us', [ContactUsController::class, 'store']);
 Route::get('/contact-us', [ContactUsController::class, 'index']);
 Route::get('/contact-us/{id}', [ContactUsController::class, 'show']);
 Route::delete('/contact-us/{id}', [ContactUsController::class, 'destroy']);
+Route::get('/contact-us/export/csv', [ContactUsController::class, 'exportCsv']);
+Route::patch('/contact-us/{id}/read', [ContactUsController::class, 'markAsRead']);

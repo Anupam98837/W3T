@@ -18,7 +18,7 @@
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet"/>
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" rel="stylesheet"/>
   <link rel="stylesheet" href="{{ asset('/assets/css/common/main.css') }}">
- 
+ @stack('styles')
   <style>
     /* ================= W3Techiez Layout (namespaced; no overrides of main.css) ================= */
     :root{
@@ -186,9 +186,7 @@
     html.theme-dark .dropdown-menu .dropdown-header{ color:var(--text-color); }
     html.theme-dark .dropdown-menu .dropdown-item{ color:var(--text-color); }
     html.theme-dark .dropdown-menu .dropdown-item:hover{ background:#13203a; color:var(--accent-color); }
-  </style>
 
-  <style>
 /* Force dark mode scrollbar styles */
 html.theme-dark ::-webkit-scrollbar {
   width: 8px !important;
@@ -324,7 +322,7 @@ html.theme-dark .w3-sidebar-scroll::-webkit-scrollbar-thumb {
       <div class="w3-section-rule"></div>
     </div>
     <nav class="w3-menu d-lg-none" aria-label="Account">
-      <a href="/profile" class="w3-link"><i class="fa fa-id-badge"></i><span>Profile</span></a>
+      <a href="/super-admin/profile" class="w3-link"><i class="fa fa-id-badge"></i><span>Profile</span></a>
       <a href="/settings" class="w3-link"><i class="fa fa-gear"></i><span>Settings</span></a>
     </nav>
   </div>
@@ -385,7 +383,7 @@ html.theme-dark .w3-sidebar-scroll::-webkit-scrollbar-thumb {
         </a>
         <ul class="dropdown-menu dropdown-menu-end shadow">
           <li class="dropdown-header">Account</li>
-          <li><a class="dropdown-item" href="/profile"><i class="fa fa-id-badge me-2"></i>Profile</a></li>
+          <li><a class="dropdown-item" href="/super-admin/profile"><i class="fa fa-id-badge me-2"></i>Profile</a></li>
           <li><a class="dropdown-item" href="/settings"><i class="fa fa-gear me-2"></i>Settings</a></li>
           <li><hr class="dropdown-divider"></li>
           <li><a class="dropdown-item" href="#" id="logoutBtn"><i class="fa fa-right-from-bracket me-2"></i>Logout</a></li>

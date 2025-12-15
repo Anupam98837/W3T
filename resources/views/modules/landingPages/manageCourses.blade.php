@@ -308,7 +308,7 @@ html.theme-dark .media-item{background:#0b1020;border-color:var(--line-strong)}
                   <th>CATEGORY</th>
                   <th style="width:16%;">TYPE / PRICE</th>
                   <th class="sortable" data-col="featured_rank" style="width:90px;">RANK <span class="caret"></span></th>
-                  <th class="sortable" data-col="created_at">CREATED <span class="caret"></span></th>
+                  <th style="width:120px;">STATUS</th>
                   <th style="width:140px;" class="text-center">FEATURED</th>
                   <th class="text-end" style="width:112px;">ACTIONS</th>
                 </tr>
@@ -357,7 +357,7 @@ html.theme-dark .media-item{background:#0b1020;border-color:var(--line-strong)}
                   <th class="sortable" data-col="title">COURSE <span class="caret"></span></th>
                   <th>CATEGORY</th>
                   <th style="width:16%;">TYPE / PRICE</th>
-                  <th class="sortable" data-col="created_at">CREATED <span class="caret"></span></th>
+<th style="width:120px;">STATUS</th>
                   <th style="width:140px;" class="text-center">FEATURED</th>
                   <th class="text-end" style="width:112px;">ACTIONS</th>
                 </tr>
@@ -773,7 +773,6 @@ document.addEventListener('click',(e)=>{
             ${esc(title)}
           </a>
         </div>
-        <div class="small text-muted">${badgeStatus(r)} · ${esc(r.slug || '')}</div>
       </td>
       <td>${esc(cat)}</td>
       <td>${courseTypePrice(r)}</td>
@@ -784,7 +783,7 @@ document.addEventListener('click',(e)=>{
         <td class="text-center"><i class="fa fa-star text-warning"></i></td>
         ${commonCols}
         <td>${Number(r.featured_rank ?? 0)}</td>
-        <td>${created}</td>
+<td>${badgeStatus(r)}</td>
         <td class="feature-toggle-cell text-center">
           <div class="form-check form-switch d-inline-flex align-items-center">
             <input class="form-check-input fc-toggle" type="checkbox" data-id="${esc(r.uuid || r.id)}" ${toggleChecked}>
@@ -797,7 +796,7 @@ document.addEventListener('click',(e)=>{
       tr.innerHTML = `
         <td class="text-center"><i class="fa-regular fa-star text-muted"></i></td>
         ${commonCols}
-        <td>${created}</td>
+<td>${badgeStatus(r)}</td>
         <td class="feature-toggle-cell text-center">
           <div class="form-check form-switch d-inline-flex align-items-center">
             <input class="form-check-input fc-toggle" type="checkbox" data-id="${esc(r.uuid || r.id)}" ${toggleChecked}>

@@ -346,7 +346,7 @@ html.theme-dark .w3-sidebar-scroll::-webkit-scrollbar-thumb {
           
           <a href="/admin/courses/manage" class="w3-link">All Courses</a>
           <a href="/admin/courses/create" class="w3-link" style="display:none">Create Course</a>
-           <a href="/admin/LandingPage/categories/manage" class="w3-link">Categories</a>
+           <a href="/admin/landing-page/categories/manage" class="w3-link">Categories</a>
           <a href="/admin/courses" class="w3-link">Running Courses</a>
           <a href="/admin/batches/manage" class="w3-link">Batches</a>
         </div>
@@ -386,6 +386,17 @@ html.theme-dark .w3-sidebar-scroll::-webkit-scrollbar-thumb {
           <a href="/admin/course/studyMaterial/manage" class="w3-link">All Study Materials</a>
         </div>
       </div>
+         <!-- Notices Group Menu -->
+<div class="w3-group">
+  <a href="#" class="w3-link w3-toggle" data-target="sm-notices" aria-expanded="false">
+    <i class="fa-solid fa-bullhorn"></i><span>Notices</span>
+    <i class="fa fa-chevron-down w3-chev"></i>
+  </a>
+  <div id="sm-notices" class="w3-submenu" role="group" aria-label="Notices submenu">
+    <a href="/admin/notice/manage" class="w3-link">All Notices</a>
+    <a href="/admin/notice/create" class="w3-link">Create Notice</a>
+  </div>
+</div>
     </nav>
     <!-- Exams Section -->
 <div class="w3-nav-section">
@@ -470,22 +481,62 @@ html.theme-dark .w3-sidebar-scroll::-webkit-scrollbar-thumb {
       <div class="w3-section-rule"></div>
     </div>
 
-    <nav class="w3-menu" aria-label="Landing Page Setting">
-      <div class="w3-group">
-        <a href="#" class="w3-link w3-toggle" data-target="sm-landingpage" aria-expanded="false">
-          <i class="fa-solid fa-globe"></i><span>Landing Page</span>
-          <i class="fa fa-chevron-down w3-chev"></i>
-        </a>
-        <div id="sm-landingpage" class="w3-submenu" role="group" aria-label="Landing Page submenu">
-          <a href="/admin/LandingPage/updates/manage" class="w3-link">Updates</a>
-          <a href="/admin/LandingPage/contacts/manage" class="w3-link">Contacts</a>
-          <a href="/admin/LandingPage/hero-images/manage" class="w3-link">Hero Images</a>
-           <a href="/admin/featured/courses/manage" class="w3-link">Featured Courses</a>
+    <nav class="w3-menu" aria-label="Admin Sidebar">
 
-         
-        </div>
-      </div>
-    </nav>
+  <!-- ===== LANDING PAGE ===== -->
+  <div class="w3-group">
+    <a href="#" class="w3-link w3-toggle" data-target="sm-landingpage" aria-expanded="false">
+      <i class="fa-solid fa-globe"></i>
+      <span>Landing Page</span>
+      <i class="fa fa-chevron-down w3-chev"></i>
+    </a>
+    <div id="sm-landingpage" class="w3-submenu">
+      <a href="/admin/landing-page/updates/manage" class="w3-link">Updates</a>
+            <a href="/admin/landing-page/contacts/manage" class="w3-link">Contacts</a>
+      <a href="/admin/landing-page/hero-images/manage" class="w3-link">Hero Images</a>
+      <a href="/admin/featured/courses/manage" class="w3-link">Featured Courses</a>
+    </div>
+  </div>
+
+  <!-- ===== COMPANY ===== -->
+  <div class="w3-group">
+    <a href="#" class="w3-link w3-toggle" data-target="sm-company" aria-expanded="false">
+      <i class="fa-solid fa-building"></i>
+      <span>Company</span>
+      <i class="fa fa-chevron-down w3-chev"></i>
+    </a>
+    <div id="sm-company" class="w3-submenu">
+      <a href="/admin/landing-page/about-us/manage" class="w3-link">About Us</a>
+    </div>
+  </div>
+
+  <!-- ===== LEGAL ===== -->
+  <div class="w3-group">
+    <a href="#" class="w3-link w3-toggle" data-target="sm-legal" aria-expanded="false">
+      <i class="fa-solid fa-scale-balanced"></i>
+      <span>Legal</span>
+      <i class="fa fa-chevron-down w3-chev"></i>
+    </a>
+    <div id="sm-legal" class="w3-submenu">
+      <a href="/admin/landing-page/terms-and-conditions/manage" class="w3-link">Terms & Conditions</a>
+      <a href="/admin/landing-page/privacy-policy/manage" class="w3-link">Privacy Policy</a>
+      <a href="/admin/landing-page/refund-policy/manage" class="w3-link">Refund Policy</a>
+    </div>
+  </div>
+
+  <!-- ===== USER INTERACTION ===== -->
+  <div class="w3-group">
+    <a href="#" class="w3-link w3-toggle" data-target="sm-user-interaction" aria-expanded="false">
+      <i class="fa-solid fa-comments"></i>
+      <span>User Enquiries</span>
+      <i class="fa fa-chevron-down w3-chev"></i>
+    </a>
+    <div id="sm-user-interaction" class="w3-submenu">
+      <a href="/admin/landing-page/enquiry/manage" class="w3-link">Enquiries</a>
+    </div>
+  </div>
+
+</nav>
 
     <!-- Operations -->
     <div class="w3-nav-section">
@@ -493,17 +544,7 @@ html.theme-dark .w3-sidebar-scroll::-webkit-scrollbar-thumb {
       <div class="w3-section-rule"></div>
     </div>
     <nav class="w3-menu" aria-label="Operations">
-      <!-- Notices Group Menu -->
-<div class="w3-group">
-  <a href="#" class="w3-link w3-toggle" data-target="sm-notices" aria-expanded="false">
-    <i class="fa-solid fa-bullhorn"></i><span>Notices</span>
-    <i class="fa fa-chevron-down w3-chev"></i>
-  </a>
-  <div id="sm-notices" class="w3-submenu" role="group" aria-label="Notices submenu">
-    <a href="/admin/notice/manage" class="w3-link">All Notices</a>
-    <a href="/admin/notice/create" class="w3-link">Create Notice</a>
-  </div>
-</div>
+   
 
  
       <a href="/admin/mailers/manage" class="w3-link"><i class="fa-solid fa-gear"></i><span>Mailer</span></a>
@@ -515,7 +556,7 @@ html.theme-dark .w3-sidebar-scroll::-webkit-scrollbar-thumb {
       <div class="w3-section-rule"></div>
     </div>
     <nav class="w3-menu d-lg-none" aria-label="Account">
-      <a href="/profile" class="w3-link"><i class="fa fa-id-badge"></i><span>Profile</span></a>
+      <a href="/admin/profile" class="w3-link"><i class="fa fa-id-badge"></i><span>Profile</span></a>
       <a href="/settings" class="w3-link"><i class="fa fa-gear"></i><span>Settings</span></a>
     </nav>
   </div>
@@ -576,7 +617,7 @@ html.theme-dark .w3-sidebar-scroll::-webkit-scrollbar-thumb {
         </a>
         <ul class="dropdown-menu dropdown-menu-end shadow">
           <li class="dropdown-header">Account</li>
-          <li><a class="dropdown-item" href="/profile"><i class="fa fa-id-badge me-2"></i>Profile</a></li>
+          <li><a class="dropdown-item" href="/admin/profile"><i class="fa fa-id-badge me-2"></i>Profile</a></li>
           <li><a class="dropdown-item" href="/settings"><i class="fa fa-gear me-2"></i>Settings</a></li>
           <li><hr class="dropdown-divider"></li>
           <li><a class="dropdown-item" href="#" id="logoutBtn"><i class="fa fa-right-from-bracket me-2"></i>Logout</a></li>

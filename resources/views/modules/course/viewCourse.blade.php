@@ -139,12 +139,10 @@
   {{-- ===== Heading ===== --}}
   <div class="mb-3">
     <div class="cv-breadcrumb small text-muted mb-1">
-      <a href="javascript:history.back()" class="me-1"><i class="fa fa-arrow-left-long me-1"></i>Back</a>
+      <a href="javascript:history.back()" class="me-1" style="display:none;"><i class="fa fa-arrow-left-long me-1"></i>Back</a>
     </div>
 
-    <h1 id="cvTitle" class="cv-title">—</h1>
-    <div id="cvSub" class="cv-sub">—</div>
-
+    
     <div id="cvBadges" style="display:none;" class="cv-badges mt-2"><!-- no “Loading” badge --></div>
   </div>
 
@@ -154,6 +152,8 @@
     {{-- tiny transparent pixel as placeholder; hidden until real cover loads --}}
     <img class="img-fluid" id="cvCover" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==" alt="Course cover">
   </div>
+  <h1 id="cvTitle" class="cv-title">—</h1>
+    <div id="cvSub" class="cv-sub">—</div>
 
   {{-- ===== Thumb strip (gallery) ===== --}}
   <div id="cvThumbs" class="d-flex justify-content-center row g-2 mb-4 cv-thumbs"></div>
@@ -204,11 +204,11 @@
         <div class="cv-head">Course Details</div>
         <div class="cv-body">
           <div class="row py-1" style="display:none;"><div class="col-6 lbl" >Status</div><div id="dStatus" class="col-6 val" style="display:none;">—</div></div>
-          <div class="row py-1"><div class="col-6 lbl">Type</div><div id="dType" class="col-6 val">—</div></div>
+          <div class="row py-1" style="display:none;"><div class="col-6 lbl" >Type</div><div id="dType" class="col-6 val">—</div></div>
           <div class="row py-1"><div class="col-6 lbl">Difficulty</div><div id="dDiff" class="col-6 val">—</div></div>
           <div class="row py-1"><div class="col-6 lbl">Language</div><div id="dLang" class="col-6 val">—</div></div>
           <div class="row py-1"><div class="col-6 lbl">Duration</div><div id="dDur" class="col-6 val">—</div></div>
-          <div class="row py-1"><div class="col-6 lbl">Created</div><div id="dCreated" class="col-6 val">—</div></div>
+          <div class="row py-1" style="display:none;"><div class="col-6 lbl">Created</div><div id="dCreated" class="col-6 val">—</div></div>
           <hr class="my-2">
           <div class="small text-muted">
             <div><b>Course ID:</b> <span id="dUuid">—</span></div>
