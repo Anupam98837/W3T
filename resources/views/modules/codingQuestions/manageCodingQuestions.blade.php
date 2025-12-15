@@ -815,30 +815,43 @@
                   <input type="number" id="sort_order" class="form-control" value="0" min="0">
                 </div>
               </div>
-              <div class="grid-3 mt-2">
-                <div>
-                  <label class="form-label">Status</label>
-                  <select id="status" class="form-select">
-                    <option value="active">Active</option>
-                    <option value="draft">Draft</option>
-                    <option value="archived">Archived</option>
-                  </select>
-                </div>
-                <div>
-                  <label class="form-label">Difficulty</label>
-                  <select id="difficulty" class="form-select">
-                    <option value="easy">Easy</option>
-                    <option value="medium" selected>Medium</option>
-                    <option value="hard">Hard</option>
-                  </select>
-                </div>
-                <div>
-                  <label class="form-label">Tags (optional)</label>
-                  <input class="form-control" id="tags" placeholder="e.g., arrays, dp, math">
-                  <div class="form-help">Comma-separated tags. Optional, for your own search/filter.</div>
-                </div>
-              </div>
-            </div>
+             <div class="grid-3 mt-2">
+  <div>
+    <label class="form-label">Status</label>
+    <select id="status" class="form-select">
+      <option value="active">Active</option>
+      <option value="draft">Draft</option>
+      <option value="archived">Archived</option>
+    </select>
+  </div>
+
+  <div>
+    <label class="form-label">Difficulty</label>
+    <select id="difficulty" class="form-select">
+      <option value="easy">Easy</option>
+      <option value="medium" selected>Medium</option>
+      <option value="hard">Hard</option>
+    </select>
+  </div>
+
+  <div>
+    <label class="form-label">Total Time (min) <span class="text-muted">(optional)</span></label>
+    <span class="i-btn"
+          data-i-title="Total Time (minutes)"
+          data-i-text="Optional time limit for this question. Leave empty for no overall time limit.">
+      i
+    </span>
+    <input type="number" id="total_time_min" class="form-control" min="1" placeholder="e.g., 45">
+    <div class="form-help">Leave empty = no time limit.</div>
+  </div>
+</div>
+
+<div class="mt-2">
+  <label class="form-label">Tags (optional)</label>
+  <input class="form-control" id="tags" placeholder="e.g., arrays, dp, math">
+  <div class="form-help">Comma-separated tags. Optional, for your own search/filter.</div>
+</div>
+
 
             {{-- Problem Statement with WYSIWYG --}}
             <div class="card-lite mb-3">
@@ -1126,6 +1139,8 @@ function initEditors(){
   const status = document.getElementById('status');
   const difficulty = document.getElementById('difficulty');
   const sort_order = document.getElementById('sort_order');
+  const total_time_min = document.getElementById('total_time_min');
+
 
   const desc = document.getElementById('desc');
   const solution = document.getElementById('solution');
@@ -1207,9 +1222,15 @@ function initEditors(){
       item.dataset.id = row.id;
       item.draggable = true;
 
-      const sub =
-        (row.slug ? `/${row.slug}` : '') +
-        (row.difficulty ? ` • ${row.difficulty}` : '');
+      const timePart = (row.total_time_min && Number(row.total_time_min) > 0)
+  ? ` • ${row.total_time_min}m`
+  : '';
+
+const sub =
+  (row.slug ? `/${row.slug}` : '') +
+  (row.difficulty ? ` • ${row.difficulty}` : '') +
+  timePart;
+
 
       item.innerHTML = `
         <div class="drag"><i class="fa fa-grip-vertical"></i></div>
@@ -1256,6 +1277,8 @@ function initEditors(){
       status.value = q.status || 'active';
       difficulty.value = q.difficulty || 'medium';
       sort_order.value = q.sort_order ?? 0;
+      total_time_min.value = (q.total_time_min ?? '');
+
 
       desc.value = q.description || '';
       solution.value = q.solution || '';
@@ -1364,6 +1387,7 @@ function initEditors(){
     whitespace_mode.value='trim';
     float_abs_tol.value='';
     float_rel_tol.value='';
+    total_time_min.value = '';
     tagsInput.value = '';
     langBlocks=[];
     renderLangs();
@@ -1823,30 +1847,32 @@ function initEditors(){
       const allows = allowStr.split(',').map(s=>s.trim()).filter(Boolean);
       const forbids = forbidStr.split(',').map(s=>s.trim()).filter(Boolean);
 
-      return {
-        language_key: card.querySelector('.lang_language_key').value.trim(),
-        runtime_key:  card.querySelector('.lang_runtime_key').value.trim(),
-        source_filename: card.querySelector('.lang_source_filename').value.trim(),
-        compile_cmd: card.querySelector('.lang_compile_cmd').value.trim(),
-        run_cmd:     card.querySelector('.lang_run_cmd').value.trim(),
-        stdout_kb_max: _toNum(card.querySelector('.lang_stdout_kb_max').value),
-        time_limit_ms:  _toNum(card.querySelector('.lang_time_limit_ms').value),
-        memory_limit_kb: _toNum(card.querySelector('.lang_memory_limit_kb').value),
-        line_limit:     _toNum(card.querySelector('.lang_line_limit').value),
-        byte_limit:     _toNum(card.querySelector('.lang_byte_limit').value),
-        max_inputs:     _toNum(card.querySelector('.lang_max_inputs').value),
-        max_stdin_tokens: _toNum(card.querySelector('.lang_max_stdin_tokens').value),
-        max_args:         _toNum(card.querySelector('.lang_max_args').value),
-        allow_label:   card.querySelector('.lang_allow_label').value.trim() || null,
-        allow:         allows.length ? allows : [],
-        forbid_regex:  forbids.length ? forbids : [],
-        is_enabled:    card.querySelector('.lang_enabled').checked,
-        sort_order:    i,
-        entry_hint:    card.querySelector('.snip_entry_hint').value.trim(),
-        template:      card.querySelector('.snip_template').value,
-        is_default:    card.querySelector('.snip_is_default').value === '1'
-      };
-    });
+       return {
+    language_key: card.querySelector('.lang_language_key').value.trim(),
+    runtime_key:  card.querySelector('.lang_runtime_key').value.trim(),
+    source_filename: card.querySelector('.lang_source_filename').value.trim(),
+    compile_cmd: card.querySelector('.lang_compile_cmd').value.trim(),
+    run_cmd:     card.querySelector('.lang_run_cmd').value.trim(),
+    stdout_kb_max: _toNum(card.querySelector('.lang_stdout_kb_max').value),
+    time_limit_ms:  _toNum(card.querySelector('.lang_time_limit_ms').value),
+    memory_limit_kb: _toNum(card.querySelector('.lang_memory_limit_kb').value),
+    line_limit:     _toNum(card.querySelector('.lang_line_limit').value),
+    byte_limit:     _toNum(card.querySelector('.lang_byte_limit').value),
+    max_inputs:     _toNum(card.querySelector('.lang_max_inputs').value),
+    max_stdin_tokens: _toNum(card.querySelector('.lang_max_stdin_tokens').value),
+    max_args:         _toNum(card.querySelector('.lang_max_args').value),
+    allow_label:   card.querySelector('.lang_allow_label').value.trim() || null,
+    allow:         allows.length ? allows : [],
+    forbid_regex:  forbids.length ? forbids : [],
+    is_enabled:    card.querySelector('.lang_enabled').checked,
+    sort_order:    i,
+
+    // ✅ keep snippet fields here (these are fine)
+    entry_hint:    card.querySelector('.snip_entry_hint').value.trim(),
+    template:      card.querySelector('.snip_template').value,
+    is_default:    card.querySelector('.snip_is_default').value === '1'
+  };
+});
     langBlocks = updatedLangs;
 
     // collect tests from DOM (keep id so backend updates instead of duplicating)
@@ -1905,31 +1931,34 @@ function initEditors(){
       .filter(Boolean);
 
     return {
-      topic_id: Number(TOPIC_ID),
-      module_id: Number(MODULE_ID),
+  topic_id: Number(TOPIC_ID),
+  module_id: Number(MODULE_ID),
 
-      title: title.value.trim(),
-      slug: slug.value.trim() || undefined,
-      status: status.value,
-      difficulty: difficulty.value,
-      sort_order: _toNum(sort_order.value) ?? 0,
+  title: title.value.trim(),
+  slug: slug.value.trim() || undefined,
+  status: status.value,
+  difficulty: difficulty.value,
+  sort_order: _toNum(sort_order.value) ?? 0,
 
-      tags: tagsArr.length ? tagsArr : undefined,
+  // ✅ FIX: send total_time_min at top-level (NOT inside languages)
+  total_time_min: _toNum(total_time_min.value),
 
-      description: desc.value.trim(),
-      solution: (solution.value || '').trim() || null,
+  tags: tagsArr.length ? tagsArr : undefined,
 
-      compare_mode: compare_mode.value,
-      trim_output: (trim_output.value === '1'),
-      whitespace_mode: whitespace_mode.value,
-      float_abs_tol: float_abs_tol.value.trim() !== '' ? Number(float_abs_tol.value) : null,
-      float_rel_tol: float_rel_tol.value.trim() !== '' ? Number(float_rel_tol.value) : null,
+  description: desc.value.trim(),
+  solution: (solution.value || '').trim() || null,
 
-      languages,
-      snippets,
-      tests: testRows,
-      prune_missing_children: true // delete removed tests/languages/snippets server-side
-    };
+  compare_mode: compare_mode.value,
+  trim_output: (trim_output.value === '1'),
+  whitespace_mode: whitespace_mode.value,
+  float_abs_tol: float_abs_tol.value.trim() !== '' ? Number(float_abs_tol.value) : null,
+  float_rel_tol: float_rel_tol.value.trim() !== '' ? Number(float_rel_tol.value) : null,
+
+  languages,
+  snippets,
+  tests: testRows,
+  prune_missing_children: true
+};
   }
 
   // ===== Info buttons (SweetAlert) =====

@@ -611,7 +611,7 @@
  
             <tbody id="cq_rows">
               <tr id="cq_loader" style="display:none;">
-                <td colspan="6" class="p-3">
+                <td colspan="5" class="p-3">
                   <div class="placeholder-wave">
                     <div class="placeholder col-12 mb-2" style="height:16px;"></div>
                     <div class="placeholder col-12 mb-2" style="height:16px;"></div>
@@ -946,7 +946,7 @@ function wiring(){
     if(act==='edit') openEditModal(uuid);
     if(act==='instructors') openInstructors(uuid);
     if(act==='quizzes') openQuizzes(uuid);            // <-- Assign Quiz action
-    if(act==='coding') openCodingQuestions(uuid);    
+    if(act==='coding') openCodingQuestions(item.dataset.batch || uuid);  
     if(act==='assign') openStudents(uuid);
     if(act==='archive') return archiveBatch(uuid);
     if(act==='unarchive') return unarchiveBatch(uuid);
@@ -994,7 +994,7 @@ function applyFromURL(){}
 function rowActions(scope, r){
   if(scope==='active'){
     return `<div class="dropdown text-end" data-bs-display="static"><button type="button" class="btn btn-primary btn-sm dd-toggle" data-bs-toggle="dropdown" aria-expanded="false" title="Actions"><i class="fa fa-ellipsis-vertical"></i></button><ul class="dropdown-menu dropdown-menu-end"><li><button class="dropdown-item" data-act="view" data-uuid="${r.uuid}"><i class="fa fa-circle-info"></i> View Batch</button></li><li><button class="dropdown-item" data-act="edit" data-uuid="${r.uuid}"><i class="fa fa-pen-to-square"></i> Edit Batch</button></li><li><button class="dropdown-item" data-act="instructors" data-uuid="${r.uuid}"><i class="fa fa-chalkboard-user"></i> Assign Instructor</button></li><li><button class="dropdown-item" data-act="quizzes" data-uuid="${r.uuid}"><i class="fa fa-question"></i> Assign Quiz</button></li><li>
-  <button class="dropdown-item" data-act="coding" data-uuid="${r.uuid}">
+  <button class="dropdown-item" data-act="coding" data-uuid="${r.uuid}" data-batch="${r.id || r.uuid}">
     <i class="fa fa-code"></i> Assign Coding Question
   </button>
 </li>
@@ -1985,9 +1985,9 @@ const cq_q = document.getElementById('cq_q'),
       cq_loader = document.getElementById('cq_loader'),
       cq_meta = document.getElementById('cq_meta'),
       cq_pager = document.getElementById('cq_pager');
- 
-let codingQuestionsModal, cq_batch_uuid = null, cq_page = 1;
- 
+
+let codingQuestionsModal, cq_batch_key = null, cq_page = 1;
+
 function cqParams(){
   const p = new URLSearchParams();
   if (cq_q.value.trim()) p.set('q', cq_q.value.trim());
@@ -1997,174 +1997,215 @@ function cqParams(){
   if (cq_assigned.value === 'unassigned') p.set('assigned', '0');
   return p.toString();
 }
- 
-function clampAttempts(v, maxAttempts){
-  const hardMax = Math.min(50, Number(maxAttempts) || 1);   // backend max=50
+
+function pickItems(j){
+  // supports: {data: []} OR {data:{data:[]}} OR {questions: []} OR {items:[]}
+  if (Array.isArray(j?.data)) return j.data;
+  if (Array.isArray(j?.data?.data)) return j.data.data;
+  if (Array.isArray(j?.questions)) return j.questions;
+  if (Array.isArray(j?.items)) return j.items;
+  return [];
+}
+function pickPagination(j, fallbackLen){
+  // supports: {pagination:{...}} OR {meta:{...}} OR paginator {data:{...}}
+  return j?.pagination || j?.meta || j?.data?.meta || {
+    current_page: 1,
+    per_page: Number(cq_per?.value || 20),
+    total: fallbackLen
+  };
+}
+
+function getQTitle(q){ return q?.title || q?.name || q?.question_title || 'Untitled'; }
+function getQDifficulty(q){ return (q?.difficulty || q?.level || '—').toString(); }
+function getQUuid(q){
+  return (q?.question_uuid
+    || q?.uuid
+    || q?.questionUuid
+    || q?.questionUUID
+    || q?.question_key
+    || q?.questionKey
+    || '').toString();
+}
+
+function getAssigned(q){
+  return !!(q?.assigned ?? q?.is_assigned ?? q?.assigned_to_batch ?? q?.assignedToBatch);
+}
+function getMaxAttempts(q){
+  return Number(q?.total_attempts ?? q?.max_attempts ?? q?.maxAttempts ?? q?.attempt_limit ?? 1) || 1;
+}
+function getAttemptAllowed(q){
+  const v = (q?.attempt_allowed ?? q?.allowed_attempts ?? q?.attemptAllowed ?? q?.attempts_allowed);
+  return (v === null || v === undefined || v === '') ? '' : Number(v);
+}
+function clampAttempts(v, hardMax){
+  const lim = Math.max(1, Math.min(50, Number(hardMax) || 1));
   let n = parseInt(v, 10);
-  if (!Number.isFinite(n) || n < 1) n = hardMax;          // default = max attempts
-  if (n > hardMax) n = hardMax;
+  if (!Number.isFinite(n) || n < 1) n = lim;
+  if (n > lim) n = lim;
   return n;
 }
- 
-// Your controller returns: question_id, question_uuid, total_attempts, attempt_allowed
-function getMaxAttempts(item){
-  return Number(item.total_attempts ?? 1) || 1;
-}
-function getBatchAttempts(item){
-  const v = item.attempt_allowed;
-  return (v === null || v === undefined) ? '' : Number(v);
-}
- 
-function openCodingQuestions(batchUuid){
+
+function openCodingQuestions(batchKey){
   codingQuestionsModal = codingQuestionsModal || new bootstrap.Modal(document.getElementById('codingQuestionsModal'));
-  cq_batch_uuid = batchUuid;
+  cq_batch_key = batchKey;
   cq_page = 1;
   cq_assigned.value = 'all';
   codingQuestionsModal.show();
   loadCodingQuestions();
 }
- 
+
 cq_apply.addEventListener('click', ()=>{ cq_page = 1; loadCodingQuestions(); });
 cq_per.addEventListener('change', ()=>{ cq_page = 1; loadCodingQuestions(); });
 cq_assigned.addEventListener('change', ()=>{ cq_page = 1; loadCodingQuestions(); });
- 
+
 let cqT;
 cq_q.addEventListener('input', ()=>{
   clearTimeout(cqT);
   cqT = setTimeout(()=>{ cq_page = 1; loadCodingQuestions(); }, 350);
 });
- 
-// ✅ ASSIGN = POST /assign (your route)
-async function assignCodingQuestion(batchUuid, questionUuid, attemptAllowed, quiet=false){
-  const res = await fetch(`/api/batches/${encodeURIComponent(batchUuid)}/coding-questions/assign`, {
+
+async function assignCodingQuestion(batchKey, questionUuid, attemptAllowed, quiet=false){
+  const payload = {
+    // support multiple backend expectations safely
+    question_uuid: questionUuid,
+    questionUuid: questionUuid,
+    question_uuids: [questionUuid],
+    questionUuids: [questionUuid],
+
+    attempt_allowed: attemptAllowed,
+    attemptAllowed: attemptAllowed,
+    max_attempts: attemptAllowed,
+    allowed_attempts: attemptAllowed,
+
+    publish_to_students: 1,
+    assign_status: 1
+  };
+
+  const res = await fetch(`/api/batches/${encodeURIComponent(batchKey)}/coding-questions/assign`, {
     method: 'POST',
     headers: { 'Authorization':'Bearer '+TOKEN, 'Content-Type':'application/json', 'Accept':'application/json' },
-    body: JSON.stringify({
-      question_uuid: questionUuid,
-      attempt_allowed: attemptAllowed,
-      publish_to_students: 1,
-      assign_status: 1
-    })
+    body: JSON.stringify(payload)
   });
+
   const j = await res.json().catch(()=>({}));
   if(!res.ok) throw new Error(j?.message || firstError(j) || 'Assign failed');
   if(!quiet) ok('Coding question assigned');
   return j;
 }
- 
-// ✅ UNASSIGN = DELETE /{questionUuid} (your route)
-async function unassignCodingQuestion(batchUuid, questionUuid, quiet=false){
-  const res = await fetch(`/api/batches/${encodeURIComponent(batchUuid)}/coding-questions/${encodeURIComponent(questionUuid)}`, {
+
+async function unassignCodingQuestion(batchKey, questionUuid, quiet=false){
+  const res = await fetch(`/api/batches/${encodeURIComponent(batchKey)}/coding-questions/${encodeURIComponent(questionUuid)}`, {
     method: 'DELETE',
     headers: { 'Authorization':'Bearer '+TOKEN, 'Accept':'application/json' }
   });
+
   const j = await res.json().catch(()=>({}));
   if(!res.ok) throw new Error(j?.message || firstError(j) || 'Unassign failed');
   if(!quiet) ok('Coding question unassigned');
   return j;
 }
- 
+
 async function loadCodingQuestions(){
-  if(!cq_batch_uuid) return;
- 
+  if(!cq_batch_key) return;
+
   cq_loader.style.display = '';
   cq_rows.querySelectorAll('tr:not(#cq_loader)').forEach(tr=>tr.remove());
- 
+
   try{
-    const res = await fetch(`/api/batches/${encodeURIComponent(cq_batch_uuid)}/coding-questions?${cqParams()}`, {
-      headers:{ 'Authorization':'Bearer '+TOKEN, 'Accept':'application/json' }
-    });
- 
+    const res = await fetch(`/api/batches/${encodeURIComponent(cq_batch_key)}/coding-questions?mode=all&${cqParams()}`, {
+  headers: { 'Authorization': 'Bearer ' + TOKEN, 'Accept': 'application/json' }
+});
+
+
     const j = await res.json().catch(()=>({}));
     if(!res.ok) throw new Error(j?.message || 'Failed to load coding questions');
- 
-    const items = Array.isArray(j?.data) ? j.data : [];
-    const pag = j?.pagination || { current_page: 1, per_page: Number(cq_per.value||20), total: items.length };
- 
+
+    const items = pickItems(j);
+    const pag   = pickPagination(j, items.length);
+
     const frag = document.createDocumentFragment();
- 
+
     items.forEach(qn=>{
-      const assigned = !!qn.assigned;
- 
-      // ✅ FIX: use controller keys
-      const questionId   = Number(qn.question_id);
-      const questionUuid = (qn.question_uuid || '').toString();
- 
-      const title = qn.title || 'Untitled';
-      const difficulty = (qn.difficulty || '—').toString();
+      const qUuid = getQUuid(qn);
+      const assigned = getAssigned(qn);
+
+      const title = getQTitle(qn);
+      const diff  = getQDifficulty(qn);
+
       const maxAttempts = getMaxAttempts(qn);
- 
-      // Attempts input always editable (user can set first)
-      let batchAttempts = getBatchAttempts(qn);
-      if (batchAttempts === '') batchAttempts = maxAttempts;
- 
+      const limit = Math.min(50, maxAttempts);
+
+      let attemptAllowed = getAttemptAllowed(qn);
+      if (attemptAllowed === '') attemptAllowed = maxAttempts;
+      attemptAllowed = clampAttempts(attemptAllowed, limit);
+
       const tr = document.createElement('tr');
       tr.innerHTML = `
         <td class="fw-semibold">${esc(title)}</td>
-        <td class="text-capitalize">${esc(difficulty)}</td>
- 
+        <td class="text-capitalize">${esc(diff)}</td>
+
         <td class="text-center">
           <span class="badge badge-info">${esc(maxAttempts)}</span>
         </td>
- 
+
         <td class="text-center">
           <input
             class="form-control form-control-sm cq-attempt"
             type="number"
             min="1"
-            max="${esc(Math.min(50, maxAttempts))}"
-            value="${esc(batchAttempts)}"
+            max="${esc(limit)}"
+            value="${esc(attemptAllowed)}"
             style="width:120px; margin-inline:auto; text-align:center;"
           >
-          <div class="small text-muted mt-1">1 — ${esc(Math.min(50, maxAttempts))}</div>
+          <div class="small text-muted mt-1">1 — ${esc(limit)}</div>
         </td>
- 
+
         <td class="text-center">
           <div class="form-check form-switch d-inline-block">
             <input
               class="form-check-input cq-tg"
               type="checkbox"
-              data-qid="${esc(questionId)}"
-              data-uuid="${esc(questionUuid)}"
+              data-uuid="${esc(qUuid)}"
               ${assigned ? 'checked' : ''}
-              ${questionUuid ? '' : 'disabled'}
+              ${qUuid ? '' : 'disabled'}
             >
           </div>
         </td>
       `;
       frag.appendChild(tr);
     });
- 
+
     cq_rows.appendChild(frag);
- 
-    // ✅ Toggle assign/unassign
+
+    // Toggle assign/unassign
     cq_rows.querySelectorAll('.cq-tg').forEach(ch=>{
       ch.addEventListener('change', async ()=>{
         const row = ch.closest('tr');
         const attemptEl = row.querySelector('.cq-attempt');
-        const max = Number(attemptEl.max || 1);
- 
+
         const questionUuid = ch.dataset.uuid;
         if(!questionUuid){
           ch.checked = !ch.checked;
-          return err('Question UUID missing from API response');
+          return err('Question UUID missing from API response (uuid/question_uuid not found).');
         }
- 
+
         const wantAssigned = !!ch.checked;
-        const attemptAllowed = clampAttempts(attemptEl.value, max);
- 
+        const limit = Number(attemptEl.max || 1);
+        const attemptAllowed = clampAttempts(attemptEl.value, limit);
+        attemptEl.value = String(attemptAllowed);
+
         ch.disabled = true;
         attemptEl.disabled = true;
- 
+
         try{
           if(wantAssigned){
-            await assignCodingQuestion(cq_batch_uuid, questionUuid, attemptAllowed);
+            await assignCodingQuestion(cq_batch_key, questionUuid, attemptAllowed);
           }else{
-            await unassignCodingQuestion(cq_batch_uuid, questionUuid);
+            await unassignCodingQuestion(cq_batch_key, questionUuid);
           }
- 
-          // reload if filter will hide it
-          if ((cq_assigned.value==='assigned' && !wantAssigned) || (cq_assigned.value==='unassigned' && wantAssigned)){
+
+          if ((cq_assigned.value==='assigned' && !wantAssigned) ||
+              (cq_assigned.value==='unassigned' && wantAssigned)){
             loadCodingQuestions();
           }
         }catch(e){
@@ -2176,47 +2217,48 @@ async function loadCodingQuestions(){
         }
       });
     });
- 
-    // ✅ Save attempts (ONLY if already assigned)
+
+    // Save attempts only if assigned
     cq_rows.querySelectorAll('.cq-attempt').forEach(inp=>{
       inp.addEventListener('blur', async ()=>{
         const row = inp.closest('tr');
-        const ch = row.querySelector('.cq-tg');
-        if(!ch?.checked) return; // only save when assigned
- 
+        const ch  = row.querySelector('.cq-tg');
+        if(!ch || !ch.checked) return;
+
         const questionUuid = ch.dataset.uuid;
         if(!questionUuid) return;
- 
-        const max = Number(inp.max || 1);
-        const attemptAllowed = clampAttempts(inp.value, max);
+
+        const limit = Number(inp.max || 1);
+        const attemptAllowed = clampAttempts(inp.value, limit);
         inp.value = String(attemptAllowed);
- 
+
         try{
-          await assignCodingQuestion(cq_batch_uuid, questionUuid, attemptAllowed, true);
+          await assignCodingQuestion(cq_batch_key, questionUuid, attemptAllowed, true);
           ok('Attempts updated');
         }catch(e){
           err(e.message || 'Failed to update attempts');
         }
       });
     });
- 
-    // pagination
-    const total = Number(pag.total||items.length),
-          per   = Number(pag.per_page||20),
-          cur   = Number(pag.current_page||1);
-    const pages = Math.max(1, Math.ceil(total/per));
- 
-    function li(dis,act,label,t){
+
+    // Pagination
+    const total = Number(pag.total || items.length);
+    const per   = Number(pag.per_page || cq_per.value || 20);
+    const cur   = Number(pag.current_page || pag.page || 1);
+    const pages = Math.max(1, Math.ceil(total / per));
+
+    function li(dis, act, label, t){
       return `<li class="page-item ${dis?'disabled':''} ${act?'active':''}">
                 <a class="page-link" href="javascript:void(0)" data-page="${t||''}">${label}</a>
               </li>`;
     }
+
     let html='';
-    html+=li(cur<=1,false,'Prev',cur-1);
-    const w=2,s=Math.max(1,cur-w),e=Math.min(pages,cur+w);
-    for(let i=s;i<=e;i++) html+=li(false,i===cur,i,i);
-    html+=li(cur>=pages,false,'Next',cur+1);
- 
+    html += li(cur<=1,false,'Prev',cur-1);
+    const w=2, s=Math.max(1,cur-w), e=Math.min(pages,cur+w);
+    for(let i=s;i<=e;i++) html += li(false,i===cur,i,i);
+    html += li(cur>=pages,false,'Next',cur+1);
+
     cq_pager.innerHTML = html;
     cq_pager.querySelectorAll('a.page-link[data-page]').forEach(a=>{
       a.addEventListener('click', ()=>{
@@ -2226,9 +2268,9 @@ async function loadCodingQuestions(){
         loadCodingQuestions();
       });
     });
- 
+
     cq_meta.textContent = `Page ${cur} of ${pages} — ${total} coding question(s)`;
- 
+
   }catch(e){
     console.error(e);
     err(e.message || 'Failed to load coding questions');
@@ -2237,6 +2279,8 @@ async function loadCodingQuestions(){
   }
 }
 /* end coding questions section */
+
+
  
 });
 </script>
