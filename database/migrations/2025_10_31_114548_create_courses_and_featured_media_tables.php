@@ -10,12 +10,60 @@ return new class extends Migration {
     {
         $driver = Schema::getConnection()->getDriverName();
 
+        // ================= COURSE CATEGORIES =================
+        Schema::create('course_categories', function (Blueprint $table) {
+            $table->id();
+
+            // Unique UUID
+            $table->uuid('uuid')->unique();
+
+            // Created by foreign key (nullable, set null on delete)
+            $table->foreignId('created_by')
+                ->nullable()
+                ->constrained('users')
+                ->nullOnDelete();
+
+            // Name/title of category
+            $table->string('title')
+                ->nullable()
+                ->default(null);
+
+            // Icon path / icon class
+            $table->string('icon')
+                ->nullable()
+                ->default(null);
+
+            // Optional description, HTML supported
+            $table->text('description')
+                ->nullable()
+                ->default(null);
+
+            // 🔹 NEW: display order for landing-page ordering
+            $table->integer('display_order')
+                ->nullable()
+                ->default(null)
+                ->index();
+
+            // Soft deletes (for trash)
+            $table->softDeletes();
+
+            // Created at, Updated at
+            $table->timestamps();
+        });
+
         // ================= COURSES =================
         Schema::create('courses', function (Blueprint $table) use ($driver) {
             $table->bigIncrements('id');
             $table->char('uuid', 36)->unique();
             $table->string('title', 255);
             $table->string('slug', 140)->unique();
+
+            // 🔹 category foreign key → course_categories
+            $table->foreignId('category_id')
+                ->nullable()
+                ->constrained('course_categories')
+                ->nullOnDelete()
+                ->cascadeOnUpdate();
 
             // ⬇ changed from text() → longText()
             $table->longText('short_description')->nullable();  // can hold large log-like text
@@ -35,7 +83,12 @@ return new class extends Migration {
             $table->string('language', 10)->nullable();
             $table->timestamp('publish_at')->nullable();
             $table->timestamp('unpublish_at')->nullable();
-            $table->foreignId('created_by')->nullable()->constrained('users')->nullOnDelete();
+
+            $table->foreignId('created_by')
+                ->nullable()
+                ->constrained('users')
+                ->nullOnDelete();
+
             $table->timestamp('created_at')->useCurrent();
             $table->string('created_at_ip', 45)->nullable();
             $table->timestamp('updated_at')->useCurrent()->useCurrentOnUpdate();
@@ -80,12 +133,22 @@ return new class extends Migration {
         Schema::create('course_featured_media', function (Blueprint $table) use ($driver) {
             $table->bigIncrements('id');
             $table->char('uuid', 36)->unique();
-            $table->foreignId('course_id')->constrained('courses')->cascadeOnDelete()->index();
+
+            $table->foreignId('course_id')
+                ->constrained('courses')
+                ->cascadeOnDelete()
+                ->index();
+
             $table->string('featured_type', 20);
             $table->text('featured_url');
             $table->integer('order_no')->default(0);
             $table->string('status', 20)->default('active');
-            $table->foreignId('created_by')->nullable()->constrained('users')->nullOnDelete();
+
+            $table->foreignId('created_by')
+                ->nullable()
+                ->constrained('users')
+                ->nullOnDelete();
+
             $table->timestamp('created_at')->useCurrent();
             $table->timestamp('updated_at')->useCurrent()->useCurrentOnUpdate();
             $table->timestamp('deleted_at')->nullable()->index();
@@ -100,7 +163,9 @@ return new class extends Migration {
 
     public function down(): void
     {
+        // Drop children → parents order
         Schema::dropIfExists('course_featured_media');
         Schema::dropIfExists('courses');
+        Schema::dropIfExists('course_categories');
     }
 };

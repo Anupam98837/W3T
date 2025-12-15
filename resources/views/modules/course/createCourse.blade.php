@@ -53,6 +53,25 @@
   .rte:focus{box-shadow:var(--ring);border-color:var(--accent-color)}
   .rte-ph{position:absolute;top:12px;left:12px;color:#9aa3b2;pointer-events:none;font-size:var(--fs-14)}
   .rte.has-content + .rte-ph{display:none}
+  /* RTE active visual state when editor focused / has formatting applied */
+.rte.active {
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--accent-color) 18%, transparent);
+  border-color: var(--accent-color);
+  outline: none;
+}
+
+/* toolbar button active state */
+.tool.active {
+  background: color-mix(in oklab, var(--accent-color) 14%, transparent);
+  border-color: color-mix(in oklab, var(--accent-color) 28%, transparent);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+  transform: translateY(-1px);
+}
+
+/* small tweak so icon colors contrast when active */
+.tool.active i {
+  color: var(--accent-color);
+}
 
   /* ===== Chips ===== */
   .chip-row{display:flex;flex-wrap:wrap;gap:8px}
@@ -244,9 +263,17 @@
           </div>
           <div class="err" data-for="full_description"></div>
         </div>
-
+          
         <div class="row g-3 mt-2">
-          <div class="col-md-6">
+           <div class="col-md-4">
+  <label class="form-label">Category<span class="text-danger">*</span></label> 
+  <select id="category_id" class="form-select" required>
+    <option value="">No category</option>
+    {{-- options will be injected by JS --}}
+  </select>
+  <div class="err" data-for="category_id"></div>
+</div>
+          <div class="col-md-4">
             <label class="form-label">Course Type</label>
             <select id="course_type" class="form-select">
               <option value="paid" selected>Paid</option>
@@ -254,7 +281,9 @@
             </select>
             <div class="tiny mt-1">Pricing fields show only for <b>Paid</b> courses.</div>
           </div>
-          <div class="col-md-6">
+         
+
+          <div class="col-md-4">
             <label class="form-label">Status</label>
             <select id="status" class="form-select">
               <option value="draft" selected>Draft</option>
@@ -406,7 +435,7 @@
           <a id="cancel3" class="btn btn-light" href="/super_admin/courses/manage">Cancel</a>
           <div class="d-flex gap-2">
             <button id="btnDraft" type="button" class="btn btn-outline-primary">Save Draft</button>
-            <button id="btnPublish" type="button" class="btn btn-primary">Publish Course</button>
+            <button id="btnPublish" type="button" class="btn btn-primary">Save Course</button>
           </div>
         </div>
       </div>
@@ -424,7 +453,6 @@
   </div>
 </div>
 @endsection
-
 @push('scripts')
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
@@ -440,14 +468,100 @@
   const ok  = (m)=>{ $('okMsg').textContent  = m||'Done'; okToast.show(); };
   const err = (m)=>{ $('errMsg').textContent = m||'Something went wrong'; errToast.show(); };
 
-  // redirect base (fix: always /courses/manage)
-  const baseList = (role.includes('super')) ? '/super_admin/courses/manage' : '/super_admin/courses/manage';
-  ['cancel1','cancel3'].forEach(id => { const a=$(id); if(a && !a.getAttribute('href')) a.setAttribute('href', baseList); });
+  // redirect base (role-aware; pulls role from sessionStorage or localStorage)
+  function getBaseListForRole(roleStr){
+    if(!roleStr) return '/courses/manage';
+    const r = String(roleStr).toLowerCase().trim();
+
+    // common mappings — adjust to match your backend routes
+    if(r.includes('super') || r.includes('super_admin')) return '/super_admin/courses/manage';
+    if(r.includes('admin'))   return '/admin/courses/manage';
+    if(r.includes('mentor'))  return '/mentor/courses/manage';
+    if(r.includes('instructor') || r.includes('teacher')) return '/instructor/courses/manage';
+    if(r.includes('student') || r.includes('user')) return '/courses/manage';
+
+    // fallback: build a path from raw role (replace spaces with underscore)
+    return `/${r.replace(/\s+/g,'_')}/courses/manage`;
+  }
+
+  // prefer explicit session/local role values (role variable above already does this,
+  // but re-check here to be extra-safe if someone changes the earlier const)
+  const storedRole = sessionStorage.getItem('role') || localStorage.getItem('role') || role || '';
+  const baseList = getBaseListForRole(storedRole);
+
+  // only set cancel links if href isn't already present in markup
+  ['cancel1','cancel3'].forEach(id => {
+    const a = $(id);
+    if (a && !a.getAttribute('href')) a.setAttribute('href', baseList);
+  });
 
   if(!TOKEN){
     Swal.fire('Login needed','Your session expired. Please login again.','warning')
       .then(()=> location.href='/');
     return;
+  }
+  
+  // ====== small auth fetch helper ======
+  async function fetchJsonAuth(u){
+    const res = await fetch(u, {
+      headers:{
+        'Authorization':'Bearer '+TOKEN,
+        'Accept':'application/json'
+      }
+    });
+    if(!res.ok) throw Object.assign(new Error('HTTP '+res.status), {status:res.status, url:u, res});
+    const j = await res.json().catch(()=> ({}));
+    return j;
+  }
+
+  /* ===== fields / pricing ===== */
+  const title=$('title'),
+        shortDesc=$('short_description'),
+        ctype=$('course_type'),
+        status=$('status');
+  const price=$('price_amount'),
+        dPct=$('discount_percent'),
+        curr=$('price_currency'),
+        final=$('final_price'),
+        priceBlock=$('priceBlock');
+  const isFeat=$('is_featured'),
+        fRank=$('featured_rank'),
+        ord=$('order_no'),
+        lvl=$('level'),
+        lang=$('language'),
+        pub=$('publish_at'),
+        unpub=$('unpublish_at');
+
+  // 🔹 new: category select ref
+  const categorySel = $('category_id');
+
+  // ====== Load categories into dropdown ======
+  async function loadCategoriesSelect(selectedId = null){
+    if (!categorySel) return;
+
+    // reset base option
+    categorySel.innerHTML = '<option value="">No category</option>';
+
+    try{
+      // adjust endpoint if needed
+      const json = await fetchJsonAuth('/api/landing/categories');
+      const items = json.data || json.items || json || [];
+
+      items.forEach(cat => {
+        if (!cat) return;
+        const opt = document.createElement('option');
+        opt.value = cat.id ?? cat.category_id ?? '';
+        opt.textContent = cat.name || cat.title || cat.label || ('Category #'+opt.value);
+        categorySel.appendChild(opt);
+      });
+
+      if (selectedId != null) {
+        categorySel.value = String(selectedId);
+      }
+    }catch(e){
+      console.error('Failed to load categories', e);
+      // silently keep just "No category"
+    }
   }
 
   // detect Edit mode (?edit=<uuid or id>)
@@ -455,6 +569,9 @@
   const editKey = url_.searchParams.get('edit');
   const isEdit = !!editKey;
   let currentUUID = editKey || null;
+
+  // 🔹 load categories for create mode; edit mode will re-call with selectedId
+  loadCategoriesSelect();
 
   if(isEdit){
     $('pageTitle').textContent = 'Edit Course';
@@ -495,14 +612,75 @@
 
   document.querySelectorAll('.tool[data-cmd]').forEach(b=> b.addEventListener('click',()=>{ document.execCommand(b.dataset.cmd,false,null); editor.focus(); togglePh(); }));
   document.querySelectorAll('.tool[data-format]').forEach(b=> b.addEventListener('click',()=>{ document.execCommand('formatBlock',false,b.dataset.format); editor.focus(); togglePh(); }));
-  $('btnLink').addEventListener('click',()=>{
+  $('btnLink').addEventListener('click',()=>{ 
     const u = prompt('Enter URL (https://…)'); if(u && /^https?:\/\//i.test(u)){ document.execCommand('createLink',false,u); editor.focus(); }
   });
 
-  /* ===== fields / pricing ===== */
-  const title=$('title'), shortDesc=$('short_description'), ctype=$('course_type'), status=$('status');
-  const price=$('price_amount'), dPct=$('discount_percent'), curr=$('price_currency'), final=$('final_price'), priceBlock=$('priceBlock');
-  const isFeat=$('is_featured'), fRank=$('featured_rank'), ord=$('order_no'), lvl=$('level'), lang=$('language'), pub=$('publish_at'), unpub=$('unpublish_at');
+  // ===== toolbar active-state syncing =====
+  (function(){
+    const tools = Array.from(document.querySelectorAll('.tool'));
+    // Map format names to the exact formatBlock values we expect
+    const knownFormats = { H1:'h1', H2:'h2', H3:'h3' };
+
+    function isFormatActive(format) {
+      try {
+        const val = (document.queryCommandValue('formatBlock') || '').toLowerCase();
+        if(!val) return false;
+        return val.includes((knownFormats[format] || format).toLowerCase());
+      } catch {
+        return false;
+      }
+    }
+
+    function updateToolStates(){
+      // update each toolbar button active class
+      tools.forEach(btn => {
+        btn.classList.remove('active');
+        const cmd = btn.dataset.cmd;
+        const fmt = btn.dataset.format;
+        try {
+          if (cmd) {
+            // queryCommandState works for bold, italic, underline, insertUnorderedList, insertOrderedList, etc.
+            if (document.queryCommandState(cmd)) btn.classList.add('active');
+          } else if (fmt) {
+            if (isFormatActive(fmt)) btn.classList.add('active');
+          }
+        } catch(e){
+          // ignore - some commands may not be supported in all browsers
+        }
+      });
+
+      // rte gets an 'active' class while focused or when user clicked a formatting tool
+      editor.classList.toggle('active', document.activeElement === editor || hasContent());
+    }
+
+    // update state after commands run (use a tiny delay so execCommand has applied)
+    tools.forEach(b => b.addEventListener('click', () => setTimeout(updateToolStates, 40)));
+
+    // special-case link button: after createLink prompt we should refresh states
+    document.getElementById('btnLink').addEventListener('click', () => {
+      // existing prompt handler runs; schedule update
+      setTimeout(updateToolStates, 120);
+    });
+
+    // selection / cursor changes — keep UI in sync
+    document.addEventListener('selectionchange', () => {
+      // only update when selection is inside the editor to avoid extra work
+      const sel = document.getSelection();
+      if (!sel) return;
+      const node = sel.anchorNode;
+      if (!node) return;
+      if (editor.contains(node) || node === editor) {
+        updateToolStates();
+      }
+    });
+
+    // keyboard/mouse interactions inside editor
+    ['keyup','mouseup','input','blur','focus'].forEach(ev => editor.addEventListener(ev, updateToolStates));
+
+    // initial sync
+    updateToolStates();
+  })();
 
   function money(v){ const n=Number(v); return isFinite(n)&&n>0?n:0; }
   function pct(v){ const n=Number(v); return isFinite(n)&&n>0?n:0; }
@@ -528,7 +706,11 @@
     return true;
   }
   function gateBtn(){ $('to2').disabled = !gateOK(); }
-  ['input','change'].forEach(ev => { title.addEventListener(ev, gateBtn); price.addEventListener(ev, gateBtn); ctype.addEventListener(ev, gateBtn); });
+  ['input','change'].forEach(ev => {
+    title.addEventListener(ev, gateBtn);
+    price.addEventListener(ev, gateBtn);
+    ctype.addEventListener(ev, gateBtn);
+  });
   gateBtn();
 
   $('to2').onclick=()=> setStep(1);
@@ -549,7 +731,12 @@
   $('addTag').onclick=()=>add(tagRow,tagIn);
   $('addCat').onclick=()=>add(catRow,catIn);
   $('addKey').onclick=()=>add(keyRow,keyIn);
-  [tagIn,catIn,keyIn].forEach(inp=> inp.onkeydown=(e)=>{ if(e.key==='Enter'){ e.preventDefault(); (inp===tagIn?$('addTag'):inp===catIn?$('addCat'):$('addKey')).click(); }});
+  [tagIn,catIn,keyIn].forEach(inp=> inp.onkeydown=(e)=>{
+    if(e.key==='Enter'){
+      e.preventDefault();
+      (inp===tagIn?$('addTag'):inp===catIn?$('addCat'):$('addKey')).click();
+    }
+  });
 
   $('addProp').onclick=()=>{
     const k=(pName.value||'').trim(), v=(pVal.value||'').trim(); if(!k||!v) return;
@@ -575,10 +762,14 @@
   function toObjectish(v){
     if(!v) return {};
     if(typeof v === 'string'){
-      try { const j = JSON.parse(v); if(j && typeof j==='object' && !Array.isArray(j)) return j; } catch {}
+      try {
+        const j = JSON.parse(v);
+        if(j && typeof j==='object' && !Array.isArray(j)) return j;
+      } catch {}
       const o={};
       v.split(/[;|,]/).forEach(pair=>{
-        const i = pair.indexOf(':'); if(i>0){ o[pair.slice(0,i).trim()] = pair.slice(i+1).trim(); }
+        const i = pair.indexOf(':');
+        if(i>0){ o[pair.slice(0,i).trim()] = pair.slice(i+1).trim(); }
       });
       return o;
     }
@@ -590,7 +781,13 @@
   function collectProps(){ const o={}; collect(propRow).forEach(t=>{ const i=t.indexOf(':'); if(i>0) o[t.slice(0,i).trim()] = t.slice(i+1).trim(); }); return o; }
 
   /* ===== errors ===== */
-  function fErr(field,msg){ const el=document.querySelector(`.err[data-for="${field}"]`); if(el){ el.textContent=msg||''; el.style.display=msg?'block':'none'; } }
+  function fErr(field,msg){
+    const el=document.querySelector(`.err[data-for="${field}"]`);
+    if(el){
+      el.textContent=msg||'';
+      el.style.display=msg?'block':'none';
+    }
+  }
   function clrErr(){ document.querySelectorAll('.err').forEach(e=>{ e.textContent=''; e.style.display='none'; }); }
 
   // util: to input[type=datetime-local] value (YYYY-MM-DDTHH:MM)
@@ -600,13 +797,6 @@
     if (isNaN(d)) return '';
     const pad = (n)=> String(n).padStart(2,'0');
     return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())+'T'+pad(d.getHours())+':'+pad(d.getMinutes());
-  }
-
-  async function fetchJsonAuth(u){
-    const res = await fetch(u, { headers:{ 'Authorization':'Bearer '+TOKEN, 'Accept':'application/json' }});
-    if(!res.ok) throw Object.assign(new Error('HTTP '+res.status), {status:res.status, url:u, res});
-    const j = await res.json().catch(()=> ({}));
-    return j;
   }
 
   async function getCourseByAny(key){
@@ -623,15 +813,26 @@
     let lastErr;
     for(const u of candidates){
       try{
+        
         const j = await fetchJsonAuth(u);
-        return j?.data ?? j;
+                return j?.data ?? j;
       }catch(e){
         lastErr = e;
-        if(e.status===401 || e.status===403){
-          throw e; // auth/permission issues → surface immediately
+        
+        // Don't throw immediately on 403 - try other endpoints first
+        if(e.status===401){
+          throw e;
         }
       }
     }
+    
+    // If all failed with 403, show helpful error
+    if(lastErr?.status === 403){
+    
+      console.error('  Current role:', role);
+      console.error('  Token present:', !!TOKEN);
+    }
+    
     throw lastErr || new Error('Not found by any candidate endpoint');
   }
 
@@ -641,6 +842,9 @@
     try{
       const c = await getCourseByAny(key);
       currentUUID = c.uuid || key;
+
+      // 🔹 ensure dropdown has categories and select the course's category_id
+      await loadCategoriesSelect(c.category_id ?? null);
 
       // fill fields
       title.value = c.title || '';
@@ -690,100 +894,123 @@
   }
 
   /* ===== payload & submit (fixed syntax + robust metadata) ===== */
-  function payload(statusOverride){
-    const paid = (ctype.value==='paid');
+ function payload(){
+  const paid = (ctype.value==='paid');
 
-    const tags        = uniq(collect(tagRow));
-    const categories  = uniq(collect(catRow));
-    const keywords    = uniq(collect(keyRow));
-    const properties  = toObjectish(collectProps());
+  const tags        = uniq(collect(tagRow));
+  const categories  = uniq(collect(catRow));
+  const keywords    = uniq(collect(keyRow));
+  const properties  = toObjectish(collectProps());
 
-    const metadataObj = { tags, categories, keywords, properties };
+  const metadataObj = { tags, categories, keywords, properties };
 
-    return {
-      title: (title.value||'').trim(),
-      short_description: (shortDesc.value||'') || null,
-      full_description: (editor.innerHTML||'').trim() || null,
-      status: statusOverride || (status.value||'draft'),
-      course_type: ctype.value,
-      price_amount:    paid ? money(price.value) : 0,
-      price_currency:  paid ? (curr.value||'INR') : 'INR',
-      discount_percent: paid && dPct.value ? pct(dPct.value) : null,
-      discount_amount:  null,
-      is_featured: $('is_featured').checked ? 1 : 0,
-      featured_rank: Number($('featured_rank').value||0),
-      order_no: Number($('order_no').value||0),
-      level: ($('level').value||null),
-      language: ($('language') && $('language').value) ? $('language').value : null,
-      publish_at: ($('publish_at').value||null),
-      unpublish_at: ($('unpublish_at').value||null),
+  return {
+    title: (title.value||'').trim(),
+    short_description: (shortDesc.value||'') || null,
+    full_description: (editor.innerHTML||'').trim() || null,
+    status: status.value || 'draft', // ← Always use the dropdown value
+    course_type: ctype.value,
+    price_amount:    paid ? money(price.value) : 0,
+    price_currency:  paid ? (curr.value||'INR') : 'INR',
+    discount_percent: paid && dPct.value ? pct(dPct.value) : null,
+    discount_amount:  null,
 
-      // expose both styles for API flexibility
-      tags, categories, keywords, properties,
-      metadata: metadataObj
-    };
+    category_id: (categorySel && categorySel.value) ? Number(categorySel.value) : null,
+
+    is_featured: $('is_featured').checked ? 1 : 0,
+    featured_rank: Number($('featured_rank').value||0),
+    order_no: Number($('order_no').value||0),
+    level: ($('level').value||null),
+    language: ($('language') && $('language').value) ? $('language').value : null,
+    publish_at: ($('publish_at').value||null),
+    unpublish_at: ($('unpublish_at').value||null),
+
+    tags, categories, keywords, properties,
+    metadata: metadataObj
+  };
+}
+
+async function submit(){
+  clrErr();
+  if(!gateOK()){
+    setStep(0);
+    fErr('title', !title.value.trim() ? 'Title is required.' : '');
+    if(ctype.value==='paid' && !(money(price.value)>0)) fErr('price_amount','Price must be > 0 for paid courses.');
+    return;
   }
 
-  async function submit(statusOverride){
-    clrErr();
-    if(!gateOK()){
-      setStep(0);
-      fErr('title', !title.value.trim() ? 'Title is required.' : '');
-      if(ctype.value==='paid' && !(money(price.value)>0)) fErr('price_amount','Price must be > 0 for paid courses.');
+  $('busy').classList.add('show');
+  try{
+    const url  = isEdit ? `/api/courses/${encodeURIComponent(currentUUID)}` : '/api/courses';
+    const meth = isEdit ? 'PUT' : 'POST';
+
+    const res = await fetch(url, {
+      method:meth,
+      headers:{
+        'Authorization':'Bearer '+TOKEN,
+        'Accept':'application/json',
+        'Content-Type':'application/json'
+      },
+      body: JSON.stringify(payload())
+    });
+    const json = await res.json().catch(()=> ({}));
+
+    if(res.ok){
+      Swal.fire({
+        icon:'success',
+        title: isEdit ? 'Updated' : 'Saved',
+        text: isEdit ? 'Course updated successfully' : 'Course created successfully',
+        timer: 900,
+        showConfirmButton:false
+      });
+      setTimeout(()=> location.replace(baseList), 900);
       return;
     }
-
-    $('busy').classList.add('show');
-    try{
-      const url  = isEdit ? `/api/courses/${encodeURIComponent(currentUUID)}` : '/api/courses'; // <-- fixed
-      const meth = isEdit ? 'PUT' : 'POST';
-
-      const res = await fetch(url, {
-        method:meth,
-        headers:{ 'Authorization':'Bearer '+TOKEN, 'Accept':'application/json', 'Content-Type':'application/json' },
-        body: JSON.stringify(payload(statusOverride))
-      });
-      const json = await res.json().catch(()=> ({}));
-
-      if(res.ok){
-        Swal.fire({
-          icon:'success',
-          title: isEdit ? 'Updated' : 'Saved',
-          text: isEdit ? 'Course updated successfully' : 'Course created successfully',
-          timer: 900, showConfirmButton:false
-        });
-        setTimeout(()=> location.replace(baseList), 900);
-        return;
-      }
-      if(res.status===422){
-        const e = json.errors || json.fields || {};
-        Object.entries(e).forEach(([k,v])=> fErr(k, Array.isArray(v)? v[0] : String(v)));
-        setStep(0); err(json.message || 'Please fix the highlighted fields.'); return;
-      }
-      if(res.status===403){
-        Swal.fire({icon:'error',title:'Unauthorized',html:'If you are <b>Super Admin</b>, ensure the API authorizes this token/role for the endpoint.'});
-        return;
-      }
-      Swal.fire(isEdit?'Update failed':'Save failed', json.message || ('HTTP '+res.status), 'error');
-    }catch(ex){
-      console.error(ex); Swal.fire('Network error','Please check your connection and try again.','error');
-    }finally{
-      $('busy').classList.remove('show');
+    if(res.status===422){
+      const e = json.errors || json.fields || {};
+      Object.entries(e).forEach(([k,v])=> fErr(k, Array.isArray(v)? v[0] : String(v)));
+      setStep(0);
+      err(json.message || 'Please fix the highlighted fields.');
+      return;
     }
+    if(res.status===403){
+      Swal.fire({icon:'error',title:'Unauthorized',html:'If you are <b>Super Admin</b>, ensure the API authorizes this token/role for the endpoint.'});
+      return;
+    }
+    Swal.fire(isEdit?'Update failed':'Save failed', json.message || ('HTTP '+res.status), 'error');
+  }catch(ex){
+    console.error(ex);
+    Swal.fire('Network error','Please check your connection and try again.','error');
+  }finally{
+    $('busy').classList.remove('show');
   }
+}
+ $('btnDraft').onclick = ()=> {
+  const originalText = $('btnDraft').textContent;
+  status.value = 'draft';
+  $('btnDraft').textContent = 'Saving as Draft...';
+  $('btnDraft').disabled = true;
+  
+  submit().finally(() => {
+    $('btnDraft').textContent = originalText;
+    $('btnDraft').disabled = false;
+  });
+};
 
-  $('btnDraft').onclick = ()=> submit('draft');
-  $('btnPublish').onclick = ()=> submit('published');
-
+$('btnPublish').onclick = ()=> {
+  const originalText = $('btnPublish').textContent;
+  $('btnPublish').textContent = 'Saving...';
+  $('btnPublish').disabled = true;
+  
+  submit().finally(() => {
+    $('btnPublish').textContent = originalText;
+    $('btnPublish').disabled = false;
+  });
+};
   // init
   setStep(0);
   recalc();
 
-  /* =========================================================
-     MEDIA MODAL POLISH (non-invasive, UI only)
-     Adds a data attribute to the specific modal by title so the
-     CSS above scopes only to that modal. Does not change handlers.
-     ========================================================= */
   function tryBeautifyMediaModal(modalEl){
     if(!modalEl) return;
     // safety: only if title matches
@@ -869,4 +1096,5 @@
   mo.observe(document.body, {childList:true, subtree:true});
 })();
 </script>
+
 @endpush

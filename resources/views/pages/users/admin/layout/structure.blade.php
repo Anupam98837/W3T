@@ -3,15 +3,16 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>@yield('title','W3Techiez Admin')</title>
+  <title>@yield('title','W3Techiez')</title>
  
   <meta name="csrf-token" content="{{ csrf_token() }}"/>
  
-  <link rel="icon" type="image/png" sizes="32x32" href="{{ asset('assets/media/images/favicons/favicon.png') }}">
+  <link rel="icon" type="image/png" sizes="32x32" href="{{ asset('assets/media/images/web/favicon.png') }}">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet"/>
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" rel="stylesheet"/>
   <link rel="stylesheet" href="{{ asset('/assets/css/common/main.css') }}">
- 
+ @stack('styles')
+  @yield('styles')
   <style>
     /* ================= W3Techiez Layout (namespaced; no overrides of main.css) ================= */
     :root{
@@ -342,9 +343,12 @@ html.theme-dark .w3-sidebar-scroll::-webkit-scrollbar-thumb {
           <i class="fa fa-chevron-down w3-chev"></i>
         </a>
         <div id="sm-courses" class="w3-submenu" role="group" aria-label="Courses submenu">
+          
           <a href="/admin/courses/manage" class="w3-link">All Courses</a>
-          <a href="/admin/courses/create" class="w3-link">Create Course</a>
+          <a href="/admin/courses/create" class="w3-link" style="display:none">Create Course</a>
+           <a href="/admin/LandingPage/categories/manage" class="w3-link">Categories</a>
           <a href="/admin/courses" class="w3-link">Running Courses</a>
+          <a href="/admin/batches/manage" class="w3-link">Batches</a>
         </div>
       </div>
 
@@ -356,52 +360,18 @@ html.theme-dark .w3-sidebar-scroll::-webkit-scrollbar-thumb {
         <div id="sm-course-modules" class="w3-submenu" role="group" aria-label="Course Modules submenu">
           <a href="/admin/coursesModule/manage" class="w3-link">All Course Modules</a>
         </div>
-      </div>
- 
-      <div class="w3-group">
-        <a href="#" class="w3-link w3-toggle" data-target="sm-faculty" aria-expanded="false">
-          <i class="fa-solid fa-user-tie"></i><span>Faculty</span>
-          <i class="fa fa-chevron-down w3-chev"></i>
-        </a>
-        <div id="sm-faculty" class="w3-submenu" role="group" aria-label="Faculty submenu">
-          <a href="/admin/faculty" class="w3-link">Manage Faculty</a>
-          <a href="/admin/faculty/hiring" class="w3-link">Hiring</a>
-        </div>
-      </div>
- 
-      <div class="w3-group">
-        <a href="#" class="w3-link w3-toggle" data-target="sm-students" aria-expanded="false">
-          <i class="fa-solid fa-user-graduate"></i><span>Users</span>
-          <i class="fa fa-chevron-down w3-chev"></i>
-        </a>
-        <div id="sm-students" class="w3-submenu" role="group" aria-label="Students submenu">
-          <a href="/admin/users/manage" class="w3-link">Manage Users</a>
-          <a href="/admin/batches/manage" class="w3-link">Batches</a>
-          <a href="/admin/enrolments" class="w3-link">Enrolments</a>
-        </div>
-      </div>
 
-      <!-- Quiz Group Menu - Added -->
-      <div class="w3-group">
-        <a href="#" class="w3-link w3-toggle" data-target="sm-quiz" aria-expanded="false">
-          <i class="fa-solid fa-pen-to-square"></i><span>Quiz</span>
-          <i class="fa fa-chevron-down w3-chev"></i>
-        </a>
-        <div id="sm-quiz" class="w3-submenu" role="group" aria-label="Quiz submenu">
-          <a href="/admin/quizz/manage" class="w3-link">All Quizzes</a>
-          <a href="/admin/quizz/create" class="w3-link">Create Quiz</a>
-        </div>
-      </div>
-
-            <!-- Assignments Group Menu - Added -->
+      </div> 
+       <!-- Assignments Group Menu - Added -->
       <div class="w3-group">
         <a href="#" class="w3-link w3-toggle" data-target="sm-assignments" aria-expanded="false">
           <i class="fa-solid fa-file-lines"></i><span>Assignments</span>
           <i class="fa fa-chevron-down w3-chev"></i>
         </a>
         <div id="sm-assignments" class="w3-submenu" role="group" aria-label="Assignments submenu">
-          <a href="/admin/assignments/manage" class="w3-link">All Assignments</a>
           <a href="/admin/assignments/create" class="w3-link">Create Assignment</a>
+          <a href="/admin/assignments/manage" class="w3-link">All Assignments</a>
+
         </div>
       </div>
 
@@ -417,36 +387,112 @@ html.theme-dark .w3-sidebar-scroll::-webkit-scrollbar-thumb {
         </div>
       </div>
     </nav>
- 
+    <!-- Exams Section -->
+<div class="w3-nav-section">
+  <div class="w3-section-title">
+    <i class="fa-solid fa-file-circle-check"></i> EXAMS
+  </div>
+  <div class="w3-section-rule"></div>
+</div>
+
+<nav class="w3-menu" aria-label="Exams">
+
+  <!-- Quiz Group Menu -->
+  <div class="w3-group">
+        <a href="#" class="w3-link w3-toggle" data-target="sm-quiz" aria-expanded="false">
+          <i class="fa-solid fa-pen-to-square"></i><span>Quiz</span>
+          <i class="fa fa-chevron-down w3-chev"></i>
+        </a>
+        <div id="sm-quiz" class="w3-submenu" role="group" aria-label="Quiz submenu">
+          <a href="/admin/quizz/manage" class="w3-link">All Quizzes</a>
+          <a href="/admin/quizz/create" class="w3-link">Create Quiz</a>
+        </div>
+      </div>
+  <!-- Coding Tests Group -->
+<div class="w3-group">
+  <a href="#" class="w3-link w3-toggle" data-target="sm-coding-tests" aria-expanded="false">
+    <i class="fa-solid fa-code"></i><span>Coding Tests</span>
+    <i class="fa fa-chevron-down w3-chev"></i>
+  </a>
+
+  <div id="sm-coding-tests" class="w3-submenu" role="group" aria-label="Coding Tests submenu">
+    <a href="/admin/topic/manage" class="w3-link">Manage Topics</a>
+    <a href="/admin/topic/module/manage" class="w3-link">Manage Topic Modules</a>
+  </div>
+</div>
+
+</nav>
+
+    <!-- Users (section header + menu) -->
+<!-- USERS SECTION -->
+<div class="w3-nav-section">
+  <div class="w3-section-title">
+    <i class="fa-solid fa-users"></i>
+    <span class="ms-1">USERS</span>
+  </div>
+  <div class="w3-section-rule"></div>
+</div>
+
+<nav class="w3-menu" aria-label="Users">
+  <a href="/admin/users/manage" class="w3-link">
+    <i class="fa-solid fa-user-pen" aria-hidden="true"></i>
+    <span>Users</span>
+  </a>
+</nav>
+
+<!-- Privileges-->
+<div class="w3-nav-section">
+  <div class="w3-section-title">
+    <i class="fa-solid fa-shield-halved" aria-hidden="true"></i>
+    <span class="ms-1">PRIVILEGES</span>
+  </div>
+  <div class="w3-section-rule"></div>
+</div>
+
+<nav class="w3-menu" aria-label="Privileges">
+  <a href="/admin/module/manage" class="w3-link">
+    <i class="fa-solid fa-layer-group" aria-hidden="true"></i>
+    <span>Modules</span>
+  </a>
+
+  <a href="/admin/privilege/manage" class="w3-link">
+    <i class="fa-solid fa-key" aria-hidden="true"></i>
+    <span>Privileges</span>
+  </a>
+</nav>
+
+     <!-- Landing Page Setting -->
+    <div class="w3-nav-section">
+      <div class="w3-section-title">
+        <i class="fa-solid fa-earth-asia"></i>
+        <span class="ms-1">LANDING PAGE SETTING</span>
+      </div>
+      <div class="w3-section-rule"></div>
+    </div>
+
+    <nav class="w3-menu" aria-label="Landing Page Setting">
+      <div class="w3-group">
+        <a href="#" class="w3-link w3-toggle" data-target="sm-landingpage" aria-expanded="false">
+          <i class="fa-solid fa-globe"></i><span>Landing Page</span>
+          <i class="fa fa-chevron-down w3-chev"></i>
+        </a>
+        <div id="sm-landingpage" class="w3-submenu" role="group" aria-label="Landing Page submenu">
+          <a href="/admin/LandingPage/updates/manage" class="w3-link">Updates</a>
+          <a href="/admin/LandingPage/contacts/manage" class="w3-link">Contacts</a>
+          <a href="/admin/LandingPage/hero-images/manage" class="w3-link">Hero Images</a>
+           <a href="/admin/featured/courses/manage" class="w3-link">Featured Courses</a>
+
+         
+        </div>
+      </div>
+    </nav>
+
     <!-- Operations -->
     <div class="w3-nav-section">
       <div class="w3-section-title"><i class="fa-solid fa-screwdriver-wrench"></i> OPERATIONS</div>
       <div class="w3-section-rule"></div>
     </div>
     <nav class="w3-menu" aria-label="Operations">
-      <div class="w3-group">
-        <a href="#" class="w3-link w3-toggle" data-target="sm-schedule" aria-expanded="false">
-          <i class="fa-solid fa-calendar-days"></i><span>Schedule</span>
-          <i class="fa fa-chevron-down w3-chev"></i>
-        </a>
-        <div id="sm-schedule" class="w3-submenu" role="group" aria-label="Schedule submenu">
-          <a href="/admin/schedule" class="w3-link">Calendar</a>
-          <a href="/admin/exams" class="w3-link">Exams</a>
-          <a href="/admin/rooms" class="w3-link">Rooms</a>
-        </div>
-      </div>
- 
-      <div class="w3-group">
-        <a href="#" class="w3-link w3-toggle" data-target="sm-fin" aria-expanded="false">
-          <i class="fa-solid fa-rupee-sign"></i><span>Finance</span>
-          <i class="fa fa-chevron-down w3-chev"></i>
-        </a>
-        <div id="sm-fin" class="w3-submenu" role="group" aria-label="Finance submenu">
-          <a href="/admin/finance" class="w3-link">Overview</a>
-          <a href="/admin/finance/invoices" class="w3-link">Invoices</a>
-          <a href="/admin/finance/scholarships" class="w3-link">Scholarships</a>
-        </div>
-      </div>
       <!-- Notices Group Menu -->
 <div class="w3-group">
   <a href="#" class="w3-link w3-toggle" data-target="sm-notices" aria-expanded="false">
@@ -696,5 +742,99 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('logoutBtnSidebar')?.addEventListener('click', (e) => { e.preventDefault(); performLogout(); });
 });
 </script>
+<script>
+/* =========================================================
+   GLOBAL: Portal dropdown menus out of overflow containers
+   Fixes dropdown being clipped inside .table-responsive
+   ========================================================= */
+(function(){
+  let active = null;
+
+  function cleanup(){
+    if (!active) return;
+
+    window.removeEventListener('resize', active.onEnv);
+    document.removeEventListener('scroll', active.onEnv, true);
+
+    const { menu, parent } = active;
+    if (menu && parent && parent.isConnected) {
+      menu.classList.remove('dd-portal');
+      menu.style.cssText = '';
+      parent.appendChild(menu);
+    }
+    active = null;
+  }
+
+  function positionMenu(toggleEl, menuEl){
+    const rect = toggleEl.getBoundingClientRect();
+    if (!rect || (rect.width === 0 && rect.height === 0)) return;
+
+    // Ensure menu is measurable
+    menuEl.style.visibility = 'hidden';
+    menuEl.style.display = 'block';
+
+    const mw = menuEl.offsetWidth;
+    const mh = menuEl.offsetHeight;
+
+    const vw = document.documentElement.clientWidth;
+    const vh = document.documentElement.clientHeight;
+
+    let left = rect.left;
+    if (left + mw > vw - 8) left = Math.max(8, rect.right - mw);
+    if (left < 8) left = 8;
+
+    let top = rect.bottom + 6;
+    if (top + mh > vh - 8) top = Math.max(8, rect.top - mh - 6);
+
+    menuEl.style.left = left + 'px';
+    menuEl.style.top  = top  + 'px';
+    menuEl.style.visibility = 'visible';
+  }
+
+  // Use SHOWN so bootstrap already applied "show" class (sizes are correct)
+  document.addEventListener('shown.bs.dropdown', function(e){
+    const dropdownEl = e.target;                 // .dropdown wrapper
+    const toggleEl   = e.relatedTarget           // the actual button/link
+      || dropdownEl.querySelector('[data-bs-toggle="dropdown"], .dd-toggle');
+
+    if (!dropdownEl || !toggleEl) return;
+
+    const menuEl = dropdownEl.querySelector('.dropdown-menu');
+    if (!menuEl) return;
+
+    // Only portal dropdowns inside scroll/clip areas
+    if (!dropdownEl.closest('.table-responsive, .table-wrap')) return;
+
+    cleanup();
+
+    const parent = menuEl.parentElement;
+
+    // Move menu to body
+    menuEl.classList.add('dd-portal');
+    document.body.appendChild(menuEl);
+
+    // Reset any popper positioning
+    menuEl.style.position  = 'fixed';
+    menuEl.style.inset     = 'auto';
+    menuEl.style.transform = 'none';
+    menuEl.style.margin    = '0';
+
+    positionMenu(toggleEl, menuEl);
+
+    const inst = bootstrap.Dropdown.getOrCreateInstance(toggleEl);
+    const onEnv = () => { try { inst.hide(); } catch(_){} };
+
+    window.addEventListener('resize', onEnv);
+    document.addEventListener('scroll', onEnv, true);
+
+    active = { menu: menuEl, parent, onEnv };
+  }, true);
+
+  document.addEventListener('hidden.bs.dropdown', function(){
+    cleanup();
+  }, true);
+})();
+</script>
+
 </body>
 </html>

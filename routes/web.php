@@ -1,6 +1,8 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\VIEW\CodingQuestionController as ViewQuestionController;
+
 
 // Route::get('/', function () {
 //     return view('ui.structure');
@@ -9,19 +11,49 @@ use Illuminate\Support\Facades\Route;
 Route::get('/ui', function () {
     return view('ui.ui');
 });
-Route::get('/testing', function () {
-    return view('modules.testing');
+Route::get('/', function () {
+    return view('pages.landing.pages.home');
 });
 
 
 // Login Routes 
 
-Route::get('/', function () {
+Route::get('/login', function () {
     return view('pages.auth.login');
 });
 
+Route::get('/register', function () {
+    return view('pages.auth.register');
+});
 
+Route::get('/courses/all', function () {
+    return view('pages.landing.pages.allCourse');
+});
 
+Route::get('/categories/all', function () {
+    return view('pages.landing.pages.allCategory');
+});
+
+Route::get('/updates/all', function () {
+    return view('pages.landing.pages.viewUpdates');
+});
+Route::get('/terms&conditions', function () {
+    return view('pages.landing.pages.termsAndCondition');
+});
+Route::get('/privacypolicy', function () {
+    return view('pages.landing.pages.privacyPolicy');
+});
+
+Route::get('/refundpolicy', function () {
+    return view('pages.landing.pages.refundPolicy');
+});
+
+Route::get('/about-us', function () {
+    return view('pages.landing.pages.aboutUs');
+});
+Route::get('/contact-us', function () {
+    return view('pages.landing.pages.contactUs');
+});
 
 Route::get('/exam/{quiz}', function (\Illuminate\Http\Request $r, $quiz) {
     // Pass the quiz key (uuid or id) to the view
@@ -103,9 +135,9 @@ Route::get('/admin/courses/{uuid}/view', function (string $uuid) {
     ]);
 })->whereUuid('uuid')->name('admin.courses.global');
 
-Route::get('/admin/courses/{course}', fn ($course) =>
-    view('pages.users.admin.pages.course.viewCourse', ['courseParam' => $course])
-)->where('course', '^(?!create$|manage$|view$).+')->name('admin.courses.admin');
+Route::get('/courses/{course}', fn ($course) =>
+    view('pages.landing.pages.viewCourse', ['courseParam' => $course])
+)->where('course', '^(?!create$|manage$|view$).+')->name('pages.courses.admin');
 
 Route::get('/admin/course/studyMaterial/manage', function () {
     return view('pages.users.admin.pages.studyMaterial.manageStudyMaterial');
@@ -118,9 +150,9 @@ Route::get('/admin/assignments/create', function () {
     return view('pages.users.admin.pages.assignments.createAssignment');
 });
  
-// Route::get('/admin/assignments/manage', function () {
-//     return view('pages.users.admin.pages.assignments.manageAssignments');
-// });
+Route::get('/admin/assignments/manage', function () {
+    return view('pages.users.admin.pages.assignments.manageAssignment');
+});
 
 Route::get('/admin/courses/{uuid}/view', function (string $uuid) {
     return view('modules.course.viewCourse.viewCourseLayout', [
@@ -146,16 +178,70 @@ Route::get('/admin/module/manage', function () {
 Route::get('/admin/privilege/manage', function () {
     return view('modules.privileges.managePrivileges');
 });
-  Route::get('/admin/privilege/assign/{userId?}', function ($userId = null) {
-        return view('modules.privileges.assignPrivileges', compact('userId'));
-    })->where('userId','[0-9]+')->name('admin.privileges.assign.user');
 
+  // Accept either numeric ID OR UUID via query params
+Route::get('/user-privileges/manage', function () {
+    $userUuid = request('user_uuid');
+    $userId   = request('user_id'); // fallback
+    
+    return view('pages.users.admin.pages.privileges.assignPrivileges', [
+        'userUuid' => $userUuid,
+        'userId'   => $userId,
+    ]);
+})->name('modules.privileges.assign.user');
 
+//Coding Routes
+Route::get('/test', function () {
+    return view('pages.users.admin.pages.compiler.testCompiler');});
 
+    Route::get('/coding-test/{uuid}', function () {
+        return view('modules.codingTest.codingTest');});
+    
+    
+Route::get('/admin/topic/manage', function () {
+    return view('pages.users.admin.pages.topic.manageTopic');
+});
+Route::get('/admin/topic/module/manage', function () {
+    return view('pages.users.admin.pages.topic.manageTopicModule');
+});
+Route::get('/admin/compiler/manage', function () {
+    return view('pages.users.admin.pages.compiler.testCompiler');
+});
 
-
-
-
+Route::prefix('admin') // add your middlewares if needed
+    ->group(function () {
+        Route::get('topics/{topic}/modules/{module}/questions',
+            [ViewQuestionController::class, 'manage']
+        )->name('admin.questions.manage');
+    });
+// Landing Page dynamic Routes
+  Route::get('/admin/LandingPage/updates/manage', function () {
+    return view('pages.users.admin.pages.landingPages.manageUpdates');
+});
+ Route::get('/admin/LandingPage/contacts/manage', function () {
+    return view('pages.users.admin.pages.landingPages.manageContacts');
+});
+ Route::get('/admin/LandingPage/hero-images/manage', function () {
+    return view('pages.users.admin.pages.landingPages.manageHeroImages');
+});
+Route::get('/admin/LandingPage/categories/manage', function () {
+    return view('pages.users.admin.pages.landingPages.manageCategories');
+});
+Route::get('/admin/featured/courses/manage', function () {
+    return view('pages.users.admin.pages.landingPages.manageCourses');
+});
+Route::get('/admin/LandingPage/Term&Conditions/manage', function () {
+    return view('pages.users.admin.pages.landingPages.manageTermsAndCondition');
+});
+Route::get('/admin/LandingPage/Refund-Policy/manage', function () {
+    return view('pages.users.admin.pages.landingPages.manageRefundPolicy');
+});
+Route::get('/admin/LandingPage/Privacy-Policy/manage', function () {
+    return view('pages.users.admin.pages.landingPages.managePrivacyPolicy');
+});
+Route::get('/admin/LandingPage/About-Us/manage', function () {
+    return view('pages.users.admin.pages.landingPages.manageAboutUs');
+});
 
 // Student Routes
 Route::get('/student/dashboard', function () {
@@ -166,7 +252,7 @@ Route::get('/student/courses', function () {
     return view('pages.users.student.pages.course.courses');
 });
 
-Route::get('/courses/{batch}/view', function($batchUuid) {
+Route::get('/mycourses/{batch}/view', function($batchUuid) {
     return view('modules.course.viewCourse.viewCourseLayout', ['batchUuid' => $batchUuid]);
 })->name('student.course.view');
 
@@ -212,4 +298,10 @@ Route::get('/admin/notice/manage', function () {
 });
 Route::get('/admin/notice/create', function () {
     return view('pages.users.admin.pages.notices.createNotice');
+});
+
+
+
+Route::get('/profile', function () {
+    return view('pages.users.admin.pages.common.profile');
 });

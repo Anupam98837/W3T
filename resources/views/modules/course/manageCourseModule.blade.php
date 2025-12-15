@@ -8,31 +8,6 @@
 <style>
 /* ===== Shell ===== */
 .cm-wrap{max-width:1140px;margin:16px auto 40px;overflow:visible}
-.panel{background:var(--surface);border:1px solid var(--line-strong);border-radius:16px;box-shadow:var(--shadow-2);padding:14px}
-
-/* Toolbar */
-.mfa-toolbar .form-control{height:40px;border-radius:12px;border:1px solid var(--line-strong);background:var(--surface)}
-.mfa-toolbar .form-select{height:40px;border-radius:12px;border:1px solid var(--line-strong);background:var(--surface)}
-.mfa-toolbar .btn{height:40px;border-radius:12px}
-.mfa-toolbar .btn-light{background:var(--surface);border:1px solid var(--line-strong)}
-.mfa-toolbar .btn-primary{background:var(--primary-color);border:none}
-
-/* Tabs */
-.nav.nav-tabs{border-color:var(--line-strong)}
-.nav-tabs .nav-link{color:var(--ink)}
-.nav-tabs .nav-link.active{background:var(--surface);border-color:var(--line-strong) var(--line-strong) var(--surface)}
-.tab-content,.tab-pane{overflow:visible}
-
-/* Table Card */
-.table-wrap.card{position:relative;border:1px solid var(--line-strong);border-radius:16px;background:var(--surface);box-shadow:var(--shadow-2);overflow:visible}
-.table-wrap .card-body{overflow:visible}
-.table-responsive{overflow:visible !important}
-.table{--bs-table-bg:transparent}
-.table thead th{font-weight:600;color:var(--muted-color);font-size:13px;border-bottom:1px solid var(--line-strong);background:var(--surface)}
-.table thead.sticky-top{z-index:3}
-.table tbody tr{border-top:1px solid var(--line-soft)}
-.table tbody tr:hover{background:var(--page-hover)}
-.small{font-size:12.5px}
 
 /* Sorting */
 .sortable{cursor:pointer;white-space:nowrap}
@@ -97,32 +72,7 @@ html.theme-dark .dropdown-menu{background:#0f172a;border-color:var(--line-strong
 .card,
 .panel,
 .cm-wrap {
-  overflow: visible !important;
   transform: none !important;   /* transforms create new stacking contexts and break fixed/absolute positioning */
-}
-
-/* Make the regular dropdown escape parents when shown */
-.dropdown-menu.dropdown-menu-end.show {
-  position: fixed !important;       /* fixed ensures it positions relative to viewport */
-  transform: none !important;
-  left: 0 !important;               /* will be overwritten by JS */
-  top: 0 !important;                /* will be overwritten by JS */
-  z-index: 9000 !important;         /* keep above table/footer */
-  min-width: 220px;
-  overflow: visible !important;
-  display: block !important;
-}
-
-/* Visual style for portal menus */
-.dropdown-menu.dd-portal {
-  position: fixed !important;
-  transform: none !important;
-  z-index: 9000 !important;
-  min-width: 220px;
-  border-radius: 12px;
-  border: 1px solid var(--line-strong);
-  box-shadow: var(--shadow-2);
-  background: var(--surface);
 }
 
 /* keep dropdown toggle above table row so it remains clickable */
@@ -130,7 +80,6 @@ html.theme-dark .dropdown-menu{background:#0f172a;border-color:var(--line-strong
 
 /* small: ensure dropdown caret/contents not clipped visually */
 .dropdown-menu { overflow: visible; }
-
 </style>
 @endpush
 
@@ -545,14 +494,36 @@ html.theme-dark .dropdown-menu{background:#0f172a;border-color:var(--line-strong
     menu.style.left = left + 'px'; menu.style.top = top + 'px'; menu.style.visibility='visible';
   };
   document.addEventListener('show.bs.dropdown', (ev)=>{
-    const dd=ev.target, btn=dd.querySelector('.dd-toggle,[data-bs-toggle="dropdown"]'), menu=dd.querySelector('.dropdown-menu');
-    if(!btn || !menu) return;
-    if(activePortal?.menu?.isConnected){ activePortal.menu.classList.remove('dd-portal'); activePortal.parent.appendChild(activePortal.menu); activePortal=null; }
-    const rect=btn.getBoundingClientRect(); menu.__parent=menu.parentElement; place(menu, rect); activePortal={menu, parent:menu.__parent};
-    const close=()=>{ try{ bootstrap.Dropdown.getOrCreateInstance(btn).hide(); }catch{} };
-    menu.__ls=[ ['resize',close,false], ['scroll',close,true] ];
-    window.addEventListener('resize', close); document.addEventListener('scroll', close, true);
-  });
+  // Always work from the .dropdown wrapper
+  const dd   = ev.target.closest('.dropdown');
+  if (!dd) return;
+
+  const btn  = dd.querySelector('.dd-toggle,[data-bs-toggle="dropdown"]');
+  const menu = dd.querySelector('.dropdown-menu');
+  if (!btn || !menu) return;
+
+  if (activePortal?.menu?.isConnected) {
+    activePortal.menu.classList.remove('dd-portal');
+    activePortal.parent.appendChild(activePortal.menu);
+    activePortal = null;
+  }
+
+  const rect = btn.getBoundingClientRect();
+  menu.__parent = menu.parentElement;
+  place(menu, rect);
+  activePortal = { menu, parent: menu.__parent };
+
+  const close = () => {
+    try { bootstrap.Dropdown.getOrCreateInstance(btn).hide(); } catch {}
+  };
+  menu.__ls = [
+    ['resize', close, false],
+    ['scroll', close, true]
+  ];
+  window.addEventListener('resize', close);
+  document.addEventListener('scroll', close, true);
+});
+
   document.addEventListener('hidden.bs.dropdown', (ev)=>{
     const dd=ev.target; const menu=dd.querySelector('.dropdown-menu.dd-portal') || activePortal?.menu;
     if(!menu) return;
@@ -628,6 +599,24 @@ document.addEventListener('click',(e)=>{
     save   : document.getElementById('mm_save'),
   };
 
+  // ===== Button-only spinner for Save (NO overlay) =====
+const MM_SAVE_DEFAULT = mm.save ? mm.save.innerHTML : '';
+
+function mmSaveLoading(on){
+  if(!mm.save) return;
+
+  if(on){
+    if(!mm.save.dataset.oldHtml) mm.save.dataset.oldHtml = mm.save.innerHTML;
+    mm.save.disabled = true;
+    mm.save.innerHTML = `<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Save`;
+  } else {
+    mm.save.disabled = false;
+    mm.save.innerHTML = mm.save.dataset.oldHtml || MM_SAVE_DEFAULT;
+    delete mm.save.dataset.oldHtml;
+  }
+}
+
+
   /* RTE elements (must exist in DOM) */
   const mmRte = document.getElementById('mm_long_editor');
   const mmToolbar = document.getElementById('mm_rte_toolbar');
@@ -669,6 +658,134 @@ document.addEventListener('click',(e)=>{
     });
     sortHint.textContent = (sort==="-created_at") ? "Newest first" : (sort==="created_at" ? "Oldest first" : ("Sorted by "+sort.replace('-','')+(sort.startsWith('-')?' (desc)':'')));
   }
+(function () {
+  // prevent double-init if included multiple times
+  if (window.__RTE_COURSEMODULE_SYNC__) return;
+  window.__RTE_COURSEMODULE_SYNC__ = true;
+
+  const FORMAT_MAP = { H1: "h1", H2: "h2", H3: "h3", P: "p" };
+
+  function findEditorForToolbar(toolbar) {
+    // 1) Explicit binding (optional): <div class="toolbar" data-editor="#mm_long_editor">
+    const sel = toolbar.getAttribute("data-editor");
+    if (sel) {
+      const ed = document.querySelector(sel);
+      if (ed) return ed;
+    }
+
+    // 2) Your current layout: toolbar then editor directly next
+    let next = toolbar.nextElementSibling;
+    if (next && (next.getAttribute("contenteditable") === "true" || next.isContentEditable)) {
+      return next;
+    }
+
+    // 3) If wrapped: search nearby for a contenteditable editor
+    const block =
+      toolbar.closest(".modal,.col-12,.col-md-12,.form-group,.row,.card,.modal-body") ||
+      toolbar.parentElement ||
+      document;
+
+    // Prefer your id if present
+    const mm = block.querySelector("#mm_long_editor");
+    if (mm) return mm;
+
+    // Otherwise any contenteditable region
+    return block.querySelector('[contenteditable="true"]');
+  }
+
+  function selectionInside(editor) {
+    const sel = document.getSelection();
+    if (!sel || !sel.anchorNode) return false;
+    const node = sel.anchorNode.nodeType === 3 ? sel.anchorNode.parentNode : sel.anchorNode;
+    return node === editor || editor.contains(node);
+  }
+
+  // More reliable than queryCommandValue in many browsers:
+  function isFormatActive(editor, fmt) {
+    const want = (FORMAT_MAP[fmt] || fmt || "").toLowerCase();
+    if (!want) return false;
+
+    const sel = document.getSelection();
+    if (!sel || !sel.rangeCount) return false;
+
+    let node = sel.getRangeAt(0).commonAncestorContainer;
+    node = node.nodeType === 3 ? node.parentNode : node;
+
+    while (node && node !== editor) {
+      if (node.nodeType === 1 && node.tagName && node.tagName.toLowerCase() === want) return true;
+      node = node.parentNode;
+    }
+    return false;
+  }
+
+  function bindToolbar(toolbar) {
+    if (toolbar.__rteBound) return;
+
+    const editor = findEditorForToolbar(toolbar);
+    if (!editor) return;
+
+    toolbar.__rteBound = true;
+
+    // Only buttons that actually represent actions
+    const tools = Array.from(toolbar.querySelectorAll(".tool"))
+      .filter((el) => el.dataset && (el.dataset.cmd || el.dataset.format));
+
+    function update() {
+      const inside = selectionInside(editor) || document.activeElement === editor;
+
+      // optional "active ring"
+      editor.classList.toggle("active", document.activeElement === editor);
+
+      if (!inside) return;
+
+      tools.forEach((btn) => {
+        const cmd = btn.dataset.cmd;
+        const fmt = btn.dataset.format;
+
+        let on = false;
+        try {
+          if (cmd) on = !!document.queryCommandState(cmd);
+          else if (fmt) on = isFormatActive(editor, fmt);
+        } catch {
+          on = false;
+        }
+
+        btn.classList.toggle("active", on);
+        btn.setAttribute("aria-pressed", on ? "true" : "false");
+      });
+    }
+
+    // update after toolbar actions (your existing execCommand handler can remain)
+    toolbar.addEventListener("click", () => setTimeout(update, 30));
+
+    // update while typing / moving caret
+    ["keyup", "mouseup", "input", "focus", "blur"].forEach((ev) => {
+      editor.addEventListener(ev, () => setTimeout(update, 0));
+    });
+
+    // selection change (only update if selection is within this editor)
+    document.addEventListener("selectionchange", () => {
+      if (selectionInside(editor)) update();
+    });
+
+    update();
+  }
+
+  function initAll() {
+    // Your toolbar has class="toolbar"
+    document.querySelectorAll(".toolbar").forEach(bindToolbar);
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", initAll);
+  } else {
+    initAll();
+  }
+
+  // handle editors that appear later (bootstrap modals, dynamic html)
+  const mo = new MutationObserver(() => initAll());
+  mo.observe(document.body, { childList: true, subtree: true });
+})();
 
   /* ========== Load Courses (once) ========== */
   (async function loadCourses(){
@@ -1063,16 +1180,17 @@ document.addEventListener('click',(e)=>{
     const url    = isEdit ? `/api/course-modules/${encodeURIComponent(mm.key.value)}` : '/api/course-modules';
     const method = isEdit ? 'PATCH' : 'POST';
 
-    mm.save.disabled = true;
-    try{
-      const res=await fetch(url,{method,headers:{'Authorization':'Bearer '+TOKEN,'Content-Type':'application/json','Accept':'application/json'},body:JSON.stringify(payload)});
-      const j=await res.json().catch(()=>({}));
-      if(!res.ok) throw new Error(j?.message||'Save failed');
-      ok('Module saved');
-      mm.modal.hide();
-      load('active');
-    }catch(e){ err(e.message||'Save failed'); }
-    finally{ mm.save.disabled = false; }
+    mmSaveLoading(true);
+try{
+  const res=await fetch(url,{method,headers:{'Authorization':'Bearer '+TOKEN,'Content-Type':'application/json','Accept':'application/json'},body:JSON.stringify(payload)});
+  const j=await res.json().catch(()=>({}));
+  if(!res.ok) throw new Error(j?.message||'Save failed');
+  ok('Module saved');
+  mm.modal.hide();
+  load('active');
+}catch(e){ err(e.message||'Save failed'); }
+finally{ mmSaveLoading(false); }
+
   });
 
   /* ========== Row actions ========= */

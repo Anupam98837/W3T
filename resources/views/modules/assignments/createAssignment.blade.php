@@ -99,6 +99,26 @@
   html.theme-dark .tool{background:#0f172a;border-color:var(--line-strong);color:#e5e7eb}
   html.theme-dark .dropzone{background:#0f172a;border-color:var(--line-strong)}
   html.theme-dark .file-item{background:#0f172a;border-color:var(--line-strong)}
+  .lib-card {
+  position: relative;
+  overflow: hidden;
+}
+
+.lib-overlay-check {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 5;
+  background: rgba(255,255,255,0.95);
+  padding: 4px 8px;
+  border-radius: 999px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.12);
+}
+
+.lib-overlay-check .form-check-input {
+  cursor: pointer;
+}
+
 </style>
 
 @section('content')
@@ -287,10 +307,14 @@
             <i class="fa fa-file me-1"></i>Choose Files
           </label>
           <input id="attachments" type="file" multiple accept=".pdf,.doc,.docx,.zip,.jpg,.jpeg,.png,.gif" hidden>
+          <button type="button" id="btnOpenLibrary" class="btn btn-outline-secondary">
+            <i class="fa fa-book me-1"></i>Choose from Library
+          </button>
           <button type="button" id="btnClearFiles" class="btn btn-light">Clear All</button>
         </div>
       </div>
       <div id="fileList" class="file-list"></div>
+      <div id="libraryList" class="file-list library-list mt-2"></div>
       <div class="err" data-for="attachments"></div>
 
       {{-- Actions --}}
@@ -311,6 +335,51 @@
     </div>
     <div id="errToast" class="toast text-bg-danger border-0 mt-2">
       <div class="d-flex"><div id="errMsg" class="toast-body">Something went wrong</div><button class="btn-close btn-close-white m-auto me-2" data-bs-dismiss="toast"></button></div>
+    </div>
+  </div>
+</div>
+<!-- Study Material / Library Modal -->
+<div class="modal fade" id="smLibraryModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">
+          <i class="fa fa-book me-2"></i>
+          Choose from Library
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+
+      <div class="modal-body">
+        {{-- Search bar --}}
+        <div class="mb-3 d-flex" style="gap:8px">
+          <input id="libSearch" type="search" class="form-control" placeholder="Search by title, file name, type...">
+          <button id="btnLibSearch" class="btn btn-outline-primary" type="button">
+            <i class="fa fa-magnifying-glass me-1"></i>
+          </button>
+        </div>
+        <div class="tiny mb-2 text-muted">
+          Results are filtered per course / batch if selected.
+        </div>
+
+        {{-- Results grid --}}
+        <div id="libEmpty" class="tiny text-muted mb-2" style="display:none;">No items found.</div>
+        <div id="libLoading" class="tiny mb-2" style="display:none;">
+          <i class="fa fa-spinner fa-spin me-1"></i>Loading library…
+        </div>
+
+        <div id="libGrid" class="row g-3">
+          {{-- Cards inserted via JS --}}
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <span class="tiny me-auto" id="libSelectionInfo"></span>
+        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Close</button>
+        <button type="button" id="btnLibAddSelected" class="btn btn-primary">
+          <i class="fa fa-plus me-1"></i>Add Selected
+        </button>
+      </div>
     </div>
   </div>
 </div>
@@ -470,6 +539,11 @@
   const COURSES_API = '/api/courses';
   const MODULES_API = '/api/course-modules';
   const BATCHES_API  = '/api/batches';
+    // Assignment Library API (you implement this in backend)
+  const LIBRARY_API = API_BASE; 
+  // URLs chosen from library (these will be sent as library_urls[])
+  let libraryUrls = [];
+
 
   if(!TOKEN){
     Swal.fire('Login needed','Your session expired. Please login again.','warning')
@@ -500,23 +574,27 @@
   const batchSel  = $('batch_select');
 
   async function fetchCourses(){
-    courseSel.innerHTML = '<option value="">Loading...</option>';
-    try{
-      const res = await fetch(COURSES_API + '?per_page=200', { headers:{ 'Authorization':'Bearer '+TOKEN }});
-      const json = await res.json().catch(()=> ({}));
-      const rows = (json && json.data) ? json.data : (Array.isArray(json) ? json : []);
-      courseSel.innerHTML = '<option value="">— Select course —</option>';
-      rows.forEach(function(c){
-        const opt = document.createElement('option');
-        opt.value = (c && c.id) != null ? c.id : '';
-        opt.textContent = (c && c.title) != null ? c.title : '';
-        courseSel.appendChild(opt);
-      });
-    }catch(e){
-      courseSel.innerHTML = '<option value="">— Failed to load —</option>';
-      console.error(e);
-    }
+  courseSel.innerHTML = '<option value="">Loading...</option>';
+  try{
+    const res = await fetch(COURSES_API + '?per_page=200', { headers:{ 'Authorization':'Bearer '+TOKEN }});
+    const json = await res.json().catch(()=> ({}));
+    const rows = (json && json.data) ? json.data : (Array.isArray(json) ? json : []);
+    courseSel.innerHTML = '<option value="">— Select course —</option>';
+    rows.forEach(function(c){
+      const opt = document.createElement('option');
+      opt.value = (c && c.id) != null ? c.id : '';
+      opt.textContent = (c && c.title) != null ? c.title : '';
+      courseSel.appendChild(opt);
+    });
+    // return rows so callers can await and use them
+    return rows;
+  }catch(e){
+    courseSel.innerHTML = '<option value="">— Failed to load —</option>';
+    console.error(e);
+    // rethrow so caller knows it failed
+    throw e;
   }
+}
 
   async function fetchModulesFor(courseId){
     moduleSel.innerHTML = '<option value="">Loading modules...</option>'; moduleSel.disabled = true;
@@ -590,6 +668,113 @@
     $('busy').classList.toggle('show', !!on);
     setFormDisabled(!!on);
   }
+(function () {
+  // prevent double-init if included multiple times
+  if (window.__RTE_ACTIVE_SYNC__) return;
+  window.__RTE_ACTIVE_SYNC__ = true;
+
+  const FORMAT_MAP = { H1: "h1", H2: "h2", H3: "h3", P: "p" };
+
+  function findEditorForToolbar(toolbar) {
+    // Most common: toolbar -> next sibling .rte-wrap -> .rte
+    let next = toolbar.nextElementSibling;
+    if (next && next.classList && next.classList.contains("rte-wrap")) {
+      const ed = next.querySelector(".rte");
+      if (ed) return ed;
+    }
+
+    // Fallback: search nearby container
+    const block =
+      toolbar.closest(".mb-1,.mb-2,.mb-3,.mb-4,.col-12,.col-md-12,.form-group") ||
+      toolbar.parentElement ||
+      document;
+
+    return block.querySelector(".rte-wrap .rte");
+  }
+
+  function selectionInside(editor) {
+    const sel = document.getSelection();
+    if (!sel || !sel.anchorNode) return false;
+    const node = sel.anchorNode;
+    return node === editor || editor.contains(node);
+  }
+
+  function isFormatActive(fmt) {
+    try {
+      const val = (document.queryCommandValue("formatBlock") || "").toLowerCase();
+      const want = (FORMAT_MAP[fmt] || fmt || "").toLowerCase();
+      return !!want && val.includes(want);
+    } catch {
+      return false;
+    }
+  }
+
+  function bindToolbar(toolbar) {
+    if (toolbar.__rteBound) return; // avoid rebinding
+    const editor = findEditorForToolbar(toolbar);
+    if (!editor) return;
+
+    toolbar.__rteBound = true;
+
+    const tools = Array.from(toolbar.querySelectorAll(".tool"));
+
+    function update() {
+      const inside = selectionInside(editor) || document.activeElement === editor;
+
+      // Editor ring (optional)
+      editor.classList.toggle("active", document.activeElement === editor);
+
+      if (!inside) return;
+
+      tools.forEach((btn) => {
+        const cmd = btn.dataset.cmd;
+        const fmt = btn.dataset.format;
+
+        let on = false;
+        try {
+          if (cmd) on = !!document.queryCommandState(cmd);
+          else if (fmt) on = isFormatActive(fmt);
+        } catch {
+          on = false;
+        }
+
+        btn.classList.toggle("active", on);
+        btn.setAttribute("aria-pressed", on ? "true" : "false");
+      });
+    }
+
+    // update after toolbar actions (your existing execCommand can remain as-is)
+    toolbar.addEventListener("click", () => setTimeout(update, 30));
+
+    // update while typing / moving caret
+    ["keyup", "mouseup", "input", "focus", "blur"].forEach((ev) => {
+      editor.addEventListener(ev, () => setTimeout(update, 0));
+    });
+
+    // update when selection changes (only if inside this editor)
+    document.addEventListener("selectionchange", () => {
+      if (selectionInside(editor)) update();
+    });
+
+    // initial
+    update();
+  }
+
+  function initAll() {
+    document.querySelectorAll(".toolbar").forEach(bindToolbar);
+  }
+
+  // init now / on load
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", initAll);
+  } else {
+    initAll();
+  }
+
+  // handle editors that appear later (modals, dynamic HTML)
+  const mo = new MutationObserver(() => initAll());
+  mo.observe(document.body, { childList: true, subtree: true });
+})();
 
   /* ===== wire RTE ===== */
   function wireRTE(rootId, linkBtnId){
@@ -612,11 +797,50 @@
   wireRTE('instructions','btnLinkInst');
 
   /* ===== File handling ===== */
-  const drop = $('dropzone');
+    const drop = $('dropzone');
   const fileInput = $('attachments');
   const fileList = $('fileList');
+  const libraryList = $('libraryList');           // NEW
   const btnClearFiles = $('btnClearFiles');
+  const btnOpenLibrary = $('btnOpenLibrary');     // NEW
   let selectedFiles = [];
+    function renderLibraryList(){
+  // guard if element is missing
+  if (!libraryList) return;
+
+  libraryList.innerHTML = '';
+  if (!libraryUrls || libraryUrls.length === 0) {
+    const empty = document.createElement('div');
+    empty.className = 'tiny text-muted';
+    empty.textContent = 'No files chosen from library.';
+    libraryList.appendChild(empty);
+    return;
+  }
+
+  libraryUrls.forEach((url, idx) => {
+    const item = document.createElement('div');
+    item.className = 'file-item library-item';
+    item.innerHTML = `
+      <div class="file-info">
+        <i class="fa-solid fa-book-open-reader"></i>
+        <span class="file-name" title="${url}">${url}</span>
+        <span class="file-size badge bg-secondary ms-2">Library</span>
+      </div>
+      <span class="file-remove" data-idx="${idx}" title="Remove from library selection">
+        <i class="fa-solid fa-xmark"></i>
+      </span>
+    `;
+    libraryList.appendChild(item);
+  });
+
+  libraryList.querySelectorAll('.file-remove').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const idx = parseInt(btn.dataset.idx);
+      libraryUrls.splice(idx, 1);
+      renderLibraryList();
+    });
+  });
+}
 
   function formatFileSize(bytes){
     if(bytes < 1024) return bytes + ' B';
@@ -674,10 +898,15 @@
     fileInput.value = '';
   });
 
-  btnClearFiles.addEventListener('click', ()=>{
+    btnClearFiles.addEventListener('click', ()=>{
     selectedFiles = [];
     renderFileList();
+
+    // also clear library selection if you want
+    libraryUrls = [];
+    renderLibraryList();
   });
+
 
   /* ===== Late submission toggle ===== */
   const allowLate = $('allow_late_submissions');
@@ -688,6 +917,286 @@
   }
   allowLate.addEventListener('change', syncLatePenalty);
   syncLatePenalty();
+  
+// modal elements (assume they exist in DOM)
+const libModal = document.getElementById('smLibraryModal');
+const libGrid = $('libGrid');           // container where cards go
+const libEmpty = $('libEmpty');         // "no items" element
+const libLoading = $('libLoading');     // loader element
+const libSearch = $('libSearch');       // search input inside modal
+const btnLibSearch = $('btnLibSearch');
+const btnLibAddSelected = $('btnLibAddSelected');
+const libSelectionInfo = $('libSelectionInfo');
+
+let libItems = [];              // raw items fetched from server (assignments)
+let libSelectedUrls = new Set(); // selected attachment URLs (unique keys)
+const libModalInstance = libModal ? new bootstrap.Modal(libModal) : null;
+
+function updateLibSelectionInfo() {
+  const count = libSelectedUrls.size;
+  libSelectionInfo.textContent = count ? `${count} item${count>1?'s':''} selected` : 'No items selected';
+}
+
+function extOf(u){ try { return (u||'').split('?')[0].split('.').pop().toLowerCase(); } catch(e){ return ''; } }
+function isImageExt(e){ return ['png','jpg','jpeg','gif','webp','avif','svg'].includes(e); }
+function escapeHtml(s){ return String(s||'').replace(/[&<>"'`=\/]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;','/':'&#x2F;','`':'&#x60','=':'&#x3D;'}[ch])); }
+
+// Normalize attachment entry to { url, name, mime, size, ext }
+function normalizeAttach(a){
+  if(!a) return null;
+  if(typeof a === 'string') {
+    const url = a;
+    const name = url.split('/').pop() || url;
+    const ext = extOf(url);
+    return { url, name, mime:'', size:0, ext };
+  }
+  // object-ish
+  const url = a.signed_url || a.url || a.path || a.file_url || a.storage_url || a.path_with_namespace || null;
+  if(!url) return null;
+  const name = a.name || a.label || a.original_name || (url.split('/').pop()) || 'file';
+  const mime = a.mime || a.content_type || a.contentType || '';
+  const size = a.size || a.filesize || 0;
+  const ext = (a.ext || a.extension || extOf(url)).toLowerCase();
+  return { url, name, mime, size, ext, raw: a };
+}
+
+// Render the grid of cards in the modal
+function renderLibGrid() {
+  if (!libGrid) return;
+  libGrid.innerHTML = '';
+  libEmpty.style.display = libItems.length ? 'none' : 'block';
+
+  if (!libItems.length) { 
+    updateLibSelectionInfo(); 
+    return; 
+  }
+
+  const rowFrag = document.createDocumentFragment();
+
+  libItems.forEach((doc, idx) => {
+    // doc: { key, url, name, refs, ext, isImage, size, mime }
+    const idKey = doc.key; // normalized key (url w/o query)
+    const cardCol = document.createElement('div');
+    cardCol.className = 'col-md-4 mb-3';
+
+    const card = document.createElement('div');
+    card.className = 'card h-100 lib-card';
+
+    const thumbHtml = doc.isImage && doc.url
+      ? `<img src="${escapeHtml(doc.url)}" alt="${escapeHtml(doc.name)}" class="img-fluid rounded" style="max-height:140px;object-fit:cover;">`
+      : `<div class="lib-icon d-flex align-items-center justify-content-center" style="height:140px;">
+           <i class="fa fa-file fa-2x text-muted"></i>
+         </div>`;
+
+    card.innerHTML = `
+      <!-- Top-left overlay checkbox -->
+      <div class="lib-overlay-check">
+        <div class="form-check form-check-sm m-0">
+          <input 
+            class="form-check-input lib-select" 
+            type="checkbox" 
+            data-url="${escapeHtml(doc.url)}" 
+            id="lib-${idx}">
+        </div>
+      </div>
+
+      <div class="card-img-top lib-thumb text-center p-3">
+        ${thumbHtml}
+      </div>
+
+      <div class="card-body d-flex flex-column">
+        <h6 class="card-title text-truncate" title="${escapeHtml(doc.name)}">
+          ${escapeHtml(doc.name)}
+        </h6>
+        <p class="card-text tiny text-muted mb-1">
+          ${escapeHtml(doc.mime || ('File .' + (doc.ext || '')))}
+        </p>
+        <p class="card-text tiny text-muted mb-2">
+          ${doc.size ? formatFileSize(doc.size) : ''}
+        </p>
+
+        <div class="mt-auto d-flex justify-content-start align-items-center">
+  ${
+    doc.url 
+      ? `<a 
+           href="${escapeHtml(doc.url)}" 
+           target="_blank" 
+           rel="noopener" 
+           class="btn btn-sm btn-outline-primary tiny d-inline-flex align-items-center px-2 py-1"
+           style="font-size:12px;"
+         >
+           <i class="fa fa-arrow-up-right-from-square me-1"></i>
+           Preview
+         </a>`
+      : ''
+  }
+</div>
+
+      </div>
+    `;
+
+    const checkbox = card.querySelector('.lib-select');
+
+    // Pre-check if already selected
+    if (libSelectedUrls.has(idKey) || libSelectedUrls.has(doc.url)) {
+      checkbox.checked = true;
+    }
+
+    // Checkbox change → update selection set
+    checkbox.addEventListener('change', (e) => {
+      const theUrl = doc.url;
+      const key = doc.key;
+      if (e.target.checked) {
+        libSelectedUrls.add(key);
+        libSelectedUrls.add(theUrl);
+      } else {
+        libSelectedUrls.delete(key);
+        libSelectedUrls.delete(theUrl);
+      }
+      updateLibSelectionInfo();
+    });
+
+    // Clicking card (but not preview or checkbox) toggles checkbox
+    card.addEventListener('click', (ev) => {
+      if (ev.target.closest('.lib-select') || ev.target.closest('a')) return;
+      checkbox.checked = !checkbox.checked;
+      checkbox.dispatchEvent(new Event('change'));
+    });
+
+    cardCol.appendChild(card);
+    rowFrag.appendChild(cardCol);
+  });
+
+  libGrid.appendChild(rowFrag);
+  updateLibSelectionInfo();
+}
+
+// Fetch library items from assignments index and normalize into deduped docs
+async function fetchLibraryItems(query = '') {
+  if(!LIBRARY_API) return;
+  libLoading.style.display = 'block';
+  libEmpty.style.display = 'none';
+  libGrid.innerHTML = '';
+  libItems = [];
+  libSelectedUrls = new Set();
+  updateLibSelectionInfo();
+
+  try {
+    const params = new URLSearchParams();
+    params.append('per_page','200');
+    const cid = courseSel.value;
+    const bid = batchSel.value;
+    if(cid) params.append('course_id', cid);
+    if(bid) params.append('batch_id', bid);
+    if(query) params.append('q', query);
+
+    const url = LIBRARY_API + (params.toString() ? ('?' + params.toString()) : '');
+    console.log('[LIBRARY] Fetching assignments for library:', url);
+
+    const res = await fetch(url, { headers: { 'Authorization': 'Bearer ' + TOKEN, 'Accept': 'application/json' }});
+    const text = await res.text();
+    let json = null;
+    try { json = text ? JSON.parse(text) : null; } catch(e) { console.warn('[LIBRARY] non-json response', e); }
+
+    if(!res.ok) {
+      const msg = (json && (json.message || json.error)) || ('HTTP ' + res.status);
+      err('Library error: ' + msg);
+      libItems = [];
+      renderLibGrid();
+      return;
+    }
+
+    // normalize list shape
+    let rows = [];
+    if (Array.isArray(json)) rows = json;
+    else if (json && Array.isArray(json.data)) rows = json.data;
+    else if (json && json.data && Array.isArray(json.data.data)) rows = json.data.data;
+    else if (json && Array.isArray(json.items)) rows = json.items;
+    else if (json && Array.isArray(json.rows)) rows = json.rows;
+    else rows = [];
+
+    // build docMap deduped by url (strip query)
+    const docMap = new Map();
+    rows.forEach(row => {
+      // determine attachments in row: try multiple fields
+      const rawAtts = row.attachments || row.attachment || row.files || row.resources || [];
+      const atts = Array.isArray(rawAtts) ? rawAtts : (rawAtts ? [rawAtts] : []);
+
+      atts.forEach(a => {
+        const n = normalizeAttach(a);
+        if(!n || !n.url) return;
+        const key = n.url.split('?')[0];
+        if(!key) return;
+        const assignmentTitle = row.title || row.name || row.quiz_name || ('Assignment ' + (row.id || ''));
+        if(!docMap.has(key)) {
+          docMap.set(key, {
+            key,
+            url: n.url,
+            name: n.name || (n.url.split('/').pop() || 'file'),
+            mime: n.mime || '',
+            size: n.size || 0,
+            ext: n.ext || extOf(n.url),
+            isImage: isImageExt(n.ext || extOf(n.url)),
+            refs: [assignmentTitle],
+            searchText: ((assignmentTitle||'') + ' ' + (n.name||'') + ' ' + (n.url||'')).toLowerCase()
+          });
+        } else {
+          const entry = docMap.get(key);
+          if(!entry.refs.includes(assignmentTitle)) {
+            entry.refs.push(assignmentTitle);
+            entry.searchText += ' ' + assignmentTitle;
+          }
+        }
+      });
+    });
+
+    libItems = Array.from(docMap.values());
+    renderLibGrid();
+  } catch (e) {
+    console.error('Library fetch failed', e);
+    libItems = [];
+    renderLibGrid();
+  } finally {
+    libLoading.style.display = 'none';
+  }
+}
+
+// Open library modal handler (wires initial state)
+if(btnOpenLibrary){
+  btnOpenLibrary.addEventListener('click', () => {
+    if(!libModalInstance) return;
+    // preselect urls already in libraryUrls
+    libSelectedUrls.clear();
+    (libraryUrls || []).forEach(u => {
+      if(u) libSelectedUrls.add( (String(u)).split('?')[0] );
+      libSelectedUrls.add(String(u));
+    });
+    libSearch.value = '';
+    updateLibSelectionInfo();
+    libModalInstance.show();
+    fetchLibraryItems('');
+  });
+}
+
+// Search wiring
+if(btnLibSearch) btnLibSearch.addEventListener('click', ()=> fetchLibraryItems((libSearch.value||'').trim()));
+if(libSearch) libSearch.addEventListener('keypress', (e)=> { if(e.key==='Enter'){ e.preventDefault(); fetchLibraryItems((libSearch.value||'').trim()); } });
+
+// Confirm selected → add selected URLs to libraryUrls
+if(btnLibAddSelected){
+  btnLibAddSelected.addEventListener('click', () => {
+    const chosen = [];
+    libItems.forEach(item => {
+      const key = item.key;
+      if(libSelectedUrls.has(key) || libSelectedUrls.has(item.url)) chosen.push(item.url);
+    });
+    // merge & dedupe
+    const merged = new Set([...(libraryUrls || []), ...chosen]);
+    libraryUrls = Array.from(merged);
+    renderLibraryList();
+    if(libModalInstance) libModalInstance.hide();
+  });
+}
 
   /* ===== Auto-slug generation ===== */
   const titleInput = $('title');
@@ -900,7 +1409,7 @@
 
   // init UI
   renderSelectedChips();
-
+  renderLibraryList();
   /* ===== payload builder ===== */
   function buildPayload(){
     return {
@@ -919,82 +1428,191 @@
       due_at: $('due_at').value || null,
       end_at: $('end_at').value || null,
       allow_late_submissions: allowLate.checked ? 1 : 0,
-      late_penalty: allowLate.checked ? (Number($('late_penalty').value||0) || null) : null
+      late_penalty: allowLate.checked ? (Number($('late_penalty').value||0) || null) : null,
+       library_urls: libraryUrls   
     };
   }
+// robust loadAssignment that waits for courses and selects course reliably
+async function loadAssignment(key){
+  const busyEl = $('busy');
+  if(busyEl) busyEl.classList.add('show');
+  try{
+    // Try multiple possible endpoints for assignment
+    const endpoints = [
+      `/api/assignments/${encodeURIComponent(key)}`,
+      `/api/assignments/show/${encodeURIComponent(key)}`,
+      `/api/assignments/${encodeURIComponent(key)}/edit`
+    ];
 
-  /* ===== load (Edit mode) ===== */
-  async function loadAssignment(key){
-    $('busy').classList.add('show');
-    try{
-      const res = await fetch(`/api/assignments/${encodeURIComponent(key)}`, {
-        headers:{ 'Authorization':'Bearer '+TOKEN, 'Accept':'application/json' }
-      });
-      const json = await res.json().catch(()=> ({}));
-      
-      if(!res.ok) throw new Error(json?.message || 'Load failed');
-      
-      const a = json?.data || json;
-      if(!a) throw new Error('Assignment not found');
-
-      currentUUID = a.uuid || a.id || key;
-
-      // fill fields
-      if(a.course_id) {
-        courseSel.value = a.course_id;
-        // Trigger cascade to load modules and batches
-        await fetchModulesFor(a.course_id);
-        await fetchBatchesFor(a.course_id);
-        
-        // Now set the module and batch values
-        setTimeout(() => {
-          if(a.course_module_id) moduleSel.value = a.course_module_id;
-          if(a.batch_id) batchSel.value = a.batch_id;
-        }, 500);
+    let res = null, json = null;
+    for (const ep of endpoints) {
+      try {
+        res = await fetch(ep, { headers:{ 'Authorization':'Bearer '+TOKEN, 'Accept':'application/json' }});
+        const text = await res.text().catch(()=>null);
+        json = text ? JSON.parse(text) : null;
+        if(res && res.ok) break;
+      } catch(innerErr){
+        res = null; json = null;
       }
-      
-      $('title').value = a.title || '';
-      $('slug').value = a.slug || '';
-      $('instructions').innerHTML = a.instructions || '';
-      $('status').value = a.status || 'published';
-      $('submission_type').value = a.submission_type || 'file';
-      $('attempts_allowed').value = a.attempts_allowed || 3;
-      $('total_marks').value = a.total_marks || '';
-      $('pass_marks').value = a.pass_marks || '';
-      
-      // Load allowed submission types if they exist
-      if(a.allowed_submission_types && Array.isArray(a.allowed_submission_types)) {
-        allowedSubmissionTypes = [...a.allowed_submission_types];
-        renderSelectedChips();
-      }
-      
-      if(a.due_at){
-        const d = new Date(a.due_at);
-        if(!isNaN(d)) $('due_at').value = d.toISOString().slice(0,16);
-      }
-      if(a.end_at){
-        const d = new Date(a.end_at);
-        if(!isNaN(d)) $('end_at').value = d.toISOString().slice(0,16);
-      }
-
-      allowLate.checked = !!a.allow_late_submissions;
-      $('late_penalty').value = a.late_penalty || '';
-      syncLatePenalty();
-
-      // Update RTE placeholder
-      document.querySelectorAll('.rte-ph').forEach(ph => {
-        const editor = ph.previousElementSibling;
-        const hasContent = (editor.textContent || '').trim().length > 0 || (editor.innerHTML||'').trim().length > 0;
-        editor.classList.toggle('has-content', hasContent);
-      });
-      
-    }catch(e){
-      console.error(e);
-      throw e;
-    }finally{
-      $('busy').classList.remove('show');
     }
+
+    if(!res || !res.ok){
+      const message = (json && (json.message || json.error)) || 'Not found';
+      throw new Error('Load failed: ' + message);
+    }
+
+    const a = json?.data || json;
+    if(!a) throw new Error('Assignment not found');
+
+    currentUUID = a.uuid || a.id || key;
+
+    // 1) Ensure course options are loaded
+    try {
+      // If you have an ensureCoursesLoaded wrapper, use it; otherwise call fetchCourses()
+      if(typeof ensureCoursesLoaded === 'function'){
+        await ensureCoursesLoaded();
+      } else {
+        await fetchCourses();
+      }
+    } catch(e){
+      // courses failed to load — we'll still attempt to set course and create option if needed
+      console.warn('Warning: fetchCourses failed while loading assignment', e);
+    }
+
+    // Helper: try to pick the best candidate option for the course
+    function pickCourseOption(courseIdCandidates = [], courseTitleCandidate){
+      if(!courseSel) return null;
+      // 1) exact match on option.value
+      for(const cand of courseIdCandidates){
+        if(cand == null) continue;
+        const opt = Array.from(courseSel.options).find(o => String(o.value) === String(cand));
+        if(opt) return opt;
+      }
+      // 2) match data-uuid attribute (some options may have data-uuid)
+      for(const cand of courseIdCandidates){
+        if(cand == null) continue;
+        const opt = Array.from(courseSel.options).find(o => (o.dataset && o.dataset.uuid) && String(o.dataset.uuid) === String(cand));
+        if(opt) return opt;
+      }
+      // 3) match by visible text/title (fallback)
+      if(courseTitleCandidate){
+        const opt = Array.from(courseSel.options).find(o => (o.textContent||'').trim() === (courseTitleCandidate||'').trim());
+        if(opt) return opt;
+      }
+      return null;
+    }
+
+    // Build possible ids to try. The assignment payload might use course_id (id), course_uuid, or nested objects.
+    const courseIdCandidates = [];
+    if(a.course_id !== undefined && a.course_id !== null) courseIdCandidates.push(a.course_id);
+    if(a.course_uuid !== undefined && a.course_uuid !== null) courseIdCandidates.push(a.course_uuid);
+    if(a.course && (a.course.id || a.course.uuid)) {
+      if(a.course.id) courseIdCandidates.push(a.course.id);
+      if(a.course.uuid) courseIdCandidates.push(a.course.uuid);
+    }
+    // also try the currentUUID if that's actually the course id in some apps
+    courseIdCandidates.push(a.id || a.uuid || null);
+
+    const courseTitleCandidate = a.course_title || a.course_name || a.course?.title || a.course?.name || a.course_name || a.title;
+
+    let picked = pickCourseOption(courseIdCandidates, courseTitleCandidate);
+
+    // If nothing matched, attempt loose matching by checking numeric/string equality
+    if(!picked){
+      // attempt more aggressive matching: compare without type strictness
+      const vals = Array.from(courseSel.options).map(o => ({opt:o, v:String(o.value), uuid:(o.dataset && o.dataset.uuid? String(o.dataset.uuid): null), txt:(o.textContent||'').trim()}));
+      for(const cand of courseIdCandidates){
+        if(!cand) continue;
+        const sc = String(cand);
+        const found = vals.find(x => x.v === sc || x.uuid === sc);
+        if(found){ picked = found.opt; break; }
+      }
+    }
+
+    // If still nothing — insert a new option so select shows something useful (helps when backend returns id not present in list)
+    if(!picked){
+      const newOpt = document.createElement('option');
+      // prefer human-readable label
+      const label = courseTitleCandidate || (`Course ${courseIdCandidates.find(Boolean) || key}`);
+      // set value preferring numeric id if present, otherwise UUID or first candidate
+      const v = (a.course_id != null) ? a.course_id : (a.course?.id != null ? a.course.id : (a.course_uuid || a.course?.uuid || courseIdCandidates.find(Boolean) || ''));
+      newOpt.value = v;
+      newOpt.textContent = label;
+      // if we have uuid, set data-uuid to help future matches
+      if(a.course_uuid) newOpt.dataset.uuid = a.course_uuid;
+      // append and pick
+      courseSel.appendChild(newOpt);
+      picked = newOpt;
+    }
+
+    // finally set the select to the chosen option value
+    if(picked){
+      courseSel.value = picked.value;
+    }
+
+    // Trigger cascade: fetch modules & batches for the selected course
+    const cidToUse = courseSel.value || (a.course_id || a.course?.id || a.course_uuid || a.course?.uuid || null);
+    if(cidToUse){
+      await fetchModulesFor(cidToUse);
+      await fetchBatchesFor(cidToUse);
+      // now set module & batch values (they should exist after the fetch)
+      if(a.course_module_id && moduleSel) moduleSel.value = a.course_module_id;
+      if(a.batch_id && batchSel) batchSel.value = a.batch_id;
+      // sometimes backend keeps module/batch as nested objects:
+      if(!moduleSel.value && a.course_module && a.course_module.id) moduleSel.value = a.course_module.id;
+      if(!batchSel.value && a.batch && a.batch.id) batchSel.value = a.batch.id;
+    }
+
+    // fill other fields
+    if($('title')) $('title').value = a.title || '';
+    if($('slug')) $('slug').value = a.slug || '';
+    if($('instructions')) $('instructions').innerHTML = a.instructions || '';
+    if($('status')) $('status').value = a.status || 'published';
+    if($('submission_type')) $('submission_type').value = a.submission_type || 'file';
+    if($('attempts_allowed')) $('attempts_allowed').value = a.attempts_allowed || 3;
+    if($('total_marks')) $('total_marks').value = a.total_marks || '';
+    if($('pass_marks')) $('pass_marks').value = a.pass_marks || '';
+
+    if(a.allowed_submission_types && Array.isArray(a.allowed_submission_types)) {
+      allowedSubmissionTypes = [...a.allowed_submission_types];
+      renderSelectedChips();
+    }
+
+    if(a.due_at && $('due_at')) { const d = new Date(a.due_at); if(!isNaN(d)) $('due_at').value = d.toISOString().slice(0,16); }
+    if(a.end_at && $('end_at')) { const d = new Date(a.end_at); if(!isNaN(d)) $('end_at').value = d.toISOString().slice(0,16); }
+
+    if(allowLate && typeof a.allow_late_submissions !== 'undefined') allowLate.checked = !!a.allow_late_submissions;
+    if($('late_penalty')) $('late_penalty').value = a.late_penalty || '';
+    syncLatePenalty();
+
+    // library attachments normalization
+    if(a.library_urls && Array.isArray(a.library_urls) && a.library_urls.length){
+      libraryUrls = Array.from(new Set(a.library_urls));
+      renderLibraryList();
+    } else if(a.attachments || a.attachment){
+      libraryUrls = [];
+      const raw = a.attachments || a.attachment || [];
+      const arr = Array.isArray(raw) ? raw : (raw ? [raw] : []);
+      arr.forEach(t => { const n = normalizeAttach(t); if(n && n.url) libraryUrls.push(n.url); });
+      libraryUrls = Array.from(new Set(libraryUrls));
+      renderLibraryList();
+    }
+
+    // update RTE visuals
+    document.querySelectorAll('.rte-ph').forEach(ph => {
+      const editor = ph.previousElementSibling;
+      if(!editor) return;
+      const hasContent = (editor.textContent || '').trim().length > 0 || (editor.innerHTML||'').trim().length > 0;
+      editor.classList.toggle('has-content', hasContent);
+    });
+
+  }catch(e){
+    console.error(e);
+    throw e;
+  }finally{
+    if(busyEl) busyEl.classList.remove('show');
   }
+}
 
   /* ===== submit ===== */
   $('btnSave').addEventListener('click', async ()=>{

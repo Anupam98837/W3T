@@ -8,6 +8,7 @@
 
   <meta name="csrf-token" content="{{ csrf_token() }}"/>
 
+  <link rel="icon" type="image/png" sizes="32x32" href="{{ asset('assets/media/images/web/favicon.png') }}">
   <!-- Vendors -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet"/>
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" rel="stylesheet"/>
@@ -16,10 +17,6 @@
   <link rel="stylesheet" href="{{ asset('/assets/css/common/main.css') }}"/>
 
   <style>
-    /* =========================
-       Namespaced Login (lx-*)
-       ========================= */
-
     html, body { height:100%; }
     body.lx-auth-body{
       height:100%;
@@ -116,7 +113,8 @@
     .lx-login{
       width:100%; height:48px; border:none; border-radius:12px; font-weight:700; color:#fff;
       background:linear-gradient(180deg, color-mix(in oklab, var(--primary-color) 92%, #fff 8%), var(--primary-color));
-      box-shadow:0 10px 22px rgba(149,30,170,.22); transition:var(--transition);
+      /* box-shadow:0 10px 22px rgba(149,30,170,22);  */
+      transition:var(--transition);
     }
     .lx-login:hover{ filter:brightness(.98); transform:translateY(-1px); }
 
@@ -191,6 +189,31 @@
     @keyframes lx-orbitB{ 0%{transform:translate(0,0);} 50%{transform:translate(-6px, 6px);} 100%{transform:translate(0,0);} }
     @keyframes lx-chip{ 0%,100%{ transform:translateY(0);} 50%{ transform:translateY(-6px);} }
     @keyframes lx-twinkle{ 0%{opacity:.22;} 50%{opacity:.34;} 100%{opacity:.22;} }
+    /* Hide browser-native password reveal buttons */
+
+/* Chrome / Edge (WebKit-based) */
+input[type="password"]::-ms-reveal,
+input[type="password"]::-ms-clear {
+    display: none !important;
+}
+
+input[type="password"]::-webkit-textfield-decoration-container,
+input[type="password"]::-webkit-password-toggle-button,
+input[type="password"]::-webkit-credentials-auto-fill-button {
+    display: none !important;
+}
+
+/* Safari iOS sometimes adds its own icon — hide it */
+input[type="password"]::-webkit-textfield-decoration-container {
+    opacity: 0 !important;
+}
+.lx-register-link {
+  font-weight: 600;
+}
+.lx-register-link:hover {
+  text-decoration: underline;
+}
+
   </style>
 </head>
 <body class="lx-auth-body">
@@ -240,11 +263,19 @@
         </div>
         <a class="text-decoration-none" href="/forgot-password">Forgot password?</a>
       </div>
-
+      
       <button class="lx-login" id="lx_btn" type="submit">
         <span class="me-2"><i class="fa-solid fa-right-to-bracket"></i></span> Login
       </button>
+      <div class="mt-3 text-center">
+  <p class="lx-sub">
+    Don't have an account?
+    <a href="/register" class="text-decoration-none lx-register-link">Register with Us</a>
+  </p>
+</div>
+
     </form>
+
   </section>
 
   <!-- RIGHT: VISUAL (hidden on mobile) -->

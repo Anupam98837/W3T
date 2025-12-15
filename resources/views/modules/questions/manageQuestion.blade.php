@@ -1563,9 +1563,20 @@ document.getElementById('btnHelp')?.addEventListener('click', function(){
             return String(s||'').replace(/[&<>"']/g, function(c){ return m[c]; }); 
         }
 
-        function stripHtml(html){ 
+        function stripHtml(html, keepTags = []) { 
+            if (!html) return '';
+            
+            // Create a temporary div
             var d = document.createElement('div'); 
-            d.innerHTML = html || ''; 
+            d.innerHTML = html;
+            
+            // Remove script, style, head, meta, link, title elements
+            const tagsToRemove = ['script', 'style', 'head', 'meta', 'link', 'title'];
+            tagsToRemove.forEach(tag => {
+                d.querySelectorAll(tag).forEach(el => el.remove());
+            });
+            
+            // Return text content for preview, or sanitized HTML for editing
             return d.textContent || ''; 
         }
 

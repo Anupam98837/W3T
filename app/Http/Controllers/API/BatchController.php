@@ -128,22 +128,24 @@ class BatchController extends Controller
         return $s ? Carbon::parse($s) : null;
     }
 
-    protected function daysDuration(?string $start, ?string $end, bool $inclusive = true): ?int
+    protected function daysDuration(?string $start, ?string $end): ?int
 {
     if (!$start || !$end) return null;
+
     try {
         $s = \Carbon\Carbon::parse($start)->startOfDay();
         $e = \Carbon\Carbon::parse($end)->startOfDay();
+
         if ($e->lt($s)) return null;
-        $days = $s->diffInDays($e);
-        return $inclusive ? ($days + 1) : $days;
+
+        // Always inclusive
+        return $s->diffInDays($e) + 1;
+
     } catch (\Throwable $e) {
         return null;
     }
 }
-
-
-    
+   
     /* =========================================================
      |                       Batches
      |=========================================================*/
@@ -212,7 +214,8 @@ class BatchController extends Controller
             $r->metadata       = $r->metadata ? json_decode($r->metadata, true) : null;
 $r->duration_human = $this->humanDuration($r->starts_at ?? null, $r->ends_at ?? null);
 $r->duration_days  = $this->daysDuration($r->starts_at ?? null, $r->ends_at ?? null);
-
+$r->tagline = $r->tagline ?? null;
+        $r->badge_description = $r->badge_description ?? null; 
             return $r;
         });
 
@@ -526,7 +529,7 @@ public function update(Request $request, $idOrUuid)
      * GET /api/batches/{idOrUuid}/students?q=&per_page=20&page=1
      * Returns students list with "assigned" flag for the given batch (for toggle UI).
      */
-public function studentsIndex(Request $request, $idOrUuid)
+    public function studentsIndex(Request $request, $idOrUuid)
 {
     $batch = $this->findBatch($idOrUuid);
     if (!$batch) return response()->json(['success' => false, 'message' => 'Batch not found'], 404);
@@ -1396,6 +1399,277 @@ public function quizzUpdate(Request $request, $idOrUuid)
 
     return response()->json($response);
 }
+public function enrollStudent(Request $request, $idOrUuid)
+{
+    // derive actor from token (must be present)
+    $actorId = $this->authUserIdFromToken($request);
+    if (!$actorId) {
+        return response()->json(['success' => false, 'message' => 'Unauthorized'], 401);
+    }
 
+    // find batch (by id or uuid)
+    $batch = $this->findBatch($idOrUuid);
+    if (!$batch) {
+        return response()->json(['success' => false, 'message' => 'Batch not found'], 404);
+    }
+
+    // If client provided user_id, validate it. Otherwise fall back to actor id.
+    $inputUserId = $request->input('user_id', null);
+    if ($inputUserId !== null) {
+        $v = Validator::make(['user_id' => $inputUserId], [
+            'user_id' => 'required|integer|exists:users,id',
+        ]);
+        if ($v->fails()) {
+            return response()->json(['success' => false, 'errors' => $v->errors()], 422);
+        }
+        $userId = (int) $inputUserId;
+    } else {
+        // no user_id provided by client -> use server-derived actor id
+        $userId = $actorId;
+    }
+
+    // Optional security: prevent clients from enrolling another user even if they send user_id.
+    // Uncomment to enforce strict match:
+    // if ($userId !== $actorId) {
+    //     return response()->json(['success' => false, 'message' => 'Forbidden: cannot enroll another user'], 403);
+    // }
+
+    $now = now();
+    $ip  = $request->ip() ?: $request->server('REMOTE_ADDR');
+
+    $resultId = null;
+    $createdNew = false;
+
+    try {
+        DB::transaction(function() use ($batch, $userId, $actorId, $now, $ip, &$resultId, &$createdNew) {
+            // include soft-deleted so we can revive; lock for safety
+            $existing = DB::table('batch_students')
+                ->where('batch_id', $batch->id)
+                ->where('user_id', $userId)
+                ->lockForUpdate()
+                ->first();
+
+            if ($existing) {
+                // prepare update: always set verification state to not_verified (managed server-side)
+                $upd = [
+                    'enrollment_status' => 'not_verified',
+                    'updated_at'        => $now,
+                ];
+
+                if (!is_null($existing->deleted_at)) {
+                    // revive soft-deleted row — preserve original created_by/created_at_ip if present
+                    $upd['deleted_at']    = null;
+                    $upd['enrolled_at']   = $existing->enrolled_at ?: $now;
+                    // only set created_by/created_at_ip if original values are missing
+                    if (empty($existing->created_by)) {
+                        $upd['created_by'] = $actorId;
+                    }
+                    if (empty($existing->created_at_ip)) {
+                        $upd['created_at_ip'] = $ip;
+                    }
+                }
+
+                DB::table('batch_students')->where('id', $existing->id)->update($upd);
+                $resultId = $existing->id;
+                $createdNew = false;
+            } else {
+                $insert = [
+                    'uuid'              => (string)\Illuminate\Support\Str::uuid(),
+                    'batch_id'          => $batch->id,
+                    'user_id'           => $userId,
+                    'enrollment_status' => 'not_verified',
+                    'enrolled_at'       => $now,
+                    'completed_at'      => null,
+                    'created_by'        => $actorId,
+                    'created_at_ip'     => $ip,
+                    'created_at'        => $now,
+                    'updated_at'        => $now,
+                    'deleted_at'        => null,
+                    'metadata'          => json_encode([]),
+                ];
+
+                $resultId = DB::table('batch_students')->insertGetId($insert);
+                $createdNew = true;
+            }
+        });
+
+        if (is_null($resultId)) {
+            // should not happen, but guard just in case
+            Log::error('Enroll transaction completed without resultId', ['batch' => $batch->id, 'user' => $userId]);
+            return response()->json(['success' => false, 'message' => 'Failed to enroll student'], 500);
+        }
+
+        $row = DB::table('batch_students')->where('id', $resultId)->first();
+
+        // normalize metadata to array for stable API
+        $row->metadata = $row->metadata ? json_decode($row->metadata, true) : [];
+
+        $message = $createdNew ? 'Student enrolled' : 'Student enrollment updated/revived';
+
+        return response()->json(['success' => true, 'message' => $message, 'data' => $row], $createdNew ? 201 : 200);
+
+    } catch (\Throwable $e) {
+        Log::error('Enroll student failed', ['ex' => $e, 'batch' => $idOrUuid, 'user' => $userId]);
+        return response()->json(['success' => false, 'message' => 'Failed to enroll student'], 500);
+    }
+}
+
+public function verifyStudent(Request $request, $idOrUuid, $userId)
+{
+    $actorId = $this->authUserIdFromToken($request);
+    if (!$actorId) {
+        return response()->json(['success' => false, 'message' => 'Unauthorized'], 401);
+    }
+
+    // TODO: permission check (who can verify?)
+    // if (! $this->userCanVerify($actorId)) { return response()->json([...], 403); }
+
+    $batch = $this->findBatch($idOrUuid);
+    if (!$batch) {
+        return response()->json(['success' => false, 'message' => 'Batch not found'], 404);
+    }
+
+    try {
+        $updated = null;
+
+        DB::transaction(function() use ($batch, $userId, &$updated, $actorId) {
+            // lock active enrollment row
+            $row = DB::table('batch_students')
+                ->where('batch_id', $batch->id)
+                ->where('user_id', (int)$userId)
+                ->whereNull('deleted_at')
+                ->lockForUpdate()
+                ->first();
+
+            if (!$row) {
+                $updated = false;
+                return;
+            }
+
+            // idempotent: if already verified, treat as success (no-op)
+            if (isset($row->enrollment_status) && $row->enrollment_status === 'verified') {
+                $updated = true;
+                return;
+            }
+
+            DB::table('batch_students')->where('id', $row->id)->update([
+                'enrollment_status' => 'verified',
+                'updated_at'        => now(),
+            ]);
+
+            $updated = true;
+        });
+
+        if (!$updated) {
+            return response()->json(['success' => false, 'message' => 'Active enrollment not found for this student'], 404);
+        }
+
+        $fresh = DB::table('batch_students')
+            ->where('batch_id', $batch->id)
+            ->where('user_id', (int)$userId)
+            ->whereNull('deleted_at')
+            ->first();
+
+        $fresh->metadata = $fresh->metadata ? json_decode($fresh->metadata, true) : [];
+
+        return response()->json(['success' => true, 'message' => 'Student verified', 'data' => $fresh], 200);
+
+    } catch (\Throwable $e) {
+        Log::error('Verify student failed', ['ex' => $e, 'batch' => $idOrUuid, 'user' => $userId]);
+        return response()->json(['success' => false, 'message' => 'Failed to verify student'], 500);
+    }
+}
+/**
+     * Check if current user is enrolled in a specific batch
+     *
+     * @param Request $request
+     * @param string $batch UUID or ID of the batch
+     * @return JsonResponse
+     */
+   public function checkBatchEnrollment(Request $request, $batch)
+{
+    // Get user ID from token helper
+    $actorId = $this->authUserIdFromToken($request);
+    if (!$actorId) {
+        return response()->json(['success' => false, 'message' => 'Unauthorized'], 401);
+    }
+
+    // Find batch by UUID or ID using DB
+    $batchModel = DB::table('batches')
+        ->where('uuid', $batch)
+        ->orWhere('id', $batch)
+        ->first();
+
+    if (!$batchModel) {
+        return response()->json([
+            'success' => false,
+            'message' => 'Batch not found',
+            'enrolled' => false
+        ], 404);
+    }
+
+    // Check enrollment from batch_students table
+    $enrollment = DB::table('batch_students')
+        ->where('batch_id', $batchModel->id)
+        ->where('user_id', $actorId)
+        ->whereNull('deleted_at') // remove this line if your table doesn't use soft deletes
+        ->first(['id', 'uuid', 'enrollment_status', 'enrolled_at', 'completed_at']);
+
+    $isEnrolled = !is_null($enrollment);
+
+    return response()->json([
+        'success'   => true,
+        'enrolled'  => $isEnrolled,
+        'data'      => $isEnrolled ? [
+            'id'                 => $enrollment->id,
+            'uuid'               => $enrollment->uuid,
+            'batch_id'           => $batchModel->id,
+            'batch_uuid'         => $batchModel->uuid,
+            'user_id'            => $actorId,
+            'enrollment_status'  => $enrollment->enrollment_status,
+            'enrolled_at'        => $enrollment->enrolled_at,
+            'completed_at'       => $enrollment->completed_at
+        ] : null
+    ]);
+}
+public function getNotVerifiedStudents(Request $request, $idOrUuid)
+{
+    $actorId = $this->authUserIdFromToken($request);
+    if (!$actorId) {
+        return response()->json(['success' => false, 'message' => 'Unauthorized'], 401);
+    }
+
+    // TODO: Add permission check if needed
+
+    // Find batch (by id or uuid)
+    $batch = $this->findBatch($idOrUuid);
+    if (!$batch) {
+        return response()->json(['success' => false, 'message' => 'Batch not found'], 404);
+    }
+
+    try {
+        $userIds = DB::table('batch_students')
+            ->where('batch_id', $batch->id)
+            ->where('enrollment_status', 'not_verified')
+            ->whereNull('deleted_at')
+            ->pluck('user_id');  // return only user_ids
+
+        return response()->json([
+            'success' => true,
+            'data'    => $userIds
+        ], 200);
+
+    } catch (\Throwable $e) {
+        Log::error('Failed to fetch not_verified students', [
+            'ex'    => $e,
+            'batch' => $idOrUuid,
+        ]);
+
+        return response()->json([
+            'success' => false,
+            'message' => 'Failed to fetch unverified students'
+        ], 500);
+    }
+}
 
 }

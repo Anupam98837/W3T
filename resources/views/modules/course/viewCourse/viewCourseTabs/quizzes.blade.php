@@ -362,6 +362,8 @@
   // role helpers (use canonical checks)
   const isAdmin      = role === 'super_admin' || role === 'superadmin' || role === 'admin' || role.includes('_admin');
   const isInstructor = role.includes('instructor');
+  const isStudent = role === 'student' ;
+
   const canCreate = isAdmin || isInstructor;
   const canEdit = isAdmin || isInstructor;
   const canDelete = isAdmin || isInstructor;
@@ -370,7 +372,7 @@
   const apiBase = '/api';
   const defaultHeaders = { 'Accept': 'application/json' };
   if (window.TOKEN) defaultHeaders['Authorization'] = 'Bearer ' + window.TOKEN;
-
+  
   function escapeHtml(str){
     return String(str || '').replace(/[&<>"'`=\/]/g, s => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;","/":"&#x2F;","`":"&#x60","=":"&#x3D;"}[s]));
   }
@@ -443,6 +445,14 @@ const attemptsRowsEl    = document.getElementById('qa_attempt_rows');
     if (last === 'view') return parts.at(-2);
     return last;
   };
+  // Force hide the Assign Quiz button for students
+if (role === 'student') {
+    if ($assignBtn) {
+        $assignBtn.style.display = 'none';
+        $assignBtn.style.visibility = 'hidden';
+        $assignBtn.disabled = true;
+    }
+}
 
   function getQueryParam(name) {
     try {
@@ -812,7 +822,7 @@ if (resultBtn) {
 
     // Build correct URL
     const finalUrl =
-      `/exam/${encodeURIComponent(quizUuid)}/batch?=${encodeURIComponent(batchQuizUuid)}`;
+      `/exam/${encodeURIComponent(quizUuid)}?batch=${encodeURIComponent(batchQuizUuid)}`;
 
     window.location.href = finalUrl;
   } catch (e) {

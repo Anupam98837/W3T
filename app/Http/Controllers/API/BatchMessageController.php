@@ -6,8 +6,8 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 use Carbon\Carbon;
 
@@ -17,9 +17,7 @@ class BatchMessageController extends Controller
      | Helpers
      * ========================================================= */
 
-    /**
-     * Convenience helper to read actor data attached by CheckRole.
-     */
+    /** Convenience helper to read actor data attached by CheckRole. */
     private function actor(Request $r): array
     {
         return [
@@ -29,9 +27,7 @@ class BatchMessageController extends Controller
         ];
     }
 
-    /**
-     * Log with actor context (role + id).
-     */
+    /** Log with actor context (role + id). */
     private function logWithActor(string $message, Request $r, array $extra = []): void
     {
         $a = $this->actor($r);
@@ -44,16 +40,6 @@ class BatchMessageController extends Controller
     /**
      * Resolve a batch by key (id | uuid | optional slug) and enforce
      * that the current actor is allowed to access it.
-     *
-     * Returns array with keys:
-     *   - batch        (object)
-     *   - role         (string)
-     *   - uid          (int)
-     *   - isAdminLike  (bool)
-     *   - isInstructor (bool)
-     *   - isStudent    (bool)
-     *
-     * Or ['error' => JsonResponse] on failure.
      */
     private function resolveBatchContext(Request $r, string $batchKey): array
     {
@@ -61,11 +47,11 @@ class BatchMessageController extends Controller
         $uid  = (int) ($r->attributes->get('auth_tokenable_id') ?? 0);
 
         // Only these roles may access batch chat
-        if (!$role || !in_array($role, ['superadmin','admin','instructor','student'], true)) {
+        if (!$role || !in_array($role, ['superadmin', 'admin', 'instructor', 'student'], true)) {
             return ['error' => response()->json(['error' => 'Unauthorized Access'], 403)];
         }
 
-        $isAdminLike  = in_array($role, ['superadmin','admin'], true);
+        $isAdminLike  = in_array($role, ['superadmin', 'admin'], true);
         $isInstructor = $role === 'instructor';
         $isStudent    = $role === 'student';
 
@@ -87,18 +73,20 @@ class BatchMessageController extends Controller
         }
 
         // detect pivot FK columns safely
-        $biUserCol = Schema::hasColumn('batch_instructors','user_id')
+        $biUserCol = Schema::hasColumn('batch_instructors', 'user_id')
             ? 'user_id'
-            : (Schema::hasColumn('batch_instructors','instructor_id') ? 'instructor_id' : null);
+            : (Schema::hasColumn('batch_instructors', 'instructor_id') ? 'instructor_id' : null);
 
-        $bsUserCol = Schema::hasColumn('batch_students','user_id')
+        $bsUserCol = Schema::hasColumn('batch_students', 'user_id')
             ? 'user_id'
-            : (Schema::hasColumn('batch_students','student_id') ? 'student_id' : null);
+            : (Schema::hasColumn('batch_students', 'student_id') ? 'student_id' : null);
 
         // Instructor must be assigned to batch
         if ($isInstructor) {
             if (!$biUserCol) {
-                return ['error' => response()->json(['error' => 'Schema issue: batch_instructors needs user_id OR instructor_id'], 500)];
+                return ['error' => response()->json([
+                    'error' => 'Schema issue: batch_instructors needs user_id OR instructor_id'
+                ], 500)];
             }
 
             $assigned = DB::table('batch_instructors')
@@ -115,7 +103,9 @@ class BatchMessageController extends Controller
         // Student must be enrolled in batch
         if ($isStudent) {
             if (!$bsUserCol) {
-                return ['error' => response()->json(['error' => 'Schema issue: batch_students needs user_id OR student_id'], 500)];
+                return ['error' => response()->json([
+                    'error' => 'Schema issue: batch_students needs user_id OR student_id'
+                ], 500)];
             }
 
             $enrolled = DB::table('batch_students')
@@ -139,9 +129,7 @@ class BatchMessageController extends Controller
         ];
     }
 
-    /**
-     * Decode json column safely into array|null.
-     */
+    /** Decode json column safely into array|null. */
     private function decodeJson($value)
     {
         if ($value === null || $value === '') {
@@ -158,9 +146,7 @@ class BatchMessageController extends Controller
         }
     }
 
-    /**
-     * Transform raw DB row into API-friendly message shape.
-     */
+    /** Transform raw DB row into base message shape (without seen flags). */
     private function transformMessageRow($row): array
     {
         if (!$row) {
@@ -168,12 +154,24 @@ class BatchMessageController extends Controller
         }
 
         $meta = $this->decodeJson($row->metadata ?? null);
+
+        $attachments = [];
+        if (is_array($meta) && isset($meta['attachments']) && is_array($meta['attachments'])) {
+            $attachments = $meta['attachments'];
+        }
+
         $createdAt = $row->created_at ?? null;
+        $human     = null;
+        $timeOnly  = null;
 
         try {
-            $human = $createdAt ? Carbon::parse($createdAt)->diffForHumans() : null;
+            if ($createdAt) {
+                $dt       = Carbon::parse($createdAt);
+                $human    = $dt->diffForHumans();
+                $timeOnly = $dt->format('H:i');
+            }
         } catch (\Throwable $e) {
-            $human = null;
+            // ignore parse errors
         }
 
         return [
@@ -189,17 +187,27 @@ class BatchMessageController extends Controller
             'message_html'      => $row->message_html,
             'message_text'      => $row->message_text,
             'has_attachments'   => (bool) $row->has_attachments,
+            'attachments'       => $attachments,
             'is_pinned'         => (bool) $row->is_pinned,
             'is_edited'         => (bool) $row->is_edited,
             'metadata'          => $meta,
             'created_at'        => $createdAt,
             'created_at_human'  => $human,
+            'created_at_time'   => $timeOnly,
         ];
     }
 
     /* =========================================================
      | GET /api/batches/{batchKey}/messages
-     | List chat messages for a batch (paginated)
+     | List chat messages for a batch
+     |
+     | Query params:
+     |   limit     (optional, default 50, max 100)
+     |   before_id (optional, load older messages)
+     |   after_id  (optional, poll newer messages)
+     |
+     | Initial load (no before_id/after_id):
+     |   - Only messages from last 3 days
      * ========================================================= */
     public function index(Request $r, string $batchKey)
     {
@@ -213,38 +221,119 @@ class BatchMessageController extends Controller
         $role  = $ctx['role'];
         $uid   = $ctx['uid'];
 
-        $page    = max(1, (int) $r->query('page', 1));
-        $perPage = (int) $r->query('per_page', 30);
-        if ($perPage < 1)   $perPage = 30;
-        if ($perPage > 100) $perPage = 100;
+        $limit = (int) $r->query('limit', 50);
+        if ($limit < 1)   $limit = 50;
+        if ($limit > 100) $limit = 100;
+
+        $beforeId = $r->filled('before_id') ? (int) $r->query('before_id') : null;
+        $afterId  = $r->filled('after_id')  ? (int) $r->query('after_id')  : null;
 
         $q = DB::table('batch_messages as m')
             ->leftJoin('users as u', 'u.id', '=', 'm.sender_id')
             ->where('m.batch_id', $batch->id)
             ->whereNull('m.deleted_at');
 
-        // Optional: load only messages after a given ID (for polling)
-        if ($r->filled('after_id')) {
-            $afterId = (int) $r->query('after_id');
+        $isInitial = !$beforeId && !$afterId;
+
+        // Initial load: only last 3 days of messages
+        if ($isInitial) {
+            $since = Carbon::now()->subDays(3);
+            $q->where('m.created_at', '>=', $since);
+        }
+
+        if ($beforeId) {
+            // Load older messages
+            $q->where('m.id', '<', $beforeId);
+        }
+
+        if ($afterId) {
+            // Poll newer messages
             $q->where('m.id', '>', $afterId);
         }
 
-        $total = (clone $q)->count();
+        $q->select(
+            'm.*',
+            'u.name as sender_name',
+            'u.uuid as sender_uuid',
+            'u.role as sender_user_role'
+        );
 
-        $rows = $q->select(
-                'm.*',
-                'u.name as sender_name',
-                'u.uuid as sender_uuid',
-                'u.role as sender_user_role'
-            )
-            ->orderBy('m.created_at', 'asc')
-            ->orderBy('m.id', 'asc')
-            ->forPage($page, $perPage)
-            ->get();
+        $hasMoreBefore = false;
 
-        $messages = $rows->map(function ($row) {
-            return $this->transformMessageRow($row);
+        if ($afterId) {
+            // Poll newer: just fetch ascending
+            $rows = $q->orderBy('m.id', 'asc')
+                      ->limit($limit)
+                      ->get();
+        } else {
+            // Initial + load older: get newest first, then reverse
+            $rowsDesc = $q->orderBy('m.id', 'desc')
+                          ->limit($limit)
+                          ->get();
+            $rows = $rowsDesc->reverse()->values();
+
+            // Should we show "Load more"?
+            if ($rows->count() > 0) {
+                $oldestId = $rows->first()->id;
+                $hasMoreBefore = DB::table('batch_messages')
+                    ->where('batch_id', $batch->id)
+                    ->whereNull('deleted_at')
+                    ->where('id', '<', $oldestId)
+                    ->exists();
+            } elseif ($isInitial) {
+                // No messages in last 3 days – but older ones may exist
+                $hasMoreBefore = DB::table('batch_messages')
+                    ->where('batch_id', $batch->id)
+                    ->whereNull('deleted_at')
+                    ->exists();
+            }
+        }
+
+        // ===== Seen / unseen info (batch_message_reads) ==================
+        $messageIds = $rows->pluck('id')->map(fn($v) => (int)$v)->all();
+
+        $seenByMeMap   = [];
+        $seenCountMap  = [];
+
+        if (!empty($messageIds)) {
+            $seenRows = DB::table('batch_message_reads')
+                ->whereIn('message_id', $messageIds)
+                ->whereNotNull('read_at')
+                ->get();
+
+            foreach ($seenRows as $sr) {
+                $mid = (int) $sr->message_id;
+
+                // total seen count
+                if (!isset($seenCountMap[$mid])) {
+                    $seenCountMap[$mid] = 0;
+                }
+                $seenCountMap[$mid]++;
+
+                // seen-by-me timestamp
+                if ((int) $sr->user_id === $uid) {
+                    $seenByMeMap[$mid] = $sr->read_at;
+                }
+            }
+        }
+
+        // ===== Build final message payloads ==============================
+        $messages = $rows->map(function ($row) use ($uid, $seenByMeMap, $seenCountMap) {
+            $msg = $this->transformMessageRow($row);
+            $mid = $msg['id'];
+
+            $msg['is_mine']       = ($msg['sender_id'] === $uid);
+            $msg['is_seen_by_me'] = array_key_exists($mid, $seenByMeMap);
+            $msg['seen_by_me_at'] = $seenByMeMap[$mid] ?? null;
+            $msg['seen_by_total'] = (int) ($seenCountMap[$mid] ?? 0);
+
+            return $msg;
         })->values();
+
+        $first    = $messages->first();
+        $last     = $messages->last();
+        $oldestId = $first ? ($first['id'] ?? null) : null;
+        $newestId = $last ? ($last['id'] ?? null) : null;
 
         $payload = [
             'batch' => [
@@ -256,20 +345,26 @@ class BatchMessageController extends Controller
                 'id'   => $uid,
                 'role' => $role,
             ],
-            'messages'   => $messages,
-            'pagination' => [
-                'page'        => $page,
-                'per_page'    => $perPage,
-                'total'       => $total,
-                'total_pages' => $perPage > 0 ? (int) ceil($total / $perPage) : 1,
+            'messages' => $messages,
+            'meta' => [
+                'limit'           => $limit,
+                'is_initial'      => $isInitial,
+                'before_id'       => $beforeId,
+                'after_id'        => $afterId,
+                'has_more_before' => $hasMoreBefore,
+                'oldest_id'       => $oldestId,
+                'newest_id'       => $newestId,
             ],
         ];
 
         $this->logWithActor('[BatchChat] messages index', $r, [
-            'batch_id' => (int) $batch->id,
-            'page'     => $page,
-            'per_page' => $perPage,
-            'count'    => count($messages),
+            'batch_id'        => (int) $batch->id,
+            'limit'           => $limit,
+            'is_initial'      => $isInitial,
+            'before_id'       => $beforeId,
+            'after_id'        => $afterId,
+            'count'           => count($messages),
+            'has_more_before' => $hasMoreBefore,
         ]);
 
         return response()->json(['data' => $payload]);
@@ -278,6 +373,12 @@ class BatchMessageController extends Controller
     /* =========================================================
      | POST /api/batches/{batchKey}/messages
      | Create a new chat message
+     |
+     | Body (multipart/form-data):
+     |   message?        -> plain text
+     |   message_html?   -> optional HTML
+     |   message_text?   -> optional text (overrides auto)
+     |   attachments[]?  -> files (stored under public/chatFiles)
      * ========================================================= */
     public function store(Request $r, string $batchKey)
     {
@@ -292,18 +393,21 @@ class BatchMessageController extends Controller
         $uid   = $ctx['uid'];
 
         $v = Validator::make($r->all(), [
-            'message'      => 'nullable|string',
-            'message_html' => 'nullable|string',
-            'message_text' => 'nullable|string',
+            'message'        => 'nullable|string',
+            'message_html'   => 'nullable|string',
+            'message_text'   => 'nullable|string',
+            'attachments.*'  => 'file|max:20480', // 20MB each – tune as needed
         ]);
 
         $v->after(function ($validator) use ($r) {
-            $msg   = trim((string) $r->input('message', ''));
-            $html  = trim((string) $r->input('message_html', ''));
-            $plain = trim((string) $r->input('message_text', ''));
+            $msg      = trim((string) $r->input('message', ''));
+            $html     = trim((string) $r->input('message_html', ''));
+            $plain    = trim((string) $r->input('message_text', ''));
+            $hasFiles = $r->hasFile('attachments');
 
-            if ($msg === '' && $html === '' && $plain === '') {
-                $validator->errors()->add('message', 'Message content is required.');
+            if ($msg === '' && $html === '' && $plain === '' && !$hasFiles) {
+                $validator->errors()
+                    ->add('message', 'Message text or at least one attachment is required.');
             }
         });
 
@@ -319,14 +423,69 @@ class BatchMessageController extends Controller
         $msgText = $r->input('message_text');
 
         if ($msgHtml === null && $message !== '') {
-            // Escape + simple nl2br for now; front-end can send richer HTML later
             $msgHtml = nl2br(e($message));
         }
         if ($msgText === null) {
             $msgText = $message !== '' ? $message : strip_tags((string) $msgHtml);
         }
 
+        // ===== Handle attachments (stored under public/chatFiles) ========
+        $attachmentsMeta = [];
+        if ($r->hasFile('attachments')) {
+            $files = $r->file('attachments');
+            if (!is_array($files)) {
+                $files = [$files];
+            }
+
+            $uploadDir = public_path('chatFiles');
+            if (!is_dir($uploadDir)) {
+                @mkdir($uploadDir, 0775, true);
+            }
+
+            foreach ($files as $file) {
+                if (!$file || !$file->isValid()) {
+                    continue;
+                }
+
+                $original = $file->getClientOriginalName();
+                $ext      = strtolower((string) $file->getClientOriginalExtension());
+                $basename = pathinfo($original, PATHINFO_FILENAME);
+                $safeBase = Str::slug($basename, '_');
+                if ($safeBase === '') {
+                    $safeBase = 'file';
+                }
+
+                $filename = $safeBase . '-' . date('YmdHis') . '-' . Str::random(6);
+                if ($ext !== '') {
+                    $filename .= '.' . $ext;
+                }
+
+                $size = $file->getSize();
+                $mime = $file->getClientMimeType();
+
+                $file->move($uploadDir, $filename);
+
+                $relative = 'chatFiles/' . $filename;
+                $url      = url($relative);
+
+                $attachmentsMeta[] = [
+                    'name' => $original,
+                    'url'  => $url,      // full URL with app url
+                    'path' => $relative, // relative path under public/
+                    'ext'  => $ext,
+                    'size' => $size,
+                    'mime' => $mime,
+                ];
+            }
+        }
+
         $now = Carbon::now();
+
+        $meta = [
+            'source'      => 'batch_chat',
+            'via'         => 'web',
+            'attachments' => $attachmentsMeta,
+        ];
 
         $id = DB::table('batch_messages')->insertGetId([
             'uuid'            => (string) Str::uuid(),
@@ -336,31 +495,152 @@ class BatchMessageController extends Controller
             'sender_role'     => $role,
             'message_html'    => $msgHtml,
             'message_text'    => $msgText,
-            'has_attachments' => false,
+            'has_attachments' => !empty($attachmentsMeta),
             'is_pinned'       => false,
             'is_edited'       => false,
-            'metadata'        => json_encode(['source' => 'batch_chat', 'via' => 'web'], JSON_UNESCAPED_UNICODE),
+            'metadata'        => json_encode($meta, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
             'created_at'      => $now,
             'updated_at'      => $now,
         ]);
 
+        // Sender has obviously "seen" their own message → upsert read row
+        DB::table('batch_message_reads')->updateOrInsert(
+            [
+                'message_id' => $id,
+                'user_id'    => $uid,
+            ],
+            [
+                'user_role' => $role,
+                'read_at'   => $now,
+                'read_from' => 'web_send',
+                'meta'      => null,
+                'created_at'=> $now,
+                'updated_at'=> $now,
+            ]
+        );
+
         $row = DB::table('batch_messages as m')
             ->leftJoin('users as u', 'u.id', '=', 'm.sender_id')
             ->where('m.id', $id)
+            ->select(
+                'm.*',
+                'u.name as sender_name',
+                'u.uuid as sender_uuid',
+                'u.role as sender_user_role'
+            )
             ->first();
 
-        $messagePayload = $this->transformMessageRow($row);
+        $msg = $this->transformMessageRow($row);
+        $msg['is_mine']       = true;
+        $msg['is_seen_by_me'] = true;
+        $msg['seen_by_me_at'] = $now->toDateTimeString();
+        $msg['seen_by_total'] = 1; // at least the sender
 
         $this->logWithActor('[BatchChat] message created', $r, [
             'batch_id'   => (int) $batch->id,
             'message_id' => $id,
+            'has_files'  => !empty($attachmentsMeta),
         ]);
 
         return response()->json([
             'success' => true,
             'data'    => [
-                'message' => $messagePayload,
+                'message' => $msg,
             ],
         ], 201);
+    }
+
+    /* =========================================================
+     | POST /api/batches/{batchKey}/messages/read
+     | Mark messages as "seen" by current user.
+     |
+     | Body:
+     |   up_to_id      (int)   -> mark all messages in this batch
+     |                            with id <= up_to_id as read
+     |   OR
+     |   message_ids[] (array) -> explicit message ids for this batch
+     *
+     | You can support whichever is easier from frontend. If both
+     | are provided, message_ids[] wins.
+     * ========================================================= */
+    public function markRead(Request $r, string $batchKey)
+    {
+        $ctx = $this->resolveBatchContext($r, $batchKey);
+        if (isset($ctx['error'])) {
+            return $ctx['error'];
+        }
+
+        /** @var object $batch */
+        $batch = $ctx['batch'];
+        $role  = $ctx['role'];
+        $uid   = $ctx['uid'];
+
+        $v = Validator::make($r->all(), [
+            'up_to_id'      => 'nullable|integer|min:1',
+            'message_ids'   => 'nullable|array',
+            'message_ids.*' => 'integer|min:1',
+        ]);
+
+        if ($v->fails()) {
+            return response()->json([
+                'success' => false,
+                'errors'  => $v->errors(),
+            ], 422);
+        }
+
+        $messageIds = [];
+
+        if (is_array($r->input('message_ids'))) {
+            $messageIds = array_map('intval', $r->input('message_ids', []));
+        } elseif ($r->filled('up_to_id')) {
+            $upTo = (int) $r->input('up_to_id');
+            $messageIds = DB::table('batch_messages')
+                ->where('batch_id', $batch->id)
+                ->whereNull('deleted_at')
+                ->where('id', '<=', $upTo)
+                ->pluck('id')
+                ->map(fn($v) => (int)$v)
+                ->all();
+        }
+
+        $messageIds = array_values(array_unique(array_filter($messageIds, fn($v) => $v > 0)));
+
+        if (empty($messageIds)) {
+            return response()->json([
+                'success'       => true,
+                'updated_count' => 0,
+            ]);
+        }
+
+        $now = Carbon::now();
+        $from = $r->input('read_from', 'web');
+
+        foreach ($messageIds as $mid) {
+            DB::table('batch_message_reads')->updateOrInsert(
+                [
+                    'message_id' => $mid,
+                    'user_id'    => $uid,
+                ],
+                [
+                    'user_role' => $role,
+                    'read_at'   => $now,
+                    'read_from' => $from,
+                    'meta'      => null,
+                    'created_at'=> $now,
+                    'updated_at'=> $now,
+                ]
+            );
+        }
+
+        $this->logWithActor('[BatchChat] messages marked read', $r, [
+            'batch_id' => (int) $batch->id,
+            'count'    => count($messageIds),
+        ]);
+
+        return response()->json([
+            'success'       => true,
+            'updated_count' => count($messageIds),
+            'last_read_id'  => max($messageIds),
+        ]);
     }
 }

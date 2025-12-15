@@ -27,6 +27,37 @@ class ModuleController extends Controller
     }
 
     /**
+     * Normalize an incoming href for storage:
+     * - strip leading slashes
+     * - strip a leading 'admin' or 'admin/module' prefix (case-insensitive)
+     * - trim and limit to 255 chars
+     * Returns the normalized suffix (no leading slash).
+     */
+    private function normalizeHrefForStorage($rawHref)
+    {
+        $rawHref = (string) ($rawHref ?? '');
+        $normalized = preg_replace('#^/+#', '', trim($rawHref));
+        $normalized = preg_replace('#^admin(?:/module)?/?#i', '', $normalized);
+        return mb_substr($normalized, 0, 255);
+    }
+
+    /**
+     * Convert stored href suffix into a response-friendly href:
+     * - If empty -> return empty string
+     * - If absolute http(s) URL -> return as-is
+     * - Otherwise prepend a single leading slash so it's root-relative (e.g. "/coursesModule/manage")
+     */
+    private function normalizeHrefForResponse($href)
+    {
+        $href = (string) ($href ?? '');
+        if ($href === '') return '';
+        if (preg_match('#^https?://#i', $href)) {
+            return $href;
+        }
+        return '/' . ltrim($href, '/');
+    }
+
+    /**
      * Build base query for modules with common filters
      */
     protected function baseQuery(Request $request, $includeDeleted = false)
@@ -85,6 +116,22 @@ class ModuleController extends Controller
     }
 
     /**
+     * Helper to build a safe select array including href only if column exists.
+     */
+    protected function moduleSelectColumns($includeDeletedAt = false)
+    {
+        $cols = ['id','uuid','name','description','status','created_by','created_at_ip','created_at','updated_at'];
+        if (Schema::hasColumn('modules', 'href')) {
+            // place href after name/description — array splice puts it before status (after description)
+            array_splice($cols, 3, 0, ['href']);
+        }
+        if ($includeDeletedAt) {
+            $cols[] = 'deleted_at';
+        }
+        return $cols;
+    }
+
+    /**
      * List modules (active / all non-deleted). Accepts: per_page, page, q, status, sort, with_privileges
      */
     public function index(Request $request)
@@ -92,16 +139,50 @@ class ModuleController extends Controller
         $perPage = max(1, min(200, (int) $request->query('per_page', 20)));
         $includePrivileges = filter_var($request->query('with_privileges', false), FILTER_VALIDATE_BOOLEAN);
 
+        // build base query (your baseQuery likely has joins/filters)
+        $query = $this->baseQuery($request, false);
+
+        // STATUS handling:
+        // - if caller passed ?status=... we respect it (including ?status=archived)
+        // - if no status provided, exclude archived rows by default
+        if ($request->filled('status')) {
+            $status = $request->query('status');
+            if ($status === 'archived') {
+                $query->where('status', 'archived');
+            } else {
+                $query->where('status', $status);
+            }
+        } else {
+            // default: exclude archived
+            $query->where(function ($q) {
+                $q->whereNull('status')
+                  ->orWhere('status', '!=', 'archived');
+            });
+        }
+
         // select columns present in your migration
-        $query = $this->baseQuery($request, false)
-            ->select('id','uuid','name','description','status','created_by','created_at_ip','created_at','updated_at');
+        $selectCols = $this->moduleSelectColumns(false);
+        $query = $query->select($selectCols);
 
         $paginator = $query->paginate($perPage);
         $out = $this->paginatorToArray($paginator);
 
+        // normalize hrefs in returned data (if column exists)
+        if (Schema::hasColumn('modules', 'href') && !empty($out['data'])) {
+            foreach ($out['data'] as &$m) {
+                $m->href = $this->normalizeHrefForResponse($m->href ?? '');
+            }
+        }
+
         if ($includePrivileges && !empty($out['data'])) {
             $ids = collect($out['data'])->pluck('id')->filter()->all();
-            $privs = DB::table('privileges')->whereIn('module_id', $ids)->whereNull('deleted_at')->get()->groupBy('module_id');
+            // ensure privileges for these module ids (adjust column names if different)
+            $privs = DB::table('privileges')
+                ->whereIn('module_id', $ids)
+                ->whereNull('deleted_at')
+                ->get()
+                ->groupBy('module_id');
+
             foreach ($out['data'] as &$m) {
                 $m->privileges = $privs->has($m->id) ? $privs[$m->id] : [];
             }
@@ -129,10 +210,17 @@ class ModuleController extends Controller
         $includePrivileges = filter_var($request->query('with_privileges', false), FILTER_VALIDATE_BOOLEAN);
 
         $query = $this->baseQuery($request, true)->whereNotNull('modules.deleted_at')
-            ->select('id','uuid','name','description','status','created_by','created_at_ip','created_at','updated_at','deleted_at');
+            ->select($this->moduleSelectColumns(true));
 
         $paginator = $query->paginate($perPage);
         $out = $this->paginatorToArray($paginator);
+
+        // normalize hrefs in returned data (if column exists)
+        if (Schema::hasColumn('modules', 'href') && !empty($out['data'])) {
+            foreach ($out['data'] as &$m) {
+                $m->href = $this->normalizeHrefForResponse($m->href ?? '');
+            }
+        }
 
         if ($includePrivileges && !empty($out['data'])) {
             $ids = collect($out['data'])->pluck('id')->filter()->all();
@@ -154,7 +242,7 @@ class ModuleController extends Controller
             'name' => 'required|string|max:150|unique:modules,name,NULL,id,deleted_at,NULL',
             'description' => 'nullable|string',
             'status' => 'nullable|string|max:20',
-            // we ignore fields not present in migration
+            'href' => 'nullable|string|max:255', // accept suffix or full path; we'll normalize server-side
         ]);
 
         if ($v->fails()) {
@@ -178,6 +266,12 @@ class ModuleController extends Controller
                     'deleted_at' => null,
                 ];
 
+                // set href only if column exists — normalize to store only the suffix (no leading slash,
+                // and strip any leading 'admin' or 'admin/module' prefix). This keeps DB values consistent.
+                if (Schema::hasColumn('modules', 'href')) {
+                    $payload['href'] = $this->normalizeHrefForStorage($request->input('href', ''));
+                }
+
                 if (Schema::hasColumn('modules', 'created_by_type')) {
                     $payload['created_by_type'] = $actor['type'] ?: null;
                 }
@@ -192,6 +286,10 @@ class ModuleController extends Controller
             });
 
             $module = DB::table('modules')->where('id', $id)->first();
+            // normalize href for response
+            if (isset($module->href)) {
+                $module->href = $this->normalizeHrefForResponse($module->href);
+            }
             return response()->json(['module' => $module], 201);
         } catch (Exception $e) {
             return response()->json(['message' => 'Could not create module', 'error' => $e->getMessage()], 500);
@@ -229,6 +327,11 @@ class ModuleController extends Controller
         $module = $this->resolveModule($identifier, false);
         if (! $module) return response()->json(['message' => 'Module not found'], 404);
 
+        // normalize href for response
+        if (isset($module->href)) {
+            $module->href = $this->normalizeHrefForResponse($module->href);
+        }
+
         if (filter_var($request->query('with_privileges', false), FILTER_VALIDATE_BOOLEAN)) {
             $privileges = DB::table('privileges')->where('module_id', $module->id)->whereNull('deleted_at')->get();
             $module->privileges = $privileges;
@@ -252,6 +355,7 @@ class ModuleController extends Controller
             ],
             'description' => 'nullable|string',
             'status' => 'nullable|string|max:20',
+            'href' => 'sometimes|nullable|string|max:255',
         ]);
 
         if ($v->fails()) return response()->json(['errors' => $v->errors()], 422);
@@ -264,6 +368,11 @@ class ModuleController extends Controller
             'status' => $request->has('status') ? $request->input('status') : null,
             'updated_at' => now(),
         ], function ($v) { return $v !== null; });
+
+        // include href only when column exists and request has it — normalize same as store()
+        if (Schema::hasColumn('modules', 'href') && $request->has('href')) {
+            $update['href'] = $this->normalizeHrefForStorage($request->input('href', ''));
+        }
 
         if (Schema::hasColumn('modules', 'updated_by')) {
             $update['updated_by'] = $actor['id'] ?: null;
@@ -287,6 +396,10 @@ class ModuleController extends Controller
                 DB::table('modules')->where('id', $module->id)->update($update);
             });
             $module = DB::table('modules')->where('id', $module->id)->first();
+            // normalize href for response
+            if (isset($module->href)) {
+                $module->href = $this->normalizeHrefForResponse($module->href);
+            }
             return response()->json(['module' => $module]);
         } catch (Exception $e) {
             return response()->json(['message' => 'Could not update module', 'error' => $e->getMessage()], 500);
@@ -382,6 +495,10 @@ class ModuleController extends Controller
             });
 
             $module = DB::table('modules')->where('id', $module->id)->first();
+            // normalize href for response
+            if (isset($module->href)) {
+                $module->href = $this->normalizeHrefForResponse($module->href);
+            }
             return response()->json(['module' => $module, 'message' => 'Module restored']);
         } catch (Exception $e) {
             return response()->json(['message' => 'Could not restore', 'error' => $e->getMessage()], 500);
@@ -438,40 +555,42 @@ class ModuleController extends Controller
             return response()->json(['message' => 'Could not update order', 'error' => $e->getMessage()], 500);
         }
     }
+
     /**
- * Return all modules with their active privileges (no pagination).
- */
-public function allWithPrivileges(Request $request)
-{
-    // fetch modules (non-deleted)
-    $modules = DB::table('modules')
-        ->whereNull('deleted_at')
-        ->select('id','uuid','name','description','status','created_by','created_at','updated_at')
-        ->orderBy('name', 'asc')
-        ->get();
+     * Return all modules with their active privileges (no pagination).
+     */
+    public function allWithPrivileges(Request $request)
+    {
+        // fetch modules (non-deleted)
+        $modules = DB::table('modules')
+            ->whereNull('deleted_at')
+            ->select($this->moduleSelectColumns(false))
+            ->orderBy('name', 'asc')
+            ->get();
 
-    if ($modules->isEmpty()) {
-        return response()->json(['data' => []]);
+        if ($modules->isEmpty()) {
+            return response()->json(['data' => []]);
+        }
+
+        $ids = $modules->pluck('id')->filter()->all();
+
+        // fetch active privileges for these modules
+        // NOTE: alias `action` -> `name` so frontend expecting `name` keeps working
+        $privileges = DB::table('privileges')
+            ->whereIn('module_id', $ids)
+            ->whereNull('deleted_at')
+            ->select('id','uuid','module_id', DB::raw('action as name'), 'action','description','created_at')
+            ->orderBy('action','asc') // order by the actual column
+            ->get()
+            ->groupBy('module_id');
+
+        // attach privileges (empty array when none) and normalize hrefs
+        $out = $modules->map(function ($m) use ($privileges) {
+            $m->privileges = $privileges->has($m->id) ? $privileges[$m->id]->values() : collect([]);
+            $m->href = isset($m->href) ? $this->normalizeHrefForResponse($m->href) : '';
+            return $m;
+        });
+
+        return response()->json(['data' => $out->values()]);
     }
-
-    $ids = $modules->pluck('id')->filter()->all();
-
-    // fetch active privileges for these modules
-    $privileges = DB::table('privileges')
-        ->whereIn('module_id', $ids)
-        ->whereNull('deleted_at')
-        ->select('id','uuid','module_id','name','action','description','created_at')
-        ->orderBy('name','asc')
-        ->get()
-        ->groupBy('module_id');
-
-    // attach privileges (empty array when none)
-    $out = $modules->map(function ($m) use ($privileges) {
-        $m->privileges = $privileges->has($m->id) ? $privileges[$m->id]->values() : collect([]);
-        return $m;
-    });
-
-    return response()->json(['data' => $out->values()]);
-}
-
 }

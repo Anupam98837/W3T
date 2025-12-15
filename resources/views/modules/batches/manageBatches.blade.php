@@ -103,6 +103,11 @@
     html.theme-dark .mfa-toolbar .form-select{background:#0f172a;color:#e5e7eb;border-color:var(--line-strong)}
     html.theme-dark .rte{background:#0f172a;border-color:var(--line-strong);color:#e5e7eb}
     html.theme-dark .tool{background:#0f172a;border-color:var(--line-strong);color:#e5e7eb}
+    .verify-content.hidden {
+    opacity: 0;
+    pointer-events: none;
+}
+
     </style>
 </head>
 <body>
@@ -408,7 +413,7 @@
         </ul>
         <div class="tab-content pt-3">
           <div class="tab-pane fade show active" id="tabExisting" role="tabpanel">
-            <div class="d-flex align-items-center justify-content-between mstab-head">
+            <div class="d-flex align-items-center justify-content-between mstab-head mb-3">
               <div class="left-tools d-flex align-items-center gap-2">
                 <input id="st_q" class="form-control" style="width:240px" placeholder="Search by name/email/phone…">
                 <label class="text-muted small mb-0">Per page</label>
@@ -425,7 +430,16 @@
             </div>
             <div class="table-responsive">
               <table class="table table-hover align-middle st-table mb-0">
-                <thead><tr><th>Name</th><th style="width:30%;">Email</th><th style="width:20%;">Phone</th><th class="text-center" style="width:110px;">Select</th></tr></thead>
+<thead>
+  <tr>
+    <th>Name</th>
+    <th style="width:28%;">Email</th>
+    <th style="width:16%;">Phone</th>
+    <th style="width:14%;">Enrollment Status</th>
+    <th style="width:110px;" class="text-center">Select</th>
+    <th class="text-center" style="width:110px;">Verification</th>
+  </tr>
+</thead>
                 <tbody id="st_rows">
                   <tr id="st_loader" style="display:none;"><td colspan="4" class="p-3"><div class="placeholder-wave"><div class="placeholder col-12 mb-2" style="height:16px;"></div><div class="placeholder col-12 mb-2" style="height:16px;"></div><div class="placeholder col-12 mb-2" style="height:16px;"></div></div></td></tr>
                 </tbody>
@@ -460,7 +474,7 @@
         <button type="button" class="btn-close ms-2" data-bs-dismiss="modal"></button>
       </div>
       <div class="modal-body">
-        <div class="d-flex align-items-center justify-content-between mstab-head">
+        <div class="d-flex align-items-center justify-content-between mstab-head mb-3">
           <div class="left-tools d-flex align-items-center gap-2">
             <input id="ins_q" class="form-control" style="width:240px" placeholder="Search by name/email/phone…">
             <label class="text-muted small mb-0">Per page</label>
@@ -496,11 +510,11 @@
     <div class="modal-content">
       <div class="modal-header">
         <h5 class="modal-title"><i class="fa fa-question me-2"></i>Assign Quizzes</h5>
-        <a id="qz_add_btn" href="/admin/quizzes/manage" class="btn btn-primary btn-sm ms-auto"><i class="fa fa-plus me-1"></i> Add Quiz</a>
+        <a id="qz_add_btn" href="/admin/quizz/create" class="btn btn-primary btn-sm ms-auto"><i class="fa fa-plus me-1"></i> Add Quiz</a>
         <button type="button" class="btn-close ms-2" data-bs-dismiss="modal"></button>
       </div>
       <div class="modal-body">
-        <div class="d-flex align-items-center justify-content-between mstab-head">
+        <div class="d-flex align-items-center justify-content-between mstab-head mb-3">
           <div class="left-tools d-flex align-items-center gap-2">
             <input id="qz_q" class="form-control" style="width:240px" placeholder="Search by title/type…">
             <label class="text-muted small mb-0">Per page</label>
@@ -545,7 +559,82 @@
     </div>
   </div>
 </div>
-
+ 
+{{-- ================= Assign Coding Questions (modal) ================= --}}
+<div class="modal fade" id="codingQuestionsModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="fa fa-code me-2"></i>Assign Coding Questions</h5>
+        <a id="cq_add_btn" href="/admin/coding-questions/create" class="btn btn-primary btn-sm ms-auto">
+          <i class="fa fa-plus me-1"></i> Add Coding Question
+        </a>
+        <button type="button" class="btn-close ms-2" data-bs-dismiss="modal"></button>
+      </div>
+ 
+      <div class="modal-body">
+        <div class="d-flex align-items-center justify-content-between mstab-head mb-3">
+          <div class="left-tools d-flex align-items-center gap-2 flex-wrap">
+            <input id="cq_q" class="form-control" style="width:260px" placeholder="Search by title/difficulty…">
+            <label class="text-muted small mb-0">Per page</label>
+            <select id="cq_per" class="form-select" style="width:90px">
+              <option>10</option><option selected>20</option><option>30</option><option>50</option>
+            </select>
+ 
+            <label class="text-muted small mb-0">Assigned</label>
+            <select id="cq_assigned" class="form-select" style="width:150px">
+              <option value="all" selected>All</option>
+              <option value="assigned">Assigned</option>
+              <option value="unassigned">Unassigned</option>
+            </select>
+ 
+            <button id="cq_apply" class="btn btn-primary">
+              <i class="fa fa-check me-1"></i>Apply
+            </button>
+          </div>
+ 
+          <div class="text-muted small" id="cq_meta">—</div>
+        </div>
+ 
+        <div class="table-responsive">
+          <table class="table table-hover align-middle st-table mb-0">
+            <thead>
+  <tr>
+    <th>Title</th>
+    <th style="width:120px;">Difficulty</th>
+    <th style="width:140px;" class="text-center">Max Attempts</th>
+    <th style="width:220px;" class="text-center">Batch Attempts</th>
+    <th class="text-center" style="width:110px;">Assign</th>
+  </tr>
+</thead>
+ 
+ 
+            <tbody id="cq_rows">
+              <tr id="cq_loader" style="display:none;">
+                <td colspan="5" class="p-3">
+                  <div class="placeholder-wave">
+                    <div class="placeholder col-12 mb-2" style="height:16px;"></div>
+                    <div class="placeholder col-12 mb-2" style="height:16px;"></div>
+                    <div class="placeholder col-12 mb-2" style="height:16px;"></div>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+ 
+        <div class="d-flex justify-content-end p-2">
+          <ul id="cq_pager" class="pagination mb-0"></ul>
+        </div>
+      </div>
+ 
+      <div class="modal-footer">
+        <button class="btn btn-light" data-bs-dismiss="modal">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+ 
 {{-- ================= Create / Edit Batch (modal) ================= --}}
 <div class="modal fade" id="batchModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-xl modal-dialog-scrollable">
@@ -637,11 +726,10 @@
 </div>
 @endsection
 
-<!-- Scripts -->
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <script>
-  document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', function() {
 /* =================== AUTH / GLOBALS =================== */
 const TOKEN = localStorage.getItem('token') || sessionStorage.getItem('token') || '';
 if (!TOKEN){ Swal.fire('Login needed','Your session expired. Please login again.','warning').then(()=> location.href='/'); }
@@ -665,7 +753,153 @@ function fmtDate(iso){ if(!iso) return '-'; const d=new Date(iso); return isNaN(
 function fmtDateTime(iso){ if(!iso) return '-'; const d=new Date(iso); return isNaN(d)?esc(iso):d.toLocaleString(undefined,{year:'numeric',month:'short',day:'2-digit',hour:'2-digit',minute:'2-digit'}); }
 function badgeStatus(s){ s=(s||'').toString().toLowerCase(); const map={active:'success',inactive:'warning',archived:'secondary'}; const cls=map[s]||'secondary'; return `<span class="badge badge-${cls} text-uppercase">${esc(s||'-')}</span>`; }
 function firstError(j){ if(j?.errors){ const k=Object.keys(j.errors)[0]; if(k){ const v=j.errors[k]; return Array.isArray(v)?v[0]:String(v); } } return j?.message||''; }
-function humanYMD(s,e){ const sd=new Date(s), ed=new Date(e); if(isNaN(sd)||isNaN(ed)||ed<sd) return '-'; let y=ed.getFullYear()-sd.getFullYear(), m=ed.getMonth()-sd.getMonth(), d=ed.getDate()-sd.getDate(); if(d<0){ const prevDays=new Date(ed.getFullYear(),ed.getMonth(),0).getDate(); d+=prevDays; m-=1; } if(m<0){ m+=12; y-=1; } const parts=[]; if(y>0) parts.push(y+' '+(y===1?'year':'years')); if(m>0) parts.push(m+' '+(m===1?'month':'months')); if(d>0||!parts.length) parts.push(d+' '+(d===1?'day':'days')); return parts.join(' '); }
+function humanYMD(s,e){
+  // return '-' on invalid / end-before-start (based on original inputs)
+  const origSd = new Date(s), origEd = new Date(e);
+  if(isNaN(origSd) || isNaN(origEd) || origEd < origSd) return '-';
+
+  // Make calculation **inclusive** by shifting the start one day earlier.
+  // This has the effect of counting the start date itself.
+  const sd = new Date(origSd);
+  sd.setDate(sd.getDate() - 1);
+  const ed = new Date(origEd);
+
+  let y = ed.getFullYear() - sd.getFullYear();
+  let m = ed.getMonth() - sd.getMonth();
+  let d = ed.getDate() - sd.getDate();
+
+  if (d < 0) {
+    const prevDays = new Date(ed.getFullYear(), ed.getMonth(), 0).getDate();
+    d += prevDays;
+    m -= 1;
+  }
+  if (m < 0) {
+    m += 12;
+    y -= 1;
+  }
+  const parts = [];
+  if (y > 0) parts.push(y + ' ' + (y === 1 ? 'year' : 'years'));
+  if (m > 0) parts.push(m + ' ' + (m === 1 ? 'month' : 'months'));
+  // show days when >0, or if nothing else present show at least "1 day" (inclusive)
+  if (d > 0 || !parts.length) parts.push(d + ' ' + (d === 1 ? 'day' : 'days'));
+
+  return parts.join(' ');
+}
+(function () {
+  // prevent double-init if included multiple times
+  if (window.__RTE_ACTIVE_SYNC__) return;
+  window.__RTE_ACTIVE_SYNC__ = true;
+
+  const FORMAT_MAP = { H1: "h1", H2: "h2", H3: "h3", P: "p" };
+
+  function findEditorForToolbar(toolbar) {
+    // Most common: toolbar -> next sibling .rte-wrap -> .rte
+    let next = toolbar.nextElementSibling;
+    if (next && next.classList && next.classList.contains("rte-wrap")) {
+      const ed = next.querySelector(".rte");
+      if (ed) return ed;
+    }
+
+    // Fallback: search nearby container
+    const block =
+      toolbar.closest(".mb-1,.mb-2,.mb-3,.mb-4,.col-12,.col-md-12,.form-group") ||
+      toolbar.parentElement ||
+      document;
+
+    return block.querySelector(".rte-wrap .rte");
+  }
+
+  function selectionInside(editor) {
+    const sel = document.getSelection();
+    if (!sel || !sel.anchorNode) return false;
+    const node = sel.anchorNode;
+    return node === editor || editor.contains(node);
+  }
+
+  function isFormatActive(fmt) {
+    try {
+      const val = (document.queryCommandValue("formatBlock") || "").toLowerCase();
+      const want = (FORMAT_MAP[fmt] || fmt || "").toLowerCase();
+      return !!want && val.includes(want);
+    } catch {
+      return false;
+    }
+  }
+
+  function bindToolbar(toolbar) {
+    if (toolbar.__rteBound) return; // avoid rebinding
+    const editor = findEditorForToolbar(toolbar);
+    if (!editor) return;
+
+    toolbar.__rteBound = true;
+
+    const tools = Array.from(toolbar.querySelectorAll(".tool"));
+
+    function update() {
+      const inside = selectionInside(editor) || document.activeElement === editor;
+
+      // Editor ring (optional)
+      editor.classList.toggle("active", document.activeElement === editor);
+
+      if (!inside) return;
+
+      tools.forEach((btn) => {
+        const cmd = btn.dataset.cmd;
+        const fmt = btn.dataset.format;
+
+        let on = false;
+        try {
+          if (cmd) on = !!document.queryCommandState(cmd);
+          else if (fmt) on = isFormatActive(fmt);
+        } catch {
+          on = false;
+        }
+
+        btn.classList.toggle("active", on);
+        btn.setAttribute("aria-pressed", on ? "true" : "false");
+      });
+    }
+
+    // update after toolbar actions (your existing execCommand can remain as-is)
+    toolbar.addEventListener("click", () => setTimeout(update, 30));
+
+    // update while typing / moving caret
+    ["keyup", "mouseup", "input", "focus", "blur"].forEach((ev) => {
+      editor.addEventListener(ev, () => setTimeout(update, 0));
+    });
+
+    // update when selection changes (only if inside this editor)
+    document.addEventListener("selectionchange", () => {
+      if (selectionInside(editor)) update();
+    });
+
+    // initial
+    update();
+  }
+
+  function initAll() {
+    document.querySelectorAll(".toolbar").forEach(bindToolbar);
+  }
+
+  // init now / on load
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", initAll);
+  } else {
+    initAll();
+  }
+
+  // handle editors that appear later (modals, dynamic HTML)
+  const mo = new MutationObserver(() => initAll());
+  mo.observe(document.body, { childList: true, subtree: true });
+})();
+
+/* New helper: enrollment badge render */
+function badgeEnrollment(s){
+  const st = (s||'').toString().toLowerCase();
+  const map = { enrolled:'success', pending:'warning', invited:'info', unassigned:'secondary' };
+  const cls = map[st] || 'secondary';
+  return `<span class="badge badge-${cls} text-capitalize enrollment-badge">${esc(s||'-')}</span>`;
+}
 
 /* =================== ELEMENTS & STATE =================== */
 const courseSel = document.getElementById('courseSel');
@@ -819,6 +1053,7 @@ function wiring(){
     if(act==='edit') openEditModal(uuid);
     if(act==='instructors') openInstructors(uuid);
     if(act==='quizzes') openQuizzes(uuid);            // <-- Assign Quiz action
+    if(act==='coding') openCodingQuestions(item.dataset.batch || uuid);  
     if(act==='assign') openStudents(uuid);
     if(act==='archive') return archiveBatch(uuid);
     if(act==='unarchive') return unarchiveBatch(uuid);
@@ -865,7 +1100,12 @@ function applyFromURL(){}
 
 function rowActions(scope, r){
   if(scope==='active'){
-    return `<div class="dropdown text-end" data-bs-display="static"><button type="button" class="btn btn-primary btn-sm dd-toggle" data-bs-toggle="dropdown" aria-expanded="false" title="Actions"><i class="fa fa-ellipsis-vertical"></i></button><ul class="dropdown-menu dropdown-menu-end"><li><button class="dropdown-item" data-act="view" data-uuid="${r.uuid}"><i class="fa fa-circle-info"></i> View Batch</button></li><li><button class="dropdown-item" data-act="edit" data-uuid="${r.uuid}"><i class="fa fa-pen-to-square"></i> Edit Batch</button></li><li><button class="dropdown-item" data-act="instructors" data-uuid="${r.uuid}"><i class="fa fa-chalkboard-user"></i> Assign Instructor</button></li><li><button class="dropdown-item" data-act="quizzes" data-uuid="${r.uuid}"><i class="fa fa-question"></i> Assign Quiz</button></li><li><button class="dropdown-item" data-act="assign" data-uuid="${r.uuid}"><i class="fa fa-user-plus"></i> Manage Students</button></li><li><hr class="dropdown-divider"></li><li><button class="dropdown-item" data-act="archive" data-uuid="${r.uuid}"><i class="fa fa-box-archive"></i> Archive</button></li><li><button class="dropdown-item text-danger" data-act="delete" data-uuid="${r.uuid}"><i class="fa fa-trash"></i> Delete</button></li></ul></div>`;
+    return `<div class="dropdown text-end" data-bs-display="static"><button type="button" class="btn btn-primary btn-sm dd-toggle" data-bs-toggle="dropdown" aria-expanded="false" title="Actions"><i class="fa fa-ellipsis-vertical"></i></button><ul class="dropdown-menu dropdown-menu-end"><li><button class="dropdown-item" data-act="view" data-uuid="${r.uuid}"><i class="fa fa-circle-info"></i> View Batch</button></li><li><button class="dropdown-item" data-act="edit" data-uuid="${r.uuid}"><i class="fa fa-pen-to-square"></i> Edit Batch</button></li><li><button class="dropdown-item" data-act="instructors" data-uuid="${r.uuid}"><i class="fa fa-chalkboard-user"></i> Assign Instructor</button></li><li><button class="dropdown-item" data-act="quizzes" data-uuid="${r.uuid}"><i class="fa fa-question"></i> Assign Quiz</button></li><li>
+  <button class="dropdown-item" data-act="coding" data-uuid="${r.uuid}" data-batch="${r.id || r.uuid}">
+    <i class="fa fa-code"></i> Assign Coding Question
+  </button>
+</li>
+<li><button class="dropdown-item" data-act="assign" data-uuid="${r.uuid}"><i class="fa fa-user-plus"></i> Manage Students</button></li><li><hr class="dropdown-divider"></li><li><button class="dropdown-item" data-act="archive" data-uuid="${r.uuid}"><i class="fa fa-box-archive"></i> Archive</button></li><li><button class="dropdown-item text-danger" data-act="delete" data-uuid="${r.uuid}"><i class="fa fa-trash"></i> Delete</button></li></ul></div>`;
   }
   if(scope==='archived'){
     return `<div class="dropdown text-end" data-bs-display="static"><button type="button" class="btn btn-primary btn-sm dd-toggle" data-bs-toggle="dropdown"><i class="fa fa-ellipsis-vertical"></i></button><ul class="dropdown-menu dropdown-menu-end"><li><button class="dropdown-item" data-act="view" data-uuid="${r.uuid}"><i class="fa fa-circle-info"></i> View Batch</button></li><li><hr class="dropdown-divider"></li><li><button class="dropdown-item" data-act="unarchive" data-uuid="${r.uuid}"><i class="fa fa-box-open"></i> Unarchive</button></li><li><button class="dropdown-item text-danger" data-act="delete" data-uuid="${r.uuid}"><i class="fa fa-trash"></i> Delete</button></li></ul></div>`;
@@ -989,33 +1229,418 @@ async function openView(uuid){
     vBody.innerHTML = `<div class="d-flex gap-3 align-items-start"><img class="bthumb" style="width:120px;height:80px" src="${esc(r.featured_image||'https://dummyimage.com/200x120/e9e3f5/5e1570.jpg&text=Batch')}" onerror="this.src='https://dummyimage.com/200x120/e9e3f5/5e1570.jpg&text=Batch';this.onerror=null;"><div><div class="h5 mb-1">${esc(r.badge_title||'Untitled')}</div><div class="text-muted small">${esc(r.tagline||'')}</div><div class="mt-1">${badgeStatus(r.status)} <span class="ms-2 badge badge-info text-uppercase">${esc(r.mode||'-')}</span></div></div></div><hr class="my-3"><div class="row g-3"><div><span class="text-muted small">Duration:</span> <strong>${dur}</strong></div><div class="col-md-6"><div><span class="text-muted small">Contact:</span> ${esc(r.contact_number||'-')}</div><div><span class="text-muted small">Note:</span> ${esc(r.badge_note||'-')}</div></div><div class="col-12"><div class="mb-1 fw-semibold">Group Links</div>${linksHtml}</div><div class="col-12"><div class="mb-1 fw-semibold">Description</div><div class="small">${(r.badge_description||'').length?esc(r.badge_description):'<span class="text-muted">—</span>'}</div></div></div>`;
   }catch(e){ vBody.innerHTML = `<div class="text-danger">${esc(e.message||'Failed to load')}</div>`; }
 }
+//Manage Instructor
+const ins_q = document.getElementById('ins_q'),
+      ins_per = document.getElementById('ins_per'),
+      ins_apply = document.getElementById('ins_apply'),
+      ins_assigned = document.getElementById('ins_assigned'),
+      ins_rows = document.getElementById('ins_rows'),
+      ins_loader = document.getElementById('ins_loader'),
+      ins_meta = document.getElementById('ins_meta'),
+      ins_pager = document.getElementById('ins_pager');
 
+let instructorsModal, ins_uuid = null, ins_page = 1;
+function instructorsParams(){
+  const p = new URLSearchParams();
+  if (ins_q.value.trim()) p.set('q', ins_q.value.trim());
+  p.set('per_page', ins_per.value || 20);
+  p.set('page', ins_page);
+  if (ins_assigned.value === 'assigned') p.set('assigned', '1');
+  if (ins_assigned.value === 'unassigned') p.set('assigned', '0');
+  return p.toString();
+}
+
+function openInstructors(uuid){
+  instructorsModal = instructorsModal || new bootstrap.Modal(document.getElementById('instructorsModal'));
+  ins_uuid = uuid;
+  ins_page = 1;
+  ins_assigned.value = 'all';
+  instructorsModal.show();
+  loadInstructors();
+}
+
+ins_apply.addEventListener('click', ()=>{ ins_page = 1; loadInstructors(); });
+ins_per.addEventListener('change', ()=>{ ins_page = 1; loadInstructors(); });
+ins_assigned.addEventListener('change', ()=>{ ins_page = 1; loadInstructors(); });
+
+let insT;
+ins_q.addEventListener('input', ()=>{ clearTimeout(insT); insT = setTimeout(()=>{ ins_page = 1; loadInstructors(); }, 350); });
+
+async function loadInstructors(){
+  if (!ins_uuid) return;
+  ins_loader.style.display = '';
+  // remove existing rows except loader
+  ins_rows.querySelectorAll('tr:not(#ins_loader)').forEach(tr=>tr.remove());
+
+  try{
+    const res = await fetch(`/api/batches/${encodeURIComponent(ins_uuid)}/instructors?` + instructorsParams(), {
+      headers:{ 'Authorization':'Bearer '+TOKEN, 'Accept':'application/json' }
+    });
+    const j = await res.json();
+    if(!res.ok) throw new Error(j?.message || 'Failed to load instructors');
+
+    const items = j?.data || [];
+    const pag = j?.pagination || { current_page: 1, per_page: Number(ins_per.value||20), total: items.length };
+
+    const frag = document.createDocumentFragment();
+    items.forEach(u=>{
+      const assigned = !!u.assigned;
+      const role = u.role_in_batch || 'instructor';
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td class="fw-semibold">${esc(u.name||'-')}</td>
+        <td>${esc(u.email||'-')}</td>
+        <td>${esc(u.phone ?? u.phone_number ?? '-')}</td>
+        <td>
+          <select class="form-select form-select-sm ins-role" ${assigned ? '' : 'disabled'}>
+            <option value="instructor" ${role==='instructor'?'selected':''}>Instructor</option>
+            <option value="tutor" ${role==='tutor'?'selected':''}>Tutor</option>
+            <option value="TA" ${role==='TA'?'selected':''}>TA</option>
+            <option value="mentor" ${role==='mentor'?'selected':''}>Mentor</option>
+          </select>
+        </td>
+        <td class="text-center">
+          <div class="form-check form-switch d-inline-block">
+            <input class="form-check-input ins-tg" type="checkbox" data-id="${u.id}" ${assigned?'checked':''}>
+          </div>
+        </td>`;
+      frag.appendChild(tr);
+    });
+    ins_rows.appendChild(frag);
+
+    // attach toggle listeners
+    ins_rows.querySelectorAll('.ins-tg').forEach(ch=>{
+      ch.addEventListener('change', ()=>{
+        const row = ch.closest('tr');
+        const roleSel = row?.querySelector('.ins-role');
+        const roleVal = roleSel ? roleSel.value : 'instructor';
+        toggleInstructor(Number(ch.dataset.id), ch.checked, ch, roleVal);
+      });
+    });
+
+    // pagination
+    const total = Number(pag.total||0), per = Number(pag.per_page||20), cur = Number(pag.current_page||1);
+    const pages = Math.max(1, Math.ceil(total/per));
+    function li(dis,act,label,t){ const c=['page-item',dis?'disabled':'',act?'active':''].filter(Boolean).join(' '); return `<li class="${c}"><a class="page-link" href="javascript:void(0)" data-page="${t||''}">${label}</a></li>`; }
+    let html=''; html+=li(cur<=1,false,'Prev',cur-1); const w=2,s=Math.max(1,cur-w),e=Math.min(pages,cur+w);
+    for(let i=s;i<=e;i++) html+=li(false,i===cur,i,i);
+    html+=li(cur>=pages,false,'Next',cur+1);
+    ins_pager.innerHTML = html;
+    ins_pager.querySelectorAll('a.page-link[data-page]').forEach(a=> a.addEventListener('click', ()=>{ const t=Number(a.dataset.page); if(!t||t===ins_page) return; ins_page = t; loadInstructors(); }));
+
+    const label = ins_assigned.value==='all' ? 'All' : (ins_assigned.value==='assigned' ? 'Assigned' : 'Unassigned');
+    ins_meta.textContent = `${label} — Page ${cur}/${pages} — ${total} instructor(s)`;
+  }catch(e){
+    err(e.message || 'Load error');
+  }finally{
+    ins_loader.style.display = 'none';
+  }
+}
+
+async function toggleInstructor(userId, assigned, checkboxEl, roleVal){
+  try{
+    const body = assigned ? { user_id: userId, assigned: true, role_in_batch: roleVal || 'instructor' } : { user_id: userId, assigned: false };
+    const res = await fetch(`/api/batches/${encodeURIComponent(ins_uuid)}/instructors/toggle`,{
+      method:'POST',
+      headers:{ 'Authorization':'Bearer '+TOKEN, 'Content-Type':'application/json', 'Accept':'application/json' },
+      body: JSON.stringify(body)
+    });
+    const j = await res.json().catch(()=>({}));
+    if(!res.ok) throw new Error(j?.message || firstError(j) || 'Toggle failed');
+
+    const row = checkboxEl.closest('tr');
+    const roleSel = row?.querySelector('.ins-role');
+    if (roleSel) roleSel.disabled = !assigned;
+    ok(assigned ? 'Instructor assigned to batch' : 'Instructor unassigned');
+
+    // refresh list if filtering hides this row
+    if((ins_assigned.value==='assigned' && !assigned) || (ins_assigned.value==='unassigned' && assigned)){
+      loadInstructors();
+    }
+  }catch(e){
+    if (checkboxEl) checkboxEl.checked = !assigned;
+    err(e.message);
+  }
+}
+/* ================= MANAGE STUDENTS (updated) ================= */
 const st_rows=document.getElementById('st_rows'), st_loader=document.getElementById('st_loader'), st_meta=document.getElementById('st_meta'), st_pager=document.getElementById('st_pager'), st_q=document.getElementById('st_q'), st_per=document.getElementById('st_per'), st_apply=document.getElementById('st_apply');
 const st_assigned=document.getElementById('st_assigned');
 const csvFile=document.getElementById('csvFile'), csvDrop=document.getElementById('csvDrop'), csvHint=document.getElementById('csvHint'), csvSummary=document.getElementById('csvSummary');
 let studentsModal, st_uuid=null, st_page=1;
+
+/* NEW: fetch list of user_ids that are 'not_verified' for the current batch */
+async function fetchNotVerifiedIds(batchUuid){
+  try{
+    const res = await fetch(`/api/batches/${encodeURIComponent(batchUuid)}/students/not-verified`, {
+      headers: { 'Authorization': 'Bearer ' + TOKEN, 'Accept': 'application/json' }
+    });
+    if(!res.ok){
+      // non-fatal: return empty set if endpoint fails
+      try { const j = await res.json(); console.warn('not-verified fetch failed', j); } catch(_) {}
+      return new Set();
+    }
+    const j = await res.json();
+    // The API returns data as an array of user_ids. Support either {data: [...] } or raw array.
+    const arr = Array.isArray(j) ? j : (Array.isArray(j?.data) ? j.data : []);
+    return new Set(arr.map(x => Number(x)));
+  }catch(e){
+    console.error('Failed to fetch not-verified list', e);
+    return new Set();
+  }
+}
 function studentsParams(){ const p=new URLSearchParams(); if(st_q.value.trim()) p.set('q',st_q.value.trim()); p.set('per_page',st_per.value||20); p.set('page',st_page); if(st_assigned.value==='assigned') p.set('assigned','1'); if(st_assigned.value==='unassigned') p.set('assigned','0'); return p.toString(); }
 function openStudents(uuid){ studentsModal = studentsModal || new bootstrap.Modal(document.getElementById('studentsModal')); st_uuid=uuid; st_page=1; st_assigned.value='all'; studentsModal.show(); loadStudents(); }
 st_apply.addEventListener('click',()=>{ st_page=1; loadStudents(); }); st_per.addEventListener('change',()=>{ st_page=1; loadStudents(); }); st_assigned.addEventListener('change',()=>{ st_page=1; loadStudents(); });
 let stT; st_q.addEventListener('input',()=>{ clearTimeout(stT); stT=setTimeout(()=>{ st_page=1; loadStudents(); },350); });
-async function loadStudents(){ if(!st_uuid) return; st_loader.style.display=''; st_rows.querySelectorAll('tr:not(#st_loader)').forEach(tr=>tr.remove()); try{ const res=await fetch(`/api/batches/${encodeURIComponent(st_uuid)}/students?`+studentsParams(),{headers:{'Authorization':'Bearer '+TOKEN,'Accept':'application/json'}}); const j=await res.json(); if(!res.ok) throw new Error(j?.message||'Failed to load students'); let items=j?.data||[]; const pag=j?.pagination||{current_page:1,per_page:Number(st_per.value||20),total:items.length}; if(st_assigned.value==='assigned') items = items.filter(u=> !!u.assigned); if(st_assigned.value==='unassigned') items = items.filter(u=> !u.assigned); const frag=document.createDocumentFragment(); items.forEach(u=>{ const tr=document.createElement('tr'); tr.innerHTML=`<td class="fw-semibold">${esc(u.name||'-')}</td><td>${esc(u.email||'-')}</td><td>${esc((u.phone_number ?? u.phone ?? '-'))}</td><td class="text-center"><div class="form-check form-switch d-inline-block"><input class="form-check-input st-tg" type="checkbox" data-id="${u.id}" ${u.assigned?'checked':''}></div></td>`; frag.appendChild(tr); }); st_rows.appendChild(frag); st_rows.querySelectorAll('.st-tg').forEach(ch=>{ ch.addEventListener('change',()=>{ toggleStudent(Number(ch.dataset.id), ch.checked, ch); }); }); const total=Number(pag.total||0), per=Number(pag.per_page||20), cur=Number(pag.current_page||1); const pages=Math.max(1,Math.ceil(total/per)); function li(dis,act,label,t){ const c=['page-item',dis?'disabled':'',act?'active':''].filter(Boolean).join(' '); return `<li class="${c}"><a class="page-link" href="javascript:void(0)" data-page="${t||''}">${label}</a></li>`; } let html=''; html+=li(cur<=1,false,'Prev',cur-1); const w=2,s=Math.max(1,cur-w),e=Math.min(pages,cur+w); for(let i=s;i<=e;i++) html+=li(false,i===cur,i); html+=li(cur>=pages,false,'Next',cur+1); st_pager.innerHTML=html; st_pager.querySelectorAll('a.page-link[data-page]').forEach(a=> a.addEventListener('click',()=>{ const t=Number(a.dataset.page); if(!t||t===st_page) return; st_page=t; loadStudents(); })); const label = st_assigned.value==='all' ? 'All' : (st_assigned.value==='assigned' ? 'Assigned' : 'Unassigned'); st_meta.textContent=`${label} — Page ${cur}/${pages} — ${total} student(s)`; }catch(e){ err(e.message); } finally{ st_loader.style.display='none'; } }
-async function toggleStudent(userId, assigned, checkboxEl){ try{ const res=await fetch(`/api/batches/${encodeURIComponent(st_uuid)}/students/toggle`,{ method:'POST', headers:{'Authorization':'Bearer '+TOKEN,'Content-Type':'application/json','Accept':'application/json'}, body:JSON.stringify({user_id:userId,assigned:!!assigned}) }); const j=await res.json().catch(()=>({})); if(!res.ok) throw new Error(j?.message||firstError(j)||'Toggle failed'); ok(assigned ? 'Student assigned to batch' : 'Student removed from batch'); if((st_assigned.value==='assigned' && !assigned) || (st_assigned.value==='unassigned' && assigned)){ loadStudents(); } }catch(e){ if(checkboxEl) checkboxEl.checked = !assigned; err(e.message); } }
+function badgeVerified(isVerified){
+  if (!isVerified) return '';
+  return `<span class="badge bg-success ms-2">Verified</span>`;
+}
 
-const ins_q=document.getElementById('ins_q'), ins_per=document.getElementById('ins_per'), ins_apply=document.getElementById('ins_apply'), ins_assigned=document.getElementById('ins_assigned'), ins_rows=document.getElementById('ins_rows'), ins_loader=document.getElementById('ins_loader'), ins_meta=document.getElementById('ins_meta'), ins_pager=document.getElementById('ins_pager');
-let instructorsModal, ins_uuid=null, ins_page=1;
-function instructorsParams(){ const p = new URLSearchParams(); if (ins_q.value.trim()) p.set('q', ins_q.value.trim()); p.set('per_page', ins_per.value || 20); p.set('page', ins_page); if (ins_assigned.value === 'assigned') p.set('assigned', '1'); if (ins_assigned.value === 'unassigned') p.set('assigned', '0'); return p.toString(); }
-function openInstructors(uuid){ instructorsModal = instructorsModal || new bootstrap.Modal(document.getElementById('instructorsModal')); ins_uuid = uuid; ins_page = 1; ins_assigned.value = 'all'; instructorsModal.show(); loadInstructors(); }
-ins_apply.addEventListener('click', ()=>{ ins_page=1; loadInstructors(); }); ins_per.addEventListener('change', ()=>{ ins_page=1; loadInstructors(); }); ins_assigned.addEventListener('change', ()=>{ ins_page=1; loadInstructors(); });
-let insT; ins_q.addEventListener('input', ()=>{ clearTimeout(insT); insT = setTimeout(()=>{ ins_page=1; loadInstructors(); }, 350); });
-async function loadInstructors(){ if (!ins_uuid) return; ins_loader.style.display = ''; ins_rows.querySelectorAll('tr:not(#ins_loader)').forEach(tr=>tr.remove()); try{ const res = await fetch(`/api/batches/${encodeURIComponent(ins_uuid)}/instructors?` + instructorsParams(), { headers:{ 'Authorization':'Bearer '+TOKEN, 'Accept':'application/json' } }); const j = await res.json(); if(!res.ok) throw new Error(j?.message || 'Failed to load instructors'); const items = j?.data || []; const pag = j?.pagination || { current_page: 1, per_page: Number(ins_per.value||20), total: items.length }; const frag = document.createDocumentFragment(); items.forEach(u=>{ const assigned = !!u.assigned; const role = u.role_in_batch || 'instructor'; const tr = document.createElement('tr'); tr.innerHTML = `<td class="fw-semibold">${esc(u.name||'-')}</td><td>${esc(u.email||'-')}</td><td>${esc(u.phone ?? u.phone_number ?? '-')}</td><td><select class="form-select form-select-sm ins-role" ${assigned?'':'disabled'}><option value="instructor" ${role==='instructor'?'selected':''}>Instructor</option><option value="tutor" ${role==='tutor'?'selected':''}>Tutor</option><option value="TA" ${role==='TA'?'selected':''}>TA</option><option value="mentor" ${role==='mentor'?'selected':''}>Mentor</option></select></td><td class="text-center"><div class="form-check form-switch d-inline-block"><input class="form-check-input ins-tg" type="checkbox" data-id="${u.id}" ${assigned?'checked':''}></div></td>`; frag.appendChild(tr); }); ins_rows.appendChild(frag); ins_rows.querySelectorAll('.ins-tg').forEach(ch=>{ ch.addEventListener('change', ()=>{ const row = ch.closest('tr'); const roleSel = row?.querySelector('.ins-role'); const roleVal = roleSel ? roleSel.value : 'instructor'; toggleInstructor(Number(ch.dataset.id), ch.checked, ch, roleVal); }); }); const total=Number(pag.total||0), per=Number(pag.per_page||20), cur=Number(pag.current_page||1); const pages=Math.max(1,Math.ceil(total/per)); function li(dis,act,label,t){ const c=['page-item',dis?'disabled':'',act?'active':''].filter(Boolean).join(' '); return `<li class="${c}"><a class="page-link" href="javascript:void(0)" data-page="${t||''}">${label}</a></li>`; } let html=''; html+=li(cur<=1,false,'Prev',cur-1); const w=2,s=Math.max(1,cur-w),e=Math.min(pages,cur+w); for(let i=s;i<=e;i++) html+=li(false,i===cur,i); html+=li(cur>=pages,false,'Next',cur+1); ins_pager.innerHTML=html; ins_pager.querySelectorAll('a.page-link[data-page]').forEach(a=> a.addEventListener('click',()=>{ const t=Number(a.dataset.page); if(!t||t===ins_page) return; ins_page=t; loadInstructors(); })); const label = ins_assigned.value==='all' ? 'All' : (ins_assigned.value==='assigned' ? 'Assigned' : 'Unassigned'); ins_meta.textContent = `${label} — Page ${cur}/${pages} — ${total} instructor(s)`; }catch(e){ err(e.message || 'Load error'); }finally{ ins_loader.style.display='none'; } }
-async function toggleInstructor(userId, assigned, checkboxEl, roleVal){ try{ const body = assigned ? { user_id: userId, assigned: true, role_in_batch: roleVal || 'instructor' } : { user_id: userId, assigned: false }; const res = await fetch(`/api/batches/${encodeURIComponent(ins_uuid)}/instructors/toggle`,{ method:'POST', headers:{ 'Authorization':'Bearer '+TOKEN, 'Content-Type':'application/json', 'Accept':'application/json' }, body: JSON.stringify(body) }); const j = await res.json().catch(()=>({})); if(!res.ok) throw new Error(j?.message || firstError(j) || 'Toggle failed'); const row = checkboxEl.closest('tr'); const roleSel = row?.querySelector('.ins-role'); if (roleSel) roleSel.disabled = !assigned; ok(assigned ? 'Instructor assigned to batch' : 'Instructor unassigned'); if((ins_assigned.value==='assigned' && !assigned) || (ins_assigned.value==='unassigned' && assigned)){ loadInstructors(); } }catch(e){ if (checkboxEl) checkboxEl.checked = !assigned; err(e.message); } }
+/* REPLACED loadStudents: now queries "not-verified" first and uses it to decide verification column visibility */
+async function loadStudents(){
+  if(!st_uuid) return;
+  st_loader.style.display='';
+  st_rows.querySelectorAll('tr:not(#st_loader)').forEach(tr=>tr.remove());
 
+  // Fetch not-verified ids first (so UI can map show/hide verification toggles)
+  const notVerifiedSet = await fetchNotVerifiedIds(st_uuid);
+
+  try{
+    const res=await fetch(`/api/batches/${encodeURIComponent(st_uuid)}/students?`+studentsParams(),{headers:{'Authorization':'Bearer '+TOKEN,'Accept':'application/json'}});
+    const j=await res.json();
+    if(!res.ok) throw new Error(j?.message||'Failed to load students');
+    let items=j?.data||[];
+    const pag=j?.pagination||{current_page:1,per_page:Number(st_per.value||20),total:items.length};
+
+    if(st_assigned.value==='assigned') items = items.filter(u=> !!u.assigned);
+    if(st_assigned.value==='unassigned') items = items.filter(u=> !u.assigned);
+
+    const frag=document.createDocumentFragment();
+    items.forEach(u=>{
+      const tr=document.createElement('tr');
+
+      // Determine values (backend may provide `enrollment_status` and `verified` boolean)
+      const isNotVerified = notVerifiedSet.has(Number(u.id));
+      
+      // For not-verified students, select toggle should be OFF by default
+      // For others, use the actual assigned status
+      const shouldBeAssigned = isNotVerified ? false : !!u.assigned;
+      const enrollmentStatus = u.enrollment_status || (shouldBeAssigned ? 'enrolled' : 'unassigned');
+      const verified = !!u.verified;
+
+      // Render row: Name | Email | Phone | Enrollment Status | Assigned toggle | Verified toggle
+      // If user is NOT in notVerifiedSet, we hide the verify cell (display:none) to match your requirement.
+      tr.innerHTML = `
+        <td class="fw-semibold">${esc(u.name||'-')}</td>
+        <td>${esc(u.email||'-')}</td>
+        <td>${esc((u.phone_number ?? u.phone ?? '-'))}</td>
+        <td class="text-center align-middle enrollment-cell">${badgeEnrollment(enrollmentStatus)}</td>
+        <td class="text-center align-middle">
+          <div class="form-check form-switch d-inline-block">
+            <input class="form-check-input st-tg" type="checkbox" data-id="${u.id}" ${shouldBeAssigned?'checked':''}>
+          </div>
+        </td>
+        <td class="text-center align-middle verify-cell" style="${isNotVerified ? '' : 'visibility:hidden;'}">
+          <div class="form-check form-switch d-inline-block">
+            <input class="form-check-input st-verify" type="checkbox" data-id="${u.id}" ${verified?'checked':''}>
+          </div>
+        </td>
+      `;
+      frag.appendChild(tr);
+    });
+    st_rows.appendChild(frag);
+
+    /* ================= ASSIGN TOGGLE (existing) ================= */
+   st_rows.querySelectorAll('.st-tg').forEach(ch=>{
+      ch.addEventListener('change', ()=>{
+        toggleStudent(Number(ch.dataset.id), ch.checked, ch);
+      });
+    });
+
+    st_rows.querySelectorAll('.st-verify').forEach(ch=>{
+      ch.addEventListener('change', async ()=>{
+        const userId = Number(ch.dataset.id);
+        const checked = !!ch.checked;
+        const row = ch.closest('tr');
+        const assignCheckbox = row?.querySelector('.st-tg');
+
+        // If turning ON verification
+        if(checked){
+          // Always ensure student is assigned first
+          if(assignCheckbox && !assignCheckbox.checked){
+            // Optimistically update the select checkbox UI first
+            assignCheckbox.checked = true;
+            
+            // Disable verify control while assign is in-flight
+            ch.disabled = true;
+            try{
+              // Call the API to assign
+              const res=await fetch(`/api/batches/${encodeURIComponent(st_uuid)}/students/toggle`,{
+                method:'POST',
+                headers:{'Authorization':'Bearer '+TOKEN,'Content-Type':'application/json','Accept':'application/json'},
+                body:JSON.stringify({user_id:userId,assigned:true})
+              });
+              const j=await res.json().catch(()=>({}));
+              if(!res.ok) throw new Error(j?.message||firstError(j)||'Toggle failed');
+              
+              ok('Student assigned to batch');
+              
+              // Update enrollment badge if provided
+              const enrollCell = row.querySelector('.enrollment-cell');
+              const newStatus = (j?.data?.enrollment_status) || 'enrolled';
+              if(enrollCell) enrollCell.innerHTML = badgeEnrollment(newStatus);
+              
+              // After successful assignment, call verify API
+              await verifyStudent(userId, true, ch);
+            }catch(e){
+              // Revert both checkboxes on error
+              assignCheckbox.checked = false;
+              ch.checked = false;
+              err(e.message);
+            } finally {
+              ch.disabled = false;
+            }
+          } else {
+            // Already assigned, just verify
+            try{
+              await verifyStudent(userId, true, ch);
+            }catch(e){
+              // verifyStudent handles revert and toasts
+            }
+          }
+        } else {
+          // Turning OFF verification - just update verification, don't touch assignment
+          try{
+            await verifyStudent(userId, false, ch);
+          }catch(e){
+            // verifyStudent handles revert and toasts
+          }
+        }
+      });
+    });
+
+    const total=Number(pag.total||0), per=Number(pag.per_page||20), cur=Number(pag.current_page||1);
+    const pages=Math.max(1,Math.ceil(total/per));
+    function li(dis,act,label,t){ const c=['page-item',dis?'disabled':'',act?'active':''].filter(Boolean).join(' '); return `<li class="${c}"><a class="page-link" href="javascript:void(0)" data-page="${t||''}">${label}</a></li>`; }
+    let html='';
+    html+=li(cur<=1,false,'Prev',cur-1);
+    const w=2,s=Math.max(1,cur-w),e=Math.min(pages,cur+w);
+    for(let i=s;i<=e;i++) html+=li(false,i===cur,i);
+    html+=li(cur>=pages,false,'Next',cur+1);
+    st_pager.innerHTML=html;
+    st_pager.querySelectorAll('a.page-link[data-page]').forEach(a=>a.addEventListener('click',()=>{
+      const t=Number(a.dataset.page); if(!t||t===st_page) return; st_page=t; loadStudents();
+    }));
+    const label = st_assigned.value==='all' ? 'All' : (st_assigned.value==='assigned' ? 'Assigned' : 'Unassigned');
+    st_meta.textContent=`${label} — Page ${cur}/${pages} — ${total} student(s)`;
+  }catch(e){
+    err(e.message);
+  } finally{
+    st_loader.style.display='none';
+  }
+}
+/**
+ * toggleStudent (assign/unassign)
+ * - updates assignment on the server
+ * - syncs verify checkbox enabled/disabled state
+ */
+async function toggleStudent(userId, assigned, checkboxEl){
+  const row = checkboxEl.closest('tr');
+  const verifyEl = row?.querySelector('.st-verify');
+  try{
+    const res=await fetch(`/api/batches/${encodeURIComponent(st_uuid)}/students/toggle`,{
+      method:'POST',
+      headers:{'Authorization':'Bearer '+TOKEN,'Content-Type':'application/json','Accept':'application/json'},
+      body:JSON.stringify({user_id:userId,assigned:!!assigned})
+    });
+    const j=await res.json().catch(()=>({}));
+    if(!res.ok) throw new Error(j?.message||firstError(j)||'Toggle failed');
+
+    // Success: show toast
+    ok(assigned ? 'Student assigned to batch' : 'Student removed from batch');
+
+    // Update verify checkbox: enable only when assigned
+    if(verifyEl){
+      verifyEl.disabled = !assigned;
+      if(!assigned){
+        // also uncheck verification locally (server likely has removed association)
+        verifyEl.checked = false;
+      }
+    }
+
+    // Update enrollment badge cell if server sent back enrollment_status
+    if(row){
+      const enrollCell = row.querySelector('.enrollment-cell');
+      const newStatus = (j?.data?.enrollment_status) || (assigned ? 'enrolled' : 'unassigned');
+      if(enrollCell) enrollCell.innerHTML = badgeEnrollment(newStatus);
+    }
+
+    // If current filter view requires refresh (assigned/unassigned filter), reload
+    if((st_assigned.value==='assigned' && !assigned) || (st_assigned.value==='unassigned' && assigned)){
+      loadStudents();
+    }
+  }catch(e){
+    // revert UI toggle if error
+    if(checkboxEl) checkboxEl.checked = !assigned;
+    err(e.message);
+  }
+}
+
+/**
+ * verifyStudent (new)
+ * - calls POST /api/batches/{uuid}/students/{userId}/verify
+ * - payload: { verified: true/false }
+ * - reverts checkbox on error and updates enrollment badge on success if returned
+ */
+async function verifyStudent(userId, verified, checkboxEl){
+  const row = checkboxEl.closest('tr');
+  try{
+    // optimistic: disable control while request in flight
+    checkboxEl.disabled = true;
+    const res = await fetch(`/api/batches/${encodeURIComponent(st_uuid)}/students/${encodeURIComponent(userId)}/verify`, {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + TOKEN, 'Content-Type': 'application/json', 'Accept': 'application/json' },
+      body: JSON.stringify({ verified: !!verified })
+    });
+    const j = await res.json().catch(()=>({}));
+    if(!res.ok) throw new Error(j?.message || firstError(j) || 'Verification failed');
+
+    // Update UI based on response if provided
+    // server may return { success: true, data: { verified: true, enrollment_status: 'enrolled' } }
+    const data = j?.data || {};
+    const newVerified = (typeof data.verified === 'boolean') ? data.verified : verified;
+    const newEnrollmentStatus = data.enrollment_status || null;
+
+    // reflect final checked state
+    checkboxEl.checked = !!newVerified;
+    ok(newVerified ? 'Student verified' : 'Verification removed');
+
+    // update enrollment badge if server returned one
+    if(newEnrollmentStatus && row){
+      const enrollCell = row.querySelector('.enrollment-cell');
+      if(enrollCell) enrollCell.innerHTML = badgeEnrollment(newEnrollmentStatus);
+    }
+  }catch(e){
+    // revert checkbox state on error
+    checkboxEl.checked = !verified;
+    err(e.message);
+  }finally{
+    // only enable if still assigned
+    const assignedCheckbox = row?.querySelector('.st-tg');
+    const stillAssigned = !!assignedCheckbox?.checked;
+    checkboxEl.disabled = !stillAssigned;
+  }
+}
+
+/* CSV upload and other student helpers remain unchanged (kept from your original script) */
 ;['dragenter','dragover'].forEach(ev=> csvDrop?.addEventListener(ev,e=>{e.preventDefault();e.stopPropagation();csvDrop.classList.add('drag');}));
 ;['dragleave','drop'].forEach(ev=> csvDrop?.addEventListener(ev,e=>{e.preventDefault();e.stopPropagation();csvDrop.classList.remove('drag');}));
 csvDrop?.addEventListener('drop',e=>{const files=e.dataTransfer?.files||[]; if(files.length) handleCsv(files[0]);});
 document.getElementById('csvFile')?.addEventListener('change',()=>{ const f=document.getElementById('csvFile'); if(f.files?.length) handleCsv(f.files[0]); });
 async function handleCsv(file){ if(!file || !/\.csv$/i.test(file.name)) return Swal.fire('Invalid file','Please choose a .csv file','info'); if(!studentsModal) studentsModal=new bootstrap.Modal(document.getElementById('studentsModal')); csvHint.textContent=`Uploading ${file.name}…`; const fd=new FormData(); fd.append('csv', file); try{ const res=await fetch(`/api/batches/${encodeURIComponent(st_uuid)}/students/upload-csv`,{method:'POST',headers:{'Authorization':'Bearer '+TOKEN},body:fd}); const j=await res.json().catch(()=>({})); if(!res.ok) throw new Error(j?.message||firstError(j)||'Upload failed'); const s=j.summary||{}; csvSummary.style.display=''; csvSummary.innerHTML=`<div class="alert alert-success mb-2"><div class="fw-semibold mb-1">Import Summary</div><div class="small">Created users: <b>${s.created_users||0}</b></div><div class="small">Updated users: <b>${s.updated_users||0}</b></div><div class="small">Enrolled to batch: <b>${s.enrolled||0}</b></div></div>${(Array.isArray(s.errors)&&s.errors.length)?`<div class="alert alert-warning small"><div class="fw-semibold mb-1">Errors (${s.errors.length})</div>${s.errors.map(x=>`<div>• ${esc(x)}</div>`).join('')}</div>`:''}`; csvHint.textContent='Done.'; ok('CSV processed'); loadStudents(); }catch(e){ csvHint.textContent='Failed.'; err(e.message); } }
 
+/* =================== BATCH FORM / EDITOR (unchanged) =================== */
 const bm_title = document.getElementById('bm_title');
 const bm_mode = document.getElementById('bm_mode');
 const bm_uuid = document.getElementById('bm_uuid');
@@ -1141,64 +1766,111 @@ async function openEditModal(uuid){
 gl_add.addEventListener('click', ()=> addGlRow('',''));
 [bm_start,bm_end].forEach(el=> el.addEventListener('change', ()=>{ bm_dur_prev.value = (bm_start.value && bm_end.value) ? humanYMD(bm_start.value,bm_end.value) : ''; }));
 bm_image.addEventListener('change', ()=>{ if (bm_image.files && bm_image.files[0]) bm_img_prev.src = URL.createObjectURL(bm_image.files[0]); else bm_img_prev.src='https://dummyimage.com/120x80/e9e3f5/5e1570.jpg&text=Batch+Image'; });
+/* Replace old: bm_save.addEventListener('click', saveBatch);
+   and the old async function saveBatch() {...}
+   with the following: */
 
-bm_save.addEventListener('click', saveBatch);
-async function saveBatch(){ 
-  if(!bm_title_input.value.trim()) return Swal.fire('Title required','Please enter a badge title.','info'); 
-  if(!bm_course_id.value) return Swal.fire('Course missing','Pick a course from the toolbar.','info'); 
-  if(bm_start.value && bm_end.value && (new Date(bm_end.value) < new Date(bm_start.value))) return Swal.fire('Invalid dates','End date cannot be before start date.','info'); 
-  const fd=new FormData(); 
-  fd.append('course_id', bm_course_id.value); 
-  fd.append('badge_title', bm_title_input.value.trim()); 
-  
-  // Use editor content instead of textarea
-  if(bm_desc_editor.innerHTML.trim()) fd.append('badge_description', bm_desc_editor.innerHTML.trim()); 
-  
-  if(bm_tagline.value.trim()) fd.append('tagline', bm_tagline.value.trim()); 
-  fd.append('mode', bm_mode_select.value); 
-  if(bm_contact.value.trim()) fd.append('contact_number', bm_contact.value.trim()); 
-  if(bm_note.value.trim()) fd.append('badge_note', bm_note.value.trim()); 
-  fd.append('status', bm_status.value); 
-  if(bm_start.value) fd.append('starts_on', bm_start.value); 
-  if(bm_end.value) fd.append('ends_on', bm_end.value); 
-  const kv=collectGroupLinks(); 
-  const keys=Object.keys(kv); 
-  if(keys.length){ 
-    keys.forEach(k=> fd.append(`group_links[${k}]`, kv[k])); 
-  } else { 
-    fd.append('group_links[]',''); 
-  } 
-  if(bm_image.files && bm_image.files[0]) fd.append('featured_image', bm_image.files[0]); 
-  try{ 
-    let url='/api/batches', method='POST'; 
-    if (bm_mode.value==='edit' && bm_uuid.value) { 
-      url = `/api/batches/${encodeURIComponent(bm_uuid.value)}`; 
-      fd.append('_method','PATCH'); 
-      method = 'POST'; 
-    } 
-    const res = await fetch(url,{ 
-      method, 
-      headers:{ 
-        'Authorization':'Bearer '+TOKEN, 
-        'Accept':'application/json', 
-        'Cache-Control':'no-cache' 
-      }, 
-      body: fd 
-    }); 
-    const j = await res.json().catch(()=>({})); 
-    if(!res.ok) throw new Error(firstError(j)||'Save failed'); 
-    ok('Batch saved'); 
-    bootstrap.Modal.getOrCreateInstance(document.getElementById('batchModal')).hide(); 
-    load('active'); 
-  }catch(e){ 
-    err(e.message||'Save failed'); 
-  } 
+function setSaveLoading(on, text) {
+  if (!bm_save) return;
+  if (on) {
+    bm_save.disabled = true;
+    // store previous content to restore later
+    if (!bm_save.dataset.prevHtml) bm_save.dataset.prevHtml = bm_save.innerHTML;
+    bm_save.innerHTML = `<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>${esc(text || 'Saving…')}`;
+    bm_save.setAttribute('aria-busy', 'true');
+  } else {
+    bm_save.disabled = false;
+    if (bm_save.dataset.prevHtml) bm_save.innerHTML = bm_save.dataset.prevHtml;
+    bm_save.removeAttribute('aria-busy');
+    delete bm_save.dataset.prevHtml;
+  }
 }
 
+bm_save.addEventListener('click', saveBatch);
+
+async function saveBatch(){
+  if(!bm_title_input.value.trim()) return Swal.fire('Title required','Please enter a badge title.','info');
+  if(!bm_course_id.value) return Swal.fire('Course missing','Pick a course from the toolbar.','info');
+  if(bm_start.value && bm_end.value && (new Date(bm_end.value) < new Date(bm_start.value))) return Swal.fire('Invalid dates','End date cannot be before start date.','info');
+
+  const fd=new FormData();
+  fd.append('course_id', bm_course_id.value);
+  fd.append('badge_title', bm_title_input.value.trim());
+
+  if(bm_desc_editor.innerHTML.trim()) fd.append('badge_description', bm_desc_editor.innerHTML.trim());
+  if(bm_tagline.value.trim()) fd.append('tagline', bm_tagline.value.trim());
+  fd.append('mode', bm_mode_select.value);
+  if(bm_contact.value.trim()) fd.append('contact_number', bm_contact.value.trim());
+  if(bm_note.value.trim()) fd.append('badge_note', bm_note.value.trim());
+  fd.append('status', bm_status.value);
+  if(bm_start.value) fd.append('starts_on', bm_start.value);
+  if(bm_end.value) fd.append('ends_on', bm_end.value);
+  const kv=collectGroupLinks();
+  const keys=Object.keys(kv);
+  if(keys.length){
+    keys.forEach(k=> fd.append(`group_links[${k}]`, kv[k]));
+  } else {
+    fd.append('group_links[]','');
+  }
+  if(bm_image.files && bm_image.files[0]) fd.append('featured_image', bm_image.files[0]);
+
+  // Turn on Save button loading UI
+  setSaveLoading(true, 'Saving');
+
+  try{
+    let url='/api/batches', method='POST';
+    if (bm_mode.value==='edit' && bm_uuid.value) {
+      url = `/api/batches/${encodeURIComponent(bm_uuid.value)}`;
+      fd.append('_method','PATCH');
+      method = 'POST';
+    }
+
+    // show immediate table loader so users see activity in the list
+    if (currentCourseId) {
+      // clear current rows and show loader for active tab
+      clearBody('active');
+      showLoader('active', true);
+      document.querySelector(tabs.active.meta).textContent = 'Saving…';
+    }
+
+    const res = await fetch(url,{
+      method,
+      headers:{
+        'Authorization':'Bearer '+TOKEN,
+        'Accept':'application/json',
+        'Cache-Control':'no-cache'
+      },
+      body: fd
+    });
+    const j = await res.json().catch(()=>({}));
+    if(!res.ok) throw new Error(firstError(j)||'Save failed');
+
+    ok('Batch saved');
+
+    // Hide modal before reloading list (keeps modal closing smooth)
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('batchModal')).hide();
+
+    // After save: reload active list (load() shows loader too). Keep the loader visible for a short moment.
+    await load('active');
+
+  }catch(e){
+    console.error('Save error:', e);
+    err(e.message||'Save failed');
+
+    // If we showed the active loader earlier, hide it so user can retry
+    showLoader('active', false);
+  } finally {
+    // restore Save button state
+    setSaveLoading(false);
+  }
+}
+
+/* =================== ARCHIVE / DELETE / RESTORE (unchanged) =================== */
 async function archiveBatch(uuid){ const {isConfirmed}=await Swal.fire({icon:'question',title:'Archive batch?',showCancelButton:true,confirmButtonText:'Archive',confirmButtonColor:'#8b5cf6'}); if(!isConfirmed) return; try{ const res=await fetch(`/api/batches/${encodeURIComponent(uuid)}/archive`,{method:'PATCH',headers:{'Authorization':'Bearer '+TOKEN,'Accept':'application/json'}}); const j=await res.json().catch(()=>({})); if(!res.ok) throw new Error(firstError(j)||'Archive failed'); ok('Batch archived'); load('active'); }catch(e){ err(e.message); } }
 async function unarchiveBatch(uuid){ try{ const res=await fetch(`/api/batches/${encodeURIComponent(uuid)}`,{method:'PATCH',headers:{'Authorization':'Bearer '+TOKEN,'Content-Type':'application/json','Accept':'application/json'},body:JSON.stringify({status:'active'})}); const j=await res.json().catch(()=>({})); if(!res.ok) throw new Error(firstError(j)||'Unarchive failed'); ok('Batch unarchived'); load('archived'); load('active'); }catch(e){ err(e.message); } }
 async function deleteBatch(uuid){ const {isConfirmed}=await Swal.fire({icon:'warning',title:'Delete batch?',text:'This moves the batch to Bin (soft delete).',showCancelButton:true,confirmButtonText:'Delete',confirmButtonColor:'#ef4444'}); if(!isConfirmed) return; try{ const res=await fetch(`/api/batches/${encodeURIComponent(uuid)}`,{method:'DELETE',headers:{'Authorization':'Bearer '+TOKEN,'Accept':'application/json'}}); const j=await res.json().catch(()=>({})); if(!res.ok) throw new Error(firstError(j)||'Delete failed'); ok('Batch deleted'); load('active'); }catch(e){ err(e.message); } }
 async function restoreBatch(uuid){ try{ const res=await fetch(`/api/batches/${encodeURIComponent(uuid)}/restore`,{method:'POST',headers:{'Authorization':'Bearer '+TOKEN,'Accept':'application/json'}}); const j=await res.json().catch(()=>({})); if(!res.ok) throw new Error(firstError(j)||'Restore failed'); ok('Batch restored'); load('bin'); load('active'); }catch(e){ err(e.message); } }
+
 
 /* ================= QUIZZES (Assign Quiz UI) ================= */
 const qz_q = document.getElementById('qz_q'), qz_per = document.getElementById('qz_per'), qz_apply = document.getElementById('qz_apply'), qz_assigned = document.getElementById('qz_assigned'), qz_rows = document.getElementById('qz_rows'), qz_loader = document.getElementById('qz_loader'), qz_meta = document.getElementById('qz_meta'), qz_pager = document.getElementById('qz_pager');
@@ -1411,8 +2083,312 @@ async function toggleQuiz(uuid, payload, checkboxEl=null, quiet=false){
 }
 
 ;/* end quizzes section */
+/* ================= CODING QUESTIONS (Assign Coding Question UI) ================= */
+const cq_q = document.getElementById('cq_q'),
+      cq_per = document.getElementById('cq_per'),
+      cq_apply = document.getElementById('cq_apply'),
+      cq_assigned = document.getElementById('cq_assigned'),
+      cq_rows = document.getElementById('cq_rows'),
+      cq_loader = document.getElementById('cq_loader'),
+      cq_meta = document.getElementById('cq_meta'),
+      cq_pager = document.getElementById('cq_pager');
 
-/* =================== end of file - rest of code unchanged =================== */
+let codingQuestionsModal, cq_batch_key = null, cq_page = 1;
+
+function cqParams(){
+  const p = new URLSearchParams();
+  if (cq_q.value.trim()) p.set('q', cq_q.value.trim());
+  p.set('per_page', cq_per.value || 20);
+  p.set('page', cq_page);
+  if (cq_assigned.value === 'assigned') p.set('assigned', '1');
+  if (cq_assigned.value === 'unassigned') p.set('assigned', '0');
+  return p.toString();
+}
+
+function pickItems(j){
+  // supports: {data: []} OR {data:{data:[]}} OR {questions: []} OR {items:[]}
+  if (Array.isArray(j?.data)) return j.data;
+  if (Array.isArray(j?.data?.data)) return j.data.data;
+  if (Array.isArray(j?.questions)) return j.questions;
+  if (Array.isArray(j?.items)) return j.items;
+  return [];
+}
+function pickPagination(j, fallbackLen){
+  // supports: {pagination:{...}} OR {meta:{...}} OR paginator {data:{...}}
+  return j?.pagination || j?.meta || j?.data?.meta || {
+    current_page: 1,
+    per_page: Number(cq_per?.value || 20),
+    total: fallbackLen
+  };
+}
+
+function getQTitle(q){ return q?.title || q?.name || q?.question_title || 'Untitled'; }
+function getQDifficulty(q){ return (q?.difficulty || q?.level || '—').toString(); }
+function getQUuid(q){
+  return (q?.question_uuid
+    || q?.uuid
+    || q?.questionUuid
+    || q?.questionUUID
+    || q?.question_key
+    || q?.questionKey
+    || '').toString();
+}
+
+function getAssigned(q){
+  return !!(q?.assigned ?? q?.is_assigned ?? q?.assigned_to_batch ?? q?.assignedToBatch);
+}
+function getMaxAttempts(q){
+  return Number(q?.total_attempts ?? q?.max_attempts ?? q?.maxAttempts ?? q?.attempt_limit ?? 1) || 1;
+}
+function getAttemptAllowed(q){
+  const v = (q?.attempt_allowed ?? q?.allowed_attempts ?? q?.attemptAllowed ?? q?.attempts_allowed);
+  return (v === null || v === undefined || v === '') ? '' : Number(v);
+}
+function clampAttempts(v, hardMax){
+  const lim = Math.max(1, Math.min(50, Number(hardMax) || 1));
+  let n = parseInt(v, 10);
+  if (!Number.isFinite(n) || n < 1) n = lim;
+  if (n > lim) n = lim;
+  return n;
+}
+
+function openCodingQuestions(batchKey){
+  codingQuestionsModal = codingQuestionsModal || new bootstrap.Modal(document.getElementById('codingQuestionsModal'));
+  cq_batch_key = batchKey;
+  cq_page = 1;
+  cq_assigned.value = 'all';
+  codingQuestionsModal.show();
+  loadCodingQuestions();
+}
+
+cq_apply.addEventListener('click', ()=>{ cq_page = 1; loadCodingQuestions(); });
+cq_per.addEventListener('change', ()=>{ cq_page = 1; loadCodingQuestions(); });
+cq_assigned.addEventListener('change', ()=>{ cq_page = 1; loadCodingQuestions(); });
+
+let cqT;
+cq_q.addEventListener('input', ()=>{
+  clearTimeout(cqT);
+  cqT = setTimeout(()=>{ cq_page = 1; loadCodingQuestions(); }, 350);
+});
+
+async function assignCodingQuestion(batchKey, questionUuid, attemptAllowed, quiet=false){
+  const payload = {
+    // support multiple backend expectations safely
+    question_uuid: questionUuid,
+    questionUuid: questionUuid,
+    question_uuids: [questionUuid],
+    questionUuids: [questionUuid],
+
+    attempt_allowed: attemptAllowed,
+    attemptAllowed: attemptAllowed,
+    max_attempts: attemptAllowed,
+    allowed_attempts: attemptAllowed,
+
+    publish_to_students: 1,
+    assign_status: 1
+  };
+
+  const res = await fetch(`/api/batches/${encodeURIComponent(batchKey)}/coding-questions/assign`, {
+    method: 'POST',
+    headers: { 'Authorization':'Bearer '+TOKEN, 'Content-Type':'application/json', 'Accept':'application/json' },
+    body: JSON.stringify(payload)
+  });
+
+  const j = await res.json().catch(()=>({}));
+  if(!res.ok) throw new Error(j?.message || firstError(j) || 'Assign failed');
+  if(!quiet) ok('Coding question assigned');
+  return j;
+}
+
+async function unassignCodingQuestion(batchKey, questionUuid, quiet=false){
+  const res = await fetch(`/api/batches/${encodeURIComponent(batchKey)}/coding-questions/${encodeURIComponent(questionUuid)}`, {
+    method: 'DELETE',
+    headers: { 'Authorization':'Bearer '+TOKEN, 'Accept':'application/json' }
+  });
+
+  const j = await res.json().catch(()=>({}));
+  if(!res.ok) throw new Error(j?.message || firstError(j) || 'Unassign failed');
+  if(!quiet) ok('Coding question unassigned');
+  return j;
+}
+
+async function loadCodingQuestions(){
+  if(!cq_batch_key) return;
+
+  cq_loader.style.display = '';
+  cq_rows.querySelectorAll('tr:not(#cq_loader)').forEach(tr=>tr.remove());
+
+  try{
+    const res = await fetch(`/api/batches/${encodeURIComponent(cq_batch_key)}/coding-questions?mode=all&${cqParams()}`, {
+  headers: { 'Authorization': 'Bearer ' + TOKEN, 'Accept': 'application/json' }
+});
+
+
+    const j = await res.json().catch(()=>({}));
+    if(!res.ok) throw new Error(j?.message || 'Failed to load coding questions');
+
+    const items = pickItems(j);
+    const pag   = pickPagination(j, items.length);
+
+    const frag = document.createDocumentFragment();
+
+    items.forEach(qn=>{
+      const qUuid = getQUuid(qn);
+      const assigned = getAssigned(qn);
+
+      const title = getQTitle(qn);
+      const diff  = getQDifficulty(qn);
+
+      const maxAttempts = getMaxAttempts(qn);
+      const limit = Math.min(50, maxAttempts);
+
+      let attemptAllowed = getAttemptAllowed(qn);
+      if (attemptAllowed === '') attemptAllowed = maxAttempts;
+      attemptAllowed = clampAttempts(attemptAllowed, limit);
+
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td class="fw-semibold">${esc(title)}</td>
+        <td class="text-capitalize">${esc(diff)}</td>
+
+        <td class="text-center">
+          <span class="badge badge-info">${esc(maxAttempts)}</span>
+        </td>
+
+        <td class="text-center">
+          <input
+            class="form-control form-control-sm cq-attempt"
+            type="number"
+            min="1"
+            max="${esc(limit)}"
+            value="${esc(attemptAllowed)}"
+            style="width:120px; margin-inline:auto; text-align:center;"
+          >
+          <div class="small text-muted mt-1">1 — ${esc(limit)}</div>
+        </td>
+
+        <td class="text-center">
+          <div class="form-check form-switch d-inline-block">
+            <input
+              class="form-check-input cq-tg"
+              type="checkbox"
+              data-uuid="${esc(qUuid)}"
+              ${assigned ? 'checked' : ''}
+              ${qUuid ? '' : 'disabled'}
+            >
+          </div>
+        </td>
+      `;
+      frag.appendChild(tr);
+    });
+
+    cq_rows.appendChild(frag);
+
+    // Toggle assign/unassign
+    cq_rows.querySelectorAll('.cq-tg').forEach(ch=>{
+      ch.addEventListener('change', async ()=>{
+        const row = ch.closest('tr');
+        const attemptEl = row.querySelector('.cq-attempt');
+
+        const questionUuid = ch.dataset.uuid;
+        if(!questionUuid){
+          ch.checked = !ch.checked;
+          return err('Question UUID missing from API response (uuid/question_uuid not found).');
+        }
+
+        const wantAssigned = !!ch.checked;
+        const limit = Number(attemptEl.max || 1);
+        const attemptAllowed = clampAttempts(attemptEl.value, limit);
+        attemptEl.value = String(attemptAllowed);
+
+        ch.disabled = true;
+        attemptEl.disabled = true;
+
+        try{
+          if(wantAssigned){
+            await assignCodingQuestion(cq_batch_key, questionUuid, attemptAllowed);
+          }else{
+            await unassignCodingQuestion(cq_batch_key, questionUuid);
+          }
+
+          if ((cq_assigned.value==='assigned' && !wantAssigned) ||
+              (cq_assigned.value==='unassigned' && wantAssigned)){
+            loadCodingQuestions();
+          }
+        }catch(e){
+          ch.checked = !wantAssigned;
+          err(e.message);
+        }finally{
+          ch.disabled = false;
+          attemptEl.disabled = false;
+        }
+      });
+    });
+
+    // Save attempts only if assigned
+    cq_rows.querySelectorAll('.cq-attempt').forEach(inp=>{
+      inp.addEventListener('blur', async ()=>{
+        const row = inp.closest('tr');
+        const ch  = row.querySelector('.cq-tg');
+        if(!ch || !ch.checked) return;
+
+        const questionUuid = ch.dataset.uuid;
+        if(!questionUuid) return;
+
+        const limit = Number(inp.max || 1);
+        const attemptAllowed = clampAttempts(inp.value, limit);
+        inp.value = String(attemptAllowed);
+
+        try{
+          await assignCodingQuestion(cq_batch_key, questionUuid, attemptAllowed, true);
+          ok('Attempts updated');
+        }catch(e){
+          err(e.message || 'Failed to update attempts');
+        }
+      });
+    });
+
+    // Pagination
+    const total = Number(pag.total || items.length);
+    const per   = Number(pag.per_page || cq_per.value || 20);
+    const cur   = Number(pag.current_page || pag.page || 1);
+    const pages = Math.max(1, Math.ceil(total / per));
+
+    function li(dis, act, label, t){
+      return `<li class="page-item ${dis?'disabled':''} ${act?'active':''}">
+                <a class="page-link" href="javascript:void(0)" data-page="${t||''}">${label}</a>
+              </li>`;
+    }
+
+    let html='';
+    html += li(cur<=1,false,'Prev',cur-1);
+    const w=2, s=Math.max(1,cur-w), e=Math.min(pages,cur+w);
+    for(let i=s;i<=e;i++) html += li(false,i===cur,i,i);
+    html += li(cur>=pages,false,'Next',cur+1);
+
+    cq_pager.innerHTML = html;
+    cq_pager.querySelectorAll('a.page-link[data-page]').forEach(a=>{
+      a.addEventListener('click', ()=>{
+        const t = Number(a.dataset.page);
+        if(!t || t===cq_page) return;
+        cq_page = t;
+        loadCodingQuestions();
+      });
+    });
+
+    cq_meta.textContent = `Page ${cur} of ${pages} — ${total} coding question(s)`;
+
+  }catch(e){
+    console.error(e);
+    err(e.message || 'Failed to load coding questions');
+  }finally{
+    cq_loader.style.display = 'none';
+  }
+}
+/* end coding questions section */
+
+
+ 
 });
 </script>
 </body>

@@ -409,7 +409,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
   // View course details
   window.viewCourseDetails = function(batchUuid) {
-    window.location.href = `/courses/${batchUuid}/view`;
+    window.location.href = `/mycourses/${batchUuid}/view`;
   };
 
   // Initialize

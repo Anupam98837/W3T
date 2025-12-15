@@ -307,41 +307,52 @@ class UserController extends Controller
     }
 
     /**
-     * GET /api/users?page=&per_page=&q=&status=
-     * Paginated list.
-     */
+ * GET /api/users?page=&per_page=&q=&status=
+ * Paginated list.
+ */
 public function index(Request $request)
 {
     $page   = max(1, (int)$request->query('page', 1));
     $pp     = min(100, max(1, (int)$request->query('per_page', 20)));
     $q      = trim((string)$request->query('q', ''));
-    // If the param is absent, default to 'active'; if it's 'all', apply no filter
-    $status = $request->has('status') ? (string)$request->query('status') : 'active';
+
+    // NEW: Default is 'all' -> show both active & inactive
+    $status = $request->query('status', 'all');
 
     $base = DB::table('users')->whereNull('deleted_at');
+
+    // Apply filter only if status is NOT 'all' and not empty
     if ($status !== 'all' && $status !== '') {
         $base->where('status', $status);
     }
+
     if ($q !== '') {
         $like = "%{$q}%";
         $base->where(function($w) use ($like){
-            $w->where('name','LIKE',$like)->orWhere('email','LIKE',$like);
+            $w->where('name', 'LIKE', $like)
+              ->orWhere('email', 'LIKE', $like);
         });
     }
 
     $total = (clone $base)->count();
+
     $rows  = $base->orderBy('name')
-        ->offset(($page-1)*$pp)->limit($pp)
+        ->offset(($page - 1) * $pp)
+        ->limit($pp)
         ->select('id','name','email','image','role','role_short_form','status')
         ->get();
 
     return response()->json([
-        'status'=>'success',
-        'data'=>$rows,
-        'meta'=>['page'=>$page,'per_page'=>$pp,'total'=>$total,'total_pages'=>(int)ceil($total/$pp)],
+        'status' => 'success',
+        'data'   => $rows,
+        'meta'   => [
+            'page'        => $page,
+            'per_page'    => $pp,
+            'total'       => $total,
+            'total_pages' => (int)ceil($total / $pp),
+        ],
     ]);
 }
-
 
     /**
      * GET /api/users/{id}
@@ -613,6 +624,71 @@ public function index(Request $request)
         ]);
     }
 
+        /**
+     * GET /api/auth/my-role
+     * Header: Authorization: Bearer <token>
+     *
+     * Returns:
+     * {
+     *   "status": "success",
+     *   "role": "admin",
+     *   "role_short_form": "ADM",
+     *   "user": { ... public payload ... }
+     * }
+     */
+    public function getMyRole(Request $request)
+    {
+        $plain = $this->extractToken($request);
+        if (!$plain) {
+            return response()->json([
+                'status'  => 'error',
+                'message' => 'Token not provided',
+            ], 401);
+        }
+
+        $rec = DB::table('personal_access_tokens')
+            ->where('token', hash('sha256', $plain))
+            ->where('tokenable_type', self::USER_TYPE)
+            ->first();
+
+        if (!$rec) {
+            return response()->json([
+                'status'  => 'error',
+                'message' => 'Invalid token',
+            ], 401);
+        }
+
+        // Check expiry (same logic as authenticateToken)
+        if (!empty($rec->expires_at) && Carbon::parse($rec->expires_at)->isPast()) {
+            DB::table('personal_access_tokens')->where('id', $rec->id)->delete();
+
+            return response()->json([
+                'status'  => 'error',
+                'message' => 'Token expired',
+            ], 401);
+        }
+
+        $user = DB::table('users')
+            ->where('id', $rec->tokenable_id)
+            ->whereNull('deleted_at')
+            ->first();
+
+        if (!$user || (isset($user->status) && $user->status !== 'active')) {
+            return response()->json([
+                'status'  => 'error',
+                'message' => 'Unauthorized',
+            ], 401);
+        }
+
+        return response()->json([
+            'status'          => 'success',
+            'role'            => (string)($user->role ?? ''),
+            'role_short_form' => (string)($user->role_short_form ?? ''),
+            'user'            => $this->publicUserPayload($user),
+        ]);
+    }
+
+
     /* =========================================================
      |                     Helper methods
      |=========================================================*/
@@ -739,4 +815,151 @@ public function index(Request $request)
             }
         }
     }
+    /**
+ * POST /api/auth/register
+ * Body: { name, email, phone_number, password, password_confirmation }
+ * Always registers as role = student
+ */
+public function register(Request $request)
+{
+    $v = Validator::make($request->all(), [
+        'name'              => 'required|string|max:150',
+        'email'             => 'required|email|max:255',
+        'phone_number'      => 'required|string|max:32',
+        'password'          => 'required|string|min:8|confirmed', // expects password_confirmation
+    ]);
+
+    if ($v->fails()) {
+        return response()->json(['status' => 'error', 'errors' => $v->errors()], 422);
+    }
+
+    $data = $v->validated();
+
+    // Uniqueness checks
+    if (DB::table('users')->where('email', $data['email'])->exists()) {
+        return response()->json(['status'=>'error','message'=>'Email already exists'], 422);
+    }
+    if (!empty($data['phone_number']) &&
+        DB::table('users')->where('phone_number', $data['phone_number'])->exists()) {
+        return response()->json(['status'=>'error','message'=>'Phone number already exists'], 422);
+    }
+
+    // UUID & unique slug
+    do { $uuid = (string) Str::uuid(); }
+    while (DB::table('users')->where('uuid', $uuid)->exists());
+
+    $base = Str::slug($data['name']);
+    do { $slug = $base . '-' . Str::lower(Str::random(24)); }
+    while (DB::table('users')->where('slug', $slug)->exists());
+
+    // Force role to student (normalized)
+    [$role, $roleShort] = $this->normalizeRole('student', null);
+
+    try {
+        $now = now();
+        $userId = DB::table('users')->insertGetId([
+            'uuid'                     => $uuid,
+            'name'                     => $data['name'],
+            'email'                    => $data['email'],
+            'phone_number'             => $data['phone_number'],
+            'password'                 => Hash::make($data['password']),
+            'image'                    => null,
+            'address'                  => null,
+            'role'                     => $role,
+            'role_short_form'          => $roleShort,
+            'slug'                     => $slug,
+            'status'                   => 'active',
+            'remember_token'           => Str::random(60),
+            'created_by'               => null,
+            'created_at'               => $now,
+            'created_at_ip'            => $request->ip(),
+            'updated_at'               => $now,
+            'metadata'                 => json_encode([
+                'timezone' => 'Asia/Kolkata',
+                'source'   => 'api_register',
+            ], JSON_UNESCAPED_UNICODE),
+        ]);
+
+        $user = DB::table('users')->where('id', $userId)->first();
+
+        // Issue an access token (short TTL). Adjust TTL if you want "remember me" here.
+        $expiresAt = now()->addHours(12);
+        $plainToken = $this->issueToken((int)$userId, $expiresAt);
+
+        // Update last_login markers (optional: treat registration as first login)
+        DB::table('users')->where('id', $userId)->update([
+            'last_login_at' => now(),
+            'last_login_ip' => $request->ip(),
+            'updated_at'    => now(),
+        ]);
+
+        return response()->json([
+            'status'       => 'success',
+            'message'      => 'Registration successful',
+            'access_token' => $plainToken,
+            'token_type'   => 'Bearer',
+            'expires_at'   => $expiresAt->toIso8601String(),
+            'user'         => $this->publicUserPayload($user),
+        ], 201);
+
+    } catch (\Throwable $e) {
+        Log::error('[Auth Register] failed', ['error' => $e->getMessage()]);
+        return response()->json(['status'=>'error','message'=>'Could not register user'], 500);
+    }
+}
+public function getProfile(Request $request)
+{
+    $userId = $this->currentUserId($request);
+
+    if (!$userId) {
+        return response()->json([
+            'status' => 'error',
+            'message' => 'Unauthorized'
+        ], 401);
+    }
+
+    $user = DB::table('users')->where('id', $userId)->first();
+
+    if (!$user) {
+        return response()->json([
+            'status' => 'error',
+            'message' => 'User not found'
+        ], 404);
+    }
+
+    // Role-based frontend permissions
+    $isEditable = in_array($user->role, ['admin', 'super_admin']);
+
+    $permissions = [
+        'can_edit_profile'   => $isEditable,
+        'can_change_image'   => $isEditable,
+        'can_change_password'=> $isEditable,
+        'can_view_profile'   => true
+    ];
+
+    // API endpoints to be used by frontend
+    $endpoints = [
+        'update_profile' => "/api/users/{$user->id}",
+        'update_image'   => "/api/users/{$user->id}/image",
+        'update_password'=> "/api/users/{$user->id}/password"
+    ];
+
+    return response()->json([
+        'status' => 'success',
+        'user' => [
+            'id'              => $user->id,
+            'name'            => $user->name,
+            'email'           => $user->email,
+            'phone_number'    => $user->phone_number,
+            'address'         => $user->address,
+            'role'            => $user->role,
+            'role_short_form' => $user->role_short_form,
+            'image'           => $user->image,
+            'status'          => $user->status,
+        ],
+        'permissions' => $permissions,
+        'endpoints' => $endpoints
+    ]);
+}
+
 }

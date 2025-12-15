@@ -9,17 +9,17 @@
 <style>
 /* ===== Shell ===== */
 .cm-wrap{max-width:1140px;margin:16px auto 40px;overflow:visible}
-.panel{background:var(--surface);border:1px solid var(--line-strong);border-radius:16px;box-shadow:var(--shadow-2);padding:14px}
+/* .panel{background:var(--surface);border:1px solid var(--line-strong);border-radius:16px;box-shadow:var(--shadow-2);padding:14px} */
 
 /* Toolbar */
-.mfa-toolbar .form-control{height:40px;border-radius:12px;border:1px solid var(--line-strong);background:var(--surface)}
+/* .mfa-toolbar .form-control{height:40px;border-radius:12px;border:1px solid var(--line-strong);background:var(--surface)}
 .mfa-toolbar .form-select{height:40px;border-radius:12px;border:1px solid var(--line-strong);background:var(--surface)}
 .mfa-toolbar .btn{height:40px;border-radius:12px}
 .mfa-toolbar .btn-light{background:var(--surface);border:1px solid var(--line-strong)}
-.mfa-toolbar .btn-primary{background:var(--primary-color);border:none}
+.mfa-toolbar .btn-primary{background:var(--primary-color);border:none} */
 
 /* Table Card */
-.table-wrap.card{position:relative;border:1px solid var(--line-strong);border-radius:16px;background:var(--surface);box-shadow:var(--shadow-2);overflow:visible}
+/* .table-wrap.card{position:relative;border:1px solid var(--line-strong);border-radius:16px;background:var(--surface);box-shadow:var(--shadow-2);overflow:visible}
 .table-wrap .card-body{overflow:visible}
 .table-responsive{overflow:visible !important}
 .table{--bs-table-bg:transparent}
@@ -27,7 +27,7 @@
 .table thead.sticky-top{z-index:3}
 .table tbody tr{border-top:1px solid var(--line-soft)}
 .table tbody tr:hover{background:var(--page-hover)}
-.small{font-size:12.5px}
+.small{font-size:12.5px} */
 
 /* Sorting */
 .sortable{cursor:pointer;white-space:nowrap}
@@ -88,12 +88,11 @@ html.theme-dark .dropdown-menu{background:#0f172a;border-color:var(--line-strong
 .card,
 .panel,
 .cm-wrap {
-  overflow: visible !important;
   transform: none !important;   /* transforms create new stacking contexts and break fixed/absolute positioning */
 }
 
 /* Keep portal dropdown rules (as in modules view) */
-.dropdown-menu.dropdown-menu-end.show {
+/* .dropdown-menu.dropdown-menu-end.show {
   position: fixed !important;
   transform: none !important;
   left: 0 !important;
@@ -104,7 +103,7 @@ html.theme-dark .dropdown-menu{background:#0f172a;border-color:var(--line-strong
   display: block !important;
 }
 
-.dropdown-menu.dd-portal { position: fixed !important; transform: none !important; z-index: 9000 !important; min-width: 220px; border-radius: 12px; border: 1px solid var(--line-strong); box-shadow: var(--shadow-2); background: var(--surface); }
+.dropdown-menu.dd-portal { position: fixed !important; transform: none !important; z-index: 9000 !important; min-width: 220px; border-radius: 12px; border: 1px solid var(--line-strong); box-shadow: var(--shadow-2); background: var(--surface); } */
 
 /* Privilege specific helpers */
 .priv-rows .row { gap: .5rem; align-items: center; margin-bottom: .5rem; }
@@ -174,7 +173,7 @@ html.theme-dark .dropdown-menu{background:#0f172a;border-color:var(--line-strong
         <div class="col-12 col-xxl-auto ms-xxl-auto d-flex justify-content-xxl-end gap-2">
           <button id="btnReorder" class="btn btn-light"><i class="fa fa-up-down-left-right me-1"></i>Reorder</button>
           <button id="btnCreatePriv" class="btn btn-primary"><i class="fa fa-plus me-1"></i>New Privilege</button>
-          <button id="btnBulkPriv" class="btn btn-light"><i class="fa fa-plus-square me-1"></i>Bulk Edit</button>
+          <button id="btnBulkPriv" class="btn btn-light" style="display:none"><i class="fa fa-plus-square me-1"></i>Bulk Edit</button>
         </div>
 
         <div class="col-12 col-xl-auto ms-xl-auto d-flex justify-content-xl-end small text-muted">
@@ -511,21 +510,54 @@ document.addEventListener('click',(e)=>{ const btn=e.target.closest('.dd-toggle'
 
   function syncSortHeaders(){ document.querySelectorAll('#tab-active thead th.sortable').forEach(th=>{ th.classList.remove('asc','desc'); const col = th.dataset.col; if(sort===col) th.classList.add('asc'); if(sort==='-'+col) th.classList.add('desc'); }); sortHint.textContent = (sort==="-created_at") ? "Newest first" : (sort==="created_at" ? "Oldest first" : ("Sorted by "+sort.replace('-',''))); }
 
-  function baseParams(scope){ const usp=new URLSearchParams(); const per = Number(perPageSel?.value || 30); const pg = Number(state[scope].page||1); usp.set('per_page', per); usp.set('page', pg); if(scope==='active'){ usp.set('sort', sort); if(q && q.value.trim()) usp.set('q', q.value.trim()); } else if(scope==='archived'){ usp.set('status','archived'); usp.set('sort','-created_at'); } else { usp.set('sort','-created_at'); } return usp.toString(); }
-  function urlFor(scope){ if(scope==='bin') return '/api/privileges/bin?' + baseParams(scope); return '/api/privileges?' + baseParams(scope); }
+  function baseParams(scope){
+    const usp=new URLSearchParams();
+    const per = Number(perPageSel?.value || 30);
+    const pg = Number(state[scope].page||1);
+    usp.set('per_page', per);
+    usp.set('page', pg);
+    if(scope==='active'){
+      usp.set('sort', sort);
+      if(q && q.value.trim()) usp.set('q', q.value.trim());
+    } else if(scope==='archived'){
+      // no-op here: archived controller will return archived rows
+      usp.set('sort','-created_at');
+    } else {
+      usp.set('sort','-created_at');
+    }
+    return usp.toString();
+  }
+  function urlFor(scope){
+    if (scope === 'bin') {
+      return '/api/privileges/bin?' + baseParams(scope);
+    }
+    if (scope === 'archived') {
+      // use the dedicated archived endpoint which the controller exposes
+      return '/api/privileges/archived?' + baseParams(scope);
+    }
+    return '/api/privileges?' + baseParams(scope);
+  }
 
-  function actionMenu(scope, r){ const key = r.uuid || r.id; if(scope==='active' || scope==='archived'){ const archived = String(r.status||'').toLowerCase()==='archived'; return `
+  function actionMenu(scope, r){
+    const key = r.uuid || r.id;
+    // module identifier to preselect modals (prefer uuid then id)
+    const moduleVal = (r.module_uuid || r.module_id || r.module) || '';
+    if(scope==='active' || scope==='archived'){
+      const archived = String(r.status||'').toLowerCase()==='archived';
+      return `
     <div class="dropdown text-end" data-bs-display="static">
       <button type="button" class="btn btn-primary btn-sm dd-toggle" data-bs-toggle="dropdown" aria-expanded="false" title="Actions">
         <i class="fa fa-ellipsis-vertical"></i>
       </button>
       <ul class="dropdown-menu dropdown-menu-end">
+        <li><button class="dropdown-item" data-act="addpriv" data-module="${esc(moduleVal)}" data-key="${key}"><i class="fa fa-shield-alt"></i> + Privilege</button></li>
         <li><button class="dropdown-item" data-act="edit" data-key="${key}" data-action="${esc(r.action||'')}"><i class="fa fa-pen-to-square"></i> Edit</button></li>
         <li><hr class="dropdown-divider"></li>
         ${archived ? `<li><button class="dropdown-item" data-act="unarchive" data-key="${key}" data-action="${esc(r.action||'')}"><i class="fa fa-box-open"></i> Unarchive</button></li>` : `<li><button class="dropdown-item" data-act="archive" data-key="${key}" data-action="${esc(r.action||'')}"><i class="fa fa-box-archive"></i> Archive</button></li>`}
         <li><button class="dropdown-item text-danger" data-act="delete" data-key="${key}" data-action="${esc(r.action||'')}"><i class="fa fa-trash"></i> Delete</button></li>
       </ul>
-    </div>`; }
+    </div>`;
+    }
     return `
     <div class="dropdown text-end" data-bs-display="static">
       <button type="button" class="btn btn-primary btn-sm dd-toggle" data-bs-toggle="dropdown"><i class="fa fa-ellipsis-vertical"></i></button>
@@ -533,9 +565,26 @@ document.addEventListener('click',(e)=>{ const btn=e.target.closest('.dd-toggle'
         <li><button class="dropdown-item" data-act="restore" data-key="${key}" data-action="${esc(r.action||'')}"><i class="fa fa-rotate-left"></i> Restore</button></li>
         <li><button class="dropdown-item text-danger" data-act="force" data-key="${key}" data-action="${esc(r.action||'')}"><i class="fa fa-skull-crossbones"></i> Delete Permanently</button></li>
       </ul>
-    </div>`; }
+    </div>`;
+  }
 
-  function rowHTML(scope, r){ const tr=document.createElement('tr'); const desc = (r.description || '') + ''; const created = fmtDate(r.created_at); const delAt   = fmtDate(r.deleted_at); const isArchived = String(r.status||'').toLowerCase()==='archived'; const isDeleted  = !!r.deleted_at; if(isArchived && scope!=='bin') tr.classList.add('state-archived'); if(isDeleted  || scope==='bin') tr.classList.add('state-deleted'); if(scope==='active'){ tr.draggable = reorderMode; tr.dataset.key = r.uuid || r.id; tr.dataset.id  = r.id; tr.classList.add('reorderable'); tr.innerHTML = `
+  function rowHTML(scope, r){
+    const tr=document.createElement('tr');
+    const desc = (r.description || '') + '';
+    const created = fmtDate(r.created_at);
+    const delAt   = fmtDate(r.deleted_at);
+    const isArchived = String(r.status||'').toLowerCase()==='archived';
+    const isDeleted  = !!r.deleted_at;
+
+    if(isArchived && scope!=='bin') tr.classList.add('state-archived');
+    if(isDeleted  || scope==='bin') tr.classList.add('state-deleted');
+
+    if(scope==='active'){
+      tr.draggable = reorderMode;
+      tr.dataset.key = r.uuid || r.id;
+      tr.dataset.id  = r.id;
+      tr.classList.add('reorderable');
+      tr.innerHTML = `
       <td class="text-center"><i class="fa fa-grip-lines-vertical drag-handle"></i></td>
       <td>
         <div class="fw-semibold">${esc(r.action || '-')}</div>
@@ -546,13 +595,21 @@ document.addEventListener('click',(e)=>{ const btn=e.target.closest('.dd-toggle'
       <td>${created}</td>
       <td class="text-end">${actionMenu(scope, r)}</td>`;
 
-    const handle = tr.querySelector('.drag-handle'); if(reorderMode){ handle && (handle.style.opacity = '1'); } else { handle && (handle.style.opacity = '.35'); }
-    tr.addEventListener('dragstart', (ev)=>{ if(!reorderMode){ ev.preventDefault(); return; } draggingRow=tr; tr.classList.add('dragging'); });
-    tr.addEventListener('dragend',   ()=>{ tr.classList.remove('dragging'); draggingRow=null; });
-    tr.addEventListener('dragover',  (ev)=>{ if(!reorderMode) return; ev.preventDefault(); const tbody = tr.parentElement; const after = getDragAfterElement(tbody, ev.clientY); if(after==null) tbody.appendChild(draggingRow); else tbody.insertBefore(draggingRow, after); });
-    return tr; }
+      const handle = tr.querySelector('.drag-handle');
+      if(reorderMode){ handle && (handle.style.opacity = '1'); } else { handle && (handle.style.opacity = '.35'); }
 
-  if(scope==='archived'){ tr.innerHTML = `
+      tr.addEventListener('dragstart', (ev)=>{ if(!reorderMode){ ev.preventDefault(); return; } draggingRow=tr; tr.classList.add('dragging'); });
+      tr.addEventListener('dragend',   ()=>{ tr.classList.remove('dragging'); draggingRow=null; });
+      tr.addEventListener('dragover',  (ev)=>{ if(!reorderMode) return; ev.preventDefault();
+        const tbody = tr.parentElement;
+        const after = getDragAfterElement(tbody, ev.clientY);
+        if(after==null) tbody.appendChild(draggingRow); else tbody.insertBefore(draggingRow, after);
+      });
+      return tr;
+    }
+
+    if(scope==='archived'){
+      tr.innerHTML = `
       <td>
         <div class="fw-semibold">${esc(r.action || '-')}</div>
         <div class="small text-muted">${esc((desc || '').slice(0,80))}${desc && desc.length>80 ? '…' : ''}</div>
@@ -560,10 +617,12 @@ document.addEventListener('click',(e)=>{ const btn=e.target.closest('.dd-toggle'
       <td>${esc((r.module_name||r.module || '-'))}</td>
       <td>${esc((desc || '').slice(0,140))}${desc && desc.length>140 ? '…' : ''}</td>
       <td>${created}</td>
-      <td class="text-end">${actionMenu(scope, r)}</td>`; return tr; }
+      <td class="text-end">${actionMenu(scope, r)}</td>`;
+      return tr;
+    }
 
-  // bin
-  tr.innerHTML = `
+    // bin
+    tr.innerHTML = `
     <td>
       <div class="fw-semibold">${esc(r.action || '-')}</div>
       <div class="small text-muted">${esc((desc || '').slice(0,80))}${desc && desc.length>80 ? '…' : ''}</div>
@@ -572,7 +631,7 @@ document.addEventListener('click',(e)=>{ const btn=e.target.closest('.dd-toggle'
     <td>${esc((desc || '').slice(0,140))}${desc && desc.length>140 ? '…' : ''}</td>
     <td>${delAt}</td>
     <td class="text-end">${actionMenu(scope, r)}</td>`;
-  return tr;
+    return tr;
   }
 
   function getDragAfterElement(container, y){ const rows=[...container.querySelectorAll('tr.reorderable:not(.dragging)')]; return rows.reduce((closest, child)=>{ const box=child.getBoundingClientRect(); const offset=y - box.top - box.height/2; if(offset<0 && offset>closest.offset){ return {offset, element:child}; } else return closest; }, {offset:Number.NEGATIVE_INFINITY}).element; }
@@ -596,9 +655,34 @@ document.addEventListener('click',(e)=>{ const btn=e.target.closest('.dd-toggle'
 
   btnCreatePriv && btnCreatePriv.addEventListener('click', async ()=>{ openCreatePriv(); });
 
-  async function openCreatePriv(){ pv.mode.value='create'; pv.key.value=''; pv.title.textContent='Create Privilege'; if(pv.action) pv.action.value=''; if(pv.description) pv.description.value=''; pv.status.value='Active'; await loadModulesInto(pv.module); pv.modal.show(); setTimeout(()=> pv.action && pv.action.focus && pv.action.focus(), 150); }
+  // make openCreatePriv accept optional moduleVal to pre-select module
+  async function openCreatePriv(moduleVal = null){
+    pv.mode.value='create'; pv.key.value=''; pv.title.textContent='Create Privilege';
+    if(pv.action) pv.action.value='';
+    if(pv.description) pv.description.value='';
+    if(pv.status) pv.status.value='Active';
+    // load modules into the select and preselect if provided
+    await loadModulesInto(pv.module);
+    if(moduleVal && pv.module) pv.module.value = moduleVal;
+    pv.modal.show();
+    setTimeout(()=> pv.action && pv.action.focus && pv.action.focus(), 150);
+  }
 
-  async function openEditPriv(key){ try{ const res=await fetch(`/api/privileges/${encodeURIComponent(key)}`,{headers:{'Authorization':'Bearer '+TOKEN,'Accept':'application/json'}}); const j=await res.json(); if(!res.ok) throw new Error(j?.message||'Load failed'); const r = j.privilege || j.data || j || {}; pv.mode.value='edit'; pv.key.value=(r.uuid || r.id); pv.title.textContent='Edit Privilege'; await loadModulesInto(pv.module); if(pv.module) pv.module.value = r.module_id || r.module_uuid || r.module || ''; if(pv.action) pv.action.value = r.action || ''; if(pv.description) pv.description.value = r.description || ''; if(pv.status) pv.status.value = r.status || 'Active'; pv.modal.show(); }catch(e){ err(e.message||'Failed to open'); } }
+  async function openEditPriv(key){
+    try{
+      const res=await fetch(`/api/privileges/${encodeURIComponent(key)}`,{headers:{'Authorization':'Bearer '+TOKEN,'Accept':'application/json'}});
+      const j=await res.json();
+      if(!res.ok) throw new Error(j?.message||'Load failed');
+      const r = j.privilege || j.data || j || {};
+      pv.mode.value='edit'; pv.key.value=(r.uuid || r.id); pv.title.textContent='Edit Privilege';
+      await loadModulesInto(pv.module);
+      if(pv.module) pv.module.value = r.module_id || r.module_uuid || r.module || '';
+      if(pv.action) pv.action.value = r.action || '';
+      if(pv.description) pv.description.value = r.description || '';
+      if(pv.status) pv.status.value = r.status || 'Active';
+      pv.modal.show();
+    }catch(e){ err(e.message||'Failed to open'); }
+  }
 
   pv.save && pv.save.addEventListener('click', async ()=>{
     if(!pv.action || !pv.action.value.trim()) return Swal.fire('Action required','Please enter an action (unique per module).','info');
@@ -611,12 +695,28 @@ document.addEventListener('click',(e)=>{ const btn=e.target.closest('.dd-toggle'
     try{ const res=await fetch(url,{method,headers:{'Authorization':'Bearer '+TOKEN,'Content-Type':'application/json','Accept':'application/json'},body:JSON.stringify(payload)}); const j=await res.json().catch(()=>({})); if(!res.ok) throw new Error(j?.message||'Save failed'); ok('Privilege saved'); pv.modal.hide(); load('active'); }catch(e){ err(e.message||'Save failed'); } finally{ pv.save.disabled = false; } });
 
   document.addEventListener('click', async (e)=>{
-    const it = e.target.closest('.dropdown-item[data-act]'); if(!it) return; const act=it.dataset.act, key=it.dataset.key, actionName=it.dataset.action || 'this privilege';
+    const it = e.target.closest('.dropdown-item[data-act]');
+    if(!it) return;
+    const act=it.dataset.act, key=it.dataset.key, actionName=it.dataset.action || 'this privilege';
+    // row-level module value for addpriv
+    const moduleVal = it.dataset.module || null;
+
+    if(act==='addpriv'){
+      // open the single-create modal and preselect module
+      openCreatePriv(moduleVal);
+      return;
+    }
+
     if(act==='edit'){ openEditPriv(key); return; }
+
     if(act==='archive'){ const {isConfirmed}=await Swal.fire({icon:'question',title:'Archive privilege?',html:`“${esc(actionName)}”`,showCancelButton:true,confirmButtonText:'Archive'}); if(!isConfirmed) return; try{ const res=await fetch(`/api/privileges/${encodeURIComponent(key)}/archive`,{method:'POST',headers:{'Authorization':'Bearer '+TOKEN,'Accept':'application/json'}}); const j=await res.json().catch(()=>({})); if(!res.ok) throw new Error(j?.message||'Archive failed'); ok('Privilege archived'); load('active'); }catch(e){ err(e.message||'Archive failed'); } return; }
+
     if(act==='unarchive'){ const {isConfirmed}=await Swal.fire({icon:'question',title:'Unarchive privilege?',html:`“${esc(actionName)}”`,showCancelButton:true,confirmButtonText:'Unarchive'}); if(!isConfirmed) return; try{ const res=await fetch(`/api/privileges/${encodeURIComponent(key)}/unarchive`,{method:'POST',headers:{'Authorization':'Bearer '+TOKEN,'Accept':'application/json'}}); const j=await res.json().catch(()=>({})); if(!res.ok) throw new Error(j?.message||'Unarchive failed'); ok('Privilege unarchived'); load('archived'); load('active'); }catch(e){ err(e.message||'Unarchive failed'); } return; }
+
     if(act==='delete'){ const {isConfirmed}=await Swal.fire({icon:'warning',title:'Delete (soft)?',html:`This moves “${esc(actionName)}” to Bin.`,showCancelButton:true,confirmButtonText:'Delete',confirmButtonColor:'#ef4444'}); if(!isConfirmed) return; try{ const res=await fetch(`/api/privileges/${encodeURIComponent(key)}`,{method:'DELETE',headers:{'Authorization':'Bearer '+TOKEN,'Accept':'application/json'}}); const j=await res.json().catch(()=>({})); if(!res.ok) throw new Error(j?.message||'Delete failed'); ok('Moved to Bin'); load('active'); }catch(e){ err(e.message||'Delete failed'); } return; }
+
     if(act==='restore'){ const {isConfirmed}=await Swal.fire({icon:'question',title:'Restore privilege?',html:`“${esc(actionName)}” will be restored.`,showCancelButton:true,confirmButtonText:'Restore'}); if(!isConfirmed) return; try{ const res=await fetch(`/api/privileges/${encodeURIComponent(key)}/restore`,{method:'POST',headers:{'Authorization':'Bearer '+TOKEN,'Accept':'application/json'}}); const j=await res.json().catch(()=>({})); if(!res.ok) throw new Error(j?.message||'Restore failed'); ok('Privilege restored'); load('bin'); load('active'); }catch(e){ err(e.message||'Restore failed'); } return; }
+
     if(act==='force'){ const {isConfirmed}=await Swal.fire({icon:'warning',title:'Delete permanently?',html:`This cannot be undone.<br>“${esc(actionName)}”`,showCancelButton:true,confirmButtonText:'Delete permanently',confirmButtonColor:'#dc2626'}); if(!isConfirmed) return; try{ const res=await fetch(`/api/privileges/${encodeURIComponent(key)}/force`,{method:'DELETE',headers:{'Authorization':'Bearer '+TOKEN,'Accept':'application/json'}}); const j=await res.json().catch(()=>({})); if(!res.ok) throw new Error(j?.message||'Force delete failed'); ok('Permanently deleted'); load('bin'); }catch(e){ err(e.message||'Force delete failed'); } return; }
   });
 
@@ -624,7 +724,7 @@ document.addEventListener('click',(e)=>{ const btn=e.target.closest('.dd-toggle'
   document.getElementById('btnCancelOrder')?.addEventListener('click', ()=>{ reorderMode=false; btnReorder.classList.remove('btn-primary'); btnReorder.classList.add('btn-light'); btnReorder.innerHTML='<i class="fa fa-up-down-left-right me-1"></i>Reorder'; document.getElementById('reorderHint').style.display='none'; document.getElementById('btnSaveOrder').style.display='none'; document.getElementById('btnCancelOrder').style.display='none'; load('active'); });
   document.getElementById('btnSaveOrder')?.addEventListener('click', async ()=>{ const rows = [...document.querySelectorAll('#rows-active tr.reorderable')]; const ids  = rows.map(tr => Number(tr.dataset.id)).filter(Number.isInteger); if (!ids.length) return Swal.fire('Nothing to save','Drag rows to change order first.','info'); const payload = { ids }; try{ const res = await fetch('/api/privileges/reorder', { method: 'POST', headers: { 'Authorization': 'Bearer ' + TOKEN, 'Content-Type' : 'application/json', 'Accept' : 'application/json' }, body: JSON.stringify(payload) }); const j = await res.json().catch(()=>({})); if (!res.ok) throw new Error(j?.message || 'Reorder failed'); ok('Order updated'); document.getElementById('btnCancelOrder').click(); }catch(e){ err(e.message || 'Reorder failed'); } });
 
-  /* Bulk modal helpers */
+  /* Bulk modal helpers (left unchanged, minor robustness fixes below) */
   let _originalPrivIds = new Set();
   function createBulkRow(action = '', description = '', id = null){ const wrapper=document.createElement('div'); wrapper.className='row g-2 align-items-center mb-2 priv-row'; if(id) wrapper.dataset.privId = String(id); wrapper.innerHTML = `
     <div class="col col-action"><input type="text" class="form-control priv-action" placeholder="Action (e.g., view_reports)" maxlength="60" value="${esc(action)}"></div>
@@ -633,21 +733,132 @@ document.addEventListener('click',(e)=>{ const btn=e.target.closest('.dd-toggle'
     <div class="col-auto"><button type="button" class="btn btn-light btn-sm priv-remove" title="Remove"><i class="fa fa-trash text-danger"></i></button></div>
   `; wrapper.querySelector('.priv-remove').addEventListener('click', ()=> wrapper.remove()); return wrapper; }
 
-  async function loadModulesInto(selectEl){ try{ const res = await fetch('/api/modules?per_page=500',{headers:{'Authorization':'Bearer '+TOKEN,'Accept':'application/json'}}); const j = await res.json().catch(()=>({})); const items = j.data || []; const opts = items.map(m=>`<option value="${esc(m.uuid||m.id)}">${esc(m.name||('#'+m.id))}</option>`); selectEl.innerHTML = '<option value="">Select module…</option>' + opts.join(''); }catch(e){ selectEl.innerHTML = '<option value="">Failed to load</option>'; } }
+  async function loadModulesInto(selectEl){
+    if(!selectEl) return;
+    try{
+      const res = await fetch('/api/modules?per_page=500',{headers:{'Authorization':'Bearer '+TOKEN,'Accept':'application/json'}});
+      const j = await res.json().catch(()=>({}));
+      const items = j.data || [];
+      const opts = items.map(m=>`<option value="${esc(m.uuid||m.id)}">${esc(m.name||('#'+m.id))}</option>`);
+      selectEl.innerHTML = '<option value="">Select module…</option>' + opts.join('');
+    }catch(e){
+      selectEl.innerHTML = '<option value="">Failed to load</option>';
+    }
+  }
 
-  async function loadModulesForBulk(){ if(!bulk.moduleSelect) return; bulk.moduleSelect.innerHTML = '<option>Loading…</option>'; try{ await loadModulesInto(bulk.moduleSelect); bulk.moduleSelect._hasChangeHandler = false; bulk.moduleSelect.addEventListener('change', async ()=>{ bulk.rowsContainer.innerHTML=''; _originalPrivIds = new Set(); if(!bulk.moduleSelect.value){ bulk.rowsContainer.appendChild(createBulkRow()); return; } await loadBulkPrivilegesForModule(bulk.moduleSelect.value); }); }catch(e){ console.error(e); } }
+  async function loadModulesForBulk(){
+    if(!bulk.moduleSelect) return;
+    bulk.moduleSelect.innerHTML = '<option>Loading…</option>';
+    try{
+      await loadModulesInto(bulk.moduleSelect);
+      // attach change handler idempotently
+      if(!bulk.moduleSelect._hasChangeHandler){
+        bulk.moduleSelect.addEventListener('change', async ()=>{
+          bulk.rowsContainer.innerHTML='';
+          _originalPrivIds = new Set();
+          if(!bulk.moduleSelect.value){ bulk.rowsContainer.appendChild(createBulkRow()); return; }
+          await loadBulkPrivilegesForModule(bulk.moduleSelect.value);
+        });
+        bulk.moduleSelect._hasChangeHandler = true;
+      }
+    }catch(e){ console.error(e); }
+  }
 
-  async function loadBulkPrivilegesForModule(moduleVal){ bulk.rowsContainer.innerHTML = '<div class="p-3 small text-muted">Loading privileges…</div>'; try{ const res = await fetch(`/api/privileges?module_id=${encodeURIComponent(moduleVal)}&per_page=500`,{headers:{'Authorization':'Bearer '+TOKEN,'Accept':'application/json'}}); const j=await res.json().catch(()=>({})); const items = j.data || []; bulk.rowsContainer.innerHTML=''; _originalPrivIds = new Set(); if(!items.length){ bulk.rowsContainer.appendChild(createBulkRow()); return; } items.forEach(it=>{ const id=it.id||it.uuid||null; const action=it.action||''; const desc=it.description||''; if(id) _originalPrivIds.add(String(id)); const row=createBulkRow(action, desc, id); // fill module select in row
-    const sel = row.querySelector('.priv-module'); loadModulesInto(sel).then(()=>{ if(sel) sel.value = moduleVal; }); bulk.rowsContainer.appendChild(row); }); }catch(e){ console.error(e); bulk.rowsContainer.innerHTML = '<div class="p-3 text-danger small">Failed to load privileges.</div>'; bulk.rowsContainer.appendChild(createBulkRow()); } }
+  async function loadBulkPrivilegesForModule(moduleVal){
+    bulk.rowsContainer.innerHTML = '<div class="p-3 small text-muted">Loading privileges…</div>';
+    try{
+      const res = await fetch(`/api/privileges?module_id=${encodeURIComponent(moduleVal)}&per_page=500`,{headers:{'Authorization':'Bearer '+TOKEN,'Accept':'application/json'}});
+      const j=await res.json().catch(()=>({}));
+      const items = j.data || [];
+      bulk.rowsContainer.innerHTML='';
+      _originalPrivIds = new Set();
+      if(!items.length){ bulk.rowsContainer.appendChild(createBulkRow()); return; }
+      for(const it of items){
+        const id=it.id||it.uuid||null; const action=it.action||''; const desc=it.description||'';
+        if(id) _originalPrivIds.add(String(id));
+        const row=createBulkRow(action, desc, id);
+        const sel = row.querySelector('.priv-module');
+        await loadModulesInto(sel);
+        if(sel) sel.value = moduleVal;
+        bulk.rowsContainer.appendChild(row);
+      }
+    }catch(e){ console.error(e); bulk.rowsContainer.innerHTML = '<div class="p-3 text-danger small">Failed to load privileges.</div>'; bulk.rowsContainer.appendChild(createBulkRow()); }
+  }
 
   btnBulkPriv && btnBulkPriv.addEventListener('click', async ()=>{ bulk.rowsContainer.innerHTML=''; bulk.rowsContainer.appendChild(createBulkRow()); await loadModulesForBulk(); bulk.modal.show(); });
   bulk.addBtn && bulk.addBtn.addEventListener('click', ()=> bulk.rowsContainer.appendChild(createBulkRow()));
 
-  bulk.saveBtn && bulk.saveBtn.addEventListener('click', async ()=>{ const moduleVal = bulk.moduleSelect && bulk.moduleSelect.value ? bulk.moduleSelect.value : null; const rows = [...bulk.rowsContainer.querySelectorAll('.priv-row')]; const currentIds = new Set(rows.map(r => r.dataset.privId).filter(Boolean).map(String)); const deletedIds = [..._originalPrivIds].filter(id => !currentIds.has(id)); const payloads = rows.map(r=>{ const actionEl=r.querySelector('.priv-action'); const descEl=r.querySelector('.priv-desc'); const modEl=r.querySelector('.priv-module'); return { id: r.dataset.privId ? r.dataset.privId : null, action: actionEl ? actionEl.value.trim() : '', description: descEl ? descEl.value.trim() : '', module_id: modEl ? modEl.value : moduleVal }; }).filter(p=>p.action && p.action.length>0);
-    if(!payloads.length && !deletedIds.length) return Swal.fire('No changes','Nothing to save or delete','info'); const {isConfirmed} = await Swal.fire({icon:'question',title:'Apply privilege changes?',html:`This will create/update ${payloads.length} privilege(s) and delete ${deletedIds.length} removed privilege(s).`,showCancelButton:true,confirmButtonText:'Proceed'}); if(!isConfirmed) return; bulk.saveBtn.disabled = true; try{ const deleteOps = deletedIds.map(id => fetch(`/api/privileges/${encodeURIComponent(id)}`, { method: 'DELETE', headers: { 'Authorization': 'Bearer ' + TOKEN, 'Accept': 'application/json' } }).then(async res => ({ res, j: await res.json().catch(()=>({})) })).catch(err => ({ err }))); const deleteSettled = await Promise.allSettled(deleteOps); let deleted = 0, deleteFailed = 0; for(let i=0;i<deleteSettled.length;i++){ const s = deleteSettled[i]; if(s.status === 'fulfilled'){ const r = s.value; if(r.err || !r.res || !r.res.ok) { deleteFailed++; } else deleted++; } else deleteFailed++; }
-      const ops = payloads.map(p => { if(p.id){ const url = `/api/privileges/${encodeURIComponent(p.id)}`; return fetch(url, { method: 'PATCH', headers: { 'Authorization': 'Bearer ' + TOKEN, 'Content-Type': 'application/json', 'Accept': 'application/json' }, body: JSON.stringify({ action: p.action, description: p.description || null, module_id: p.module_id }) }).then(async res => ({ res, j: await res.json().catch(()=>({})) })).catch(err => ({ err })); } else { const url = `/api/privileges`; return fetch(url, { method: 'POST', headers: { 'Authorization': 'Bearer ' + TOKEN, 'Content-Type': 'application/json', 'Accept': 'application/json' }, body: JSON.stringify({ module_id: p.module_id, action: p.action, description: p.description || null }) }).then(async res => ({ res, j: await res.json().catch(()=>({})) })).catch(err => ({ err })); } });
-      const settled = await Promise.allSettled(ops); let created = 0, updated = 0, failed = 0; for(let i=0;i<settled.length;i++){ const s = settled[i]; const input = payloads[i]; if(s.status === 'fulfilled'){ const payloadResult = s.value; if(payloadResult.err){ failed++; continue; } const res = payloadResult.res; const body = payloadResult.j || {}; if(!res || !res.ok){ failed++; continue; } if(input.id) updated++; else created++; if(!input.id && body && (body.id || body.uuid || body.data?.id || body.data?.uuid)){ const newId = body.id || body.uuid || body.data?.id || body.data?.uuid; const matchRow = [...bulk.rowsContainer.querySelectorAll('.priv-row')].find(r=>{ const a=r.querySelector('.priv-action')?.value?.trim(); const d=r.querySelector('.priv-desc')?.value?.trim(); return a===input.action && d===(input.description||'') && !r.dataset.privId; }); if(matchRow) matchRow.dataset.privId = String(newId); } } else { failed++; } }
-      const parts = []; if(created) parts.push(`${created} created`); if(updated) parts.push(`${updated} updated`); if(deleted) parts.push(`${deleted} deleted`); if(failed) parts.push(`${failed} failed`); if(deleteFailed) parts.push(`${deleteFailed} delete-failed`); ok(parts.length ? parts.join(' • ') : 'No changes'); if(failed === 0 && deleteFailed === 0){ bulk.modal.hide(); }else{ err(`${(failed+deleteFailed)} operation(s) failed — check rows and try again`); } await loadModulesForBulk(); if(bulk.moduleSelect.value) await loadBulkPrivilegesForModule(bulk.moduleSelect.value); }catch(e){ console.error(e); err(e.message || 'Failed to create/update privileges'); }finally{ bulk.saveBtn.disabled = false; } });
+  bulk.saveBtn && bulk.saveBtn.addEventListener('click', async ()=>{
+    const moduleVal = bulk.moduleSelect && bulk.moduleSelect.value ? bulk.moduleSelect.value : null;
+    const rows = [...bulk.rowsContainer.querySelectorAll('.priv-row')];
+    const currentIds = new Set(rows.map(r => r.dataset.privId).filter(Boolean).map(String));
+    const deletedIds = [..._originalPrivIds].filter(id => !currentIds.has(id));
+    const payloads = rows.map(r=>{
+      const actionEl=r.querySelector('.priv-action');
+      const descEl=r.querySelector('.priv-desc');
+      const modEl=r.querySelector('.priv-module');
+      return { id: r.dataset.privId ? r.dataset.privId : null, action: actionEl ? actionEl.value.trim() : '', description: descEl ? descEl.value.trim() : '', module_id: modEl ? modEl.value : moduleVal };
+    }).filter(p=>p.action && p.action.length>0);
+
+    if(!payloads.length && !deletedIds.length) return Swal.fire('No changes','Nothing to save or delete','info');
+    const {isConfirmed} = await Swal.fire({icon:'question',title:'Apply privilege changes?',html:`This will create/update ${payloads.length} privilege(s) and delete ${deletedIds.length} removed privilege(s).`,showCancelButton:true,confirmButtonText:'Proceed'});
+    if(!isConfirmed) return;
+    bulk.saveBtn.disabled = true;
+    try{
+      const deleteOps = deletedIds.map(id => fetch(`/api/privileges/${encodeURIComponent(id)}`, { method: 'DELETE', headers: { 'Authorization': 'Bearer ' + TOKEN, 'Accept': 'application/json' } }).then(async res => ({ res, j: await res.json().catch(()=>({})) })).catch(err => ({ err })));
+      const deleteSettled = await Promise.allSettled(deleteOps);
+      let deleted = 0, deleteFailed = 0;
+      for(let i=0;i<deleteSettled.length;i++){ const s = deleteSettled[i]; if(s.status === 'fulfilled'){ const r = s.value; if(r.err || !r.res || !r.res.ok) { deleteFailed++; } else deleted++; } else deleteFailed++; }
+
+      const ops = payloads.map(p => {
+        if(p.id){
+          const url = `/api/privileges/${encodeURIComponent(p.id)}`;
+          return fetch(url, { method: 'PATCH', headers: { 'Authorization': 'Bearer ' + TOKEN, 'Content-Type': 'application/json', 'Accept': 'application/json' }, body: JSON.stringify({ action: p.action, description: p.description || null, module_id: p.module_id }) }).then(async res => ({ res, j: await res.json().catch(()=>({})) })).catch(err => ({ err }));
+        } else {
+          const url = `/api/privileges`;
+          return fetch(url, { method: 'POST', headers: { 'Authorization': 'Bearer ' + TOKEN, 'Content-Type': 'application/json', 'Accept': 'application/json' }, body: JSON.stringify({ module_id: p.module_id, action: p.action, description: p.description || null }) }).then(async res => ({ res, j: await res.json().catch(()=>({})) })).catch(err => ({ err }));
+        }
+      });
+
+      const settled = await Promise.allSettled(ops);
+      let created = 0, updated = 0, failed = 0;
+      for(let i=0;i<settled.length;i++){
+        const s = settled[i];
+        const input = payloads[i];
+        if(s.status === 'fulfilled'){
+          const payloadResult = s.value;
+          if(payloadResult.err){ failed++; continue; }
+          const res = payloadResult.res;
+          const body = payloadResult.j || {};
+          if(!res || !res.ok){ failed++; continue; }
+          if(input.id) updated++; else created++;
+          if(!input.id && body && (body.id || body.uuid || body.data?.id || body.data?.uuid)){
+            const newId = body.id || body.uuid || body.data?.id || body.data?.uuid;
+            const matchRow = [...bulk.rowsContainer.querySelectorAll('.priv-row')].find(r=>{
+              const a=r.querySelector('.priv-action')?.value?.trim();
+              const d=r.querySelector('.priv-desc')?.value?.trim();
+              return a===input.action && d===(input.description||'') && !r.dataset.privId;
+            });
+            if(matchRow) matchRow.dataset.privId = String(newId);
+          }
+        } else { failed++; }
+      }
+
+      const parts = [];
+      if(created) parts.push(`${created} created`);
+      if(updated) parts.push(`${updated} updated`);
+      if(deleted) parts.push(`${deleted} deleted`);
+      if(failed) parts.push(`${failed} failed`);
+      if(deleteFailed) parts.push(`${deleteFailed} delete-failed`);
+      ok(parts.length ? parts.join(' • ') : 'No changes');
+
+      if(failed === 0 && deleteFailed === 0){ bulk.modal.hide(); }else{ err(`${(failed+deleteFailed)} operation(s) failed — check rows and try again`); }
+
+      await loadModulesForBulk();
+      if(bulk.moduleSelect.value) await loadBulkPrivilegesForModule(bulk.moduleSelect.value);
+
+    }catch(e){ console.error(e); err(e.message || 'Failed to create/update privileges'); }finally{ bulk.saveBtn.disabled = false; }
+  });
 
   syncSortHeaders(); load('active');
 })();

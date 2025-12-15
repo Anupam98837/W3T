@@ -3,15 +3,16 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>@yield('title','W3Techiez Student')</title>
+  <title>@yield('title','W3Techiez')</title>
  
   <meta name="csrf-token" content="{{ csrf_token() }}"/>
  
-  <link rel="icon" type="image/png" sizes="32x32" href="{{ asset('assets/media/images/favicons/favicon.png') }}">
+  <link rel="icon" type="image/png" sizes="32x32" href="{{ asset('assets/media/images/web/favicon.png') }}">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet"/>
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" rel="stylesheet"/>
   <link rel="stylesheet" href="{{ asset('/assets/css/common/main.css') }}">
- 
+ @stack('styles')
+  @yield('styles')
   <style>
     /* ================= W3Techiez Student Layout ================= */
     :root{
@@ -237,7 +238,7 @@ html.theme-dark .w3-sidebar-scroll::-webkit-scrollbar-thumb {
     <nav class="w3-menu" aria-label="My Learning">
       <a href="/student/courses" class="w3-link"><i class="fa-solid fa-book-open"></i><span>My Courses</span></a>
       
-      <div class="w3-group">
+      <!-- <div class="w3-group">
         <a href="#" class="w3-link w3-toggle" data-target="sm-quizzes" aria-expanded="false">
           <i class="fa-solid fa-pen-to-square"></i><span>Quizzes</span>
           <i class="fa fa-chevron-down w3-chev"></i>
@@ -261,9 +262,9 @@ html.theme-dark .w3-sidebar-scroll::-webkit-scrollbar-thumb {
 
       <a href="/student/study-materials" class="w3-link"><i class="fa-solid fa-book"></i><span>Study Materials</span></a>
     </nav>
- 
+  -->
     <!-- Schedule -->
-    <div class="w3-nav-section">
+    <!-- <div class="w3-nav-section">
       <div class="w3-section-title"><i class="fa-solid fa-calendar-days"></i> SCHEDULE</div>
       <div class="w3-section-rule"></div>
     </div>
@@ -271,7 +272,7 @@ html.theme-dark .w3-sidebar-scroll::-webkit-scrollbar-thumb {
       <a href="/student/timetable" class="w3-link"><i class="fa-solid fa-calendar"></i><span>Timetable</span></a>
       <a href="/student/exams" class="w3-link"><i class="fa-solid fa-clipboard-list"></i><span>Exams</span></a>
     </nav>
- 
+  -->
     <!-- Account (visible only on small screens) -->
     <div class="w3-nav-section d-lg-none">
       <div class="w3-section-title"><i class="fa-solid fa-user"></i> ACCOUNT</div>

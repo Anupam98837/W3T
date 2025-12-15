@@ -1,55 +1,316 @@
-{{-- resources/views/users/managePrivileges.blade.php --}}
-@extends('pages.users.admin.layout.structure')
+{{-- resources/views/users/assignPrivileges.blade.php --}}
+@section('title','Assign Privileges')
 
-@section('title', 'Manage User Privileges')
-
+@push('styles')
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"/>
 <link rel="stylesheet" href="{{ asset('assets/css/common/main.css') }}"/>
 
-@push('styles')
 <style>
-/* reuse look and feel from modules page with minor tweaks */
-.cm-wrap{max-width:1140px;margin:16px auto 40px}
-.panel{background:var(--surface);border:1px solid var(--line-strong);border-radius:12px;padding:12px}
-.module-card{border:1px solid var(--line-strong);border-radius:12px;padding:12px;margin-bottom:12px;background:var(--surface);box-shadow:var(--shadow-1)}
-.module-head{display:flex;align-items:center;justify-content:space-between;gap:12px}
-.module-title{font-weight:700}
-.priv-list{margin-top:10px}
-.priv-item{display:flex;align-items:center;justify-content:space-between;padding:8px;border-radius:8px;border:1px solid var(--line-soft);margin-bottom:6px;background:transparent}
-.priv-left{display:flex;align-items:center;gap:10px}
-.priv-action{font-family:monospace; font-size:0.95rem; color:var(--ink)}
-.priv-desc{font-size:0.85rem;color:var(--muted-color)}
-.card-empty{padding:18px;text-align:center;color:var(--muted-color)}
-.assign-actions{display:flex;gap:8px;align-items:center}
-.small-muted{font-size:13px;color:var(--muted-color)}
+/* ===== Assign Privileges (ViewCourse-style shell) ===== */
+.ap-wrap{max-width:1140px;margin:16px auto 40px}
+
+/* Header card */
+.ap-panel{
+  background:var(--surface);
+  border:1px solid var(--line-strong);
+  border-radius:16px;
+  box-shadow:var(--shadow-2);
+  padding:14px;
+}
+
+/* Main card */
+.ap-card{
+  background:var(--surface);
+  border:1px solid var(--line-strong);
+  border-radius:16px;
+  box-shadow:var(--shadow-2);
+  margin-top:12px;
+}
+.ap-card-head{
+  padding:12px 14px;
+  border-bottom:1px solid var(--line-strong);
+  font-weight:600;
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+  align-items:center;
+  justify-content:space-between;
+}
+.ap-card-head-left{
+  display:flex;
+  flex-direction:column;
+}
+.ap-card-head-title{
+  font-weight:600;
+}
+.ap-card-head-sub{
+  font-size:0.8rem;
+  color:var(--muted-color);
+}
+.ap-card-head-right{
+  display:flex;
+  align-items:center;
+  gap:6px;
+}
+.ap-card-body{padding:14px}
+
+/* Bootstrap accordion styling */
+.ap-accordion .accordion-item{
+  border-radius:12px;
+  overflow:hidden;
+  border:1px solid var(--line-soft);
+  margin-bottom:8px;
+  background:var(--surface);
+}
+.ap-accordion .accordion-button{
+  display:flex;
+  align-items:center;
+  padding:8px 14px;
+  gap:8px;
+  font-weight:600;
+  background:var(--background-soft);
+  color:var(--ink);
+}
+.ap-accordion .accordion-button:not(.collapsed){
+  background:var(--surface-soft);
+  box-shadow:none;
+}
+.ap-accordion .accordion-button:focus{
+  box-shadow:0 0 0 1px var(--primary-color);
+}
+.ap-module-header-inner{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  width:100%;
+}
+.ap-module-title{
+  font-weight:700;
+  font-size:0.96rem;
+}
+.ap-module-pill{
+  font-size:0.75rem;
+  border-radius:999px;
+  padding:2px 10px;
+  background:var(--background-soft);
+  color:var(--muted-color);
+  border:1px solid var(--line-soft);
+}
+
+/* Module tools (local Select all) */
+.ap-module-tools{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:8px;
+  margin-bottom:6px;
+}
+
+/* Privilege table area */
+.ap-module-body{
+  padding:4px 0;
+}
+.ap-priv-table-wrap{
+  margin-top:4px;
+}
+.ap-priv-table{
+  width:100%;
+  border-collapse:collapse;
+  font-size:0.86rem;
+}
+.ap-priv-table thead th{
+  background:var(--background-soft);
+  color:var(--muted-color);
+  font-weight:600;
+  border-bottom:1px solid var(--line-soft);
+  padding:6px 8px;
+}
+.ap-priv-table tbody td{
+  border-top:1px solid var(--line-soft);
+  padding:6px 8px;
+  vertical-align:middle;
+}
+.ap-priv-row{
+  transition:background .15s ease, box-shadow .15s ease, border-color .15s ease;
+}
+.ap-priv-row:hover{
+  background:var(--background-hover);
+  box-shadow:0 3px 8px rgba(0,0,0,0.02);
+}
+.ap-priv-row.active{
+  background:var(--background-soft);
+  box-shadow:0 0 0 2px rgba(201,75,80,.10);
+}
+
+/* Privilege text */
+.ap-priv-title{
+  font-size:0.93rem;
+  font-weight:700;
+  color:var(--ink);
+  margin-bottom:2px;
+}
+.ap-priv-desc{
+  font-size:0.8rem;
+  color:var(--muted-color);
+}
+
+/* Toggle Switch (checkbox in row) */
+.ap-toggle-switch{
+  position:relative;
+  display:inline-block;
+  width:44px;
+  height:24px;
+}
+.ap-toggle-switch input{
+  opacity:0;
+  width:0;
+  height:0;
+}
+.ap-toggle-slider{
+  position:absolute;
+  cursor:pointer;
+  top:0;left:0;right:0;bottom:0;
+  background-color:var(--line-strong);
+  transition:.3s;
+  border-radius:24px;
+}
+.ap-toggle-slider:before{
+  position:absolute;
+  content:"";
+  height:18px;width:18px;
+  left:3px;bottom:3px;
+  background-color:white;
+  transition:.3s;
+  border-radius:50%;
+}
+input:checked + .ap-toggle-slider{
+  background:var(--primary-color);
+}
+input:checked + .ap-toggle-slider:before{
+  transform:translateX(20px);
+}
+input:disabled + .ap-toggle-slider{
+  opacity:0.5;
+  cursor:not-allowed;
+}
+
+/* Empty State */
+.ap-empty{
+  padding:32px;
+  text-align:center;
+  color:var(--muted-color);
+}
+.ap-empty i{
+  font-size:2rem;
+  margin-bottom:12px;
+  opacity:0.5;
+}
+
+/* Small muted helper */
+.ap-small-muted{
+  font-size:13px;
+  color:var(--muted-color);
+}
+
+/* Responsive */
+@media (max-width: 576px){
+  .ap-card-head{
+    align-items:flex-start;
+  }
+  .ap-card-head-right{
+    width:100%;
+    justify-content:flex-start;
+  }
+  .ap-priv-table thead{
+    display:none;
+  }
+  .ap-priv-table tbody td{
+    display:block;
+    width:100%;
+    border-top:none;
+    border-bottom:1px solid var(--line-soft);
+  }
+  .ap-priv-table tbody tr:last-child td{
+    border-bottom:none;
+  }
+  .ap-priv-table tbody td:first-child{
+    padding-top:8px;
+  }
+  .ap-priv-table tbody td:last-child{
+    padding-bottom:8px;
+  }
+}
 </style>
 @endpush
 
 @section('content')
-<div class="cm-wrap">
-  <div class="row g-2 mb-3 align-items-center panel">
+<div class="ap-wrap">
+  {{-- Header Panel --}}
+  <div class="row g-2 mb-3 align-items-center ap-panel">
     <div class="col">
-      <h4 class="mb-0">Manage Privileges for User</h4>
-      <div id="userSummary" class="small-muted">Loading user…</div>
+      <h4 class="mb-0">Manage User Privileges</h4>
+      <div id="userSummary" class="ap-small-muted">Loading user…</div>
     </div>
-    <div class="col-auto d-flex gap-2">
-      <a href="javascript:history.back()" class="btn btn-light"><i class="fa fa-arrow-left me-1"></i>Back</a>
-      <button id="btnRefresh" class="btn btn-light"><i class="fa fa-rotate-right me-1"></i>Refresh</button>
-      <button id="btnSaveAll" class="btn btn-primary"><i class="fa fa-save me-1"></i>Save</button>
+    <div class="col-auto d-flex flex-wrap gap-2 justify-content-end">
+      <a href="javascript:history.back()" class="btn btn-light">
+        <i class="fa fa-arrow-left me-1"></i>Back
+      </a>
+      <button id="btnRefresh" class="btn btn-light">
+        <i class="fa fa-rotate-right me-1"></i>Refresh
+      </button>
+      <button id="btnSaveAll" class="btn btn-primary">
+        <i class="fa fa-save me-1"></i>Save
+      </button>
     </div>
   </div>
 
-  <div id="modulesContainer">
-    <div class="card-empty">Loading modules & privileges…</div>
+  {{-- Main card with accordion modules --}}
+  <div class="ap-card">
+    <div class="ap-card-head">
+      <div class="ap-card-head-left">
+        <span class="ap-card-head-title">Modules &amp; Privileges</span>
+        <span class="ap-card-head-sub">
+          Toggle the privileges you want this user to have, then click <strong>Save</strong>.
+        </span>
+      </div>
+      <div class="ap-card-head-right">
+        <label class="form-check mb-0 d-flex align-items-center gap-2">
+          <input class="form-check-input" type="checkbox" id="chkGlobalSelectAll">
+          <span class="ap-small-muted">Select all</span>
+        </label>
+      </div>
+    </div>
+    <div class="ap-card-body">
+      <div id="modulesContainer" class="accordion ap-accordion">
+        {{-- JS will inject accordion items --}}
+      </div>
+      <div id="modulesEmpty" class="ap-empty" style="display:none;">
+        <i class="fa fa-folder-open"></i>
+        <div>No modules or privileges found.</div>
+      </div>
+    </div>
   </div>
 
-  <div class="small-muted mt-3">Tip: check/uncheck privileges and press <b>Save</b>. Unchecking removes privilege (will be synced).</div>
+  <div class="ap-small-muted mt-3">
+    Tip: Use <b>Select all</b> at the top for every privilege, or the per-module <b>Select all</b> to control one module.
+    Changes are only saved after you click <strong>Save</strong>.
+  </div>
 </div>
 
 {{-- Toasts --}}
 <div class="toast-container position-fixed top-0 end-0 p-3" style="z-index:1200">
-  <div id="toastOk" class="toast text-bg-success border-0"><div class="d-flex"><div id="toastOkMsg" class="toast-body">Done</div><button class="btn-close btn-close-white m-auto me-2" data-bs-dismiss="toast"></button></div></div>
-  <div id="toastErr" class="toast text-bg-danger border-0 mt-2"><div class="d-flex"><div id="toastErrMsg" class="toast-body">Something went wrong</div><button class="btn-close btn-close-white m-auto me-2" data-bs-dismiss="toast"></button></div></div>
+  <div id="toastOk" class="toast text-bg-success border-0">
+    <div class="d-flex">
+      <div id="toastOkMsg" class="toast-body">Done</div>
+      <button class="btn-close btn-close-white m-auto me-2" data-bs-dismiss="toast"></button>
+    </div>
+  </div>
+  <div id="toastErr" class="toast text-bg-danger border-0 mt-2">
+    <div class="d-flex">
+      <div id="toastErrMsg" class="toast-body">Something went wrong</div>
+      <button class="btn-close btn-close-white m-auto me-2" data-bs-dismiss="toast"></button>
+    </div>
+  </div>
 </div>
 @endsection
 
@@ -57,228 +318,499 @@
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 <script>
 document.addEventListener('DOMContentLoaded', ()=> {
-  const params = new URLSearchParams(location.search);
-  const userId = params.get('user_id') || params.get('id') || '';
-  const token = localStorage.getItem('token') || sessionStorage.getItem('token') || '';
-  if(!token) { Swal.fire('Login required','Please login again','warning').then(()=>location.href='/'); return; }
-  if(!userId){ Swal.fire('Missing user','No user specified.','error'); return; }
 
-  const authHeaders = (extra={}) => Object.assign({'Authorization':'Bearer '+token, 'Accept':'application/json'}, extra);
-  const toastOk = new bootstrap.Toast(document.getElementById('toastOk'));
+  const params        = new URLSearchParams(location.search);
+  const userUuidParam = params.get('user_uuid') || params.get('uuid') || '';
+  const userIdParam   = params.get('user_id')   || params.get('id')   || '';
+
+  const token = localStorage.getItem('token') || sessionStorage.getItem('token') || '';
+  if(!token){
+    if (typeof Swal !== 'undefined') {
+      Swal.fire('Login required','Please login again','warning').then(()=>location.href='/');
+    } else {
+      alert('Login required. Redirecting to home.');
+      location.href='/';
+    }
+    return;
+  }
+
+  const authHeaders = (extra={}) =>
+    Object.assign({'Authorization':'Bearer '+token, 'Accept':'application/json'}, extra);
+
+  const toastOk  = new bootstrap.Toast(document.getElementById('toastOk'));
   const toastErr = new bootstrap.Toast(document.getElementById('toastErr'));
-  const ok = (m='Done') => { document.getElementById('toastOkMsg').textContent = m; toastOk.show(); };
+  const ok  = (m='Done') => { document.getElementById('toastOkMsg').textContent = m; toastOk.show(); };
   const err = (m='Something went wrong') => { document.getElementById('toastErrMsg').textContent = m; toastErr.show(); };
 
-  const modulesContainer = document.getElementById('modulesContainer');
-  const userSummary = document.getElementById('userSummary');
-  const btnSaveAll = document.getElementById('btnSaveAll');
-  const btnRefresh = document.getElementById('btnRefresh');
+  const modulesContainer   = document.getElementById('modulesContainer');
+  const modulesEmpty       = document.getElementById('modulesEmpty');
+  const userSummary        = document.getElementById('userSummary');
+  const btnSaveAll         = document.getElementById('btnSaveAll');
+  const btnRefresh         = document.getElementById('btnRefresh');
+  const chkGlobalSelectAll = document.getElementById('chkGlobalSelectAll');
 
-  // local state
-  let modules = [];                 // array of modules {id, uuid, name, privileges: [ {id, uuid, action, description} ]}
-  let assignedPrivIds = new Set();  // privilege_id integers (or uuids depending on your api) currently assigned to user
-  let isSaving = false;
+  let modules          = [];
+  let assignedPrivIds  = new Set();  // current in-UI state
+  let isSaving         = false;
+  let resolvedUserId   = null;
+  let resolvedUserUuid = null;
 
-  // load user basic info (optional, just for header)
+  function escapeHtml(s){
+    return (s||'').toString().replace(/[&<>"'`]/g, ch => ({
+      '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;','`':'&#96;'
+    }[ch]));
+  }
+
+  // ========== User resolution ==========
+
+  async function resolveUserIdentity(){
+    if (userIdParam){
+      resolvedUserId = Number(userIdParam);
+      try{
+        const r = await fetch(`/api/user/${encodeURIComponent(resolvedUserId)}`, { headers: authHeaders() });
+        if (r.ok){
+          const js = await r.json().catch(()=>({}));
+          const u  = js.user || js.data || {};
+          resolvedUserUuid = u.uuid || u.user_uuid || resolvedUserUuid;
+          if (u){
+            userSummary.innerHTML =
+              `<strong>${escapeHtml(u.name || u.email || ('#'+u.id))}</strong> — ${escapeHtml(u.email || '')}`;
+          }
+        }
+      }catch(e){}
+      return;
+    }
+
+    if (userUuidParam){
+      resolvedUserUuid = userUuidParam;
+      try{
+        const r1 = await fetch(`/api/user/${encodeURIComponent(userUuidParam)}`, { headers: authHeaders() });
+        if (r1.ok){
+          const js = await r1.json().catch(()=>({}));
+          const u  = js.user || js.data || {};
+          if (u && (u.id || u.uuid)){
+            resolvedUserId   = Number(u.id);
+            resolvedUserUuid = u.uuid || resolvedUserUuid;
+            userSummary.innerHTML =
+              `<strong>${escapeHtml(u.name || u.email || ('#'+u.id))}</strong> — ${escapeHtml(u.email || '')}`;
+            return;
+          }
+        }
+      }catch(e){}
+    }
+
+    throw new Error('Could not resolve user from provided parameters (user_id/user_uuid).');
+  }
+
   async function loadUserInfo(){
-    try {
-      const res = await fetch(`/api/users/${encodeURIComponent(userId)}`, { headers: authHeaders() });
-      const js = await res.json().catch(()=>({}));
-      if(res.ok && js.user){
-        const u = js.user;
-        userSummary.innerHTML = `<strong>${escapeHtml(u.name || u.email || ('#'+u.id))}</strong> — ${escapeHtml(u.email || '')}`;
-      } else {
-        userSummary.textContent = 'User information not available';
+    try{
+      if (resolvedUserId){
+        const res = await fetch(`/api/user/${encodeURIComponent(resolvedUserId)}`, { headers: authHeaders() });
+        const js  = await res.json().catch(()=>({}));
+        if(res.ok && js.user){
+          const u = js.user;
+          userSummary.innerHTML =
+            `<strong>${escapeHtml(u.name || u.email || ('#'+u.id))}</strong> — ${escapeHtml(u.email || '')}`;
+          resolvedUserUuid = resolvedUserUuid || (u.uuid || u.user_uuid);
+          return;
+        }
+      } else if (resolvedUserUuid){
+        const res = await fetch(`/api/user/${encodeURIComponent(resolvedUserUuid)}`, { headers: authHeaders() });
+        const js  = await res.json().catch(()=>({}));
+        if(res.ok && js.user){
+          const u = js.user;
+          userSummary.innerHTML =
+            `<strong>${escapeHtml(u.name || u.email || ('#'+u.id))}</strong> — ${escapeHtml(u.email || '')}`;
+          resolvedUserId   = Number(u.id);
+          resolvedUserUuid = u.uuid || u.user_uuid || resolvedUserUuid;
+          return;
+        }
       }
-    } catch(e){
+      userSummary.textContent = 'User information not available';
+    }catch(e){
       userSummary.textContent = 'Failed to load user';
     }
   }
 
-  // load all modules with privileges (non-deleted)
-  async function loadModulesWithPrivileges(){
-    modulesContainer.innerHTML = `<div class="card-empty">Loading modules & privileges…</div>`;
-    try {
-      const res = await fetch('/api/modules/all-with-privileges', { headers: authHeaders() });
-      const js = await res.json().catch(()=>({}));
-      if(!res.ok) throw new Error(js.message || 'Failed to load modules');
-      modules = Array.isArray(js.data) ? js.data : (js.data?.length ? js.data : []);
-      if(!modules.length){
-        modulesContainer.innerHTML = `<div class="card-empty">No modules or privileges found.</div>`;
-        return;
-      }
-      await loadAssignedPrivileges();
-      renderModules();
-    } catch(e){
-      console.error(e);
-      modulesContainer.innerHTML = `<div class="card-empty text-danger">Failed to load modules: ${escapeHtml(e.message || '')}</div>`;
-    }
-  }
+  // ========== Privileges: load from DB ==========
 
-  // load assigned privileges for this user
   async function loadAssignedPrivileges(){
     assignedPrivIds = new Set();
-    try {
-      // we expect endpoint: GET /api/user-privileges/list?user_id=ID
-      const res = await fetch(`/api/user-privileges/list?user_id=${encodeURIComponent(userId)}`, { headers: authHeaders() });
+    if (!resolvedUserId){
+      console.warn('No resolved user id when loading assigned privileges');
+      return;
+    }
+    try{
+      const res = await fetch(`/api/user-privileges/list?user_id=${encodeURIComponent(resolvedUserId)}`, {
+        headers: authHeaders()
+      });
       const js = await res.json().catch(()=>({}));
       if(!res.ok) throw new Error(js.message || 'Failed to load assigned privileges');
       const data = Array.isArray(js.data) ? js.data : (js.data?.length ? js.data : []);
-      // the user_privileges list returns rows with privilege_id (int) or uuid depending on your schema.
-      // prefer numeric id if present
       for(const r of data){
-        if(r.privilege_id != null) assignedPrivIds.add(String(r.privilege_id));
-        else if(r.id != null) assignedPrivIds.add(String(r.id));
-        else if(r.uuid) assignedPrivIds.add(String(r.uuid));
+        const pidKey = r.privilege_id != null
+          ? String(r.privilege_id)
+          : (r.privilege_uuid ? String(r.privilege_uuid) : null);
+        if (pidKey){
+          assignedPrivIds.add(pidKey);
+        }
       }
-    } catch(e){
+    }catch(e){
       console.warn('Could not load assigned privileges', e);
     }
   }
 
-  function escapeHtml(s){ return (s||'').toString().replace(/[&<>"'`]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;','`':'&#96;'}[ch])); }
+  // ========== Helpers for select-all states ==========
 
-  // Render modules -> privs tree
+  function updateModuleSelectAllState(moduleEl){
+    if (!moduleEl) return;
+    const moduleCheckbox = moduleEl.querySelector('.ap-mod-select-all');
+    if (!moduleCheckbox) return;
+    const rows   = moduleEl.querySelectorAll('.ap-priv-row');
+    if (!rows.length){
+      moduleCheckbox.checked = false;
+      moduleCheckbox.indeterminate = false;
+      return;
+    }
+    let checkedCount = 0;
+    rows.forEach(row=>{
+      const cb = row.querySelector('.sm-privilege-checkbox');
+      if (cb && cb.checked) checkedCount++;
+    });
+    if (checkedCount === 0){
+      moduleCheckbox.checked = false;
+      moduleCheckbox.indeterminate = false;
+    } else if (checkedCount === rows.length){
+      moduleCheckbox.checked = true;
+      moduleCheckbox.indeterminate = false;
+    } else {
+      moduleCheckbox.checked = false;
+      moduleCheckbox.indeterminate = true;
+    }
+  }
+
+  function updateAllModulesSelectAllState(){
+    const moduleEls = modulesContainer.querySelectorAll('.accordion-item');
+    moduleEls.forEach(updateModuleSelectAllState);
+  }
+
+  function updateGlobalSelectAllState(){
+    const checkboxes = modulesContainer.querySelectorAll('.ap-priv-row .sm-privilege-checkbox');
+    if (!checkboxes.length){
+      chkGlobalSelectAll.checked = false;
+      chkGlobalSelectAll.indeterminate = false;
+      return;
+    }
+    let checkedCount = 0;
+    checkboxes.forEach(cb=>{
+      if (cb.checked) checkedCount++;
+    });
+    if (checkedCount === 0){
+      chkGlobalSelectAll.checked = false;
+      chkGlobalSelectAll.indeterminate = false;
+    } else if (checkedCount === checkboxes.length){
+      chkGlobalSelectAll.checked = true;
+      chkGlobalSelectAll.indeterminate = false;
+    } else {
+      chkGlobalSelectAll.checked = false;
+      chkGlobalSelectAll.indeterminate = true;
+    }
+  }
+
+  // ========== Modules & privileges ==========
+
+  async function loadModulesWithPrivileges(){
+    modulesContainer.innerHTML =
+      `<div class="ap-empty">Loading modules &amp; privileges…</div>`;
+    modulesEmpty.style.display = 'none';
+    try{
+      const res = await fetch('/api/modules/all-with-privileges', {
+        headers: authHeaders()
+      });
+      const js = await res.json().catch(()=>({}));
+      if(!res.ok) throw new Error(js.message || 'Failed to load modules');
+      modules = Array.isArray(js.data) ? js.data : (js.data?.length ? js.data : []);
+      if(!modules.length){
+        modulesContainer.innerHTML = '';
+        modulesEmpty.style.display = '';
+        chkGlobalSelectAll.checked = false;
+        chkGlobalSelectAll.indeterminate = false;
+        return;
+      }
+      await loadAssignedPrivileges(); // load initial assigned set from DB
+      renderModules();
+    }catch(e){
+      console.error(e);
+      modulesContainer.innerHTML =
+        `<div class="ap-empty text-danger">
+           Failed to load modules: ${escapeHtml(e.message || '')}
+         </div>`;
+      chkGlobalSelectAll.checked = false;
+      chkGlobalSelectAll.indeterminate = false;
+    }
+  }
+
   function renderModules(){
     modulesContainer.innerHTML = '';
-    modules.forEach(m => {
-      const card = document.createElement('div');
-      card.className = 'module-card';
+    if(!modules.length){
+      modulesEmpty.style.display = '';
+      chkGlobalSelectAll.checked = false;
+      chkGlobalSelectAll.indeterminate = false;
+      return;
+    }
+    modulesEmpty.style.display = 'none';
 
-      const head = document.createElement('div');
-      head.className = 'module-head';
-      head.innerHTML = `<div>
-        <div class="module-title">${escapeHtml(m.name || ('#'+m.id))}</div>
-        <div class="small-muted">${escapeHtml(m.description || '')}</div>
-      </div>
-      <div class="small-muted">Privileges: ${ (m.privileges?.length || 0) }</div>`;
+    modules.forEach((m, index) => {
+      const item       = document.createElement('div');
+      const collapseId = `ap_mod_${m.id ?? ('i'+index)}`;
+      const headerId   = `ap_modh_${m.id ?? ('i'+index)}`;
+      const moduleKey  = String(m.id ?? ('i'+index));
 
-      card.appendChild(head);
+      item.className = 'accordion-item';
+      item.dataset.moduleId = moduleKey;
 
-      const list = document.createElement('div');
-      list.className = 'priv-list';
-
-      if(!m.privileges || !m.privileges.length){
-        list.innerHTML = `<div class="card-empty small-muted">No privileges for this module.</div>`;
-      } else {
-        m.privileges.forEach(p => {
-          // p: id, uuid, action, description
-          const pid = String(p.id ?? p.uuid ?? '');
-          const checked = assignedPrivIds.has(pid) ? 'checked' : '';
-          const row = document.createElement('div');
-          row.className = 'priv-item';
-          row.dataset.privId = pid;
-
-          row.innerHTML = `
-            <div class="priv-left">
-              <input type="checkbox" class="priv-checkbox" ${checked} />
-              <div>
-                <div class="priv-action">${escapeHtml(p.action || p.name || '')}</div>
-                <div class="priv-desc">${escapeHtml(p.description || '')}</div>
+      item.innerHTML = `
+        <h2 class="accordion-header" id="${headerId}">
+          <button class="accordion-button ${index ? 'collapsed' : ''}" type="button"
+                  data-bs-toggle="collapse"
+                  data-bs-target="#${collapseId}"
+                  aria-expanded="${index ? 'false':'true'}"
+                  aria-controls="${collapseId}">
+            <div class="ap-module-header-inner">
+              <span class="ap-module-title">${escapeHtml(m.name || ('Module #'+(m.id || (index+1))))}</span>
+              <span class="ap-module-pill">
+                <i class="fa fa-shield-halved me-1"></i>
+                Privileges: ${m.privileges?.length || 0}
+              </span>
+            </div>
+          </button>
+        </h2>
+        <div id="${collapseId}" class="accordion-collapse collapse ${index ? '' : 'show'}"
+             aria-labelledby="${headerId}">
+          <div class="accordion-body">
+            <div class="ap-module-tools">
+              <span class="ap-small-muted">Quick actions for this module:</span>
+              <label class="form-check mb-0 d-flex align-items-center gap-2">
+                <input class="form-check-input ap-mod-select-all" type="checkbox">
+                <span class="ap-small-muted">Select all</span>
+              </label>
+            </div>
+            <div class="ap-module-body">
+              <div class="ap-priv-table-wrap">
+                <table class="ap-priv-table">
+                  <thead>
+                    <tr>
+                      <th style="width:70px" class="text-center">Select</th>
+                      <th>Privilege</th>
+                    </tr>
+                  </thead>
+                  <tbody></tbody>
+                </table>
               </div>
             </div>
-            <div class="assign-actions">
-              <button class="btn btn-sm btn-light btn-unassign" title="Unassign"><i class="fa fa-ban"></i></button>
+          </div>
+        </div>
+      `;
+
+      const tbody           = item.querySelector('tbody');
+      const moduleSelectAll = item.querySelector('.ap-mod-select-all');
+
+      if(!m.privileges || !m.privileges.length){
+        tbody.innerHTML = `
+          <tr><td colspan="2">
+            <div class="ap-empty ap-small-muted">
+              <i class="fa fa-ban"></i>
+              <div>No privileges for this module</div>
             </div>
+          </td></tr>`;
+      }else{
+        m.privileges.forEach(p => {
+          const pid     = String(p.id ?? p.uuid ?? '');
+          const checked = assignedPrivIds.has(pid);
+          const tr      = document.createElement('tr');
+          tr.className  = 'ap-priv-row';
+          tr.dataset.privId   = pid;
+          tr.dataset.moduleId = moduleKey;
+
+          const title  = p.action || p.name || 'Untitled';
+          const desc   = p.description || '';
+
+          tr.innerHTML = `
+            <td class="text-center">
+              <label class="ap-toggle-switch mb-0">
+                <input type="checkbox" class="sm-privilege-checkbox" ${checked ? 'checked':''}>
+                <span class="ap-toggle-slider"></span>
+              </label>
+            </td>
+            <td>
+              <div class="ap-priv-title">${escapeHtml(title)}</div>
+              ${desc ? `<div class="ap-priv-desc">${escapeHtml(desc)}</div>` : ''}
+            </td>
           `;
 
-          // toggle checkbox handler
-          row.querySelector('.priv-checkbox').addEventListener('change', (ev)=>{
-            // visually update set only; final commit on Save; or we can do immediate sync on uncheck if desired
-            const cb = ev.target;
-            if(cb.checked) assignedPrivIds.add(pid);
-            else assignedPrivIds.delete(pid);
-          });
+          const checkbox = tr.querySelector('.sm-privilege-checkbox');
 
-          // single unassign button (per privilege) - calls delete endpoint immediately
-          row.querySelector('.btn-unassign').addEventListener('click', async ()=>{
-            if(!confirm('Unassign this privilege from user?')) return;
-            try {
-              const body = { user_id: Number(userId), privilege_id: Number(p.id ?? 0) };
-              // if your API expects uuid, send privilege_id as uuid string instead
-              if(!p.id && p.uuid) body.privilege_id = p.uuid;
-              const res = await fetch('/user-privileges/delete', {
-                method: 'POST',
-                headers: authHeaders({'Content-Type':'application/json'}),
-                body: JSON.stringify(body)
-              });
-              const js = await res.json().catch(()=>({}));
-              if(!res.ok) throw new Error(js.message || 'Unassign failed');
-              // reflect locally
-              assignedPrivIds.delete(pid);
-              row.querySelector('.priv-checkbox').checked = false;
-              ok('Privilege unassigned');
-            } catch(e){
-              console.error(e);
-              err(e.message || 'Failed to unassign');
+          if (checked){
+            tr.classList.add('active');
+          }
+
+          checkbox.addEventListener('change', (ev) => {
+            const nowChecked = ev.target.checked;
+            const key = String(p.id ?? p.uuid ?? pid);
+
+            if (nowChecked) {
+              assignedPrivIds.add(key);
+              tr.classList.add('active');
+            } else {
+              assignedPrivIds.delete(key);
+              tr.classList.remove('active');
             }
+
+            const moduleEl = tr.closest('.accordion-item');
+            updateModuleSelectAllState(moduleEl);
+            updateGlobalSelectAllState();
           });
 
-          list.appendChild(row);
+          tbody.appendChild(tr);
         });
       }
 
-      card.appendChild(list);
-      modulesContainer.appendChild(card);
+      if (moduleSelectAll){
+        moduleSelectAll.addEventListener('change', (ev)=>{
+          const checked = ev.target.checked;
+          const rows = item.querySelectorAll('.ap-priv-row');
+          rows.forEach(row=>{
+            const cb  = row.querySelector('.sm-privilege-checkbox');
+            const key = row.dataset.privId;
+            if (!cb || !key) return;
+
+            cb.checked = checked;
+            if (checked){
+              assignedPrivIds.add(key);
+              row.classList.add('active');
+            } else {
+              assignedPrivIds.delete(key);
+              row.classList.remove('active');
+            }
+          });
+          updateModuleSelectAllState(item);
+          updateGlobalSelectAllState();
+        });
+      }
+
+      modulesContainer.appendChild(item);
+    });
+
+    updateAllModulesSelectAllState();
+    updateGlobalSelectAllState();
+  }
+
+  // ========== Global "Select all" checkbox ==========
+  if (chkGlobalSelectAll){
+    chkGlobalSelectAll.addEventListener('change', (e)=>{
+      const checked = e.target.checked;
+      const rows = modulesContainer.querySelectorAll('.ap-priv-row');
+      rows.forEach(row=>{
+        const cb  = row.querySelector('.sm-privilege-checkbox');
+        const key = row.dataset.privId;
+        if (!cb || !key) return;
+
+        cb.checked = checked;
+        if (checked){
+          assignedPrivIds.add(key);
+          row.classList.add('active');
+        } else {
+          assignedPrivIds.delete(key);
+          row.classList.remove('active');
+        }
+      });
+      updateAllModulesSelectAllState();
+      updateGlobalSelectAllState();
+      ok(checked ? 'All privileges selected (not yet saved)' : 'All privileges deselected (not yet saved)');
     });
   }
 
-  // Save all changes (sync)
+  // ========== Save all (sync) ==========
   btnSaveAll.addEventListener('click', async ()=>{
     if(isSaving) return;
+    if (!resolvedUserId && !resolvedUserUuid){
+      err('User not resolved');
+      return;
+    }
+
     isSaving = true;
     btnSaveAll.disabled = true;
-    btnSaveAll.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Saving';
+    btnSaveAll.innerHTML =
+      '<span class="spinner-border spinner-border-sm me-1"></span>Saving';
 
-    try {
-      // prepare array of privilege ids (prefer numeric ids if available)
-      // We need to gather actual numeric IDs — modules[].privileges[].id
-      // Our assignedPrivIds set contains string ids (either numeric or uuid). We'll send numeric ones preferentially.
+    try{
       const currentIds = [];
       modules.forEach(m=>{
         (m.privileges || []).forEach(p=>{
-          const pid = String(p.id ?? p.uuid ?? '');
-          if(assignedPrivIds.has(pid)){
-            // push numeric id if available, else uuid
-            currentIds.push( p.id ? Number(p.id) : String(p.uuid) );
+          const key = String(p.id ?? p.uuid ?? '');
+          if(assignedPrivIds.has(key)){
+            currentIds.push(p.id ? Number(p.id) : String(p.uuid));
           }
         });
       });
 
-      const payload = { user_id: Number(userId), privileges: Array.from(new Set(currentIds)) };
+      const payload = { privileges: Array.from(new Set(currentIds)) };
+      if (resolvedUserId) payload.user_id = Number(resolvedUserId);
+      else payload.user_uuid = String(resolvedUserUuid);
 
       const res = await fetch('/api/user-privileges/sync', {
-        method: 'POST',
+        method:'POST',
         headers: authHeaders({'Content-Type':'application/json'}),
         body: JSON.stringify(payload)
       });
       const js = await res.json().catch(()=>({}));
       if(!res.ok) throw new Error(js.message || 'Sync failed');
 
-      ok('Privileges synced');
-      // refresh assigned list from server
+      ok('Privileges saved');
       await loadAssignedPrivileges();
       renderModules();
-    } catch(e){
+    }catch(e){
       console.error(e);
       err(e.message || 'Save failed');
-    } finally {
+    }finally{
       isSaving = false;
       btnSaveAll.disabled = false;
       btnSaveAll.innerHTML = '<i class="fa fa-save me-1"></i>Save';
     }
   });
 
-  btnRefresh.addEventListener('click', async ()=> {
+  // ========== Refresh ==========
+  btnRefresh.addEventListener('click', async ()=>{
+    if (!resolvedUserId && !resolvedUserUuid){
+      err('User not resolved');
+      return;
+    }
     await loadAssignedPrivileges();
     renderModules();
     ok('Refreshed');
   });
 
-  // initial load
+  // ========== Boot ==========
   (async ()=>{
-    await loadUserInfo();
-    await loadModulesWithPrivileges();
+    try{
+      await resolveUserIdentity();
+      await loadUserInfo();
+      if (!resolvedUserId && !resolvedUserUuid){
+        throw new Error('User not found');
+      }
+      await loadModulesWithPrivileges();
+    }catch(e){
+      console.error(e);
+      if (typeof Swal !== 'undefined') {
+        Swal.fire('Cannot continue', e.message || 'Missing or invalid user identifier', 'error');
+      }
+      modulesContainer.innerHTML =
+        `<div class="ap-empty text-danger">
+           Cannot load privileges: ${escapeHtml(e.message || '')}
+         </div>`;
+      chkGlobalSelectAll.checked = false;
+      chkGlobalSelectAll.indeterminate = false;
+    }
   })();
 
 });

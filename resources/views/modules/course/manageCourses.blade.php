@@ -8,32 +8,6 @@
 <style>
 /* ===== Shell ===== */
 .crs-wrap{max-width:1140px;margin:16px auto 40px;overflow:visible}
-.panel{background:var(--surface);border:1px solid var(--line-strong);border-radius:16px;box-shadow:var(--shadow-2);padding:14px}
-
-/* Toolbar */
-.mfa-toolbar .form-control{height:40px;border-radius:12px;border:1px solid var(--line-strong);background:var(--surface)}
-.mfa-toolbar .form-select{height:40px;border-radius:12px;border:1px solid var(--line-strong);background:var(--surface)}
-.mfa-toolbar .btn{height:40px;border-radius:12px}
-.mfa-toolbar .btn-light{background:var(--surface);border:1px solid var(--line-strong)}
-.mfa-toolbar .btn-primary{background:var(--primary-color);border:none}
-
-/* Tabs */
-.nav.nav-tabs{border-color:var(--line-strong)}
-.nav-tabs .nav-link{color:var(--ink)}
-.nav-tabs .nav-link.active{background:var(--surface);border-color:var(--line-strong) var(--line-strong) var(--surface)}
-.tab-content,.tab-pane{overflow:visible}
-
-/* Table Card */
-.table-wrap.card{position:relative;border:1px solid var(--line-strong);border-radius:16px;background:var(--surface);box-shadow:var(--shadow-2);overflow:visible}
-.table-wrap .card-body{overflow:visible}
-.table-responsive{overflow:visible !important}
-.table{--bs-table-bg:transparent}
-.table thead th{font-weight:600;color:var(--muted-color);font-size:13px;border-bottom:1px solid var(--line-strong);background:var(--surface)}
-.table thead.sticky-top{z-index:3}
-.table tbody tr{border-top:1px solid var(--line-soft)}
-.table tbody tr:hover{background:var(--page-hover)}
-td .fw-semibold{color:var(--ink)}
-.small{font-size:12.5px}
 
 /* Badges (stronger specificity so they don't go white) */
 .table .badge.badge-success{background:var(--success-color) !important;color:#fff !important}
@@ -61,7 +35,21 @@ tr.is-deleted td{background:color-mix(in oklab, var(--danger-color) 6%, transpar
 /* Default dropdown menu (when not portaled) */
 .table-wrap .dropdown-menu{border-radius:12px;border:1px solid var(--line-strong);box-shadow:var(--shadow-2);min-width:220px;z-index:5000}
 /* Portaled dropdown menu (moved to body) */
-.dropdown-menu.dd-portal{position:fixed!important;left:0;top:0;transform:none!important;z-index:5000;border-radius:12px;border:1px solid var(--line-strong);box-shadow:var(--shadow-2);min-width:220px;background:var(--surface)}
+/* PORTALED DROPDOWN — ensure it covers content and sits above table rows */
+.dropdown-menu.dd-portal{
+  position: fixed !important;
+  left: 0 !important;
+  top: 0 !important;
+  transform: none !important;
+  z-index: 99999 !important;               /* very high z-index to outrank other elements */
+  min-width: 220px;
+  border-radius: 12px;
+  border: 1px solid var(--line-strong);
+  box-shadow: 0 12px 30px rgba(15,23,42,0.12);
+  background: var(--surface);
+  overflow: visible !important;            /* ensure contents aren't clipped */
+  padding: .375rem 0;
+}
 .dropdown-item{display:flex;align-items:center;gap:.6rem}
 .dropdown-item i{width:16px;text-align:center}
 .dropdown-item.text-danger{color:var(--danger-color)!important}
@@ -131,16 +119,124 @@ html.theme-dark .dropzone{background:#0b1020;border-color:var(--line-strong)}
 html.theme-dark .media-item{background:#0b1020;border-color:var(--line-strong)}
 
 /* Dropdown visibility safety nets */
-.table-wrap, .table-wrap .card-body, .table-responsive { overflow: visible !important; }
 .table-wrap .dropdown { position: relative; }
 .table-wrap .dropdown-menu { z-index: 2050; }
 
 /* File button look */
 .btn-light{background:var(--surface);border:1px solid var(--line-strong)}
 
-.table-wrap, .table-wrap .card-body, .table-responsive {
-    overflow: auto !important;
-}
+ /* Featured media modal – card grid */
+  #mediaModal .media-list {
+    margin-top: 8px;
+  }
+
+  #mediaModal .media-list.highlight {
+    box-shadow: 0 0 0 1px #bfdbfe;
+    border-radius: 14px;
+    padding: 4px;
+    animation: mediaLibFlash .9s ease-out 1;
+  }
+  @keyframes mediaLibFlash {
+    0%   { box-shadow: 0 0 0 0 rgba(59,130,246,0.7); }
+    100% { box-shadow: 0 0 0 1px rgba(59,130,246,0.4); }
+  }
+
+  #mediaModal .media-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 12px;
+  }
+
+  #mediaModal .media-card {
+    border-radius: 12px;
+    border: 1px solid #e5e7eb;
+    background: #ffffff;
+    padding: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    cursor: grab;
+    transition: box-shadow .15s ease, transform .15s ease, border-color .15s ease;
+  }
+  #mediaModal .media-card:active {
+    cursor: grabbing;
+  }
+  #mediaModal .media-card:hover {
+    box-shadow: 0 10px 18px rgba(15,23,42,0.08);
+    transform: translateY(-1px);
+    border-color: #60a5fa;
+  }
+  #mediaModal .media-card.dragging {
+    opacity: .8;
+    box-shadow: 0 0 0 1px #60a5fa;
+  }
+
+  #mediaModal .media-card .card-thumb {
+    position: relative;
+    width: 100%;
+    padding-top: 62%;
+    border-radius: 10px;
+    overflow: hidden;
+    background: #f3f4f6;
+  }
+  #mediaModal .media-card .card-thumb a {
+    position: absolute;
+    inset: 0;
+    display: block;
+  }
+  #mediaModal .media-card .card-thumb img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  #mediaModal .media-card .card-thumb .icon-center {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+    opacity: .75;
+  }
+
+  #mediaModal .media-card .card-body {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  #mediaModal .media-card .card-body .name {
+    font-size: .82rem;
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  #mediaModal .media-card .card-body .meta {
+    font-size: .75rem;
+    color: #6b7280;
+  }
+
+  #mediaModal .media-card .card-actions {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 4px;
+    margin-top: 4px;
+  }
+  #mediaModal .media-card .btn-icon {
+    border: none;
+    background: transparent;
+    padding: 4px;
+    border-radius: 999px;
+  }
+  #mediaModal .media-card .btn-icon:hover {
+    background: #fee2e2;
+    color: #b91c1c;
+  }
+
+  
 </style>
 @endpush
 
@@ -580,7 +676,6 @@ html.theme-dark .media-item{background:#0b1020;border-color:var(--line-strong)}
 </div>
 @endsection
 
-
 @push('scripts')
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
@@ -685,12 +780,13 @@ document.addEventListener('click', (e) => {
       .then(()=> location.href='/');
     return;
   }
-  document.getElementById('btnCreate').setAttribute('href', basePanel + '/courses/create');
+  const btnCreateEl = document.getElementById('btnCreate');
+  if (btnCreateEl) btnCreateEl.setAttribute('href', basePanel + '/courses/create');
 
   const okToast  = new bootstrap.Toast(document.getElementById('okToast'));
   const errToast = new bootstrap.Toast(document.getElementById('errToast'));
-  const ok  = (m)=>{ document.getElementById('okMsg').textContent  = m||'Done'; okToast.show(); };
-  const err = (m)=>{ document.getElementById('errMsg').textContent = m||'Something went wrong'; errToast.show(); };
+  const ok  = (m)=>{ const el=document.getElementById('okMsg'); if(el) el.textContent = m||'Done'; okToast.show(); };
+  const err = (m)=>{ const el=document.getElementById('errMsg'); if(el) el.textContent = m||'Something went wrong'; errToast.show(); };
 
   /* ========= DOM refs per tab ========= */
   const tabs = {
@@ -742,9 +838,9 @@ document.addEventListener('click', (e) => {
 
   function getToken(){ return TOKEN; }
 
-  function showLoader(scope, v){ 
+  function showLoader(scope, v){
     const loader = document.querySelector(tabs[scope].loader);
-    if (loader) loader.style.display = v ? '' : 'none'; 
+    if (loader) loader.style.display = v ? '' : 'none';
   }
 
   function queryParams(scope){
@@ -756,15 +852,15 @@ document.addEventListener('click', (e) => {
     params.set('sort', sort);
 
     if (scope === 'courses'){
-      if (q.value.trim()) params.set('q', q.value.trim());
-      
+      if (q && q.value.trim()) params.set('q', q.value.trim());
+
       // Get filter values from modal
       const typeFilter = document.getElementById('modal_course_type')?.value;
       if (typeFilter) params.set('course_type', typeFilter);
-      
+
       const statusFilter = document.getElementById('modal_status')?.value;
       if (statusFilter) params.set('status', statusFilter);
-      
+
       const levelFilter = document.getElementById('modal_level')?.value;
       if (levelFilter) params.set('level', levelFilter);
 
@@ -782,24 +878,24 @@ document.addEventListener('click', (e) => {
     return params.toString();
   }
 
-  function pushURL(scope){ 
-    history.replaceState(null,'', location.pathname + '?' + queryParams(scope)); 
+  function pushURL(scope){
+    history.replaceState(null,'', location.pathname + '?' + queryParams(scope));
   }
 
   function applyFromURL(){
     const url=new URL(location.href);
     const g=(k)=>url.searchParams.get(k)||'';
-    if (g('q')) q.value=g('q');
+    if (g('q') && q) q.value=g('q');
     if (g('course_type')) {
-      document.getElementById('modal_course_type').value = g('course_type');
+      const el = document.getElementById('modal_course_type'); if (el) el.value = g('course_type');
     }
-    if (g('status')) document.getElementById('modal_status').value = g('status');
-    if (g('level')) document.getElementById('modal_level').value = g('level');
-    if (g('per_page')) perPageSel.value=g('per_page');
+    if (g('status')) { const el=document.getElementById('modal_status'); if(el) el.value=g('status'); }
+    if (g('level')) { const el=document.getElementById('modal_level'); if(el) el.value=g('level'); }
+    if (g('per_page') && perPageSel) perPageSel.value=g('per_page');
     if (g('page')) state.courses.page=Number(g('page'))||1;
     if (g('sort')) {
       sort=g('sort');
-      document.getElementById('modal_sort').value = g('sort');
+      const el=document.getElementById('modal_sort'); if(el) el.value = g('sort');
     }
     syncSortHeaders();
   }
@@ -821,7 +917,7 @@ document.addEventListener('click', (e) => {
 
     if (scope === 'bin') {
       return `
-        <div class="dropdown text-end" data-bs-display="static">
+        <div class="dropdown text-end" data-bs-display="static" data-bs-boundary="viewport">
           <button type="button" class="btn btn-light btn-sm dd-toggle" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false" title="Actions">
             <i class="fa fa-ellipsis-vertical"></i>
           </button>
@@ -864,7 +960,7 @@ document.addEventListener('click', (e) => {
         </button>
         <ul class="dropdown-menu dropdown-menu-end">
           <li>
-            <a class="dropdown-item view-course-link" href="${basePanel}/courses/${encodeURIComponent(r.uuid)}" title="View Course">
+            <a class="dropdown-item view-course-link" href="/courses/${encodeURIComponent(r.uuid)}" title="View Course">
               <i class="fa fa-eye"></i> View Course
             </a>
           </li>
@@ -925,7 +1021,7 @@ document.addEventListener('click', (e) => {
         rowHTML = `
           <td>
             <div class="fw-semibold">
-              <a href="${basePanel}/courses/${encodeURIComponent(r.uuid)}"
+              <a href="/courses/${encodeURIComponent(r.uuid)}"
                  class="link-offset-2 link-underline-opacity-0 view-course-link">${escapeHtml(r.title||'')}</a>
             </div>
             <div class="text-muted small">${escapeHtml(r.slug||'')}</div>
@@ -941,7 +1037,7 @@ document.addEventListener('click', (e) => {
         rowHTML = `
           <td>
             <div class="fw-semibold">
-              <a href="${basePanel}/courses/${encodeURIComponent(r.uuid)}"
+              <a href="/courses/${encodeURIComponent(r.uuid)}"
                  class="link-offset-2 link-underline-opacity-0 view-course-link">${escapeHtml(r.title||'')}</a>
             </div>
             <div class="text-muted small">${escapeHtml(r.slug||'')}</div>
@@ -1000,12 +1096,12 @@ document.addEventListener('click', (e) => {
     showLoader(scope, true);
     const emptyEl = document.querySelector(tabs[scope].empty);
     const rowsEl = document.querySelector(tabs[scope].rows);
-    
-    emptyEl.style.display='none';
-    rowsEl.querySelectorAll('tr:not([id^="loaderRow"])').forEach(tr=>tr.remove());
-    
+
+    if (emptyEl) emptyEl.style.display='none';
+    if (rowsEl) rowsEl.querySelectorAll('tr:not([id^="loaderRow"])').forEach(tr=>tr.remove());
+
     if (scope === 'courses') pushURL(scope);
-    
+
     try{
       const res = await fetch('/api/courses?' + queryParams(scope), {
         headers:{ 'Authorization':'Bearer '+getToken(), 'Accept':'application/json' }
@@ -1013,16 +1109,16 @@ document.addEventListener('click', (e) => {
       const json = await res.json();
       if(!res.ok) throw new Error(json?.message || 'Failed to load');
       const items = json?.data || [];
-      const pagination = json?.pagination || {page:1,per_page:Number(perPageSel.value||20),total:items.length};
-      
-      if (items.length===0) emptyEl.style.display='';
+      const pagination = json?.pagination || {page:1,per_page:Number(perPageSel?.value||20),total:items.length};
+
+      if (items.length===0 && emptyEl) emptyEl.style.display='';
       renderRows(scope, items);
       renderPager(scope, pagination);
     }catch(e){
       console.error(e);
-      emptyEl.style.display='';
+      if (emptyEl) emptyEl.style.display='';
       const metaTxt = document.querySelector(tabs[scope].meta);
-      metaTxt.textContent='Failed to load courses';
+      if (metaTxt) metaTxt.textContent='Failed to load courses';
       err('Failed to load courses');
     }finally{
       showLoader(scope, false);
@@ -1103,11 +1199,8 @@ document.addEventListener('click', (e) => {
         method:'DELETE', headers:{'Authorization':'Bearer '+getToken(),'Accept':'application/json'}
       });
       if(!res.ok){ const j=await res.json().catch(()=>({})); throw new Error(j?.message||'Delete failed'); }
-      ok('Course moved to Bin'); 
-      load('courses');
-      load('archived');
-      load('draft');
-      load('bin');
+      ok('Course moved to Bin');
+      load('courses'); load('archived'); load('draft'); load('bin');
     }catch(e){ err(e.message); }
   }
 
@@ -1123,9 +1216,8 @@ document.addEventListener('click', (e) => {
         method:'PATCH', headers:{'Authorization':'Bearer '+getToken(),'Accept':'application/json'}
       });
       if(!res.ok){ const j=await res.json().catch(()=>({})); throw new Error(j?.message||'Restore failed'); }
-      ok('Course restored'); 
-      load('bin');
-      load('courses');
+      ok('Course restored');
+      load('bin'); load('courses');
     }catch(e){ err(e.message); }
   }
 
@@ -1141,7 +1233,7 @@ document.addEventListener('click', (e) => {
         method:'DELETE', headers:{'Authorization':'Bearer '+getToken(),'Accept':'application/json'}
       });
       if(!res.ok){ const j=await res.json().catch(()=>({})); throw new Error(j?.message||'Permanent delete failed'); }
-      ok('Course permanently deleted'); 
+      ok('Course permanently deleted');
       load('bin');
     }catch(e){ err(e.message); }
   }
@@ -1180,7 +1272,8 @@ document.addEventListener('click', (e) => {
   /* ========= Modules Modal ========= */
   function openModules(id, uuid, title, short){
     currentCourse = { id, uuid, title, short };
-    document.getElementById('modCourseInfo').textContent = `${title || 'Course'} — ${short || ''}`.trim();
+    const el = document.getElementById('modCourseInfo');
+    if (el) el.textContent = `${title || 'Course'} — ${short || ''}`.trim();
     document.getElementById('mod_title').value='';
     document.getElementById('mod_short').value='';
     document.getElementById('mod_long').value='';
@@ -1212,14 +1305,14 @@ document.addEventListener('click', (e) => {
       });
       const j = await res.json().catch(()=>({}));
       if(!res.ok){ throw new Error(j?.message||'Save failed'); }
-      ok('Module created'); 
+      ok('Module created');
       bootstrap.Modal.getInstance(document.getElementById('moduleModal')).hide();
     }catch(e){
       err(e.message || 'Module API error');
     }
   });
 
-  /* ========= Media Modal ========= */
+  /* ========= Media Modal (single canonical implementation) ========= */
   const mediaFiles = document.getElementById('mediaFiles');
   const urlRow     = document.getElementById('urlRow');
   const urlInput   = document.getElementById('urlInput');
@@ -1231,164 +1324,272 @@ document.addEventListener('click', (e) => {
   const mSub       = document.getElementById('m_sub');
   const mediaCount = document.getElementById('mediaCount');
 
+  let _mediaUploading = false;        // prevents concurrent uploads
+  let _changeAttached  = false;       // prevents attaching change handler multiple times
+
   function openMedia(uuid, title, short){
     currentCourse = { uuid, title, short };
-    mTitle.textContent = title || 'Course';
-    mSub.textContent   = (short && short.trim()) ? short.trim() : '—';
-    urlRow.style.display='none'; urlInput.value='';
+    if (mTitle) mTitle.textContent = title || 'Course';
+    if (mSub) mSub.textContent   = (short && short.trim()) ? short.trim() : '—';
+    if (urlRow) urlRow.style.display='none';
+    if (urlInput) urlInput.value='';
+
     const mediaModal = new bootstrap.Modal(document.getElementById('mediaModal'));
     mediaModal.show();
     loadMedia();
   }
 
   function iconFor(kind){
-    const map={image:'fa-image',video:'fa-film',audio:'fa-music',pdf:'fa-file-pdf',other:'fa-file'};
-    const k=map[kind]||'fa-file';
-    return `<div class="icon"><i class="fa ${k}" style="font-size:14px"></i></div>`;
+    const map = { image:'fa-image', video:'fa-film', audio:'fa-music', pdf:'fa-file-pdf', other:'fa-file' };
+    const k   = map[kind] || 'fa-file';
+    return `<i class="fa ${k}"></i>`;
   }
 
   async function loadMedia(){
-    mediaList.innerHTML='<div class="text-center text-muted small py-4"><i class="fa fa-spinner fa-spin me-2"></i>Loading media...</div>';
-    mediaCount.textContent='Loading…';
-    try{
+    if (mediaList) mediaList.innerHTML = '<div class="text-center text-muted small py-4"><i class="fa fa-spinner fa-spin me-2"></i>Loading media...</div>';
+    if (mediaCount) mediaCount.textContent = 'Loading…';
+    try {
       const res = await fetch(`/api/courses/${encodeURIComponent(currentCourse.uuid)}/media`, {
-        headers:{'Authorization':'Bearer '+getToken(),'Accept':'application/json'}
+        headers: {'Authorization':'Bearer '+getToken(), 'Accept':'application/json'}
       });
       const json = await res.json();
-      if(!res.ok) throw new Error(json?.message||'Load failed');
+      if (!res.ok) throw new Error(json?.message || 'Load failed');
 
       const items = json?.media || [];
-      mediaCount.textContent = `${items.length} item(s)`;
+      if (mediaCount) mediaCount.textContent = `${items.length} item(s)`;
 
-      if(items.length===0){
-        mediaList.innerHTML = `
+      if (items.length === 0) {
+        if (mediaList) mediaList.innerHTML = `
           <div class="text-center text-muted small py-3">
             <i class="fa fa-image mb-2" style="font-size:22px;opacity:.6;"></i><br/>
-            No featured media yet. Upload files or add a URL.
+            No featured media yet. Upload files, add a URL, or choose from library.
           </div>`;
         return;
       }
 
-      const frag=document.createDocumentFragment();
-      items.forEach(it=>{
-        const div=document.createElement('div');
-        div.className='media-item';
-        div.setAttribute('draggable','true');
-        div.dataset.id=it.id;
-        div.innerHTML=`
-          <div class="handle"><i class="fa fa-grip-lines"></i></div>
-          <div class="info">
-            <div class="d-flex align-items-center gap-2">
-              ${iconFor(it.featured_type)}
-              <div>
-                <div class="url"><a href="${escapeHtml(it.featured_url)}" target="_blank" class="link-underline-opacity-0">${escapeHtml(it.featured_url)}</a></div>
-                <div class="kind">Type: ${escapeHtml(it.featured_type||'other')} • Order: <span class="ord">${it.order_no||0}</span></div>
-              </div>
-            </div>
-          </div>
-          <div>
-            <button class="btn-icon" title="Delete" data-del="${it.id}"><i class="fa fa-trash"></i></button>
-          </div>
-        `;
-        frag.appendChild(div);
-      });
-      mediaList.innerHTML='';
-      mediaList.appendChild(frag);
+      const grid = document.createElement('div');
+      grid.className = 'media-grid';
 
-      mediaList.querySelectorAll('[data-del]').forEach(btn=>{
-        btn.addEventListener('click', ()=> deleteMedia(btn.getAttribute('data-del')));
+      items.forEach(it => {
+        const card = document.createElement('article');
+        card.className = 'media-card';
+        card.setAttribute('draggable','true');
+        card.dataset.id = it.id;
+
+        const urlSafe = escapeHtml(it.featured_url || '');
+        const label   = escapeHtml(it.label || it.filename || (it.featured_type||'').toUpperCase() || 'Media');
+
+        let thumbInner;
+        if ((it.featured_type || '').toLowerCase() === 'image') {
+          thumbInner = `<a href="${urlSafe}" target="_blank" rel="noopener"><img src="${urlSafe}" alt="${label}"></a>`;
+        } else {
+          thumbInner = `<a href="${urlSafe}" target="_blank" rel="noopener"><div class="icon-center">${iconFor(it.featured_type)}</div></a>`;
+        }
+
+        card.innerHTML = `
+          <div class="card-thumb">${thumbInner}</div>
+          <div class="card-body">
+            <div class="name" title="${urlSafe}">${label}</div>
+            <div class="meta">Type: ${escapeHtml(it.featured_type || 'other')} • Order: <span class="ord">${it.order_no || 0}</span></div>
+          </div>
+          <div class="card-actions">
+            <button class="btn-icon btn-delete-media" title="Delete" data-id="${it.id}">
+              <i class="fa fa-trash"></i>
+            </button>
+          </div>`;
+        grid.appendChild(card);
       });
+
+      if (mediaList) {
+        mediaList.innerHTML = '';
+        mediaList.appendChild(grid);
+
+        // wire delete handlers
+        mediaList.querySelectorAll('.btn-delete-media').forEach(btn => {
+          btn.addEventListener('click', () => {
+            const id = btn.dataset.id;
+            deleteMedia(id, true); // pass `true` for permanent delete; change to false for soft-delete
+          });
+        });
+      }
 
       initDragReorder();
-    }catch(e){
-      mediaList.innerHTML = '<div class="text-center text-danger small py-3">Failed to load media.</div>';
-      mediaCount.textContent='Failed to load';
-      err(e.message);
+    } catch (e) {
+      if (mediaList) mediaList.innerHTML = '<div class="text-center text-danger small py-3">Failed to load media.</div>';
+      if (mediaCount) mediaCount.textContent = 'Failed to load';
+      err(e.message || 'Load media error');
     }
   }
 
-  async function deleteMedia(id){
-    const {isConfirmed}=await Swal.fire({icon:'warning',title:'Delete media?',showCancelButton:true,confirmButtonText:'Delete',confirmButtonColor:'#ef4444'});
-    if(!isConfirmed) return;
-    try{
-      const res = await fetch(`/api/courses/${encodeURIComponent(currentCourse.uuid)}/media/${encodeURIComponent(id)}`, {
-        method:'DELETE', headers:{'Authorization':'Bearer '+getToken(),'Accept':'application/json'}
-      });
-      if(!res.ok){ const j=await res.json().catch(()=>({})); throw new Error(j?.message||'Delete failed'); }
-      ok('Media deleted'); loadMedia();
-    }catch(e){ err(e.message); }
-  }
+  async function deleteMedia(id, force = false){
+    const { isConfirmed } = await Swal.fire({
+      icon: 'warning',
+      title: 'Delete media?',
+      text: force ? 'This will permanently delete the item.' : 'This will delete the item from this course.',
+      showCancelButton: true,
+      confirmButtonText: 'Delete',
+      confirmButtonColor: '#ef4444'
+    });
+    if (!isConfirmed) return;
 
-  mediaFiles.addEventListener('change', async ()=>{
-    if(!mediaFiles.files?.length) return;
-    await uploadFiles(mediaFiles.files);
-    mediaFiles.value='';
-  });
+    try {
+      const url = `/api/courses/${encodeURIComponent(currentCourse.uuid)}/media/${encodeURIComponent(id)}` + (force ? '/force' : '');
+      const res = await fetch(url, {
+        method: 'DELETE',
+        headers: {'Authorization':'Bearer '+getToken(),'Accept':'application/json'}
+      });
+      const j = await res.json().catch(()=>({}));
+      if (!res.ok) throw new Error(j?.message || 'Delete failed');
+      ok('Media deleted');
+      loadMedia();
+    } catch (e) {
+      err(e.message || 'Delete failed');
+    }
+  }
 
   async function uploadFiles(fileList){
-    const fd=new FormData();
-    Array.from(fileList).forEach(f=> fd.append('files[]', f));
-    try{
+    if (_mediaUploading) return; // prevent double concurrent uploads
+    _mediaUploading = true;
+
+    if (mediaFiles) mediaFiles.setAttribute('disabled','disabled');
+    if (dropzone) dropzone.classList.add('uploading');
+
+    const fd = new FormData();
+    Array.from(fileList).forEach(f => fd.append('files[]', f));
+
+    try {
       const res = await fetch(`/api/courses/${encodeURIComponent(currentCourse.uuid)}/media`, {
-        method:'POST', headers:{'Authorization':'Bearer '+getToken()}, body: fd
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + getToken() },
+        body: fd
       });
-      const j=await res.json();
-      if(!res.ok) throw new Error(j?.message||'Upload failed');
-      ok(`Uploaded ${ (j?.inserted||[]).length } file(s)`); loadMedia();
-    }catch(e){ err(e.message); }
+      const j = await res.json().catch(()=>({}));
+      if (!res.ok) throw new Error(j?.message || 'Upload failed');
+      ok(`Uploaded ${(j?.inserted||[]).length} file(s)`);
+      await loadMedia();
+    } catch (e) {
+      err(e.message || 'Upload error');
+    } finally {
+      _mediaUploading = false;
+      if (mediaFiles) { mediaFiles.removeAttribute('disabled'); mediaFiles.value = ''; }
+      if (dropzone) dropzone.classList.remove('uploading');
+    }
   }
 
-  btnAddUrl.addEventListener('click', ()=>{ urlRow.style.display = (urlRow.style.display==='none' ? '' : 'none'); });
-  btnSaveUrl.addEventListener('click', async ()=>{
-    const url=(urlInput.value||'').trim(); if(!/^https?:\/\//i.test(url)) return Swal.fire('Invalid URL','Provide a valid http(s) URL.','info');
-    try{
-      const res=await fetch(`/api/courses/${encodeURIComponent(currentCourse.uuid)}/media`,{
-        method:'POST',
-        headers:{'Authorization':'Bearer '+getToken(),'Content-Type':'application/json','Accept':'application/json'},
+  // Attach change handler once
+  if (mediaFiles && !_changeAttached) {
+    mediaFiles.addEventListener('change', async () => {
+      if (!mediaFiles.files?.length) return;
+      await uploadFiles(mediaFiles.files);
+    });
+    _changeAttached = true;
+  }
+
+  // Add URL handlers
+  btnAddUrl?.addEventListener('click', () => {
+    if (!urlRow) return;
+    urlRow.style.display = (urlRow.style.display === 'none' ? '' : 'none');
+  });
+
+  btnSaveUrl?.addEventListener('click', async () => {
+    const url = (urlInput?.value || '').trim();
+    if (!/^https?:\/\//i.test(url)) return Swal.fire('Invalid URL','Provide a valid http(s) URL.','info');
+    try {
+      const res = await fetch(`/api/courses/${encodeURIComponent(currentCourse.uuid)}/media`, {
+        method: 'POST',
+        headers: {'Authorization':'Bearer '+getToken(), 'Content-Type':'application/json','Accept':'application/json'},
         body: JSON.stringify({ url })
       });
-      const j=await res.json();
-      if(!res.ok) throw new Error(j?.message||'Add failed');
-      ok('Media added'); urlInput.value=''; urlRow.style.display='none'; loadMedia();
-    }catch(e){ err(e.message); }
+      const j = await res.json().catch(()=>({}));
+      if (!res.ok) throw new Error(j?.message || 'Add failed');
+      ok('Media added');
+      if (urlInput) urlInput.value = '';
+      if (urlRow) urlRow.style.display = 'none';
+      loadMedia();
+    } catch (e) { err(e.message || 'Add failed'); }
   });
 
-  ;['dragenter','dragover'].forEach(ev=> dropzone.addEventListener(ev, e=>{ e.preventDefault(); e.stopPropagation(); dropzone.classList.add('drag'); }));
-  ;['dragleave','drop'].forEach(ev=> dropzone.addEventListener(ev, e=>{ e.preventDefault(); e.stopPropagation(); dropzone.classList.remove('drag'); }));
-  dropzone.addEventListener('drop', e=>{
-    const files = e.dataTransfer?.files || []; if(files.length) uploadFiles(files);
-  });
+  // Drag & drop wiring
+  if (dropzone) {
+    ['dragenter','dragover'].forEach(ev => dropzone.addEventListener(ev, e => { e.preventDefault(); e.stopPropagation(); dropzone.classList.add('drag'); }));
+    ['dragleave','drop'].forEach(ev => dropzone.addEventListener(ev, e => { e.preventDefault(); e.stopPropagation(); dropzone.classList.remove('drag'); }));
 
-  function initDragReorder(){
-    let dragSrc=null;
-    mediaList.querySelectorAll('.media-item').forEach(it=>{
-      it.addEventListener('dragstart', e=>{ dragSrc=it; it.classList.add('dragging'); e.dataTransfer.effectAllowed='move'; });
-      it.addEventListener('dragend', ()=>{ dragSrc=null; it.classList.remove('dragging'); });
-      it.addEventListener('dragover', e=>{ e.preventDefault(); e.dataTransfer.dropEffect='move'; });
-      it.addEventListener('drop', e=>{
-        e.preventDefault();
-        if(!dragSrc || dragSrc===it) return;
-        const items=[...mediaList.querySelectorAll('.media-item')];
-        const srcIdx=items.indexOf(dragSrc), dstIdx=items.indexOf(it);
-        if(srcIdx<dstIdx) it.after(dragSrc); else it.before(dragSrc);
-        persistReorder();
-      });
+    dropzone.addEventListener('drop', e => {
+      const files = e.dataTransfer?.files || [];
+      if (files.length) uploadFiles(files);
     });
   }
+// place near other media functions — replaces previous initDragReorder() and persistReorder()
+let _reorderTimer = null;
+let _reorderPending = false;
 
-  async function persistReorder(){
-    const ids=[...mediaList.querySelectorAll('.media-item')].map(n=> Number(n.dataset.id));
-    try{
-      const res = await fetch(`/api/courses/${encodeURIComponent(currentCourse.uuid)}/media/reorder`, {
-        method:'POST',
-        headers:{'Authorization':'Bearer '+getToken(),'Content-Type':'application/json','Accept':'application/json'},
-        body: JSON.stringify({ ids })
-      });
-      const j=await res.json();
-      if(!res.ok) throw new Error(j?.message||'Reorder failed');
-      ok('Order updated'); loadMedia();
-    }catch(e){ err(e.message); }
+function initDragReorder(){
+  if (!mediaList) return;
+  const grid = mediaList.querySelector('.media-grid');
+  if (!grid) return;
+  const cards = grid.querySelectorAll('.media-card');
+  let dragSrc = null;
+
+  cards.forEach(card => {
+    card.addEventListener('dragstart', e => {
+      dragSrc = card;
+      card.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
+      // set drag image if desired:
+      // e.dataTransfer.setDragImage(card, 10, 10);
+    });
+    card.addEventListener('dragend', () => {
+      if (dragSrc) dragSrc.classList.remove('dragging');
+      dragSrc = null;
+    });
+    card.addEventListener('dragover', e => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+    });
+    card.addEventListener('drop', e => {
+      e.preventDefault();
+      if (!dragSrc || dragSrc === card) return;
+      const items = [...grid.querySelectorAll('.media-card')];
+      const srcIdx = items.indexOf(dragSrc), dstIdx = items.indexOf(card);
+      if (srcIdx < dstIdx) card.after(dragSrc); else card.before(dragSrc);
+      // queue a debounced persist
+      _reorderPending = true;
+      if (_reorderTimer) clearTimeout(_reorderTimer);
+      _reorderTimer = setTimeout(() => { persistReorder(); }, 250);
+    });
+  });
+}
+
+async function persistReorder(){
+  if (!mediaList) return;
+  // gather ids in new DOM order
+  const ids = [...mediaList.querySelectorAll('.media-card')].map(n => Number(n.dataset.id));
+  if (!ids.length) return;
+
+  // show quick feedback
+  const metaEl = mediaCount || document.createElement('div');
+  if (mediaCount) { const prev = mediaCount.textContent; mediaCount.textContent = 'Saving order…'; }
+
+  try {
+    const res = await fetch(`/api/courses/${encodeURIComponent(currentCourse.uuid)}/media/reorder`, {
+      method: 'POST',
+      headers: {'Authorization':'Bearer '+getToken(), 'Content-Type':'application/json','Accept':'application/json'},
+      body: JSON.stringify({ ids })
+    });
+    const j = await res.json().catch(()=>({}));
+    if (!res.ok) throw new Error(j?.message || 'Reorder failed');
+    ok('Order updated');
+    _reorderPending = false;
+    // optionally refresh to sync server metadata
+    await loadMedia();
+  } catch (e) {
+    err(e.message || 'Reorder failed');
+    // if it failed, you might want to reload to restore server truth
+    await loadMedia();
+  } finally {
+    if (mediaCount) mediaCount.textContent = `${ids.length} item(s)`;
   }
+}
 
   /* ========= Event Listeners ========= */
   document.querySelectorAll('#tab-courses th.sortable').forEach(th=>{
@@ -1401,55 +1602,46 @@ document.addEventListener('click', (e) => {
     });
   });
 
-  // Apply filters from modal - FIXED: Proper modal closing
-  // Apply filters from modal - FIXED: Backdrop issue resolved
-document.getElementById('btnApplyFilters').addEventListener('click', () => {
-  // Update sort from modal
-  sort = document.getElementById('modal_sort').value;
-  
-  state.courses.page = 1;
-  
-  // Close modal using data-bs-dismiss instead of instance method
-  const modal = document.getElementById('filterModal');
-  const closeBtn = modal.querySelector('[data-bs-dismiss="modal"]');
-  
-  if (closeBtn) {
-    closeBtn.click(); // This properly handles backdrop removal
-  }
-  
-  // Load data after modal is fully closed
-  setTimeout(() => {
-    load('courses');
-  }, 150);
-});
+  // Apply filters from modal (proper close)
+  document.getElementById('btnApplyFilters').addEventListener('click', () => {
+    const sortEl = document.getElementById('modal_sort');
+    sort = sortEl ? sortEl.value : sort;
+    state.courses.page = 1;
+    const modal = document.getElementById('filterModal');
+    const closeBtn = modal?.querySelector('[data-bs-dismiss="modal"]');
+    if (closeBtn) closeBtn.click();
+    // Load after modal close animation
+    setTimeout(() => { load('courses'); }, 150);
+  });
 
   let srchT;
-  q.addEventListener('input', ()=>{ clearTimeout(srchT); srchT=setTimeout(()=>{ state.courses.page=1; load('courses'); }, 350); });
-  
-  btnReset.addEventListener('click', ()=>{
-    q.value=''; 
-    perPageSel.value='20'; 
-    
-    // Reset modal filters
-    document.getElementById('modal_course_type').value = '';
-    document.getElementById('modal_status').value = '';
-    document.getElementById('modal_level').value = '';
-    document.getElementById('modal_sort').value = '-created_at';
-    
-    state.courses.page=1; 
-    sort='-created_at'; 
-    load('courses');
+  if (q) q.addEventListener('input', ()=>{ clearTimeout(srchT); srchT=setTimeout(()=>{ state.courses.page=1; load('courses'); }, 350); });
+
+  if (btnReset) btnReset.addEventListener('click', ()=>{
+    if (q) q.value='';
+    if (perPageSel) perPageSel.value='20';
+    const ct = document.getElementById('modal_course_type'); if (ct) ct.value = '';
+    const ms = document.getElementById('modal_status'); if (ms) ms.value = '';
+    const ml = document.getElementById('modal_level'); if (ml) ml.value = '';
+    const msort = document.getElementById('modal_sort'); if (msort) msort.value = '-created_at';
+    state.courses.page=1; sort='-created_at'; load('courses');
   });
 
   // Tab change events
-  document.querySelector('a[href="#tab-courses"]').addEventListener('shown.bs.tab', ()=> load('courses'));
-  document.querySelector('a[href="#tab-archived"]').addEventListener('shown.bs.tab', ()=> load('archived'));
-  document.querySelector('a[href="#tab-draft"]').addEventListener('shown.bs.tab', ()=> load('draft'));
-  document.querySelector('a[href="#tab-bin"]').addEventListener('shown.bs.tab', ()=> load('bin'));
+  const tabCourses = document.querySelector('a[href="#tab-courses"]');
+  const tabArchived = document.querySelector('a[href="#tab-archived"]');
+  const tabDraft = document.querySelector('a[href="#tab-draft"]');
+  const tabBin = document.querySelector('a[href="#tab-bin"]');
+
+  tabCourses?.addEventListener('shown.bs.tab', ()=> load('courses'));
+  tabArchived?.addEventListener('shown.bs.tab', ()=> load('archived'));
+  tabDraft?.addEventListener('shown.bs.tab', ()=> load('draft'));
+  tabBin?.addEventListener('shown.bs.tab', ()=> load('bin'));
 
   /* ========= Initial Load ========= */
   applyFromURL();
   load('courses');
-})();
+
+})(); // end main IIFE
 </script>
 @endpush

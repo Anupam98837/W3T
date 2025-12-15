@@ -10,17 +10,17 @@
 <style>
 /* ===== Shell ===== */
 .cm-wrap{max-width:1140px;margin:16px auto 40px;overflow:visible}
-.panel{background:var(--surface);border:1px solid var(--line-strong);border-radius:16px;box-shadow:var(--shadow-2);padding:14px}
+/* .panel{background:var(--surface);border:1px solid var(--line-strong);border-radius:16px;box-shadow:var(--shadow-2);padding:14px} */
 
 /* Toolbar */
-.mfa-toolbar .form-control{height:40px;border-radius:12px;border:1px solid var(--line-strong);background:var(--surface)}
+/* .mfa-toolbar .form-control{height:40px;border-radius:12px;border:1px solid var(--line-strong);background:var(--surface)}
 .mfa-toolbar .form-select{height:40px;border-radius:12px;border:1px solid var(--line-strong);background:var(--surface)}
 .mfa-toolbar .btn{height:40px;border-radius:12px}
 .mfa-toolbar .btn-light{background:var(--surface);border:1px solid var(--line-strong)}
-.mfa-toolbar .btn-primary{background:var(--primary-color);border:none}
+.mfa-toolbar .btn-primary{background:var(--primary-color);border:none} */
 
 /* Table Card */
-.table-wrap.card{position:relative;border:1px solid var(--line-strong);border-radius:16px;background:var(--surface);box-shadow:var(--shadow-2);overflow:visible}
+/* .table-wrap.card{position:relative;border:1px solid var(--line-strong);border-radius:16px;background:var(--surface);box-shadow:var(--shadow-2);overflow:visible}
 .table-wrap .card-body{overflow:visible}
 .table-responsive{overflow:visible !important}
 .table{--bs-table-bg:transparent}
@@ -28,7 +28,7 @@
 .table thead.sticky-top{z-index:3}
 .table tbody tr{border-top:1px solid var(--line-soft)}
 .table tbody tr:hover{background:var(--page-hover)}
-.small{font-size:12.5px}
+.small{font-size:12.5px} */
 
 /* Sorting */
 .sortable{cursor:pointer;white-space:nowrap}
@@ -89,23 +89,21 @@ html.theme-dark .dropdown-menu{background:#0f172a;border-color:var(--line-strong
 .card,
 .panel,
 .cm-wrap {
-  overflow: visible !important;
   transform: none !important;   /* transforms create new stacking contexts and break fixed/absolute positioning */
 }
 
 /* Make the regular dropdown escape parents when shown */
-.dropdown-menu.dropdown-menu-end.show {
-  position: fixed !important;       /* fixed ensures it positions relative to viewport */
+/* .dropdown-menu.dropdown-menu-end.show {
+  position: fixed !important;       
   transform: none !important;
-  left: 0 !important;               /* will be overwritten by JS */
-  top: 0 !important;                /* will be overwritten by JS */
-  z-index: 9000 !important;         /* keep above table/footer */
+  left: 0 !important;               
+  top: 0 !important;               
+  z-index: 9000 !important;        
   min-width: 220px;
   overflow: visible !important;
   display: block !important;
 }
 
-/* Visual style for portal menus */
 .dropdown-menu.dd-portal {
   position: fixed !important;
   transform: none !important;
@@ -115,7 +113,7 @@ html.theme-dark .dropdown-menu{background:#0f172a;border-color:var(--line-strong
   border: 1px solid var(--line-strong);
   box-shadow: var(--shadow-2);
   background: var(--surface);
-}
+} */
 
 /* keep dropdown toggle above table row so it remains clickable */
 .table-wrap .dd-toggle { z-index: 7; position: relative; }
@@ -130,7 +128,6 @@ html.theme-dark .dropdown-menu{background:#0f172a;border-color:var(--line-strong
 .priv-rows .col-remove { flex: 0 0 48px; text-align: right; }
 </style>
 @endpush
-
 @section('content')
 <div class="cm-wrap">
 
@@ -139,7 +136,7 @@ html.theme-dark .dropdown-menu{background:#0f172a;border-color:var(--line-strong
     <div class="col-12 col-xxl d-flex align-items-center flex-wrap gap-2">
 
       <div class="d-flex align-items-center gap-2">
-        <label class="text-muted small mb-0">My Modules</label>
+        <label class="text-muted medium mb-0">My Modules</label>
       </div>
 
     </div>
@@ -200,9 +197,9 @@ html.theme-dark .dropdown-menu{background:#0f172a;border-color:var(--line-strong
       </button>
 
       {{-- New: Privileges button --}}
-      <button id="btnPrivilege" class="btn btn-light">
+      <!-- <button id="btnPrivilege" class="btn btn-light">
         <i class="fa fa-shield-alt me-1"></i>+ Privilege
-      </button>
+      </button> -->
 
       <button id="btnCreate" class="btn btn-primary">
         <i class="fa fa-plus me-1"></i>New Module
@@ -388,12 +385,75 @@ html.theme-dark .dropdown-menu{background:#0f172a;border-color:var(--line-strong
             </select>
           </div>
 
+          {{-- NEW: href input --}}
+          <div class="col-md-8">
+            <label class="form-label">Href (route or URL)<span class="text-danger">*</span></label>
+            <input id="mm_href" class="form-control" maxlength="255" placeholder="e.g. /modules/intro or https://example.com/path">
+          </div>
+
         </div>
       </div>
 
       <div class="modal-footer">
         <button class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
         <button id="mm_save" class="btn btn-primary"><i class="fa fa-save me-1"></i>Save</button>
+      </div>
+    </div>
+  </div>
+</div>
+{{-- ===== Filter Modal ===== --}}
+<div class="modal fade" id="filterModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-sm modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="fa fa-filter me-2"></i>Filters</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+
+      <div class="modal-body">
+        <div class="row g-3">
+          <div class="col-12">
+            <label class="form-label">Status</label>
+            <select id="modal_status" class="form-select">
+              <option value="">Any</option>
+              <option value="Active">Active</option>
+              <option value="Draft" style="display:none" >Draft</option>
+              <option value="Published" style="display:none" >Published</option>
+              <option value="Archived">Archived</option>
+            </select>
+          </div>
+
+          <div class="col-md-6" style="display:none">
+            <label class="form-label">Per page</label>
+            <select id="modal_per_page" class="form-select">
+              <option value="10">10</option>
+              <option value="20" selected>20</option>
+              <option value="30">30</option>
+              <option value="50">50</option>
+            </select>
+          </div>
+
+          <div class="col-md-12">
+            <label class="form-label">Sort</label>
+            <select id="modal_sort" class="form-select">
+              <option value="-created_at" selected>Newest first</option>
+              <option value="created_at">Oldest first</option>
+              <option value="name">Name (A → Z)</option>
+              <option value="-name">Name (Z → A)</option>
+            </select>
+          </div>
+
+          <div class="col-12" style="display:none">
+            <label class="form-label">Search</label>
+            <input id="modal_q" type="text" class="form-control" placeholder="Search name/description… (optional)">
+            <div class="small text-muted mt-1">Note: main search box will still be used if you type there.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button id="btnClearFilters" type="button" class="btn btn-light">Clear</button>
+        <button id="btnApplyFilters" type="button" class="btn btn-primary">Apply</button>
       </div>
     </div>
   </div>
@@ -545,6 +605,7 @@ document.addEventListener('click',(e)=>{
     name   : document.getElementById('mm_name'),
     description: document.getElementById('mm_description'),
     status : document.getElementById('mm_status'),
+    href   : document.getElementById('mm_href'),
     save   : document.getElementById('mm_save'),
   };
 
@@ -634,6 +695,10 @@ document.addEventListener('click',(e)=>{
           </button>
           <ul class="dropdown-menu dropdown-menu-end">
             <li><button class="dropdown-item" data-act="edit" data-key="${key}" data-name="${esc(r.name||'')}"><i class="fa fa-pen-to-square"></i> Edit</button></li>
+
+            <!-- + Privilege entry for this module -->
+            <li><button class="dropdown-item" data-act="privileges" data-key="${key}" data-name="${esc(r.name||'')}"><i class="fa fa-shield-alt"></i> + Privilege</button></li>
+
             <li><hr class="dropdown-divider"></li>
             ${archived
               ? `<li><button class="dropdown-item" data-act="unarchive" data-key="${key}" data-name="${esc(r.name||'')}"><i class="fa fa-box-open"></i> Unarchive</button></li>`
@@ -664,6 +729,26 @@ document.addEventListener('click',(e)=>{
     if(isArchived && scope!=='bin') tr.classList.add('state-archived');
     if(isDeleted  || scope==='bin') tr.classList.add('state-deleted');
 
+    // small helper to render href: show a small link under name when present
+   const renderHref = (href) => {
+  if (!href) return '';
+  const safeHref = esc(href);
+  const isExternal = /^https?:\/\//i.test(safeHref);
+
+  return `
+    <div class="small">
+      <a 
+        href="${safeHref}"
+        ${isExternal ? 'target="_blank" rel="noopener noreferrer"' : ''} 
+        class="text-decoration-none"
+      >
+        <i class="fa fa-up-right-from-square me-1"></i>${safeHref}
+      </a>
+    </div>
+  `;
+};
+
+
     if(scope==='active'){
       tr.draggable = reorderMode;
       tr.dataset.key = r.uuid || r.id;
@@ -673,6 +758,7 @@ document.addEventListener('click',(e)=>{
         <td class="text-center"><i class="fa fa-grip-lines-vertical drag-handle"></i></td>
         <td>
           <div class="fw-semibold">${esc(r.name || '-')}</div>
+          ${renderHref(r.href)}
           <div class="small text-muted">${esc((desc || '').slice(0,100))}${desc && desc.length>100 ? '…' : ''}</div>
         </td>
         <td>${esc((desc || '').slice(0,140))}${desc && desc.length>140 ? '…' : ''}</td>
@@ -697,6 +783,7 @@ document.addEventListener('click',(e)=>{
       tr.innerHTML = `
         <td>
           <div class="fw-semibold">${esc(r.name || '-')}</div>
+          ${renderHref(r.href)}
           <div class="small text-muted">${esc((desc || '').slice(0,100))}${desc && desc.length>100 ? '…' : ''}</div>
         </td>
         <td>${esc((desc || '').slice(0,140))}${desc && desc.length>140 ? '…' : ''}</td>
@@ -709,6 +796,7 @@ document.addEventListener('click',(e)=>{
     tr.innerHTML = `
       <td>
         <div class="fw-semibold">${esc(r.name || '-')}</div>
+        ${renderHref(r.href)}
         <div class="small text-muted">${esc((desc || '').slice(0,100))}${desc && desc.length>100 ? '…' : ''}</div>
       </td>
       <td>${esc((desc || '').slice(0,140))}${desc && desc.length>140 ? '…' : ''}</td>
@@ -858,6 +946,7 @@ document.addEventListener('click',(e)=>{
   function openCreate(){
     mm.mode.value='create'; mm.key.value=''; mm.title.textContent='Create Module';
     if(mm.name) mm.name.value=''; if(mm.description) mm.description.value=''; if(mm.status) mm.status.value='Active';
+    if(mm.href) mm.href.value = '';
     mm.modal.show();
     setTimeout(()=> { mm.name && mm.name.focus && mm.name.focus(); }, 150);
   }
@@ -872,6 +961,7 @@ document.addEventListener('click',(e)=>{
       if(mm.name) mm.name.value    = r.name || '';
       if(mm.description) mm.description.value = r.description || '';
       if(mm.status) mm.status.value  = (r.status || 'Active');
+      if(mm.href) mm.href.value = r.href || '';
       mm.modal.show();
     }catch(e){ err(e.message||'Failed to open'); }
   }
@@ -883,7 +973,8 @@ document.addEventListener('click',(e)=>{
     const payload = {
       name: mm.name.value.trim(),
       description: mm.description.value.trim() || null,
-      status: mm.status && mm.status.value ? mm.status.value : 'Active'
+      status: mm.status && mm.status.value ? mm.status.value : 'Active',
+      href: (mm.href && mm.href.value) ? mm.href.value.trim() : '' // include href (empty string default)
     };
 
     const isEdit = (mm.mode.value==='edit' && mm.key.value);
@@ -902,13 +993,37 @@ document.addEventListener('click',(e)=>{
     finally{ mm.save.disabled = false; }
   });
 
-  /* ========== Row actions (archive/delete/restore/force) ========= */
+  /* ========== Row actions (archive/delete/restore/force & privileges) ========= */
   document.addEventListener('click', async (e)=>{
     const it = e.target.closest('.dropdown-item[data-act]');
     if(!it) return;
     const act=it.dataset.act, key=it.dataset.key, name=it.dataset.name || 'this module';
 
     if(act==='edit'){ openEdit(key); return; }
+
+    // NEW: handle opening privileges modal for the specific module
+    if(act === 'privileges'){
+      try{
+        // prepare modal with placeholder row while loading
+        priv.rowsContainer.innerHTML = '';
+        priv.rowsContainer.appendChild(createPrivRow());
+        // ensure module list is populated
+        await loadModulesForSelect();
+        // try set select value to the module key (works whether value is id or uuid)
+        if(priv.moduleSelect){
+          priv.moduleSelect.value = key;
+          // load privileges for that module
+          await loadPrivilegesForModule(key);
+        }else{
+          await loadPrivilegesForModule(key);
+        }
+        priv.modal.show();
+      }catch(openErr){
+        console.error(openErr);
+        err('Failed to open privileges');
+      }
+      return;
+    }
 
     if(act==='archive'){
       const {isConfirmed}=await Swal.fire({icon:'question',title:'Archive module?',html:`“${esc(name)}”`,showCancelButton:true,confirmButtonText:'Archive',confirmButtonColor:'#8b5cf6'});
@@ -1139,15 +1254,6 @@ document.addEventListener('click',(e)=>{
       priv.rowsContainer.appendChild(createPrivRow());
     }
   }
-
-  // open privilege modal (update: keep behaviour, but load modules and respect preloaded privileges)
-  btnPrivilege && btnPrivilege.addEventListener('click', async ()=>{
-    priv.rowsContainer.innerHTML = '';
-    // add initial row until modules load completes
-    priv.rowsContainer.appendChild(createPrivRow());
-    await loadModulesForSelect();
-    priv.modal.show();
-  });
 
   // add row button
   priv.addRowBtn && priv.addRowBtn.addEventListener('click', ()=>{
