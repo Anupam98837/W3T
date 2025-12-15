@@ -305,10 +305,10 @@ html.theme-dark .media-item{background:#0b1020;border-color:var(--line-strong)}
                 <tr>
                   <th style="width:40px;"></th>
                   <th class="sortable" data-col="title">COURSE <span class="caret"></span></th>
-                  <th style="width:20%;">CATEGORY</th>
+                  <th>CATEGORY</th>
                   <th style="width:16%;">TYPE / PRICE</th>
                   <th class="sortable" data-col="featured_rank" style="width:90px;">RANK <span class="caret"></span></th>
-                  <th class="sortable" data-col="created_at" style="width:170px;">CREATED <span class="caret"></span></th>
+                  <th class="sortable" data-col="created_at">CREATED <span class="caret"></span></th>
                   <th style="width:140px;" class="text-center">FEATURED</th>
                   <th class="text-end" style="width:112px;">ACTIONS</th>
                 </tr>
@@ -355,9 +355,9 @@ html.theme-dark .media-item{background:#0b1020;border-color:var(--line-strong)}
                 <tr>
                   <th style="width:40px;"></th>
                   <th class="sortable" data-col="title">COURSE <span class="caret"></span></th>
-                  <th style="width:20%;">CATEGORY</th>
+                  <th>CATEGORY</th>
                   <th style="width:16%;">TYPE / PRICE</th>
-                  <th class="sortable" data-col="created_at" style="width:170px;">CREATED <span class="caret"></span></th>
+                  <th class="sortable" data-col="created_at">CREATED <span class="caret"></span></th>
                   <th style="width:140px;" class="text-center">FEATURED</th>
                   <th class="text-end" style="width:112px;">ACTIONS</th>
                 </tr>

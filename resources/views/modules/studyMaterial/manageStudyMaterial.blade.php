@@ -8,11 +8,6 @@
 <style>
 /* ===== Shell ===== */
 .sm-wrap{max-width:1140px;margin:16px auto 40px;overflow:visible}
-/* Sorting */
-/* .sortable{cursor:pointer;white-space:nowrap}
-.sortable .caret{display:inline-block;margin-left:.35rem;opacity:.65}
-.sortable.asc .caret::after{content:"▲";font-size:.7rem}
-.sortable.desc .caret::after{content:"▼";font-size:.7rem} */
 
 /* Dropdowns in table */
 .table-wrap .dropdown{position:relative;z-index:6}
@@ -50,6 +45,7 @@ html.theme-dark .modal-content{background:#0f172a;border-color:var(--line-strong
 html.theme-dark .table thead th{background:#0f172a;border-color:var(--line-strong);color:#94a3b8}
 html.theme-dark .table tbody tr{border-color:var(--line-soft)}
 html.theme-dark .dropdown-menu{background:#0f172a;border-color:var(--line-strong)}
+
 #em_dropzone {
   transition: all 0.3s ease;
   border-width: 2px;
@@ -88,6 +84,7 @@ html.theme-dark .dropdown-menu{background:#0f172a;border-color:var(--line-strong
 .list-group-item:hover {
   background-color: #f8f9fa;
 }
+
 .library-card {
   position: relative;
   overflow: hidden;
@@ -96,7 +93,7 @@ html.theme-dark .dropdown-menu{background:#0f172a;border-color:var(--line-strong
 .lib-overlay-check {
   position: absolute;
   top: 8px;
-  left: 10px;        /* tweak this for more left margin */
+  left: 10px;
   z-index: 10;
   background: rgba(255,255,255,0.9);
   padding: 4px 6px;
@@ -110,6 +107,7 @@ html.theme-dark .lib-overlay-check {
 
 </style>
 @endpush
+
 @section('content')
 <div class="sm-wrap">
 
@@ -152,50 +150,51 @@ html.theme-dark .lib-overlay-check {
       </a>
     </li>
   </ul>
-{{-- ===== Toolbar Panel (OUTSIDE table card) ===== --}}
-<div class="panel mb-3">
-  <div class="row align-items-center g-2 px-3 pt-3 pb-2 mfa-toolbar" id="listToolbar">
-    <div class="col-12 col-xl d-flex align-items-center flex-wrap gap-2">
 
-      {{-- Per-page --}}
-      <div class="d-flex align-items-center gap-2">
-        <label for="perPageSel" class="text-muted small mb-0">Per page</label>
-        <select id="perPageSel" class="form-select form-select-sm" style="width:auto; min-width:90px;">
-          <option value="10">10</option>
-          <option value="20" selected>20</option>
-          <option value="30">30</option>
-          <option value="50">50</option>
-        </select>
+  {{-- ===== Toolbar Panel (OUTSIDE table card) ===== --}}
+  <div class="panel mb-3">
+    <div class="row align-items-center g-2 px-3 pt-3 pb-2 mfa-toolbar" id="listToolbar">
+      <div class="col-12 col-xl d-flex align-items-center flex-wrap gap-2">
+
+        {{-- Per-page --}}
+        <div class="d-flex align-items-center gap-2">
+          <label for="perPageSel" class="text-muted small mb-0">Per page</label>
+          <select id="perPageSel" class="form-select form-select-sm" style="width:auto; min-width:90px;">
+            <option value="10">10</option>
+            <option value="20" selected>20</option>
+            <option value="30">30</option>
+            <option value="50">50</option>
+          </select>
+        </div>
+
+        {{-- Search --}}
+        <div class="position-relative flex-grow-1" style="min-width:260px;">
+          <input id="q" type="text" class="form-control ps-5" placeholder="Search title/description…" disabled>
+          <i class="fa fa-search position-absolute" style="left:12px;top:50%;transform:translateY(-50%);opacity:.6;"></i>
+        </div>
+
       </div>
 
-      {{-- Search --}}
-      <div class="position-relative flex-grow-1" style="min-width:260px;">
-        <input id="q" type="text" class="form-control ps-5" placeholder="Search title/description…" disabled>
-        <i class="fa fa-search position-absolute" style="left:12px;top:50%;transform:translateY(-50%);opacity:.6;"></i>
+      <div class="col-12 col-xl-auto ms-xl-auto d-flex justify-content-xl-end gap-2">
+
+        {{-- Filters button --}}
+        <button type="button" id="btnFilters" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#smFilterModal">
+          <i class="fa fa-filter me-1"></i> Filters
+        </button>
+
+        {{-- Create --}}
+        <a
+          id="btnCreate"
+          href="/admin/course/studyMaterial/create"
+          class="btn btn-primary"
+          data-create-url="/admin/course/studyMaterial/create"
+          disabled
+        >
+          <i class="fa fa-plus me-1"></i> New Material
+        </a>
       </div>
-
-    </div>
-
-    <div class="col-12 col-xl-auto ms-xl-auto d-flex justify-content-xl-end gap-2">
-
-      {{-- Filters button --}}
-      <button type="button" id="btnFilters" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#smFilterModal">
-        <i class="fa fa-filter me-1"></i> Filters
-      </button>
-
-      {{-- Create --}}
-      <a
-        id="btnCreate"
-        href="/admin/course/studyMaterial/create"
-        class="btn btn-primary"
-        data-create-url="/admin/course/studyMaterial/create"
-        disabled
-      >
-        <i class="fa fa-plus me-1"></i> New Material
-      </a>
     </div>
   </div>
-</div>
 
   {{-- ===== Card: Toolbar + Table ===== --}}
   <div class="card table-wrap">
@@ -258,10 +257,10 @@ html.theme-dark .lib-overlay-check {
       </div>
       <div class="modal-body">
         <div class="row g-3">
-          <div class="col-lg-4">
+          <div class="">
             <div class="attachment-list" id="attList"></div>
           </div>
-          <div class="col-lg-8">
+          <div class="">
             <div class="viewer-tools mb-2">
               <div class="badge badge-soft-info" id="vMime">—</div>
               <div class="badge badge-soft-primary" id="vSize">—</div>
@@ -323,7 +322,7 @@ html.theme-dark .lib-overlay-check {
 
           <div class="col-12">
             <label class="form-label">Attachments (PDF, DOC/DOCX, PPT/PPTX, XLS/XLSX, TXT, JPG/PNG/WEBP/SVG)</label>
-            
+
             {{-- ===== Drag & Drop Zone ===== --}}
             <div id="em_dropzone" class="border rounded p-5 text-center" style="border-style: dashed !important; cursor: pointer; background-color: #f8f9fa;">
               <div class="dz-message">
@@ -341,20 +340,26 @@ html.theme-dark .lib-overlay-check {
                 </div>
               </div>
             </div>
-            
+
             {{-- Hidden file input --}}
             <input id="em_files" type="file" class="d-none" multiple accept=".pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.txt,.png,.jpg,.jpeg,.webp,.svg,image/*,application/pdf,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/plain">
-            
+
             {{-- Selected files list --}}
             <div id="em_files_list" class="mt-3"></div>
-            
+
             <div class="small text-muted mt-1">Max 50MB per file. Videos are not allowed.</div>
           </div>
         </div>
       </div>
       <div class="modal-footer">
         <button class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
-        <button id="em_save" class="btn btn-primary"><i class="fa fa-save me-1"></i>Save</button>
+
+        {{-- (CHANGE #2) spinner inside Save button --}}
+        <button id="em_save" class="btn btn-primary d-inline-flex align-items-center">
+          <span id="em_save_spin" class="spinner-border spinner-border-sm me-2 d-none" role="status" aria-hidden="true"></span>
+          <i id="em_save_icon" class="fa fa-save me-1"></i>
+          <span id="em_save_txt">Save</span>
+        </button>
       </div>
     </div>
   </div>
@@ -413,6 +418,7 @@ html.theme-dark .lib-overlay-check {
     </div>
   </div>
 </div>
+
 {{-- ================= Filters Modal ================= --}}
 <div class="modal fade" id="smFilterModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered">
@@ -432,7 +438,6 @@ html.theme-dark .lib-overlay-check {
             <option value="published">Published</option>
             <option value="draft">Draft</option>
             <option value="scheduled">Scheduled</option>
-            {{-- add / adjust status values to match your API --}}
           </select>
         </div>
 
@@ -551,8 +556,7 @@ const metaTxt     = document.getElementById('metaTxt');
 const listToolbar = document.getElementById('listToolbar');
 const perPageSel  = document.getElementById('perPageSel');
 const btnFilters  = document.getElementById('btnFilters');
-// const listToolbar = document.getElementById('listToolbar');
-const toolbarPanel = listToolbar ? listToolbar.closest('.panel') : null; 
+const toolbarPanel = listToolbar ? listToolbar.closest('.panel') : null;
 
 const smTabActive   = document.getElementById('smTabActive');
 const smTabBin      = document.getElementById('smTabBin');
@@ -576,18 +580,15 @@ function setScope(newScope){
   scope   = newScope;
   binMode = (scope === 'bin');
 
-  // Tab active states
   if (smTabActive && smTabBin) {
     smTabActive.classList.toggle('active',   scope === 'active');
     smTabBin.classList.toggle('active',      scope === 'bin');
   }
 
-  // 👇 NEW: completely hide toolbar panel in Bin
   if (toolbarPanel) {
     toolbarPanel.classList.toggle('d-none', scope === 'bin');
   }
 
-  // Toolbar behaviour (keep if you still want disable logic when visible)
   if (listToolbar) {
     if (scope === 'bin') {
       listToolbar.classList.add('opacity-75');
@@ -656,11 +657,10 @@ function wire(){
     batchSel.innerHTML = '<option value="">Select a batch…</option>';
     enableFilters(false);
 
-    // reset table
     rowsEl.querySelectorAll('tr:not(#loaderRow):not(#ask)').forEach(n=>n.remove());
-    emptyEl.style.display='none'; 
+    emptyEl.style.display='none';
     askEl.style.display='';
-    pager.innerHTML=''; 
+    pager.innerHTML='';
     metaTxt.textContent='—';
     modulesForTable = [];
     moduleMaterialsCache.clear();
@@ -681,7 +681,7 @@ function wire(){
       rowsEl.querySelectorAll('tr:not(#loaderRow):not(#ask)').forEach(n=>n.remove());
       emptyEl.style.display='none';
       askEl.style.display='';
-      pager.innerHTML=''; 
+      pager.innerHTML='';
       metaTxt.textContent='—';
     }
   });
@@ -769,8 +769,6 @@ async function loadModules(courseId){
     });
     const j = await res.json();
     if(!res.ok) throw new Error(j?.message||'Failed to load modules');
-
-    // store modules for table
     modulesForTable = j?.data || [];
   }catch(e){
     modulesForTable = [];
@@ -804,7 +802,6 @@ function renderModuleTable(){
   pager.innerHTML='';
   metaTxt.textContent='—';
 
-  // Clear existing rows
   rowsEl.querySelectorAll('tr:not(#loaderRow):not(#ask)').forEach(n=>n.remove());
 
   if(!modulesForTable.length){
@@ -815,7 +812,6 @@ function renderModuleTable(){
 
   const frag = document.createDocumentFragment();
 
-  // simple pagination at module level if needed
   const total = modulesForTable.length;
   const per   = perPage;
   const pages = Math.max(1, Math.ceil(total / per));
@@ -830,7 +826,6 @@ function renderModuleTable(){
     const modTitle = m.title || '(untitled module)';
     const modDesc  = m.description || '';
 
-    // main module row
     const tr = document.createElement('tr');
     tr.className = 'module-row';
     tr.dataset.moduleId = modId;
@@ -852,7 +847,6 @@ function renderModuleTable(){
       </td>
     `;
 
-    // detail row for materials
     const trDetails = document.createElement('tr');
     trDetails.className = 'module-materials';
     trDetails.dataset.moduleId = modId;
@@ -871,7 +865,6 @@ function renderModuleTable(){
 
   rowsEl.appendChild(frag);
 
-  // pagination UI (module-level)
   const li=(dis,act,label,t)=>`<li class="page-item ${dis?'disabled':''} ${act?'active':''}">
     <a class="page-link" href="javascript:void(0)" data-page="${t||''}">${label}</a></li>`;
 
@@ -901,7 +894,6 @@ function renderModuleTable(){
 
   metaTxt.textContent = `Page ${cur} of ${pages} — ${total} module(s)`;
 
-  // wire expand buttons
   rowsEl.querySelectorAll('.module-row .toggle-mod').forEach(btn=>{
     btn.addEventListener('click',()=>{
       const tr = btn.closest('.module-row');
@@ -922,7 +914,6 @@ function renderModuleTable(){
     });
   });
 
-  // wire "Add material" button under each module
   rowsEl.querySelectorAll('[data-act="create-under-module"]').forEach(btn=>{
     btn.addEventListener('click',()=>{
       const mId = btn.dataset.moduleId;
@@ -943,7 +934,6 @@ async function loadModuleMaterials(moduleId){
   const wrap = document.getElementById(`mm_wrap_${moduleId}`);
   if(!wrap) return;
 
-  // if cached, just render
   if(moduleMaterialsCache.has(moduleId)){
     renderModuleMaterials(moduleId, moduleMaterialsCache.get(moduleId));
     return;
@@ -962,7 +952,6 @@ async function loadModuleMaterials(moduleId){
 
     if (q.value.trim()) usp.set('search', q.value.trim());
 
-    // status based on filter only
     if (statusFilter) {
       usp.set('status', statusFilter);
     }
@@ -1034,7 +1023,6 @@ function renderModuleMaterials(moduleId, items){
     </div>
   `;
 
-  // re-wire dropdown actions in this nested table
   wrap.querySelectorAll('.dropdown-item[data-act]').forEach(item=>{
     item.addEventListener('click', (e)=>{
       e.preventDefault();
@@ -1054,7 +1042,6 @@ function showAsk(v){ askEl.style.display = v ? '' : 'none'; }
 function showLoader(v){ loaderRow.style.display = v ? '' : 'none'; }
 
 function rowActions(r){
-  // BIN tab
   if (scope === 'bin') {
     return `
       <div class="dropdown text-end" data-bs-display="static">
@@ -1070,7 +1057,6 @@ function rowActions(r){
       </div>`;
   }
 
-  // ACTIVE tab
   return `
     <div class="dropdown text-end" data-bs-display="static">
       <button type="button" class="btn btn-primary btn-sm dd-toggle" data-bs-toggle="dropdown" aria-expanded="false" title="Actions">
@@ -1112,7 +1098,6 @@ async function loadList(){
   try{
     const usp=new URLSearchParams({
       course_id: courseSel.value,
-      // course_module_id: moduleSel.value||'', // moduleSel was removed; leaving original line commented
       batch_id: batchSel.value,
       per_page: perPage,
       page,
@@ -1120,7 +1105,7 @@ async function loadList(){
     });
     if(q.value.trim()) usp.set('search', q.value.trim());
     if(!binMode){
-      usp.set('include_deleted','0'); // optional, keep if your API uses it
+      usp.set('include_deleted','0');
     }
 
     const url = binMode ? API.binIndex(usp) : API.index(usp);
@@ -1178,6 +1163,7 @@ async function loadList(){
   }
 }
 
+/* =================== EDITOR =================== */
 const em_title = document.getElementById('em_title');
 const em_mode  = document.getElementById('em_mode');
 const em_id    = document.getElementById('em_id');
@@ -1196,8 +1182,19 @@ const em_browse      =document.getElementById('em_browse');
 const em_libraryBtn  =document.getElementById('em_library');
 const em_files_list  =document.getElementById('em_files_list');
 
+/* (CHANGE #2) spinner refs + saving guard */
+const em_save_spin = document.getElementById('em_save_spin');
+const em_save_icon = document.getElementById('em_save_icon');
+const em_save_txt  = document.getElementById('em_save_txt');
+let emIsSaving = false;
+
 let emDT = new DataTransfer();
 let emLibraryUrls = [];
+
+/* (CHANGE #1) dedupe helper (prevents same file being added twice) */
+function fileKey(f){
+  return `${f?.name||''}__${f?.size||0}__${f?.lastModified||0}`;
+}
 
 function renderEmFiles(){
   em_files_list.innerHTML = '';
@@ -1232,7 +1229,6 @@ function renderEmFiles(){
         <span class="badge bg-secondary ms-2">Library</span>
       </div>
       <button type="button" class="btn btn-sm btn-outline-danger ms-2" data-type="library" data-idx="${idx}">
-
         <i class="fa fa-trash"></i>
       </button>
     `;
@@ -1265,21 +1261,36 @@ em_files_list.addEventListener('click',(e)=>{
 function addEditorFiles(files){
   const maxPer = 50*1024*1024;
   let big = false;
+
+  /* (CHANGE #1) build existing set to prevent duplicates */
+  const existing = new Set(Array.from(emDT.files).map(fileKey));
+
   Array.from(files||[]).forEach(f=>{
     if(f.size > maxPer){
       big = true;
       err(`"${f.name}" exceeds 50 MB.`);
       return;
     }
+
+    const k = fileKey(f);
+    if(existing.has(k)) return; // skip duplicates
+    existing.add(k);
+
     emDT.items.add(f);
   });
+
   em_files.files = emDT.files;
   if(!big) ok('File(s) added');
   renderEmFiles();
 }
 
 if(em_dropzone){
-  em_dropzone.addEventListener('click', ()=> em_files.click());
+  /* (CHANGE #1) ignore clicks on inner buttons to avoid double-trigger */
+  em_dropzone.addEventListener('click', (e)=>{
+    if (e.target.closest('button')) return;
+    em_files.click();
+  });
+
   ['dragenter','dragover'].forEach(ev=>{
     em_dropzone.addEventListener(ev, e=>{
       e.preventDefault(); e.stopPropagation();
@@ -1297,9 +1308,17 @@ if(em_dropzone){
     if(files) addEditorFiles(files);
   });
 }
+
 if(em_browse){
-  em_browse.addEventListener('click',()=> em_files.click());
+  /* (CHANGE #1) stop bubbling so dropzone click doesn't fire too */
+  em_browse.addEventListener('click',(e)=>{
+    e.preventDefault();
+    e.stopPropagation();
+    em_files.click();
+  });
 }
+
+/* file picker */
 em_files.addEventListener('change', ()=> addEditorFiles(em_files.files));
 
 function resetEditor(){
@@ -1371,13 +1390,25 @@ async function openEdit(id){
 
 em_save.addEventListener('click', saveMaterial);
 
+/* (CHANGE #2) helper to show spinner + lock button (prevents double submit / double upload) */
+function setSaveLoading(on){
+  if(!em_save) return;
+  em_save.disabled = !!on;
+  if (em_save_spin) em_save_spin.classList.toggle('d-none', !on);
+  if (em_save_icon) em_save_icon.classList.toggle('d-none', !!on);
+  if (em_save_txt)  em_save_txt.textContent = on ? 'Saving…' : 'Save';
+}
+
 async function saveMaterial(){
+  /* (CHANGE #2) guard against double click */
+  if (emIsSaving) return;
+
   if(!em_title_input.value.trim())
     return Swal.fire('Title required','Please enter a title.','info');
 
   const fd=new FormData();
   fd.append('course_id', em_course_id.value);
-  fd.append('course_module_id', em_module_id.value);          // << keeps your change
+  fd.append('course_module_id', em_module_id.value);
   fd.append('batch_id', em_batch_id.value);
   fd.append('title', em_title_input.value.trim());
   if(em_desc.value.trim()) fd.append('description', em_desc.value.trim());
@@ -1391,28 +1422,47 @@ async function saveMaterial(){
   });
 
   try{
+    emIsSaving = true;
+    setSaveLoading(true);
+
     let url=API.store, method='POST';
     if (em_mode.value==='edit' && em_id.value) {
       url = API.update(em_id.value);
       fd.append('_method','PATCH');
       method='POST';
     }
+
     const res=await fetch(url,{
       method,
       headers:{ Authorization:'Bearer '+TOKEN, Accept:'application/json' },
       body: fd
     });
+
     const j=await res.json().catch(()=>({}));
     if(!res.ok) throw new Error((j?.message)|| (j?.errors ? Object.values(j.errors)[0] : 'Save failed'));
-    ok('Material saved');
-    bootstrap.Modal.getOrCreateInstance(document.getElementById('editModal')).hide();
 
-    // refresh module view instead of loadList()
+    ok('Material saved');
+    const editEl = document.getElementById('editModal');
+const inst = bootstrap.Modal.getInstance(editEl) || bootstrap.Modal.getOrCreateInstance(editEl);
+
+// after modal fully hides, force-clean any leftover backdrop/body state
+editEl.addEventListener('hidden.bs.modal', () => {
+  document.querySelectorAll('.modal-backdrop').forEach(b => b.remove());
+  document.body.classList.remove('modal-open');
+  document.body.style.removeProperty('padding-right');
+}, { once: true });
+
+inst.hide();
+
+
     moduleMaterialsCache.clear();
     if(batchSel.value) renderModuleTable();
 
   }catch(e){
     err(e.message||'Save failed');
+  }finally{
+    emIsSaving = false;
+    setSaveLoading(false);
   }
 }
 
@@ -1481,7 +1531,6 @@ async function restoreItem(id){
     err(e.message||'Restore failed');
   }
 }
-
 
 /* =================== VIEWER =================== */
 const vModal = new bootstrap.Modal(document.getElementById('viewModal'));
@@ -1763,11 +1812,10 @@ function renderLibraryGrid(){
 
     col.innerHTML = `
       <div class="card h-100 border-0 shadow-sm position-relative library-card">
-        <!-- checkbox overlay top-left -->
         <div class="lib-overlay-check">
-          <input 
-            class="form-check-input lib-check" 
-            type="checkbox" 
+          <input
+            class="form-check-input lib-check"
+            type="checkbox"
             data-key="${H.esc(att.key)}"
           >
         </div>
@@ -1816,8 +1864,8 @@ function renderLibraryGrid(){
 
 if (em_libraryBtn) {
   em_libraryBtn.addEventListener('click', (e) => {
-    e.preventDefault();      
-    e.stopPropagation();  
+    e.preventDefault();
+    e.stopPropagation();
     ensureLibraryLoaded('').then(() => {
       emLibraryUrls.forEach(u => {
         const base = (u || '').split('?')[0];
@@ -1833,7 +1881,7 @@ if (em_libraryBtn) {
     libraryModal.show();
   });
 }
-// search
+
 if(librarySearchBtn && librarySearch){
   librarySearchBtn.addEventListener('click', ()=>{
     const term = (librarySearch.value||'').trim();
@@ -1848,7 +1896,6 @@ if(librarySearchBtn && librarySearch){
   });
 }
 
-// confirm selection
 if(librarySelectBtn){
   librarySelectBtn.addEventListener('click', ()=>{
     if(!libSelected.size) return;
