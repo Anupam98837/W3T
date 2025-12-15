@@ -24,382 +24,697 @@ class BatchCodingQuestionController extends Controller
         ];
     }
 
+    private function tableExists(string $table): bool
+    {
+        try { return Schema::hasTable($table); } catch (\Throwable) { return false; }
+    }
+
     private function tableHasColumn(string $table, string $column): bool
     {
         static $cache = [];
         $key = $table . '.' . $column;
-        if (array_key_exists($key, $cache)) return $cache[$key];
+        if (array_key_exists($key, $cache)) return (bool)$cache[$key];
 
-        try {
-            return $cache[$key] = Schema::hasColumn($table, $column);
-        } catch (\Throwable $e) {
-            return $cache[$key] = false;
-        }
+        try { return $cache[$key] = Schema::hasColumn($table, $column); }
+        catch (\Throwable) { return $cache[$key] = false; }
     }
 
-    private function resolveBatchId($idOrUuid): ?int
+    private function resolveFirstExistingTable(array $candidates): ?string
     {
-        if (is_numeric($idOrUuid)) return (int)$idOrUuid;
-
-        $idOrUuid = (string)$idOrUuid;
-        if (Str::isUuid($idOrUuid)) {
-            $b = DB::table('batches')->where('uuid', $idOrUuid)->first();
-            return $b ? (int)$b->id : null;
+        foreach ($candidates as $t) {
+            if ($this->tableExists($t)) return $t;
         }
         return null;
     }
 
-    private function isStaffRole(string $role): bool
+    /**
+     * Resolve batch id from numeric id OR uuid-ish string.
+     * If batches table is missing, falls back to numeric casting.
+     */
+    private function resolveBatchId($batch): int
     {
-        return in_array($role, ['superadmin', 'admin', 'instructor'], true);
+        if (is_numeric($batch)) return (int)$batch;
+
+        $batchesTable = $this->resolveFirstExistingTable(['batches', 'course_batches', 'batch']);
+        if (!$batchesTable) {
+            // No batches table detected; cannot resolve uuid safely.
+            return 0;
+        }
+
+        $uuidCol = $this->tableHasColumn($batchesTable, 'uuid') ? 'uuid' :
+                  ($this->tableHasColumn($batchesTable, 'batch_uuid') ? 'batch_uuid' : null);
+
+        if (!$uuidCol) return 0;
+
+        $row = DB::table($batchesTable)->where($uuidCol, (string)$batch)->first();
+        return $row && isset($row->id) ? (int)$row->id : 0;
+    }
+
+    /**
+     * Detect mapping + question + attempts tables (best-effort).
+     */
+    private function detectTables(): array
+    {
+        $mapTable = $this->resolveFirstExistingTable([
+            'batch_coding_questions',
+            'batch_coding_question',
+            'batch_coding_question_map',
+            'batch_coding_questions_map',
+        ]);
+
+        $questionTable = $this->resolveFirstExistingTable([
+            'coding_questions',
+            'coding_question_bank',
+            'coding_question',
+        ]);
+
+        $attemptTable = $this->resolveFirstExistingTable([
+            'coding_test_attempts',
+            'coding_attempts',
+            'coding_question_attempts',
+            'judge_attempts',
+            'coding_submissions',
+            'code_submissions',
+        ]);
+
+        return [$mapTable, $questionTable, $attemptTable];
+    }
+
+    /**
+     * Detect common columns for FK joins.
+     */
+    private function detectQuestionFkCols(string $mapTable, string $questionTable): array
+    {
+        // map -> question FK column
+        $mapQCol = $this->tableHasColumn($mapTable, 'coding_question_uuid') ? 'coding_question_uuid' :
+                  ($this->tableHasColumn($mapTable, 'question_uuid') ? 'question_uuid' :
+                  ($this->tableHasColumn($mapTable, 'coding_question_id') ? 'coding_question_id' :
+                  ($this->tableHasColumn($mapTable, 'question_id') ? 'question_id' : null)));
+
+        // question PK (prefer uuid)
+        $qPkCol = $this->tableHasColumn($questionTable, 'uuid') ? 'uuid' :
+                 ($this->tableHasColumn($questionTable, 'question_uuid') ? 'question_uuid' :
+                 ($this->tableHasColumn($questionTable, 'id') ? 'id' : null));
+
+        return [$mapQCol, $qPkCol];
+    }
+
+    private function detectBatchFkCol(string $mapTable): ?string
+    {
+        return $this->tableHasColumn($mapTable, 'batch_id') ? 'batch_id' :
+              ($this->tableHasColumn($mapTable, 'course_batch_id') ? 'course_batch_id' :
+              ($this->tableHasColumn($mapTable, 'batch_uuid') ? 'batch_uuid' : null));
+    }
+
+    private function detectAttemptCols(string $attemptTable): array
+    {
+        $userCol = $this->tableHasColumn($attemptTable, 'user_id') ? 'user_id' :
+                  ($this->tableHasColumn($attemptTable, 'student_id') ? 'student_id' :
+                  ($this->tableHasColumn($attemptTable, 'attempt_by') ? 'attempt_by' :
+                  ($this->tableHasColumn($attemptTable, 'tokenable_id') ? 'tokenable_id' : null)));
+
+        $qCol = $this->tableHasColumn($attemptTable, 'question_uuid') ? 'question_uuid' :
+               ($this->tableHasColumn($attemptTable, 'coding_question_uuid') ? 'coding_question_uuid' :
+               ($this->tableHasColumn($attemptTable, 'coding_question_id') ? 'coding_question_id' :
+               ($this->tableHasColumn($attemptTable, 'question_id') ? 'question_id' : null)));
+
+        $batchCol = $this->tableHasColumn($attemptTable, 'batch_id') ? 'batch_id' :
+                   ($this->tableHasColumn($attemptTable, 'course_batch_id') ? 'course_batch_id' :
+                   ($this->tableHasColumn($attemptTable, 'batch_uuid') ? 'batch_uuid' : null));
+
+        $uuidCol = $this->tableHasColumn($attemptTable, 'uuid') ? 'uuid' :
+                  ($this->tableHasColumn($attemptTable, 'attempt_uuid') ? 'attempt_uuid' : null);
+
+        $statusCol = $this->tableHasColumn($attemptTable, 'status') ? 'status' :
+                    ($this->tableHasColumn($attemptTable, 'attempt_status') ? 'attempt_status' : null);
+
+        $startedCol = $this->tableHasColumn($attemptTable, 'started_at') ? 'started_at' :
+                     ($this->tableHasColumn($attemptTable, 'start_at') ? 'start_at' : null);
+
+        $submittedCol = $this->tableHasColumn($attemptTable, 'submitted_at') ? 'submitted_at' :
+                       ($this->tableHasColumn($attemptTable, 'end_at') ? 'end_at' : null);
+
+        $createdCol = $this->tableHasColumn($attemptTable, 'created_at') ? 'created_at' : null;
+
+        return [$userCol, $qCol, $batchCol, $uuidCol, $statusCol, $startedCol, $submittedCol, $createdCol];
+    }
+
+    private function detectAttemptAllowedCol(string $mapTable): ?string
+    {
+        return $this->tableHasColumn($mapTable, 'attempt_allowed') ? 'attempt_allowed' :
+              ($this->tableHasColumn($mapTable, 'attempts_allowed') ? 'attempts_allowed' :
+              ($this->tableHasColumn($mapTable, 'attempt_limit') ? 'attempt_limit' : null));
+    }
+
+    private function detectWindowCols(string $mapTable): array
+    {
+        $startCol = $this->tableHasColumn($mapTable, 'start_at') ? 'start_at' :
+                   ($this->tableHasColumn($mapTable, 'available_from') ? 'available_from' : null);
+
+        $endCol = $this->tableHasColumn($mapTable, 'end_at') ? 'end_at' :
+                 ($this->tableHasColumn($mapTable, 'available_to') ? 'available_to' : null);
+
+        return [$startCol, $endCol];
+    }
+
+    private function nowSql(): string
+    {
+        // safe string for SQL comparisons
+        return now()->toDateTimeString();
     }
 
     /* ============================================
-     | GET: List coding questions for a batch
-     | - Staff: ALL questions with assigned flag
-     | - Student: ONLY assigned + published + active + available
+     | API
      |============================================ */
+
+    /**
+     * GET /api/batches/{batch}/coding-questions
+     * - Students: returns assigned questions + attempts info + can_start
+     * - Staff: returns assigned questions (or all if ?mode=all) with assigned flag
+     */
     public function index(Request $r, $batch)
     {
-        $batchId = $this->resolveBatchId($batch);
-        if (!$batchId) {
-            return response()->json(['status' => 'error', 'message' => 'Batch not found'], 404);
+        [$mapTable, $questionTable, $attemptTable] = $this->detectTables();
+
+        if (!$mapTable || !$questionTable) {
+            return response()->json([
+                'ok' => false,
+                'error' => 'Required tables not found. Need batch_coding_questions & coding_questions (or equivalents).'
+            ], 500);
         }
 
         $actor = $this->actor($r);
-        $role  = $actor['role'];
-        $now   = now();
+        $role  = strtolower($actor['role'] ?? '');
+        $uid   = (int)($actor['id'] ?? 0);
 
-        $perPage = (int)$r->input('per_page', 25);
-        if ($perPage < 1) $perPage = 25;
-        if ($perPage > 100) $perPage = 100;
+        $batchId = $this->resolveBatchId($batch);
+        if ($batchId <= 0 && is_numeric($batch)) {
+            $batchId = (int)$batch;
+        }
+        if ($batchId <= 0) {
+            return response()->json(['ok' => false, 'error' => 'Batch not found/invalid.'], 404);
+        }
 
-        $page = (int)$r->input('page', 1);
-        if ($page < 1) $page = 1;
+        [$mapQCol, $qPkCol] = $this->detectQuestionFkCols($mapTable, $questionTable);
+        $mapBatchCol        = $this->detectBatchFkCol($mapTable);
+        $attemptAllowedCol  = $this->detectAttemptAllowedCol($mapTable);
+        [$startCol, $endCol]= $this->detectWindowCols($mapTable);
 
-        // Filters
-        $search     = trim((string)$r->input('q', ''));
-        $difficulty = trim((string)$r->input('difficulty', '')); // easy/medium/hard (as per your DB)
-        $status     = trim((string)$r->input('status', ''));     // active/inactive etc (cq.status)
-        $assigned   = $r->has('assigned') ? (int)$r->input('assigned') : null; // 1 or 0 (staff only)
+        if (!$mapQCol || !$qPkCol || !$mapBatchCol) {
+            return response()->json([
+                'ok' => false,
+                'error' => 'Cannot detect required FK columns on mapping/questions table.'
+            ], 500);
+        }
 
-        // Staff: show all questions (even unassigned) using LEFT JOIN
-        // Student: show only assigned (turn LEFT JOIN into INNER via whereNotNull)
-        $q = DB::table('coding_questions as cq')
-            ->leftJoin('batch_coding_questions as bcq', function ($join) use ($batchId) {
-                $join->on('bcq.question_id', '=', 'cq.id')
-                    ->where('bcq.batch_id', '=', $batchId);
+        $isStudent = ($role === 'student');
 
-                // soft-delete on pivot if exists
-                // (if deleted_at doesn’t exist, the condition is ignored by not adding it)
-            })
-            ->select([
-                'cq.id as question_id',
-                'cq.uuid as question_uuid',
-                'cq.title',
-                'cq.difficulty',
-                'cq.status as question_status',
-                'cq.total_attempts',
+        // Base mapping query (assigned rows)
+        $assignedQ = DB::table($mapTable . ' as bcq')
+            ->join($questionTable . ' as cq', "cq.$qPkCol", '=', "bcq.$mapQCol")
+            ->where("bcq.$mapBatchCol", '=', $batchId);
 
-                DB::raw('CASE WHEN bcq.id IS NULL THEN 0 ELSE 1 END as assigned'),
+        // Safe soft-delete filters (only if columns exist)
+        if ($this->tableHasColumn($mapTable, 'deleted_at')) $assignedQ->whereNull('bcq.deleted_at');
+        if ($this->tableHasColumn($questionTable, 'deleted_at')) $assignedQ->whereNull('cq.deleted_at');
 
-                // assignment fields (nullable when not assigned)
-                'bcq.uuid as assignment_uuid',
-                'bcq.status as assignment_status',
-                'bcq.display_order',
-                'bcq.available_from',
-                'bcq.available_until',
-                'bcq.publish_to_students',
-                'bcq.assign_status',
-                'bcq.attempt_allowed',
-            ]);
+        // Active filter if exists
+        if ($this->tableHasColumn($mapTable, 'is_active')) $assignedQ->where('bcq.is_active', 1);
 
-        // Add pivot deleted_at filter safely
-        if ($this->tableHasColumn('batch_coding_questions', 'deleted_at')) {
-            $q->where(function ($w) {
-                // either not assigned OR assigned and not soft-deleted
-                $w->whereNull('bcq.id')
-                  ->orWhereNull('bcq.deleted_at');
+        // Select fields (conditional)
+        $select = [
+            "cq.$qPkCol as question_key",
+        ];
+
+        // question fields (best effort)
+        foreach (['uuid','title','name','difficulty','level','tags','topic','slug'] as $col) {
+            if ($this->tableHasColumn($questionTable, $col)) $select[] = "cq.$col";
+        }
+
+        // mapping fields
+        foreach (['id','uuid','assigned_by','created_at','updated_at'] as $col) {
+            if ($this->tableHasColumn($mapTable, $col)) $select[] = "bcq.$col as map_$col";
+        }
+
+        if ($attemptAllowedCol) $select[] = "bcq.$attemptAllowedCol as attempt_allowed";
+        if ($startCol) $select[] = "bcq.$startCol as available_from";
+        if ($endCol)   $select[] = "bcq.$endCol as available_to";
+
+        // time fields from question (do in PHP later to avoid missing-column SQL errors)
+        foreach (['total_time_sec','time_limit_sec','duration_sec','time_sec','total_time','time_limit'] as $col) {
+            if ($this->tableHasColumn($questionTable, $col)) $select[] = "cq.$col";
+        }
+
+        $assignedQ->select($select);
+
+        // For staff, optionally return ALL questions with assigned flag
+        $mode = strtolower((string)$r->query('mode', 'assigned')); // assigned|all
+        if (!$isStudent && $mode === 'all') {
+            $allQ = DB::table($questionTable . ' as cq');
+
+            if ($this->tableHasColumn($questionTable, 'deleted_at')) $allQ->whereNull('cq.deleted_at');
+
+            // left join mapping for this batch
+            $allQ->leftJoin($mapTable . ' as bcq', function ($j) use ($qPkCol, $mapQCol, $mapBatchCol, $batchId, $mapTable) {
+                $j->on("bcq.$mapQCol", '=', "cq.$qPkCol")
+                  ->where("bcq.$mapBatchCol", '=', $batchId);
+
+                if ($this->tableHasColumn($mapTable, 'deleted_at')) {
+                    $j->whereNull('bcq.deleted_at');
+                }
             });
-        }
 
-        // coding_questions soft delete (safe)
-        if ($this->tableHasColumn('coding_questions', 'deleted_at')) {
-            $q->whereNull('cq.deleted_at');
-        }
+            // Select (merge)
+            $selectAll = ["cq.$qPkCol as question_key"];
+            foreach (['uuid','title','name','difficulty','level','tags','topic','slug'] as $col) {
+                if ($this->tableHasColumn($questionTable, $col)) $selectAll[] = "cq.$col";
+            }
+            foreach (['id','uuid'] as $col) {
+                if ($this->tableHasColumn($mapTable, $col)) $selectAll[] = "bcq.$col as map_$col";
+            }
+            if ($attemptAllowedCol) $selectAll[] = "bcq.$attemptAllowedCol as attempt_allowed";
+            if ($startCol) $selectAll[] = "bcq.$startCol as available_from";
+            if ($endCol)   $selectAll[] = "bcq.$endCol as available_to";
 
-        // Apply filters
-        if ($search !== '') {
-            $q->where(function ($w) use ($search) {
-                $w->where('cq.title', 'like', '%' . $search . '%')
-                  ->orWhere('cq.uuid', 'like', '%' . $search . '%');
+            foreach (['total_time_sec','time_limit_sec','duration_sec','time_sec','total_time','time_limit'] as $col) {
+                if ($this->tableHasColumn($questionTable, $col)) $selectAll[] = "cq.$col";
+            }
+
+            // Assigned flag
+            $assignedIdCol = $this->tableHasColumn($mapTable, 'id') ? 'id' : ($this->tableHasColumn($mapTable, 'uuid') ? 'uuid' : null);
+            if ($assignedIdCol) {
+                $selectAll[] = DB::raw("CASE WHEN bcq.$assignedIdCol IS NULL THEN 0 ELSE 1 END as is_assigned");
+            } else {
+                $selectAll[] = DB::raw("0 as is_assigned");
+            }
+
+            $rows = $allQ->select($selectAll)->orderBy('is_assigned', 'desc')->orderBy('question_key', 'desc')->get();
+
+            $data = $rows->map(function ($row) {
+                $timeSec = null;
+                foreach (['total_time_sec','time_limit_sec','duration_sec','time_sec','total_time','time_limit'] as $k) {
+                    if (isset($row->$k) && $row->$k !== null && $row->$k !== '') { $timeSec = (int)$row->$k; break; }
+                }
+                return [
+                    'question_key'    => $row->question_key,
+                    'uuid'            => $row->uuid ?? null,
+                    'title'           => $row->title ?? ($row->name ?? null),
+                    'difficulty'      => $row->difficulty ?? ($row->level ?? null),
+                    'tags'            => $row->tags ?? null,
+                    'time_sec'        => $timeSec,
+                    'is_assigned'     => (int)($row->is_assigned ?? 0) === 1,
+                    'attempt_allowed' => isset($row->attempt_allowed) ? (int)$row->attempt_allowed : null,
+                    'available_from'  => $row->available_from ?? null,
+                    'available_to'    => $row->available_to ?? null,
+                    'map_id'          => $row->map_id ?? null,
+                    'map_uuid'        => $row->map_uuid ?? null,
+                ];
             });
-        }
-        if ($difficulty !== '') {
-            $q->where('cq.difficulty', $difficulty);
-        }
-        if ($status !== '') {
-            $q->where('cq.status', $status);
+
+            return response()->json(['ok' => true, 'batch_id' => $batchId, 'mode' => 'all', 'items' => $data]);
         }
 
-        // STUDENT RULES: only assigned, active, published, available window
-        if ($role === 'student') {
-            $q->whereNotNull('bcq.id')
-              ->whereNull('bcq.deleted_at')
-              ->where('bcq.status', 'active')
-              ->where('bcq.publish_to_students', 1);
+        // Student: attach attempts aggregation (attempt_used / last_attempt_at / remaining / can_start)
+        if ($isStudent && $attemptTable) {
+            [$userCol, $qCol, $attBatchCol, $attUuidCol, $statusCol, $startedCol, $submittedCol, $createdCol] = $this->detectAttemptCols($attemptTable);
 
-            // if you want assign_status to gate student visibility, keep this:
-            $q->where('bcq.assign_status', 1);
+            if ($userCol && $qCol) {
+                $attAgg = DB::table($attemptTable)
+                    ->selectRaw("$qCol as qkey, COUNT(*) as attempt_used");
 
-            $q->where(function ($w) use ($now) {
-                $w->whereNull('bcq.available_from')
-                  ->orWhere('bcq.available_from', '<=', $now);
-            });
-            $q->where(function ($w) use ($now) {
-                $w->whereNull('bcq.available_until')
-                  ->orWhere('bcq.available_until', '>=', $now);
-            });
+                // last attempt date (best)
+                if ($createdCol) {
+                    $attAgg->selectRaw("MAX($createdCol) as last_attempt_at");
+                } elseif ($submittedCol) {
+                    $attAgg->selectRaw("MAX($submittedCol) as last_attempt_at");
+                } elseif ($startedCol) {
+                    $attAgg->selectRaw("MAX($startedCol) as last_attempt_at");
+                } else {
+                    $attAgg->selectRaw("NULL as last_attempt_at");
+                }
+
+                $attAgg->where($userCol, '=', $uid);
+
+                if ($attBatchCol) {
+                    $attAgg->where($attBatchCol, '=', $batchId);
+                }
+
+                $attAgg->groupBy($qCol);
+
+                $assignedQ->leftJoinSub($attAgg, 'att', function ($j) use ($mapQCol) {
+                    $j->on('att.qkey', '=', "bcq.$mapQCol");
+                });
+
+                $assignedQ->addSelect([
+                    DB::raw('COALESCE(att.attempt_used, 0) as attempt_used'),
+                    DB::raw('att.last_attempt_at as last_attempt_at'),
+                ]);
+            }
+        }
+
+        // Student availability flag (only if window cols exist)
+        if ($isStudent && ($startCol || $endCol)) {
+            $now = $this->nowSql();
+            if ($startCol && $endCol) {
+                $assignedQ->addSelect([
+                    DB::raw("CASE
+                        WHEN bcq.$startCol IS NOT NULL AND bcq.$startCol > '$now' THEN 'upcoming'
+                        WHEN bcq.$endCol   IS NOT NULL AND bcq.$endCol   < '$now' THEN 'closed'
+                        ELSE 'open' END as availability")
+                ]);
+            } elseif ($startCol) {
+                $assignedQ->addSelect([
+                    DB::raw("CASE WHEN bcq.$startCol IS NOT NULL AND bcq.$startCol > '$now' THEN 'upcoming' ELSE 'open' END as availability")
+                ]);
+            } else { // only endCol
+                $assignedQ->addSelect([
+                    DB::raw("CASE WHEN bcq.$endCol IS NOT NULL AND bcq.$endCol < '$now' THEN 'closed' ELSE 'open' END as availability")
+                ]);
+            }
         } else {
-            // STAFF OPTIONAL FILTER: assigned=1 or assigned=0
-            if ($assigned === 1) $q->whereNotNull('bcq.id')->whereNull('bcq.deleted_at');
-            if ($assigned === 0) $q->whereNull('bcq.id');
+            $assignedQ->addSelect([DB::raw("'open' as availability")]);
         }
 
-        // Ordering:
-        // - Staff: assigned first, then display_order, then title
-        // - Student: display_order, then title
-        if ($role === 'student') {
-            $q->orderByRaw('COALESCE(bcq.display_order, 999999) asc')
-              ->orderBy('cq.title', 'asc');
-        } else {
-            $q->orderByRaw('CASE WHEN bcq.id IS NULL THEN 1 ELSE 0 END asc')
-              ->orderByRaw('COALESCE(bcq.display_order, 999999) asc')
-              ->orderBy('cq.title', 'asc');
-        }
+        $rows = $assignedQ->orderBy('map_created_at', 'desc')->get();
 
-        // Paginate (manual page set to support query param consistently)
-        $paginator = $q->paginate($perPage, ['*'], 'page', $page);
+        $items = $rows->map(function ($row) use ($attemptAllowedCol) {
+            // compute time_sec safely
+            $timeSec = null;
+            foreach (['total_time_sec','time_limit_sec','duration_sec','time_sec','total_time','time_limit'] as $k) {
+                if (isset($row->$k) && $row->$k !== null && $row->$k !== '') { $timeSec = (int)$row->$k; break; }
+            }
+
+            $attemptAllowed = null;
+            if (isset($row->attempt_allowed)) $attemptAllowed = (int)$row->attempt_allowed;
+            if ($attemptAllowed === null || $attemptAllowed <= 0) $attemptAllowed = 1;
+
+            $attemptUsed = isset($row->attempt_used) ? (int)$row->attempt_used : 0;
+            $attemptRemaining = max(0, $attemptAllowed - $attemptUsed);
+
+            $availability = (string)($row->availability ?? 'open');
+            $canStart = ($availability === 'open') && ($attemptRemaining > 0);
+
+            return [
+                'question_key'       => $row->question_key,
+                'uuid'               => $row->uuid ?? null,
+                'title'              => $row->title ?? ($row->name ?? null),
+                'difficulty'         => $row->difficulty ?? ($row->level ?? null),
+                'tags'               => $row->tags ?? null,
+                'time_sec'           => $timeSec,
+
+                'attempt_allowed'    => $attemptAllowed,
+                'attempt_used'       => $attemptUsed,
+                'attempt_remaining'  => $attemptRemaining,
+                'last_attempt_at'    => $row->last_attempt_at ?? null,
+
+                'availability'       => $availability, // open|upcoming|closed
+                'available_from'     => $row->available_from ?? null,
+                'available_to'       => $row->available_to ?? null,
+                'can_start'          => $canStart,
+
+                'map_id'             => $row->map_id ?? null,
+                'map_uuid'           => $row->map_uuid ?? null,
+            ];
+        });
 
         return response()->json([
-            'status' => 'success',
-            'data'   => $paginator->items(),
-            'pagination' => [
-                'current_page' => $paginator->currentPage(),
-                'per_page'     => $paginator->perPage(),
-                'total'        => $paginator->total(),
-                'last_page'    => $paginator->lastPage(),
-            ],
-        ], 200);
+            'ok'       => true,
+            'batch_id' => $batchId,
+            'mode'     => $isStudent ? 'student' : 'assigned',
+            'items'    => $items,
+        ]);
     }
 
-    /* ============================================
-     | POST: Assign questions to batch (bulk/single)
-     | Body:
-     | - question_uuids: array (bulk) OR question_uuid: string (single)
-     | - attempt_allowed (optional)
-     | - publish_to_students (optional)
-     | - assign_status (optional)
-     | - available_from/until (optional)
-     |============================================ */
+    /**
+     * POST /api/batches/{batch}/coding-questions/assign
+     * Body: { question_uuid, attempt_allowed?, start_at?, end_at? }
+     */
     public function assign(Request $r, $batch)
     {
-        $batchId = $this->resolveBatchId($batch);
-        if (!$batchId) {
-            return response()->json(['status' => 'error', 'message' => 'Batch not found'], 404);
+        [$mapTable, $questionTable] = $this->detectTables();
+        if (!$mapTable || !$questionTable) {
+            return response()->json(['ok' => false, 'error' => 'Required tables not found.'], 500);
         }
 
         $actor = $this->actor($r);
-        if (!$this->isStaffRole($actor['role'])) {
-            return response()->json(['status' => 'error', 'message' => 'Forbidden'], 403);
+        $role  = strtolower($actor['role'] ?? '');
+        $uid   = (int)($actor['id'] ?? 0);
+
+        if (!in_array($role, ['superadmin', 'admin', 'instructor'], true)) {
+            return response()->json(['ok' => false, 'error' => 'Forbidden'], 403);
         }
 
-        // Support both: question_uuid or question_uuids[]
-        $payload = $r->all();
-        if (!empty($payload['question_uuid']) && empty($payload['question_uuids'])) {
-            $payload['question_uuids'] = [$payload['question_uuid']];
-        }
+        $batchId = $this->resolveBatchId($batch);
+        if ($batchId <= 0 && is_numeric($batch)) $batchId = (int)$batch;
+        if ($batchId <= 0) return response()->json(['ok' => false, 'error' => 'Batch not found/invalid.'], 404);
 
-        $v = Validator::make($payload, [
-            'question_uuids'        => 'required|array|min:1',
-            'question_uuids.*'      => 'required|string',
-            'attempt_allowed'       => 'nullable|integer|min:1|max:50',
-            'publish_to_students'   => 'nullable|boolean',
-            'assign_status'         => 'nullable|boolean',
-            'available_from'        => 'nullable|date',
-            'available_until'       => 'nullable|date|after_or_equal:available_from',
+        $v = Validator::make($r->all(), [
+            'question_uuid'   => 'required|string',
+            'attempt_allowed' => 'nullable|integer|min:1|max:50',
+            'start_at'        => 'nullable|date',
+            'end_at'          => 'nullable|date|after_or_equal:start_at',
         ]);
 
         if ($v->fails()) {
-            return response()->json(['status' => 'error', 'message' => $v->errors()->first()], 422);
+            return response()->json(['ok' => false, 'errors' => $v->errors()], 422);
         }
 
-        $p   = $v->validated();
-        $now = now();
+        [$mapQCol, $qPkCol] = $this->detectQuestionFkCols($mapTable, $questionTable);
+        $mapBatchCol        = $this->detectBatchFkCol($mapTable);
+        $attemptAllowedCol  = $this->detectAttemptAllowedCol($mapTable);
+        [$startCol, $endCol]= $this->detectWindowCols($mapTable);
 
-        // Fetch questions by uuid => id + total_attempts
-        $questions = DB::table('coding_questions')
-            ->whereIn('uuid', $p['question_uuids'])
-            ->select('id', 'uuid', 'total_attempts')
-            ->get();
-
-        if ($questions->isEmpty()) {
-            return response()->json(['status' => 'error', 'message' => 'No valid questions found'], 404);
+        if (!$mapQCol || !$qPkCol || !$mapBatchCol) {
+            return response()->json(['ok' => false, 'error' => 'Cannot detect required FK columns.'], 500);
         }
 
-        $qids = $questions->pluck('id')->map(fn($x) => (int)$x)->all();
+        // Validate question exists (best-effort)
+        $questionKey = (string)$r->input('question_uuid');
+        $qExists = DB::table($questionTable)->where($qPkCol, $questionKey);
+        if ($this->tableHasColumn($questionTable, 'deleted_at')) $qExists->whereNull('deleted_at');
+        if (!$qExists->exists()) {
+            return response()->json(['ok' => false, 'error' => 'Coding question not found.'], 404);
+        }
 
-        // Existing assignments for these questions (including soft-deleted)
-        $existingRows = DB::table('batch_coding_questions')
-            ->where('batch_id', $batchId)
-            ->whereIn('question_id', $qids)
-            ->select('id', 'question_id', 'display_order', 'deleted_at')
-            ->get()
-            ->keyBy('question_id');
+        $payload = [];
 
-        // Next display order for new inserts
-        $maxOrder = (int) DB::table('batch_coding_questions')
-            ->where('batch_id', $batchId)
-            ->when($this->tableHasColumn('batch_coding_questions', 'deleted_at'), fn($qq) => $qq->whereNull('deleted_at'))
-            ->max('display_order');
+        // Ensure mapping has uuid if column exists
+        if ($this->tableHasColumn($mapTable, 'uuid')) {
+            $payload['uuid'] = (string)Str::uuid();
+        }
 
-        $nextOrder = $maxOrder > 0 ? ($maxOrder + 1) : 1;
+        // Required keys
+        $payload[$mapBatchCol] = $batchId;
+        $payload[$mapQCol]     = $questionKey;
 
-        $inserted = 0;
-        $updated  = 0;
+        // Attempts
+        if ($attemptAllowedCol) {
+            $payload[$attemptAllowedCol] = (int)($r->input('attempt_allowed') ?: 1);
+        }
 
-        DB::beginTransaction();
+        // Window
+        if ($startCol && $r->filled('start_at')) $payload[$startCol] = $r->input('start_at');
+        if ($endCol   && $r->filled('end_at'))   $payload[$endCol]   = $r->input('end_at');
+
+        // Active
+        if ($this->tableHasColumn($mapTable, 'is_active')) $payload['is_active'] = 1;
+
+        // Audit
+        if ($this->tableHasColumn($mapTable, 'assigned_by')) $payload['assigned_by'] = $uid;
+        if ($this->tableHasColumn($mapTable, 'created_by'))  $payload['created_by']  = $uid;
+        if ($this->tableHasColumn($mapTable, 'updated_by'))  $payload['updated_by']  = $uid;
+        if ($this->tableHasColumn($mapTable, 'assigned_at')) $payload['assigned_at'] = now();
+        if ($this->tableHasColumn($mapTable, 'created_at'))  $payload['created_at']  = now();
+        if ($this->tableHasColumn($mapTable, 'updated_at'))  $payload['updated_at']  = now();
+
         try {
-            foreach ($questions as $q) {
-                $qid = (int)$q->id;
+            DB::beginTransaction();
 
-                // attempt_allowed default 1, and clamp to question total_attempts if present
-                $attemptAllowed = isset($p['attempt_allowed']) ? (int)$p['attempt_allowed'] : 1;
-                if (!is_null($q->total_attempts)) {
-                    $maxAttempts = (int)$q->total_attempts;
-                    if ($maxAttempts > 0 && $attemptAllowed > $maxAttempts) {
-                        $attemptAllowed = $maxAttempts;
-                    }
-                }
+            // If row exists (batch + question), update instead of inserting duplicates.
+            $existing = DB::table($mapTable)
+                ->where($mapBatchCol, $batchId)
+                ->where($mapQCol, $questionKey);
 
-                $data = [
-                    'status'              => 'active',
-                    'attempt_allowed'     => $attemptAllowed,
-                    'publish_to_students' => isset($p['publish_to_students']) ? (int)((bool)$p['publish_to_students']) : 0,
-                    'assign_status'       => isset($p['assign_status']) ? (int)((bool)$p['assign_status']) : 0,
-                    'available_from'      => $p['available_from'] ?? null,
-                    'available_until'     => $p['available_until'] ?? null,
-                    'updated_at'          => $now,
-                    'updated_at_ip'       => $r->ip(),
-                ];
+            if ($this->tableHasColumn($mapTable, 'deleted_at')) {
+                // revive soft-deleted rows if present
+                $payload['deleted_at'] = null;
+            }
 
-                $existing = $existingRows->get($qid);
+            if ($existing->exists()) {
+                // Don’t overwrite uuid if already there
+                if ($this->tableHasColumn($mapTable, 'uuid')) unset($payload['uuid']);
+                if (!$this->tableHasColumn($mapTable, 'created_at')) unset($payload['created_at']);
 
-                if ($existing) {
-                    // If restoring a soft-deleted assignment, ensure deleted_at cleared
-                    if ($this->tableHasColumn('batch_coding_questions', 'deleted_at')) {
-                        $data['deleted_at'] = null;
-                    }
-
-                    // Keep existing display_order unless it’s missing
-                    if (empty($existing->display_order)) {
-                        $data['display_order'] = $nextOrder++;
-                    }
-
-                    DB::table('batch_coding_questions')
-                        ->where('id', (int)$existing->id)
-                        ->update($data);
-
-                    $updated++;
-                } else {
-                    $insert = array_merge($data, [
-                        'uuid'          => (string) Str::uuid(),
-                        'batch_id'      => $batchId,
-                        'question_id'   => $qid,
-                        'display_order' => $nextOrder++,
-                        'created_by'    => $actor['id'],
-                        'created_at'    => $now,
-                        'created_at_ip' => $r->ip(),
-                    ]);
-
-                    DB::table('batch_coding_questions')->insert($insert);
-                    $inserted++;
-                }
+                $existing->update($payload);
+            } else {
+                DB::table($mapTable)->insert($payload);
             }
 
             DB::commit();
 
             return response()->json([
-                'status'   => 'success',
-                'message'  => 'Assigned successfully.',
-                'inserted' => $inserted,
-                'updated'  => $updated,
-            ], 200);
-
+                'ok' => true,
+                'message' => 'Assigned successfully',
+            ]);
         } catch (\Throwable $e) {
             DB::rollBack();
             Log::error('BatchCodingQuestionController@assign failed', [
-                'err' => $e->getMessage(),
-                'batch_id' => $batchId,
+                'error' => $e->getMessage(),
+                'batch' => $batch,
+                'batchId' => $batchId,
+                'question' => $questionKey,
             ]);
-            return response()->json(['status' => 'error', 'message' => 'Assignment failed'], 500);
+            return response()->json(['ok' => false, 'error' => 'Assign failed.'], 500);
         }
     }
 
-    /* ============================================
-     | DELETE: Unassign (soft delete)
-     | URL: /batches/{batch}/coding-questions/{questionUuid}
-     |============================================ */
-    public function unassign(Request $r, $batch, $questionUuid)
+    /**
+     * DELETE /api/batches/{batch}/coding-questions/{questionUuid}
+     */
+    public function unassign(Request $r, $batch, string $questionUuid)
     {
-        $batchId = $this->resolveBatchId($batch);
-        if (!$batchId) {
-            return response()->json(['status' => 'error', 'message' => 'Batch not found'], 404);
+        [$mapTable, $questionTable] = $this->detectTables();
+        if (!$mapTable) {
+            return response()->json(['ok' => false, 'error' => 'Mapping table not found.'], 500);
         }
 
         $actor = $this->actor($r);
-        if (!$this->isStaffRole($actor['role'])) {
-            return response()->json(['status' => 'error', 'message' => 'Forbidden'], 403);
+        $role  = strtolower($actor['role'] ?? '');
+        $uid   = (int)($actor['id'] ?? 0);
+
+        if (!in_array($role, ['superadmin', 'admin', 'instructor'], true)) {
+            return response()->json(['ok' => false, 'error' => 'Forbidden'], 403);
         }
 
-        if (!Str::isUuid((string)$questionUuid)) {
-            return response()->json(['status' => 'error', 'message' => 'Invalid question uuid'], 422);
+        $batchId = $this->resolveBatchId($batch);
+        if ($batchId <= 0 && is_numeric($batch)) $batchId = (int)$batch;
+        if ($batchId <= 0) return response()->json(['ok' => false, 'error' => 'Batch not found/invalid.'], 404);
+
+        // Detect FK cols
+        $questionTable = $questionTable ?: $this->resolveFirstExistingTable(['coding_questions','coding_question_bank','coding_question']);
+        if (!$questionTable) {
+            return response()->json(['ok' => false, 'error' => 'Question table not found.'], 500);
         }
 
-        $q = DB::table('coding_questions')->where('uuid', (string)$questionUuid)->select('id')->first();
-        if (!$q) {
-            return response()->json(['status' => 'error', 'message' => 'Question not found'], 404);
+        [$mapQCol] = $this->detectQuestionFkCols($mapTable, $questionTable);
+        $mapBatchCol = $this->detectBatchFkCol($mapTable);
+        if (!$mapQCol || !$mapBatchCol) {
+            return response()->json(['ok' => false, 'error' => 'Cannot detect FK columns.'], 500);
         }
 
-        $row = DB::table('batch_coding_questions')
-            ->where('batch_id', $batchId)
-            ->where('question_id', (int)$q->id)
-            ->first();
+        try {
+            $q = DB::table($mapTable)
+                ->where($mapBatchCol, $batchId)
+                ->where($mapQCol, $questionUuid);
 
-        if (!$row) {
-            return response()->json(['status' => 'error', 'message' => 'Assignment not found'], 404);
+            if ($this->tableHasColumn($mapTable, 'deleted_at')) {
+                $update = ['deleted_at' => now()];
+                if ($this->tableHasColumn($mapTable, 'updated_at')) $update['updated_at'] = now();
+                if ($this->tableHasColumn($mapTable, 'updated_by')) $update['updated_by'] = $uid;
+                $q->update($update);
+            } else {
+                $q->delete();
+            }
+
+            return response()->json(['ok' => true, 'message' => 'Unassigned successfully']);
+        } catch (\Throwable $e) {
+            Log::error('BatchCodingQuestionController@unassign failed', [
+                'error' => $e->getMessage(),
+                'batch' => $batch,
+                'batchId' => $batchId,
+                'question' => $questionUuid,
+            ]);
+            return response()->json(['ok' => false, 'error' => 'Unassign failed.'], 500);
+        }
+    }
+
+    /**
+     * GET /api/batches/{batch}/coding-questions/{questionUuid}/my-attempts
+     * Student-only: returns attempt list for result dropdown.
+     */
+    public function myAttempts(Request $r, $batch, string $questionUuid)
+    {
+        [$mapTable, $questionTable, $attemptTable] = $this->detectTables();
+        if (!$attemptTable) {
+            return response()->json(['ok' => true, 'attempts' => []]); // no attempts table detected
         }
 
-        $update = [
-            'updated_at'    => now(),
-            'updated_at_ip' => $r->ip(),
-        ];
+        $actor = $this->actor($r);
+        $role  = strtolower($actor['role'] ?? '');
+        $uid   = (int)($actor['id'] ?? 0);
 
-        if ($this->tableHasColumn('batch_coding_questions', 'deleted_at')) {
-            $update['deleted_at'] = now();
-        } else {
-            // fallback if no deleted_at exists (hard delete)
-            DB::table('batch_coding_questions')
-                ->where('id', (int)$row->id)
-                ->delete();
-
-            return response()->json(['status' => 'success', 'message' => 'Unassigned.'], 200);
+        if ($role !== 'student') {
+            return response()->json(['ok' => false, 'error' => 'Forbidden'], 403);
         }
 
-        DB::table('batch_coding_questions')
-            ->where('id', (int)$row->id)
-            ->update($update);
+        $batchId = $this->resolveBatchId($batch);
+        if ($batchId <= 0 && is_numeric($batch)) $batchId = (int)$batch;
+        if ($batchId <= 0) return response()->json(['ok' => false, 'error' => 'Batch not found/invalid.'], 404);
 
-        return response()->json(['status' => 'success', 'message' => 'Unassigned.'], 200);
+        // Ensure question is assigned to this batch (best effort)
+        if ($mapTable && $questionTable) {
+            [$mapQCol] = $this->detectQuestionFkCols($mapTable, $questionTable);
+            $mapBatchCol = $this->detectBatchFkCol($mapTable);
+            if ($mapQCol && $mapBatchCol) {
+                $assigned = DB::table($mapTable)
+                    ->where($mapBatchCol, $batchId)
+                    ->where($mapQCol, $questionUuid);
+                if ($this->tableHasColumn($mapTable, 'deleted_at')) $assigned->whereNull('deleted_at');
+                if (!$assigned->exists()) {
+                    return response()->json(['ok' => false, 'error' => 'Not assigned to this batch.'], 404);
+                }
+            }
+        }
+
+        [$userCol, $qCol, $attBatchCol, $attUuidCol, $statusCol, $startedCol, $submittedCol, $createdCol] = $this->detectAttemptCols($attemptTable);
+
+        if (!$userCol || !$qCol) {
+            return response()->json(['ok' => true, 'attempts' => []]);
+        }
+
+        $q = DB::table($attemptTable)->where($userCol, $uid)->where($qCol, $questionUuid);
+        if ($attBatchCol) $q->where($attBatchCol, $batchId);
+
+        // Soft delete safe
+        if ($this->tableHasColumn($attemptTable, 'deleted_at')) $q->whereNull('deleted_at');
+
+        // Select columns
+        $sel = [];
+        if ($attUuidCol) $sel[] = $attUuidCol . ' as attempt_key';
+        if ($this->tableHasColumn($attemptTable, 'id')) $sel[] = 'id';
+        if ($statusCol) $sel[] = "$statusCol as status";
+        if ($startedCol) $sel[] = "$startedCol as started_at";
+        if ($submittedCol) $sel[] = "$submittedCol as submitted_at";
+        if ($createdCol) $sel[] = "$createdCol as created_at";
+
+        // attempt number if exists
+        if ($this->tableHasColumn($attemptTable, 'attempt_no')) $sel[] = 'attempt_no';
+
+        if (empty($sel)) $sel = ['*'];
+
+        $rows = $q->select($sel)->orderBy($createdCol ?: ($submittedCol ?: ($startedCol ?: 'id')), 'desc')->get();
+
+        $attempts = [];
+        $i = 0;
+        foreach ($rows as $row) {
+            $i++;
+            $key = $row->attempt_key ?? ($row->uuid ?? ($row->id ?? null));
+            if (!$key) continue;
+
+            $attemptNo = isset($row->attempt_no) ? (int)$row->attempt_no : $i;
+
+            $attempts[] = [
+                'attempt_key'  => (string)$key,
+                'attempt_no'   => $attemptNo,
+                'status'       => $row->status ?? null,
+                'started_at'   => $row->started_at ?? null,
+                'submitted_at' => $row->submitted_at ?? null,
+                'created_at'   => $row->created_at ?? null,
+                // Your UI can open this page (you can implement route/view)
+                'view_url'     => url('/coding-tests/results/' . $key),
+            ];
+        }
+
+        return response()->json(['ok' => true, 'attempts' => $attempts]);
     }
 }

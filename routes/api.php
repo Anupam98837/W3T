@@ -597,14 +597,18 @@ Route::middleware(['checkRole:superadmin,admin,instructor,student'])->group(func
 // Coding test Judge Routes
  
 Route::middleware(['checkRole:superadmin,admin,instructor,student'])->group(function () {
+
     Route::prefix('judge')->group(function () {
-        Route::post('/execute', [JudgeController::class, 'run']);    
-        Route::post('/submit',  [JudgeController::class, 'submit']);  
+        Route::post('/start',   [JudgeController::class, 'start']);
+        Route::post('/execute', [JudgeController::class, 'run']);
+        Route::post('/submit',  [JudgeController::class, 'submit']);
     });
+
     Route::prefix('batches/{batch}/coding-questions')->group(function () {
-        Route::get('/',                         [BatchCodingQuestionController::class, 'index']);
-        Route::post('/assign',                  [BatchCodingQuestionController::class, 'assign']);  
-        Route::delete('/{questionUuid}',        [BatchCodingQuestionController::class, 'unassign']);
+        Route::get('/',                  [BatchCodingQuestionController::class, 'index']);
+        Route::post('/assign',           [BatchCodingQuestionController::class, 'assign']);
+        Route::delete('/{questionUuid}', [BatchCodingQuestionController::class, 'unassign']);
+        Route::get('/{questionUuid}/my-attempts', [BatchCodingQuestionController::class, 'myAttempts']);
     });
- 
+
 });

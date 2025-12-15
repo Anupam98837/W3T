@@ -459,6 +459,7 @@ class CodingQuestionController extends Controller
             'slug'         => 'nullable|string|min:2|max:200', // auto/normalized if empty
             'difficulty'   => 'nullable|in:easy,medium,hard',
             'total_attempts' => 'nullable|integer|min:1|max:50',
+            'total_time_min' => 'nullable|integer|min:1|max:10080', // minutes (1 min to 7 days)
             'status'       => 'nullable|in:active,draft,archived',
             'sort_order'   => 'nullable|integer|min:0',
             'description'  => 'nullable|string',
@@ -544,6 +545,10 @@ class CodingQuestionController extends Controller
                 'difficulty'      => $data['difficulty']  ?? 'medium',
                 'status'          => $data['status']      ?? 'active',
                 'total_attempts' => (int) ($data['total_attempts'] ?? 1),
+                'total_time_min' => array_key_exists('total_time_min', $data) && $data['total_time_min'] !== null
+    ? (int) $data['total_time_min']
+    : null,
+
                 'sort_order'      => $data['sort_order']  ?? 0,
                 'description'     => $data['description'] ?? null,
                 'compare_mode'    => $data['compare_mode']    ?? 'exact',
@@ -669,6 +674,7 @@ class CodingQuestionController extends Controller
             'difficulty'   => 'nullable|in:easy,medium,hard',
             'status'       => 'nullable|in:active,draft,archived',
             'total_attempts' => 'nullable|integer|min:1|max:50',
+            'total_time_min' => 'nullable|integer|min:1|max:10080',
             'sort_order'   => 'nullable|integer|min:0',
             'description'  => 'nullable|string',
 
@@ -775,6 +781,7 @@ class CodingQuestionController extends Controller
                 'compare_mode',
                 'whitespace_mode',
                 'total_attempts',
+                'total_time_min',
             ] as $f) {
                 if (array_key_exists($f, $data)) {
                     $payload[$f] = $data[$f];
