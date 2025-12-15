@@ -13,7 +13,6 @@
 /* Table Card */
 .table-wrap.card{border:1px solid var(--line-strong);border-radius:16px;background:var(--surface);box-shadow:var(--shadow-2);overflow:visible}
 .table-wrap .card-body{overflow:visible}
-.table-responsive{overflow:visible !important}
 .table{--bs-table-bg:transparent}
 .table thead th{font-weight:600;color:var(--muted-color);font-size:13px;border-bottom:1px solid var(--line-strong);background:var(--surface)}
 .table tbody tr{border-top:1px solid var(--line-soft)}
@@ -106,7 +105,6 @@ html.theme-dark .dropzone{background:#0b1020;border-color:var(--line-strong)}
 html.theme-dark .media-item{background:#0b1020;border-color:var(--line-strong)}
 
 /* Dropdown visibility safety nets */
-.table-wrap, .table-wrap .card-body, .table-responsive { overflow: visible !important; }
 .table-wrap .dropdown { position: relative; }
 .table-wrap .dropdown-menu { z-index: 2050; }
 

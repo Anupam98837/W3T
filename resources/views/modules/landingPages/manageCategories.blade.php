@@ -12,44 +12,6 @@
   margin:16px auto 40px;
   overflow:visible;
 }
-/* .panel{
-  background:#fff;
-  border:1px solid #e5e7eb;
-  border-radius:16px;
-  box-shadow:0 10px 30px rgba(15,23,42,.08);
-  padding:14px;
-} */
-
-/* Cards / table wrapper */
-/* .card.table-wrap{
-  position:relative;
-  border:1px solid #e5e7eb;
-  border-radius:16px;
-  background:#fff;
-  box-shadow:0 10px 30px rgba(15,23,42,.08);
-  overflow:visible;
-}
-.table-wrap .card-body{overflow:visible;}
-.table-responsive{overflow:visible !important;}
-
-.table{
-  --bs-table-bg:transparent;
-}
-.table thead th{
-  font-weight:600;
-  color:#64748b;
-  font-size:13px;
-  border-bottom:1px solid #e5e7eb;
-  background:#fff;
-  white-space:nowrap;
-}
-.table thead.sticky-top{z-index:3;}
-.table tbody tr{
-  border-top:1px solid #e5e7eb;
-}
-.table tbody tr:hover{
-  background:#f8fafc;
-} */
 .small{font-size:12.5px;}
 
 /* Modal */
@@ -148,6 +110,18 @@ html.theme-dark textarea{
   background:#f1f5f9!important;
 }
 #categoriesPage.reorder-mode #catTbody tr { cursor: move; }
+/* RTE active tool state (DON'T use .active) */
+.rte-toolbar .rte-tool.is-active{
+  background: var(--primary-color, #2563eb);
+  color:#fff;
+}
+.rte-toolbar .rte-tool.is-active i{ color:#fff !important; }
+
+/* optional: focused editor ring */
+.rte-wrap.is-focused{
+  border-color: var(--primary-color, #2563eb);
+  box-shadow: 0 0 0 3px rgba(37,99,235,.18);
+}
 
 </style>
 @endpush
@@ -439,6 +413,100 @@ document.addEventListener("DOMContentLoaded", () => {
       if (rteDesc.innerHTML.trim() === "") syncRtePlaceholder(rteDesc);
     });
   }
+(function () {
+  if (window.__CAT_RTE_ACTIVE_SYNC__) return;
+  window.__CAT_RTE_ACTIVE_SYNC__ = true;
+
+  function selectionInside(editor) {
+    const sel = document.getSelection();
+    if (!sel || !sel.anchorNode) return false;
+    return sel.anchorNode === editor || editor.contains(sel.anchorNode);
+  }
+
+  function anchorActive(editor) {
+    const sel = document.getSelection();
+    if (!sel || !sel.anchorNode) return false;
+    let n = sel.anchorNode.nodeType === 1 ? sel.anchorNode : sel.anchorNode.parentElement;
+    if (!n) return false;
+    // inside <a> ?
+    return !!(n.closest && n.closest("a"));
+  }
+
+  function bindOne(toolbar) {
+    if (toolbar.__rteBound) return;
+
+    const wrap = toolbar.closest(".rte-wrap");
+    const editor = wrap ? wrap.querySelector(".rte") : null;
+    if (!editor) return;
+
+    toolbar.__rteBound = true;
+    const tools = Array.from(toolbar.querySelectorAll(".rte-tool"));
+
+    function clearAll() {
+      tools.forEach(btn => {
+        btn.classList.remove("is-active");
+        btn.setAttribute("aria-pressed", "false");
+      });
+      if (wrap) wrap.classList.remove("is-focused");
+    }
+
+    function update() {
+      const inside = selectionInside(editor) || document.activeElement === editor;
+
+      if (wrap) wrap.classList.toggle("is-focused", document.activeElement === editor);
+
+      if (!inside) {
+        clearAll();
+        return;
+      }
+
+      tools.forEach(btn => {
+        const cmd = btn.dataset.cmd;
+        let on = false;
+
+        try {
+          if (cmd === "createLink") {
+            on = anchorActive(editor);
+          } else if (cmd) {
+            on = !!document.queryCommandState(cmd);
+          }
+        } catch {
+          on = false;
+        }
+
+        btn.classList.toggle("is-active", on);
+        btn.setAttribute("aria-pressed", on ? "true" : "false");
+      });
+    }
+
+    // after toolbar actions
+    toolbar.addEventListener("click", () => setTimeout(update, 30));
+
+    // while typing / caret moves
+    ["keyup", "mouseup", "input", "focus", "blur"].forEach(ev => {
+      editor.addEventListener(ev, () => setTimeout(update, 0));
+    });
+
+    // selection changes
+    document.addEventListener("selectionchange", () => {
+      if (selectionInside(editor)) update();
+      else clearAll();
+    });
+
+    update();
+  }
+
+  function initAll() {
+    // bind all RTE toolbars in this page (currently only description)
+    document.querySelectorAll(".rte-toolbar").forEach(bindOne);
+  }
+
+  initAll();
+
+  // in case modal content is re-rendered
+  const mo = new MutationObserver(initAll);
+  mo.observe(document.body, { childList: true, subtree: true });
+})();
 
   // RTE toolbar handler — only for description now
   document.addEventListener("click", e => {
