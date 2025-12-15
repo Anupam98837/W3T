@@ -78,6 +78,13 @@
   object-position: center center;
   display: block;
 }
+.toolbar .tool.is-active{
+  background: var(--primary-color);
+  border-color: var(--primary-color);
+  color:#fff;
+}
+.toolbar .tool.is-active i{ color:#fff !important; }
+.rte.rte-active{ outline: 2px solid var(--primary-color); outline-offset: 2px; border-radius: 10px; }
 
   
 </style>
@@ -324,6 +331,127 @@
       }finally{ setBusy(false); }
     });
   }
+(function () {
+  // prevent double-init
+  if (window.__NOTICE_RTE_ACTIVE_SYNC__) return;
+  window.__NOTICE_RTE_ACTIVE_SYNC__ = true;
+
+  const FORMAT_MAP = { H1: "h1", H2: "h2", H3: "h3", P: "p" };
+
+  function selectionInside(editor) {
+    const sel = document.getSelection();
+    if (!sel || !sel.anchorNode) return false;
+    const node = sel.anchorNode;
+    return node === editor || editor.contains(node);
+  }
+
+  function isFormatActive(fmt) {
+    try {
+      const val = (document.queryCommandValue("formatBlock") || "").toLowerCase();
+      const want = (FORMAT_MAP[fmt] || fmt || "").toLowerCase();
+      return !!want && val.includes(want);
+    } catch {
+      return false;
+    }
+  }
+
+  function findEditorForToolbar(toolbar) {
+    // Your Create Notice layout: toolbar -> next sibling .rte-wrap -> .rte
+    const next = toolbar.nextElementSibling;
+    if (next && next.classList && next.classList.contains("rte-wrap")) {
+      const ed = next.querySelector(".rte");
+      if (ed) return ed;
+    }
+
+    // fallback: search inside the same block
+    const block =
+      toolbar.closest(".mb-1,.mb-2,.mb-3,.mb-4,.col-12,.col-md-12,.form-group") ||
+      toolbar.parentElement ||
+      document;
+
+    return block.querySelector(".rte-wrap .rte");
+  }
+
+  function bindToolbar(toolbar) {
+    if (toolbar.__rteBound) return;
+
+    // IMPORTANT: only bind Create Notice toolbar
+    if (toolbar.id !== "rte_toolbar") return;
+
+    const editor = findEditorForToolbar(toolbar);
+    if (!editor) return;
+
+    toolbar.__rteBound = true;
+    const tools = Array.from(toolbar.querySelectorAll(".tool"));
+
+    function clearAll() {
+      tools.forEach((btn) => {
+        btn.classList.remove("is-active");
+        btn.setAttribute("aria-pressed", "false");
+      });
+      editor.classList.remove("rte-active");
+    }
+
+    function update() {
+      const inside = selectionInside(editor) || document.activeElement === editor;
+
+      // editor ring hook (optional)
+      editor.classList.toggle("rte-active", document.activeElement === editor);
+
+      // If caret not inside editor, clear states (prevents “stuck” active look)
+      if (!inside) {
+        clearAll();
+        return;
+      }
+
+      tools.forEach((btn) => {
+        const cmd = btn.dataset.cmd;
+        const fmt = btn.dataset.format;
+
+        let on = false;
+        try {
+          if (cmd) on = !!document.queryCommandState(cmd);
+          else if (fmt) on = isFormatActive(fmt);
+        } catch {
+          on = false;
+        }
+
+        btn.classList.toggle("is-active", on);
+        btn.setAttribute("aria-pressed", on ? "true" : "false");
+      });
+    }
+
+    // update after toolbar actions (your existing execCommand handler can remain)
+    toolbar.addEventListener("click", () => setTimeout(update, 30));
+
+    // update while typing / caret moves
+    ["keyup", "mouseup", "input", "focus", "blur"].forEach((ev) => {
+      editor.addEventListener(ev, () => setTimeout(update, 0));
+    });
+
+    // update when selection changes (only if in this editor)
+    document.addEventListener("selectionchange", () => {
+      if (selectionInside(editor)) update();
+      else clearAll();
+    });
+
+    update();
+  }
+
+  function init() {
+    document.querySelectorAll(".toolbar").forEach(bindToolbar);
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", init);
+  } else {
+    init();
+  }
+
+  // if your HTML is injected later (rare here), still safe
+  const mo = new MutationObserver(init);
+  mo.observe(document.body, { childList: true, subtree: true });
+})();
 
   /* ===== RTE toolbar & placeholder (robust) ===== */
   const rte = $('rte');

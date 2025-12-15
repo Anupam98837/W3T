@@ -113,7 +113,8 @@
     .lx-login{
       width:100%; height:48px; border:none; border-radius:12px; font-weight:700; color:#fff;
       background:linear-gradient(180deg, color-mix(in oklab, var(--primary-color) 92%, #fff 8%), var(--primary-color));
-      box-shadow:0 10px 22px rgba(149,30,170,.22); transition:var(--transition);
+      /* box-shadow:0 10px 22px rgba(149,30,170,22);  */
+      transition:var(--transition);
     }
     .lx-login:hover{ filter:brightness(.98); transform:translateY(-1px); }
 
@@ -206,6 +207,12 @@ input[type="password"]::-webkit-credentials-auto-fill-button {
 input[type="password"]::-webkit-textfield-decoration-container {
     opacity: 0 !important;
 }
+.lx-register-link {
+  font-weight: 600;
+}
+.lx-register-link:hover {
+  text-decoration: underline;
+}
 
   </style>
 </head>
@@ -256,11 +263,19 @@ input[type="password"]::-webkit-textfield-decoration-container {
         </div>
         <a class="text-decoration-none" href="/forgot-password">Forgot password?</a>
       </div>
-
+      
       <button class="lx-login" id="lx_btn" type="submit">
         <span class="me-2"><i class="fa-solid fa-right-to-bracket"></i></span> Login
       </button>
+      <div class="mt-3 text-center">
+  <p class="lx-sub">
+    Don't have an account?
+    <a href="/register" class="text-decoration-none lx-register-link">Register with Us</a>
+  </p>
+</div>
+
     </form>
+
   </section>
 
   <!-- RIGHT: VISUAL (hidden on mobile) -->

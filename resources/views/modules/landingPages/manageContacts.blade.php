@@ -47,7 +47,6 @@ html.theme-dark .form-control,html.theme-dark .form-select,html.theme-dark texta
 .card,
 .panel,
 .cm-wrap {
-  overflow: visible !important;
   transform: none !important;
 }
 </style>

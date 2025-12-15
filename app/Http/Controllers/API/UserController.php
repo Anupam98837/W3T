@@ -907,5 +907,59 @@ public function register(Request $request)
         return response()->json(['status'=>'error','message'=>'Could not register user'], 500);
     }
 }
+public function getProfile(Request $request)
+{
+    $userId = $this->currentUserId($request);
+
+    if (!$userId) {
+        return response()->json([
+            'status' => 'error',
+            'message' => 'Unauthorized'
+        ], 401);
+    }
+
+    $user = DB::table('users')->where('id', $userId)->first();
+
+    if (!$user) {
+        return response()->json([
+            'status' => 'error',
+            'message' => 'User not found'
+        ], 404);
+    }
+
+    // Role-based frontend permissions
+    $isEditable = in_array($user->role, ['admin', 'super_admin']);
+
+    $permissions = [
+        'can_edit_profile'   => $isEditable,
+        'can_change_image'   => $isEditable,
+        'can_change_password'=> $isEditable,
+        'can_view_profile'   => true
+    ];
+
+    // API endpoints to be used by frontend
+    $endpoints = [
+        'update_profile' => "/api/users/{$user->id}",
+        'update_image'   => "/api/users/{$user->id}/image",
+        'update_password'=> "/api/users/{$user->id}/password"
+    ];
+
+    return response()->json([
+        'status' => 'success',
+        'user' => [
+            'id'              => $user->id,
+            'name'            => $user->name,
+            'email'           => $user->email,
+            'phone_number'    => $user->phone_number,
+            'address'         => $user->address,
+            'role'            => $user->role,
+            'role_short_form' => $user->role_short_form,
+            'image'           => $user->image,
+            'status'          => $user->status,
+        ],
+        'permissions' => $permissions,
+        'endpoints' => $endpoints
+    ]);
+}
 
 }

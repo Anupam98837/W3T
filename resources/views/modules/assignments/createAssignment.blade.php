@@ -668,6 +668,113 @@
     $('busy').classList.toggle('show', !!on);
     setFormDisabled(!!on);
   }
+(function () {
+  // prevent double-init if included multiple times
+  if (window.__RTE_ACTIVE_SYNC__) return;
+  window.__RTE_ACTIVE_SYNC__ = true;
+
+  const FORMAT_MAP = { H1: "h1", H2: "h2", H3: "h3", P: "p" };
+
+  function findEditorForToolbar(toolbar) {
+    // Most common: toolbar -> next sibling .rte-wrap -> .rte
+    let next = toolbar.nextElementSibling;
+    if (next && next.classList && next.classList.contains("rte-wrap")) {
+      const ed = next.querySelector(".rte");
+      if (ed) return ed;
+    }
+
+    // Fallback: search nearby container
+    const block =
+      toolbar.closest(".mb-1,.mb-2,.mb-3,.mb-4,.col-12,.col-md-12,.form-group") ||
+      toolbar.parentElement ||
+      document;
+
+    return block.querySelector(".rte-wrap .rte");
+  }
+
+  function selectionInside(editor) {
+    const sel = document.getSelection();
+    if (!sel || !sel.anchorNode) return false;
+    const node = sel.anchorNode;
+    return node === editor || editor.contains(node);
+  }
+
+  function isFormatActive(fmt) {
+    try {
+      const val = (document.queryCommandValue("formatBlock") || "").toLowerCase();
+      const want = (FORMAT_MAP[fmt] || fmt || "").toLowerCase();
+      return !!want && val.includes(want);
+    } catch {
+      return false;
+    }
+  }
+
+  function bindToolbar(toolbar) {
+    if (toolbar.__rteBound) return; // avoid rebinding
+    const editor = findEditorForToolbar(toolbar);
+    if (!editor) return;
+
+    toolbar.__rteBound = true;
+
+    const tools = Array.from(toolbar.querySelectorAll(".tool"));
+
+    function update() {
+      const inside = selectionInside(editor) || document.activeElement === editor;
+
+      // Editor ring (optional)
+      editor.classList.toggle("active", document.activeElement === editor);
+
+      if (!inside) return;
+
+      tools.forEach((btn) => {
+        const cmd = btn.dataset.cmd;
+        const fmt = btn.dataset.format;
+
+        let on = false;
+        try {
+          if (cmd) on = !!document.queryCommandState(cmd);
+          else if (fmt) on = isFormatActive(fmt);
+        } catch {
+          on = false;
+        }
+
+        btn.classList.toggle("active", on);
+        btn.setAttribute("aria-pressed", on ? "true" : "false");
+      });
+    }
+
+    // update after toolbar actions (your existing execCommand can remain as-is)
+    toolbar.addEventListener("click", () => setTimeout(update, 30));
+
+    // update while typing / moving caret
+    ["keyup", "mouseup", "input", "focus", "blur"].forEach((ev) => {
+      editor.addEventListener(ev, () => setTimeout(update, 0));
+    });
+
+    // update when selection changes (only if inside this editor)
+    document.addEventListener("selectionchange", () => {
+      if (selectionInside(editor)) update();
+    });
+
+    // initial
+    update();
+  }
+
+  function initAll() {
+    document.querySelectorAll(".toolbar").forEach(bindToolbar);
+  }
+
+  // init now / on load
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", initAll);
+  } else {
+    initAll();
+  }
+
+  // handle editors that appear later (modals, dynamic HTML)
+  const mo = new MutationObserver(() => initAll());
+  mo.observe(document.body, { childList: true, subtree: true });
+})();
 
   /* ===== wire RTE ===== */
   function wireRTE(rootId, linkBtnId){

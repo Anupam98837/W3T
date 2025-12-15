@@ -872,3 +872,35 @@ html.theme-dark .media-item{background:#0b1020;border-color:var(--line-strong)}
   color: var(--accent-color);
 }
 html.theme-dark .rte{background:#0f172a;border-color:var(--line-strong);color:#e5e7eb}
+
+/* =========================
+   Global RTE active states
+   ========================= */
+
+/* Editor active ring (JS toggles .active; focus still works even without JS) */
+.rte.active,
+.rte.is-active{
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--accent-color) 18%, transparent);
+  border-color: var(--accent-color);
+  outline: none;
+}
+
+/* Toolbar button active (JS sets .active + aria-pressed=true) */
+.toolbar .tool.active,
+.toolbar .tool[aria-pressed="true"]{
+  background: color-mix(in oklab, var(--accent-color) 14%, transparent);
+  border-color: color-mix(in oklab, var(--accent-color) 28%, var(--line-strong));
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+  transform: translateY(-1px);
+}
+
+.toolbar .tool.active i,
+.toolbar .tool[aria-pressed="true"] i{
+  color: var(--accent-color);
+}
+
+/* Dark mode parity */
+html.theme-dark .toolbar .tool.active,
+html.theme-dark .toolbar .tool[aria-pressed="true"]{
+  box-shadow: 0 2px 10px rgba(0,0,0,0.25);
+}

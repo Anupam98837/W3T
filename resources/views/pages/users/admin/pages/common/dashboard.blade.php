@@ -409,6 +409,9 @@
   let chartPrimary = null;
   let chartSecondary = null;
 
+  // ✅ CHANGE: prevent "Dashboard updated" toast on first page visit
+  let isInitialLoad = true;
+
   const donutColors = [
     'rgba(149, 30, 170, 0.9)',
     'rgba(201, 79, 240, 0.85)',
@@ -488,7 +491,10 @@
       renderHeader(role, user, json.time);
       renderBody(role, data);
 
-      toastOk.show();
+      // ✅ CHANGE: only show success toast after the first load (e.g., on Reload click)
+      if (!isInitialLoad) toastOk.show();
+      isInitialLoad = false;
+
     } catch (e) {
       console.error('[dashboard] error:', e);
       document.getElementById('toastErrText').textContent = e.message || 'Failed to load dashboard';

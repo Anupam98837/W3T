@@ -742,5 +742,99 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('logoutBtnSidebar')?.addEventListener('click', (e) => { e.preventDefault(); performLogout(); });
 });
 </script>
+<script>
+/* =========================================================
+   GLOBAL: Portal dropdown menus out of overflow containers
+   Fixes dropdown being clipped inside .table-responsive
+   ========================================================= */
+(function(){
+  let active = null;
+
+  function cleanup(){
+    if (!active) return;
+
+    window.removeEventListener('resize', active.onEnv);
+    document.removeEventListener('scroll', active.onEnv, true);
+
+    const { menu, parent } = active;
+    if (menu && parent && parent.isConnected) {
+      menu.classList.remove('dd-portal');
+      menu.style.cssText = '';
+      parent.appendChild(menu);
+    }
+    active = null;
+  }
+
+  function positionMenu(toggleEl, menuEl){
+    const rect = toggleEl.getBoundingClientRect();
+    if (!rect || (rect.width === 0 && rect.height === 0)) return;
+
+    // Ensure menu is measurable
+    menuEl.style.visibility = 'hidden';
+    menuEl.style.display = 'block';
+
+    const mw = menuEl.offsetWidth;
+    const mh = menuEl.offsetHeight;
+
+    const vw = document.documentElement.clientWidth;
+    const vh = document.documentElement.clientHeight;
+
+    let left = rect.left;
+    if (left + mw > vw - 8) left = Math.max(8, rect.right - mw);
+    if (left < 8) left = 8;
+
+    let top = rect.bottom + 6;
+    if (top + mh > vh - 8) top = Math.max(8, rect.top - mh - 6);
+
+    menuEl.style.left = left + 'px';
+    menuEl.style.top  = top  + 'px';
+    menuEl.style.visibility = 'visible';
+  }
+
+  // Use SHOWN so bootstrap already applied "show" class (sizes are correct)
+  document.addEventListener('shown.bs.dropdown', function(e){
+    const dropdownEl = e.target;                 // .dropdown wrapper
+    const toggleEl   = e.relatedTarget           // the actual button/link
+      || dropdownEl.querySelector('[data-bs-toggle="dropdown"], .dd-toggle');
+
+    if (!dropdownEl || !toggleEl) return;
+
+    const menuEl = dropdownEl.querySelector('.dropdown-menu');
+    if (!menuEl) return;
+
+    // Only portal dropdowns inside scroll/clip areas
+    if (!dropdownEl.closest('.table-responsive, .table-wrap')) return;
+
+    cleanup();
+
+    const parent = menuEl.parentElement;
+
+    // Move menu to body
+    menuEl.classList.add('dd-portal');
+    document.body.appendChild(menuEl);
+
+    // Reset any popper positioning
+    menuEl.style.position  = 'fixed';
+    menuEl.style.inset     = 'auto';
+    menuEl.style.transform = 'none';
+    menuEl.style.margin    = '0';
+
+    positionMenu(toggleEl, menuEl);
+
+    const inst = bootstrap.Dropdown.getOrCreateInstance(toggleEl);
+    const onEnv = () => { try { inst.hide(); } catch(_){} };
+
+    window.addEventListener('resize', onEnv);
+    document.addEventListener('scroll', onEnv, true);
+
+    active = { menu: menuEl, parent, onEnv };
+  }, true);
+
+  document.addEventListener('hidden.bs.dropdown', function(){
+    cleanup();
+  }, true);
+})();
+</script>
+
 </body>
 </html>

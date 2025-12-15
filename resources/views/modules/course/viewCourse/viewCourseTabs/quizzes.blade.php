@@ -339,29 +339,19 @@
     </div>
   </div>
 </div>
+
 <script>
 (function(){
   // ----------------------------
   // Shared context + helpers
   // ----------------------------
-
   // ---- normalize role (replace the original role read block) ----
   const rawRole = (sessionStorage.getItem('role') || localStorage.getItem('role') || '');
-  // normalize to a canonical lower_snake_case form
+  // normalize to a canonical lower_snake_case form: Super-Admin | superadmin | super_admin -> super_admin
   const role = String(rawRole || '').toLowerCase()
                     .replace(/[-\s]+/g, '_')       // replace '-' or spaces with underscore
                     .replace(/_+/g, '_')           // collapse multiple underscores
                     .replace(/^_+|_+$/g, '');      // trim leading/trailing underscores
-
-  // quick flag for student
-  const isStudent = role === 'student' || role.includes('student');
-  // Force hide Assign Quiz button for students
-const assignBtnEl = document.getElementById('qz-assign-btn');
-if (isStudent && assignBtnEl) {
-    assignBtnEl.style.display = 'none';
-    assignBtnEl.setAttribute('aria-hidden', 'true');
-    assignBtnEl.disabled = true; 
-}
 
   window.TOKEN = localStorage.getItem('token') || sessionStorage.getItem('token') || '';
   if (!window.TOKEN) {
@@ -372,10 +362,9 @@ if (isStudent && assignBtnEl) {
   // role helpers (use canonical checks)
   const isAdmin      = role === 'super_admin' || role === 'superadmin' || role === 'admin' || role.includes('_admin');
   const isInstructor = role.includes('instructor');
+  const isStudent = role === 'student' ;
 
-  // Default permission: only admin or instructor can create/assign.
-  // If you want to allow other roles later, change this single line.
-  let canCreate = isAdmin || isInstructor;
+  const canCreate = isAdmin || isInstructor;
   const canEdit = isAdmin || isInstructor;
   const canDelete = isAdmin || isInstructor;
   const canViewBin = isAdmin;
@@ -383,7 +372,7 @@ if (isStudent && assignBtnEl) {
   const apiBase = '/api';
   const defaultHeaders = { 'Accept': 'application/json' };
   if (window.TOKEN) defaultHeaders['Authorization'] = 'Bearer ' + window.TOKEN;
-
+  
   function escapeHtml(str){
     return String(str || '').replace(/[&<>"'`=\/]/g, s => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;","/":"&#x2F;","`":"&#x60","=":"&#x3D;"}[s]));
   }
@@ -420,11 +409,11 @@ if (isStudent && assignBtnEl) {
   const detailsBody = document.getElementById('qz-details-body');
   const detailsClose = document.getElementById('qz-details-close');
   const detailsFooter = document.getElementById('qz-details-footer');
-
   // Attempts / Results modal elems
-  const attemptsModalEl   = document.getElementById('quizAttemptsModal');
-  const attemptsHeaderEl  = document.getElementById('qa_attempts_header');
-  const attemptsRowsEl    = document.getElementById('qa_attempt_rows');
+const attemptsModalEl   = document.getElementById('quizAttemptsModal');
+const attemptsHeaderEl  = document.getElementById('qa_attempts_header');
+const attemptsRowsEl    = document.getElementById('qa_attempt_rows');
+
 
   // NEW EDIT MODAL ELEMENTS
   const editModalEl = document.getElementById('editQuizModal');
@@ -447,7 +436,6 @@ if (isStudent && assignBtnEl) {
         qz_meta = document.getElementById('qz_meta'),
         qz_pager = document.getElementById('qz_pager');
 
-
   // context helpers
   const deriveCourseKey = () => {
     const parts = location.pathname.split('/').filter(Boolean);
@@ -457,6 +445,14 @@ if (isStudent && assignBtnEl) {
     if (last === 'view') return parts.at(-2);
     return last;
   };
+  // Force hide the Assign Quiz button for students
+if (role === 'student') {
+    if ($assignBtn) {
+        $assignBtn.style.display = 'none';
+        $assignBtn.style.visibility = 'hidden';
+        $assignBtn.disabled = true;
+    }
+}
 
   function getQueryParam(name) {
     try {
@@ -615,48 +611,56 @@ if (isStudent && assignBtnEl) {
     right.appendChild(datePill);
 
     // --- NEW: attempts pill (used/allowed) ---
-    let attemptsAllowed = null; let attemptsUsed = null;
-    if (typeof row.attempt_allowed === 'number' || typeof row.attempt_used === 'number') {
-      attemptsAllowed = Number(row.attempt_allowed ?? 0);
-      attemptsUsed    = Number(row.attempt_used ?? 0);
-    }
-    let canAttemptMore = true;
-    if (attemptsAllowed && attemptsAllowed > 0) {
-      const attemptsPill = document.createElement('div');
-      attemptsPill.className = 'duration-pill';
-      attemptsPill.textContent = `${attemptsUsed || 0}/${attemptsAllowed}`;
-      attemptsPill.title = 'Attempts used / allowed';
-      right.appendChild(attemptsPill);
-      canAttemptMore = (attemptsUsed || 0) < attemptsAllowed;
-    }
+let attemptsAllowed = null;
+let attemptsUsed = null;
 
-    // START QUIZ button – only if attempts remain OR no data
-    const shouldShowStart =
-      (attemptsAllowed === null || attemptsAllowed === 0) || canAttemptMore;
-    if (shouldShowStart) {
-      const startBtn = document.createElement('button');
-      startBtn.className = 'btn btn-primary';
-      startBtn.style.minWidth = '80px';
-      startBtn.textContent = 'Start Quiz';
-      startBtn.title = 'Start this quiz';
-      startBtn.addEventListener('click', ()=> startQuiz(row));
-      right.appendChild(startBtn);
-    }
+if (typeof row.attempt_allowed === 'number' || typeof row.attempt_used === 'number') {
+  attemptsAllowed = Number(row.attempt_allowed ?? 0);
+  attemptsUsed    = Number(row.attempt_used ?? 0);
+}
+
+let canAttemptMore = true;
+
+if (attemptsAllowed && attemptsAllowed > 0) {
+  const attemptsPill = document.createElement('div');
+  attemptsPill.className = 'duration-pill';
+  attemptsPill.textContent = `${attemptsUsed || 0}/${attemptsAllowed}`;
+  attemptsPill.title = 'Attempts used / allowed';
+  right.appendChild(attemptsPill);
+
+  canAttemptMore = (attemptsUsed || 0) < attemptsAllowed;
+}
+
+
+// START QUIZ button – only if attempts remain OR no data
+const shouldShowStart =
+  (attemptsAllowed === null || attemptsAllowed === 0) || canAttemptMore;
+
+if (shouldShowStart) {
+  const startBtn = document.createElement('button');
+  startBtn.className = 'btn btn-primary';
+  startBtn.style.minWidth = '80px';
+  startBtn.textContent = 'Start Quiz';
+  startBtn.title = 'Start this quiz';
+  startBtn.addEventListener('click', ()=> startQuiz(row));
+  right.appendChild(startBtn);
+}
+
 
     const moreWrap = document.createElement('div');
     moreWrap.className='qz-more';
     // treat non-admin roles as "students" for showing Results
-    const canSeeResults = !isAdmin && !isInstructor;
+const canSeeResults = !isAdmin && !isInstructor;
 
-    moreWrap.innerHTML = `
-      <button class="qz-dd-btn" aria-haspopup="true" aria-expanded="false" title="More">⋮</button>
-      <div class="qz-dd" role="menu" aria-hidden="true">
-        <a href="#" data-action="view"><i class="fa fa-eye"></i><span>View</span></a>
-        ${canSeeResults ? `<a href="#" data-action="results"><i class="fa fa-clipboard-check"></i><span>Result</span></a>` : ''}
-        ${canEdit ? `<a href="#" data-action="edit"><i class="fa fa-pen"></i><span>Edit</span></a>` : ''}
-        ${canDelete ? `<div class="divider"></div><a href="#" data-action="delete" class="text-danger"><i class="fa fa-trash"></i><span>Move to Bin</span></a>` : ''}
-      </div>
-    `;
+moreWrap.innerHTML = `
+  <button class="qz-dd-btn" aria-haspopup="true" aria-expanded="false" title="More">⋮</button>
+  <div class="qz-dd" role="menu" aria-hidden="true">
+    <a href="#" data-action="view"><i class="fa fa-eye"></i><span>View</span></a>
+    ${canSeeResults ? `<a href="#" data-action="results"><i class="fa fa-clipboard-check"></i><span>Result</span></a>` : ''}
+    ${canEdit ? `<a href="#" data-action="edit"><i class="fa fa-pen"></i><span>Edit</span></a>` : ''}
+    ${canDelete ? `<div class="divider"></div><a href="#" data-action="delete" class="text-danger"><i class="fa fa-trash"></i><span>Move to Bin</span></a>` : ''}
+  </div>
+`;
 
     right.appendChild(moreWrap);
 
@@ -682,16 +686,17 @@ if (isStudent && assignBtnEl) {
 
     const editBtn = moreWrap.querySelector('[data-action="edit"]');
     if (editBtn) editBtn.addEventListener('click', (ev)=>{ ev.preventDefault(); enterQzEditMode(row); closeAllDropdowns(); });
-
+    
     const resultBtn = moreWrap.querySelector('[data-action="results"]');
-    if (resultBtn) {
-      resultBtn.addEventListener('click', (ev) => {
-        ev.preventDefault();
-        ev.stopPropagation();
-        closeAllDropdowns();
-        openQuizResults(row);
-      });
-    }
+if (resultBtn) {
+  resultBtn.addEventListener('click', (ev) => {
+    ev.preventDefault();
+    ev.stopPropagation();
+    closeAllDropdowns();
+    openQuizResults(row);
+  });
+}
+
 
     const delBtn = moreWrap.querySelector('[data-action="delete"]');
     if (delBtn) {
@@ -711,6 +716,7 @@ if (isStudent && assignBtnEl) {
         if (!confirm.isConfirmed) { closeAllDropdowns(); return; }
 
         try {
+          // prefer id from DOM dataset (guaranteed by createQuizRow)
           let quizId = wrapper?.dataset?.quizId || '';
           if (!quizId) {
             quizId = String(row.id || row.quiz?.id || row.uuid || row.quiz_id || '');
@@ -723,15 +729,18 @@ if (isStudent && assignBtnEl) {
             return;
           }
 
+          // If this quiz is assigned to the current batch (batch_quiz_id present OR batch context)
           const ctx = readContext();
           const inBatchContext = !!(ctx && ctx.batch_id);
           const hasBatchRelation = row.batch_quiz_id || (typeof row.assign_status_flag !== 'undefined');
 
           if (hasBatchRelation && inBatchContext) {
+            // try to unassign from batch first (preferred)
             try {
               const payload = new FormData();
               if (row.batch_quiz_id) payload.append('batch_quiz_id', row.batch_quiz_id);
               else payload.append('quiz_id', quizId);
+
               payload.append('assign_status', 0);
               payload.append('publish_to_students', 0);
               payload.append('unassigned_at', new Date().toISOString());
@@ -740,6 +749,7 @@ if (isStudent && assignBtnEl) {
               const res = await apiFetch(endpoint, { method:'PATCH', body: payload });
 
               if (!res.ok) {
+                // try to parse message for better error
                 const errBody = await res.text().catch(()=>null);
                 throw new Error(errBody || `Unassign failed (HTTP ${res.status})`);
               }
@@ -748,15 +758,18 @@ if (isStudent && assignBtnEl) {
               await loadQuizzes();
               return;
             } catch (batchErr) {
+              // If batch unassign fails, we will fallback to canonical quiz soft-delete below.
               console.warn('Batch unassign failed, falling back to quiz delete:', batchErr);
               // continue to fallback delete
             }
           }
 
+          // canonical soft-delete (quizz prefix)
           const url = `${apiBase}/quizz/${encodeURIComponent(quizId)}`;
           const res = await apiFetch(url, { method: 'DELETE' });
 
           if (!res.ok) {
+            // try to get JSON message but tolerate non-JSON
             let j = null;
             try { j = await res.json(); } catch(e) { j = null; }
             throw new Error((j && (j.message || j.error)) || ('HTTP ' + res.status + ' - ' + url));
@@ -780,39 +793,43 @@ if (isStudent && assignBtnEl) {
 
   // ---------- Start Quiz (new) ----------
   function startQuiz(row) {
-    try {
-      const quizUuid =
-        row.uuid ||
-        row.quiz?.uuid ||
-        row.quiz?.id ||
-        row.id;
+  try {
+    // quiz uuid (correct)
+    const quizUuid =
+      row.uuid ||
+      row.quiz?.uuid ||
+      row.quiz?.id ||
+      row.id;
 
-      if (!quizUuid) {
-        showErr("Missing quiz UUID");
-        return;
-      }
-
-      const batchQuizUuid =
-        row.batch_quizzes_uuid ||
-        row.batch_quiz_uuid ||
-        row.batch_quiz?.uuid ||
-        null;
-
-      if (!batchQuizUuid) {
-        showErr("Missing batch quiz UUID");
-        console.warn("Row data:", row);
-        return;
-      }
-
-      const finalUrl =
-        `/exam/${encodeURIComponent(quizUuid)}?batch=${encodeURIComponent(batchQuizUuid)}`;
-
-      window.location.href = finalUrl;
-    } catch (e) {
-      console.error("startQuiz error", e);
-      showErr("Failed to start quiz");
+    if (!quizUuid) {
+      showErr("Missing quiz UUID");
+      return;
     }
+
+    // -- FIX STARTS HERE --
+    // Always pick UUID for the batch-wise assignment, never ID
+    const batchQuizUuid =
+      row.batch_quizzes_uuid ||   // preferred
+      row.batch_quiz_uuid ||      // alternate
+      row.batch_quiz?.uuid ||     // nested
+      null;
+
+    if (!batchQuizUuid) {
+      showErr("Missing batch quiz UUID");
+      console.warn("Row data:", row);
+      return;
+    }
+
+    // Build correct URL
+    const finalUrl =
+      `/exam/${encodeURIComponent(quizUuid)}?batch=${encodeURIComponent(batchQuizUuid)}`;
+
+    window.location.href = finalUrl;
+  } catch (e) {
+    console.error("startQuiz error", e);
+    showErr("Failed to start quiz");
   }
+}
 
   // ---------- Rendering ----------
   function renderList(items){
@@ -887,153 +904,180 @@ if (isStudent && assignBtnEl) {
   detailsClose?.addEventListener('click', closeQzDetails);
 
   async function openQuizResults(row) {
-    try {
-      const quizKey =
-        row.uuid ||
-        row.quiz?.uuid ||
-        row.quiz_id ||
-        row.quiz?.id ||
-        row.id;
+  try {
+    // Resolve quiz key (uuid or id)
+    const quizKey =
+      row.uuid ||
+      row.quiz?.uuid ||
+      row.quiz_id ||
+      row.quiz?.id ||
+      row.id;
 
-      if (!quizKey) {
-        showErr('Missing quiz reference for results.');
-        console.warn('openQuizResults: row has no quiz key', row);
-        return;
-      }
+    if (!quizKey) {
+      showErr('Missing quiz reference for results.');
+      console.warn('openQuizResults: row has no quiz key', row);
+      return;
+    }
 
-      const batchQuizUuid =
-        row.batch_quizzes_uuid ||
-        row.batch_quiz_uuid ||
-        row.batch_quiz?.uuid ||
-        null;
+    // Resolve batch_quiz UUID (same logic we used in startQuiz)
+    const batchQuizUuid =
+      row.batch_quizzes_uuid ||
+      row.batch_quiz_uuid ||
+      row.batch_quiz?.uuid ||
+      null;
 
-      let url = `/api/exam/quizzes/${encodeURIComponent(quizKey)}/my-attempts`;
-      if (batchQuizUuid) {
-        url += `?batch_quiz=${encodeURIComponent(batchQuizUuid)}`;
-      }
+    if (!batchQuizUuid) {
+      // we can still show attempts if your endpoint supports non-batch quizzes;
+      // if you want to make it mandatory, uncomment the error below.
+      // showErr('Missing batch quiz UUID for results.');
+      // return;
+    }
 
-      const res = await apiFetch(url);
-      const json = await res.json().catch(() => ({}));
+    // Build endpoint URL
+    let url = `/api/exam/quizzes/${encodeURIComponent(quizKey)}/my-attempts`;
+    if (batchQuizUuid) {
+      url += `?batch_quiz=${encodeURIComponent(batchQuizUuid)}`;
+    }
 
-      if (!res.ok || json.success === false) {
-        showErr(json.message || 'Failed to load results.');
-        console.error('openQuizResults error', res.status, json);
-        return;
-      }
+    const res = await apiFetch(url);
+    const json = await res.json().catch(() => ({}));
 
-      const attempts = Array.isArray(json.attempts) ? json.attempts : [];
+    if (!res.ok || json.success === false) {
+      showErr(json.message || 'Failed to load results.');
+      console.error('openQuizResults error', res.status, json);
+      return;
+    }
 
-      if (!attempts.length) {
-        Swal.fire({
-          icon: 'info',
-          title: 'No result available',
-          text: 'You have not attempted this quiz yet.'
-        });
-        return;
-      }
+    const attempts = Array.isArray(json.attempts) ? json.attempts : [];
 
-      if (attemptsHeaderEl) {
-        const q = json.quiz || {};
-        const totalMarks =
-          q.total_marks ??
-          (attempts[0]?.result?.total_marks ?? null);
+    // No attempts => just show info message
+    if (!attempts.length) {
+      Swal.fire({
+        icon: 'info',
+        title: 'No result available',
+        text: 'You have not attempted this quiz yet.'
+      });
+      return;
+    }
 
-        const title =
-          q.name ||
-          row.title ||
-          row.quiz?.quiz_name ||
-          row.quiz?.title ||
-          'Quiz';
+    // Fill header (quiz info summary)
+    if (attemptsHeaderEl) {
+      const q = json.quiz || {};
+      const totalMarks =
+        q.total_marks ??
+        (attempts[0]?.result?.total_marks ?? null);
 
-        attemptsHeaderEl.innerHTML = `
-          <div class="fw-semibold">${escapeHtml(title)}</div>
-          <div class="small text-muted mt-1">
-            Attempts allowed: ${q.total_attempts_allowed ?? '—'}
-            ${totalMarks ? ` • Total marks: ${totalMarks}` : ''}
-          </div>
-        `;
-      }
+      const title =
+        q.name ||
+        row.title ||
+        row.quiz?.quiz_name ||
+        row.quiz?.title ||
+        'Quiz';
 
-      if (attemptsRowsEl) {
-        attemptsRowsEl.innerHTML = '';
+      attemptsHeaderEl.innerHTML = `
+        <div class="fw-semibold">${escapeHtml(title)}</div>
+        <div class="small text-muted mt-1">
+          Attempts allowed: ${q.total_attempts_allowed ?? '—'}
+          ${totalMarks ? ` • Total marks: ${totalMarks}` : ''}
+        </div>
+      `;
+    }
 
-        attempts.forEach((a, index) => {
-          const tr = document.createElement('tr');
+    // Build table rows
+    if (attemptsRowsEl) {
+      attemptsRowsEl.innerHTML = '';
 
-          const r = a.result || null;
-          const canView = !!(r && r.can_view_detail && r.result_id);
+      attempts.forEach((a, index) => {
+        const tr = document.createElement('tr');
 
-          const attemptNo = r?.attempt_number || (index + 1);
+        const r = a.result || null;
+        const canView = !!(r && r.can_view_detail && r.result_id);
 
-          const dt =
-            a.started_at ||
-            a.created_at ||
-            a.finished_at ||
-            null;
+        const attemptNo = r?.attempt_number || (index + 1);
 
-          const dtText = dt ? new Date(dt).toLocaleString() : '—';
+        const dt =
+          a.started_at ||
+          a.created_at ||
+          a.finished_at ||
+          null;
 
-          let statusClass = 'other';
-          const status = String(a.status || '').toLowerCase();
-          if (status === 'in_progress') statusClass = 'in-progress';
-          else if (status === 'submitted') statusClass = 'submitted';
-          else if (status === 'auto_submitted') statusClass = 'auto_submitted';
+        const dtText = dt ? new Date(dt).toLocaleString() : '—';
 
-          const scoreText = r
-            ? `${r.marks_obtained}/${r.total_marks} (${Number(r.percentage || 0).toFixed(2)}%)`
-            : '—';
+        let statusClass = 'other';
+        const status = String(a.status || '').toLowerCase();
+        if (status === 'in_progress') statusClass = 'in-progress';
+        else if (status === 'submitted') statusClass = 'submitted';
+        else if (status === 'auto_submitted') statusClass = 'auto_submitted';
 
-          tr.innerHTML = `
-            <td>${attemptNo}</td>
-            <td>${escapeHtml(dtText)}</td>
-            <td>
-              <span class="qa-status-pill ${statusClass}">
-                ${escapeHtml(a.status || '—')}
-              </span>
-            </td>
-            <td>${scoreText}</td>
-            <td class="text-end">
-              ${
-                canView
-                  ? `<button type="button" class="btn btn-sm btn-outline-primary qa-view-result" data-result-id="${r.result_id}">
+        const scoreText = r
+          ? `${r.marks_obtained}/${r.total_marks} (${Number(r.percentage || 0).toFixed(2)}%)`
+          : '—';
+
+        tr.innerHTML = `
+          <td>${attemptNo}</td>
+          <td>${escapeHtml(dtText)}</td>
+          <td>
+            <span class="qa-status-pill ${statusClass}">
+              ${escapeHtml(a.status || '—')}
+            </span>
+          </td>
+          <td>${scoreText}</td>
+          <td class="text-end">
+            ${
+              canView
+                ? `<button type="button" class="btn btn-sm btn-outline-primary qa-view-result" data-result-id="${r.result_id}">
                       <i class="fa fa-eye me-1"></i>View Result
-                    </button>`
-                  : `<span class="text-muted small">Not published</span>`
-              }
-            </td>
-          `;
-          attemptsRowsEl.appendChild(tr);
-        });
+                   </button>`
+                : `<span class="text-muted small">Not published</span>`
+            }
+          </td>
+        `;
 
-        attemptsRowsEl.querySelectorAll('.qa-view-result').forEach(btn => {
-          btn.addEventListener('click', (ev) => {
-            ev.preventDefault();
-            ev.stopPropagation();
-            const resultId = btn.getAttribute('data-result-id');
-            if (!resultId) return;
-            window.location.href = `/exam/results/${encodeURIComponent(resultId)}/view`;
-          });
-        });
-      }
+        attemptsRowsEl.appendChild(tr);
+      });
 
-      if (attemptsModalEl) {
-        try {
-          if (window.bootstrap && typeof bootstrap.Modal === 'function') {
-            bootstrap.Modal.getOrCreateInstance(attemptsModalEl).show();
-          } else {
-            attemptsModalEl.classList.add('show');
-            attemptsModalEl.style.display = 'block';
-          }
-        } catch (e) {
+      // Attach click events for "View Result"
+      attemptsRowsEl.querySelectorAll('.qa-view-result').forEach(btn => {
+        btn.addEventListener('click', (ev) => {
+          ev.preventDefault();
+          ev.stopPropagation();
+          const resultId = btn.getAttribute('data-result-id');
+          if (!resultId) return;
+
+            // Send token ONCE via ?t= and the result id via ?result=
+    // The page will store it to storage and strip it from the URL.
+    const next = new URL('/exam/results/view', location.origin);
+    next.searchParams.set('result', resultId);
+    if (window.TOKEN) next.searchParams.set('t', window.TOKEN);
+
+          // Redirect to result page; you will create this route + view.
+          // Example front-end route: GET /exam/results/{id}
+          window.location.href = `/exam/results/${encodeURIComponent(resultId)}/view`;
+        });
+      });
+    }
+
+    // Show modal
+    if (attemptsModalEl) {
+      try {
+        if (window.bootstrap && typeof bootstrap.Modal === 'function') {
+          bootstrap.Modal.getOrCreateInstance(attemptsModalEl).show();
+        } else {
           attemptsModalEl.classList.add('show');
           attemptsModalEl.style.display = 'block';
         }
+      } catch (e) {
+        attemptsModalEl.classList.add('show');
+        attemptsModalEl.style.display = 'block';
       }
-    } catch (e) {
-      console.error('openQuizResults exception', e);
-      showErr('Failed to load results.');
     }
+
+  } catch (e) {
+    console.error('openQuizResults exception', e);
+    showErr('Failed to load results.');
   }
+}
+
 
   // ---------- NEW EDIT MODAL (from manageQuizz.blade.php) ----------
   function enterQzEditMode(row){
@@ -1095,6 +1139,7 @@ if (isStudent && assignBtnEl) {
         throw new Error('Quiz update failed');
       }
 
+      // Close modal
       try {
         if (window.bootstrap && typeof bootstrap.Modal === 'function') {
           bootstrap.Modal.getOrCreateInstance(editModalEl).hide();
@@ -1110,7 +1155,8 @@ if (isStudent && assignBtnEl) {
     } catch(e){
       console.error('Quiz save failed', e);
       showErr('Save failed: ' + (e.message || ''));
-    } finally {
+    }
+    finally {
       editQuizSubmit.disabled = false;
     }
   });
@@ -1199,6 +1245,7 @@ if (isStudent && assignBtnEl) {
 
         dd.querySelector('.restore-action').addEventListener('click', async ()=> {
           try {
+            // route expects PATCH /{key}/restore per your routes
             const res = await apiFetch(`/api/quizz/${encodeURIComponent(it.id)}/restore`, { method:'PATCH' });
             if (!res.ok) {
               const j = await res.json().catch(()=>({}));
@@ -1206,7 +1253,10 @@ if (isStudent && assignBtnEl) {
             }
             showOk('Restored');
             openBin();
-          } catch(e){ console.error(e); showErr('Restore failed: ' + (e.message || 'Unknown error')); }
+          } catch(e){
+            console.error(e);
+            showErr('Restore failed: ' + (e.message || 'Unknown error'));
+          }
         });
 
         dd.querySelector('.force-action').addEventListener('click', async ()=> {
@@ -1241,6 +1291,7 @@ if (isStudent && assignBtnEl) {
   async function openBin() {
     if (!_prevListHtml && $items) _prevListHtml = $items.innerHTML;
     showLoader(true); showEmpty(false); showItems(false);
+
     try {
       const ctx = readContext();
       const items = await fetchDeletedQuizzes(ctx && ctx.batch_id ? `batch_uuid=${encodeURIComponent(ctx.batch_id)}` : '');
@@ -1255,6 +1306,7 @@ if (isStudent && assignBtnEl) {
   // ---------- Main list loader ----------
   async function loadQuizzes(){
     showLoader(true); showItems(false); showEmpty(false);
+
     try {
       const ctx = readContext();
       if (!ctx || !ctx.batch_id) throw new Error('Batch context required');
@@ -1287,8 +1339,6 @@ if (isStudent && assignBtnEl) {
 
   // Assign Quiz button event listener
   $assignBtn?.addEventListener('click', () => {
-    // Make sure students cannot open assign modal even if they manage to enable the button
-    if (isStudent) { showErr('Permission denied'); return; }
     const ctx = readContext();
     if (!ctx || !ctx.batch_id) { showErr('Batch context required to assign quizzes'); return; }
     openQuizzes(ctx.batch_id);
@@ -1327,13 +1377,11 @@ if (isStudent && assignBtnEl) {
     try {
       quizzesModal = quizzesModal || new bootstrap.Modal(document.getElementById('quizzesModal'));
     } catch(e) {
+      // fallback: ensure element exists
       const el = document.getElementById('quizzesModal');
       if (el) { quizzesModal = { show: ()=> el.classList.add('show'), hide: ()=> el.classList.remove('show') }; }
     }
-    qz_uuid = uuid; qz_page = 1; if(qz_assigned) qz_assigned.value = 'all';
-    if (isStudent) { showErr('Permission denied'); return; } // safety: students cannot open assign modal
-    if (quizzesModal && typeof quizzesModal.show === 'function') quizzesModal.show();
-    loadAssignQuizzes();
+    qz_uuid = uuid; qz_page = 1; if(qz_assigned) qz_assigned.value = 'all'; if (quizzesModal && typeof quizzesModal.show === 'function') quizzesModal.show(); loadAssignQuizzes();
   }
 
   qz_apply?.addEventListener('click', ()=>{ qz_page=1; loadAssignQuizzes(); });
@@ -1364,11 +1412,13 @@ if (isStudent && assignBtnEl) {
         const assigned = !!u.assigned;
         const title = u.title || u.name || ('Quiz #'+(u.id||'?'));
         const publish = !!u.publish_to_students;
+
         const attemptsVal = (u.attempt_allowed !== null && u.attempt_allowed !== undefined) ? u.attempt_allowed : '';
 
         const tr = document.createElement('tr');
         tr.innerHTML = `
           <td class="fw-semibold">${escapeHtml(title)}</td>
+
           <td>
               <input class="form-control form-control-sm qz-order"
                      type="number"
@@ -1376,11 +1426,13 @@ if (isStudent && assignBtnEl) {
                      value="${escapeHtml(attemptsVal)}"
                      style="width:110px">
           </td>
+
           <td class="text-center">
               <div class="form-check form-switch d-inline-block">
                   <input class="form-check-input qz-pub" type="checkbox" ${publish ? 'checked' : ''}>
               </div>
           </td>
+
           <td class="text-center">
               <div class="form-check form-switch d-inline-block">
                   <input class="form-check-input qz-tg" type="checkbox" data-id="${u.id}" ${assigned?'checked':''}>
@@ -1416,6 +1468,7 @@ if (isStudent && assignBtnEl) {
 
             if((qz_assigned && qz_assigned.value==='assigned' && !assigned) ||
                (qz_assigned && qz_assigned.value==='unassigned' && assigned)) loadAssignQuizzes();
+
           }catch(e){}
         });
       });
@@ -1484,6 +1537,7 @@ if (isStudent && assignBtnEl) {
       html+=li(cur>=pages,false,'Next',cur+1);
 
       qz_pager.innerHTML = html;
+
       qz_pager.querySelectorAll('a.page-link[data-page]').forEach(a=>{
         a.addEventListener('click', ()=>{
           const t = Number(a.dataset.page);
@@ -1502,10 +1556,6 @@ if (isStudent && assignBtnEl) {
   async function toggleQuiz(uuid, payload, checkboxEl=null, quiet=false){
     try{
       if(typeof payload.assigned === 'undefined') payload.assigned = true;
-
-      // Safety check: if current user is student, disallow toggle
-      if (isStudent) { throw new Error('Permission denied'); }
-
       const res = await apiFetch(`/api/batches/${encodeURIComponent(uuid)}/quizzes/toggle`,{
         method: 'POST',
         headers: { 'Content-Type':'application/json' },
@@ -1526,5 +1576,6 @@ if (isStudent && assignBtnEl) {
 
   // Expose openQuizzes so Assign button can call it
   window.openQuizzes = openQuizzes;
+
 })();
 </script>
