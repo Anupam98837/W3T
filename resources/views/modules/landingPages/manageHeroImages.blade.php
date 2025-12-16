@@ -19,8 +19,8 @@
 .small{font-size:12.5px} */
 
 /* Dropdowns in table */
-.table-wrap .dropdown{position:relative;z-index:6}
-.table-wrap .dd-toggle{position:relative;z-index:7}
+.table-wrap .dropdown{position:relative;}
+.table-wrap .dd-toggle{position:relative;}
 .dropdown [data-bs-toggle="dropdown"]{border-radius:10px}
 .table-wrap .dropdown-menu{border-radius:12px;border:1px solid var(--line-strong,#e5e7eb);box-shadow:var(--shadow-2,0 12px 35px rgba(15,23,42,.16));min-width:220px;z-index:5000}
 .dropdown-item{display:flex;align-items:center;gap:.6rem}

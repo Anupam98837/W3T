@@ -40,8 +40,8 @@ tr.state-archived td{background:color-mix(in oklab, var(--muted-color) 7%, trans
 }
 
 /* Dropdowns inside table (with portal) */
-.table-wrap .dropdown{position:relative;z-index:6}
-.table-wrap .dd-toggle{position:relative;z-index:7}
+.table-wrap .dropdown{position:relative;}
+.table-wrap .dd-toggle{position:relative;}
 .dropdown [data-bs-toggle="dropdown"]{border-radius:10px}
 .table-wrap .dropdown-menu{
   border-radius:12px;
