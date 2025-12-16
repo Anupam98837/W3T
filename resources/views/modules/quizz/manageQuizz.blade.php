@@ -8,32 +8,6 @@
 <style>
 /* ===== Shell ===== */
 .qz-wrap{max-width:1140px;margin:16px auto 40px;overflow:visible}
-/* .panel{background:var(--surface);border:1px solid var(--line-strong);border-radius:16px;box-shadow:var(--shadow-2);padding:14px}
-
-/* Toolbar */
-/* .mfa-toolbar .form-control{height:40px;border-radius:12px;border:1px solid var(--line-strong);background:var(--surface)}
-.mfa-toolbar .form-select{height:40px;border-radius:12px;border:1px solid var(--line-strong);background:var(--surface)}
-.mfa-toolbar .btn{height:40px;border-radius:12px}
-.mfa-toolbar .btn-light{background:var(--surface);border:1px solid var(--line-strong)}
-.mfa-toolbar .btn-primary{background:var(--primary-color);border:none} */ */
-
-/* Tabs */
-/* .nav.nav-tabs{border-color:var(--line-strong)}
-.nav-tabs .nav-link{color:var(--ink)}
-.nav-tabs .nav-link.active{background:var(--surface);border-color:var(--line-strong) var(--line-strong) var(--surface)}
-.tab-content,.tab-pane{overflow:visible} */
-
-/* Table Card */
-/* .table-wrap.card{position:relative;border:1px solid var(--line-strong);border-radius:16px;background:var(--surface);box-shadow:var(--shadow-2);overflow:visible}
-.table-wrap .card-body{overflow:visible}
-.table-responsive{overflow:visible !important}
-.table{--bs-table-bg:transparent}
-.table thead th{font-weight:600;color:var(--muted-color);font-size:13px;border-bottom:1px solid var(--line-strong);background:var(--surface)}
-.table thead.sticky-top{z-index:3}
-.table tbody tr{border-top:1px solid var(--line-soft)}
-.table tbody tr:hover{background:var(--page-hover)}
-td .fw-semibold{color:var(--ink)}
-.small{font-size:12.5px} */
 
 /* Status badges */
 .badge-soft{background:color-mix(in oklab, var(--muted-color) 12%, transparent);color:var(--ink)}
@@ -51,13 +25,31 @@ tr.is-archived td{background:color-mix(in oklab, var(--muted-color) 6%, transpar
 tr.is-deleted td{background:color-mix(in oklab, var(--danger-color) 6%, transparent)}
 
 /* Dropdowns inside table */
-.table-wrap .dropdown{position:relative;z-index:6}
-.table-wrap .dd-toggle{position:relative;z-index:7}
+.table-wrap .dropdown{position:relative;}
+.table-wrap .dd-toggle{position:relative;}
 .dropdown [data-bs-toggle="dropdown"]{border-radius:10px}
 /* Default dropdown menu (when not portaled) */
 .table-wrap .dropdown-menu{border-radius:12px;border:1px solid var(--line-strong);box-shadow:var(--shadow-2);min-width:220px;z-index:5000}
 /* Portaled dropdown menu (moved to body) */
-.dropdown-menu.dd-portal{position:fixed!important;left:0;top:0;transform:none!important;z-index:5000;border-radius:12px;border:1px solid var(--line-strong);box-shadow:var(--shadow-2);min-width:220px;background:var(--surface)}
+/* Portaled dropdown menu (moved to body) */
+.dropdown-menu.dd-portal{
+  position: fixed !important;
+  transform: none !important;
+  inset: auto !important;
+
+  /* IMPORTANT: do NOT lock left/top to 0 with !important */
+  z-index: 2147483647 !important;
+
+  min-width: 220px;
+  border-radius: 12px;
+  border: 1px solid var(--line-strong);
+  box-shadow: 0 12px 30px rgba(15,23,42,0.12);
+  background: var(--surface);
+  overflow: visible !important;
+  padding: .375rem 0;
+}
+
+
 .dropdown-item{display:flex;align-items:center;gap:.6rem}
 .dropdown-item i{width:16px;text-align:center}
 .dropdown-item.text-danger{color:var(--danger-color)!important}
@@ -106,6 +98,15 @@ html.theme-dark .dropdown-menu{background:#0f172a;border-color:var(--line-strong
   grid-column: 2;      /* helper text under the label, same column */
   margin-top: .15rem;
 }
+/* Prevent toolbar controls from forcing horizontal overflow */
+.mfa-toolbar .position-relative{min-width:0 !important; flex: 1 1 280px;}
+
+/* Ensure tables scroll instead of spilling outside */
+.table-wrap .table-responsive{overflow-x:auto !important;}
+
+/* Pagination buttons should wrap instead of overflowing */
+.pagination{flex-wrap:wrap; gap:.25rem;}
+nav{max-width:100%; overflow-x:auto;}
 
 </style>
 @endpush
@@ -410,85 +411,102 @@ html.theme-dark .dropdown-menu{background:#0f172a;border-color:var(--line-strong
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <script>
-/* ===== Force dropdown overflows to body (portal) ===== */
+/* ===== Force dropdown menus to render over tables (portal to body) ===== */
 (function(){
-  let activePortal = null;
-  const placeMenu = (menu, btnRect) => {
+  const PAD = 8;
+  let opened = null;
+
+  const imp = (el, prop, val) => el.style.setProperty(prop, val, 'important');
+  const clamp = (n, min, max) => Math.max(min, Math.min(max, n));
+
+  function positionMenu(menu, btn){
+    const rect = btn.getBoundingClientRect();
     const vw = Math.max(document.documentElement.clientWidth, window.innerWidth || 0);
-    const spaceRight = vw - btnRect.right;
-    menu.classList.add('dd-portal');
-    menu.style.display = 'block';
-    menu.style.visibility = 'hidden'; // measure first
-    document.body.appendChild(menu);
-
-    // compute size after in body
-    const mw = menu.offsetWidth, mh = menu.offsetHeight;
-    let left = btnRect.left;
-    if (spaceRight < mw && btnRect.right - mw > 8) {
-      left = btnRect.right - mw; // flip to align right if not enough space
-    }
-    let top = btnRect.bottom + 4; // little offset below button
-    // Keep within viewport vertically
     const vh = Math.max(document.documentElement.clientHeight, window.innerHeight || 0);
-    if (top + mh > vh - 8) top = Math.max(8, vh - mh - 8);
 
-    menu.style.left = left + 'px';
-    menu.style.top  = top + 'px';
-    menu.style.visibility = 'visible';
-  };
+    // measurable
+    imp(menu, 'display', 'block');
+    imp(menu, 'visibility', 'hidden');
 
-  document.addEventListener('show.bs.dropdown', function(ev){
-    const toggle = ev.target; // .dropdown
-    const btn = toggle.querySelector('.dd-toggle, [data-bs-toggle="dropdown"]');
-    const menu = toggle.querySelector('.dropdown-menu');
+    const mw = menu.offsetWidth;
+    const mh = menu.offsetHeight;
+
+    // align right edge by default (because you use dropdown-menu-end)
+    let left = rect.right - mw;
+    if (left < PAD) left = rect.left;
+    left = clamp(left, PAD, vw - mw - PAD);
+
+    // prefer below else above
+    let top = rect.bottom + 6;
+    if (top + mh > vh - PAD) top = rect.top - mh - 6;
+    top = clamp(top, PAD, vh - mh - PAD);
+
+    imp(menu, 'left', left + 'px');
+    imp(menu, 'top',  top  + 'px');
+
+    // tall menu safety
+    imp(menu, 'max-height', (vh - PAD*2) + 'px');
+    imp(menu, 'overflow-y', 'auto');
+
+    imp(menu, 'visibility', 'visible');
+  }
+
+  function restore(drop){
+    const p = drop.__ddPortal;
+    if (!p) return;
+
+    if (p.onEnv){
+      window.removeEventListener('resize', p.onEnv);
+      document.removeEventListener('scroll', p.onEnv, true);
+    }
+
+    const { menu, parent, next } = p;
+
+    menu.classList.remove('dd-portal');
+    menu.style.cssText = '';
+
+    if (next && next.parentNode === parent) parent.insertBefore(menu, next);
+    else parent.appendChild(menu);
+
+    drop.__ddPortal = null;
+    if (opened === drop) opened = null;
+  }
+
+  document.addEventListener('shown.bs.dropdown', function(ev){
+    const drop = ev.target; // .dropdown
+    const btn  = ev.relatedTarget || drop.querySelector('.dd-toggle, [data-bs-toggle="dropdown"]');
+    const menu = drop.querySelector('.dropdown-menu');
     if (!btn || !menu) return;
 
-    // clean any previous
-    if (activePortal && activePortal.menu && activePortal.menu.isConnected) {
-      activePortal.menu.classList.remove('dd-portal');
-      activePortal.parent.appendChild(activePortal.menu);
-      activePortal = null;
-    }
+    if (opened && opened !== drop) restore(opened);
 
-    const rect = btn.getBoundingClientRect();
-    // Remember original parent to restore on hide
-    menu.__ddParent = menu.parentElement;
-    placeMenu(menu, rect);
-    activePortal = { menu: menu, parent: menu.__ddParent };
-
-    // Close on scroll/resize to avoid stale position
-    const closeOnEnv = () => {
-      try { bootstrap.Dropdown.getOrCreateInstance(btn).hide(); } catch {}
+    drop.__ddPortal = {
+      menu,
+      parent: menu.parentNode,
+      next: menu.nextSibling,
+      btn,
+      onEnv: null
     };
-    menu.__ddListeners = [
-      ['scroll', closeOnEnv, true],
-      ['resize', closeOnEnv, false]
-    ];
-    window.addEventListener('resize', closeOnEnv);
-    document.addEventListener('scroll', closeOnEnv, true);
+
+    document.body.appendChild(menu);
+    menu.classList.add('dd-portal');
+
+    requestAnimationFrame(() => positionMenu(menu, btn));
+
+    const onEnv = () => { try { bootstrap.Dropdown.getOrCreateInstance(btn).hide(); } catch {} };
+    drop.__ddPortal.onEnv = onEnv;
+    window.addEventListener('resize', onEnv);
+    document.addEventListener('scroll', onEnv, true);
+
+    opened = drop;
   });
 
+  // IMPORTANT: restore AFTER it's fully closed
   document.addEventListener('hidden.bs.dropdown', function(ev){
-    const toggle = ev.target;
-    const menu = toggle.querySelector('.dropdown-menu.dd-portal') || activePortal?.menu;
-    if (!menu) return;
-
-    // remove listeners
-    if (menu.__ddListeners) {
-      document.removeEventListener('scroll', menu.__ddListeners[0][1], true);
-      window.removeEventListener('resize', menu.__ddListeners[1][1]);
-      menu.__ddListeners = null;
-    }
-
-    // restore to original parent
-    if (menu.__ddParent) {
-      menu.classList.remove('dd-portal');
-      menu.style.cssText = ''; // reset inline styles
-      menu.__ddParent.appendChild(menu);
-      activePortal = null;
-    }
+    restore(ev.target);
   });
 })();
+
 
 /* ================= Dropdown toggle handler ================= */
 document.addEventListener('click', (e) => {
@@ -498,6 +516,7 @@ document.addEventListener('click', (e) => {
   const inst = bootstrap.Dropdown.getOrCreateInstance(btn, { autoClose:'outside', boundary:'viewport' });
   inst.toggle();
 });
+
 
 (function(){
   /* ========= Auth / base panel ========= */
