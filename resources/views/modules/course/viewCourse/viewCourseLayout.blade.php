@@ -7,8 +7,7 @@
     'materials'    => 'modules.course.viewCourse.viewCourseTabs.studyMaterial',
     'assignments'  => 'modules.course.viewCourse.viewCourseTabs.assignments',
     'quizzes'      => 'modules.course.viewCourse.viewCourseTabs.quizzes',
-    // NEW: Coding Tests tab (you will link to userCodingTest.blade.php content)
-    'codingtests'  => 'modules.course.viewCourse.viewCourseTabs.userCodingTest',   // <- create this view
+    'codingtests'  => 'modules.course.viewCourse.viewCourseTabs.userCodingTest',
     'notices'      => 'modules.course.viewCourse.viewCourseTabs.notices',
     'chat'         => 'modules.course.viewCourse.viewCourseTabs.chat',
   ];
@@ -20,7 +19,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5, user-scalable=yes"/>
   <title>View Course</title>
   <meta name="csrf-token" content="{{ csrf_token() }}"/>
 
@@ -40,251 +39,830 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"/>
   <link rel="stylesheet" href="{{ asset('assets/css/common/main.css') }}"/>
 
-  {{-- SweetAlert2 used by multiple tabs (avoid reloading on tab switch) --}}
+  {{-- SweetAlert2 used by multiple tabs --}}
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
   <style>
-    /* ===== Page/Layout ===================================================== */
+    /* ===== Base Styles =================================================== */
     html, body { height: 100%; }
-    body{ background: var(--bg-body); color: var(--text-color); min-height: 100dvh; }
+    body{ 
+      background: var(--bg-body); 
+      color: var(--text-color); 
+      min-height: 100dvh;
+      overflow-x: hidden;
+    }
 
-    .vc-wrap{ max-width: 1180px; margin: 18px auto 40px; padding: 0 14px; }
-    /* Full width when desktop sidebar is collapsed */
-    body.vc-wide .vc-wrap{ max-width: 100%; }
+    .vc-wrap{ 
+      max-width: 1180px; 
+      margin: 18px auto 40px; 
+      padding: 0 14px; 
+    }
+
+    @media (max-width: 768px) {
+      .vc-wrap {
+        padding: 0 12px;
+        margin: 12px auto 20px;
+      }
+    }
+
+    @media (max-width: 576px) {
+      .vc-wrap {
+        padding: 0 10px;
+        margin: 8px auto 16px;
+      }
+    }
 
     .vc-grid{
       display:grid;
-      grid-template-columns: 360px minmax(0,1fr);
+      grid-template-columns: minmax(0,1fr);
       gap:16px;
       min-height: calc(100dvh - 90px);
     }
 
-    /* Mobile: single column + controlled via .mobile-hidden */
+    /* ===== Modes ======================================================== */
+    /* OVERVIEW mode: show only left card (course details) */
+    body.vc-mode-overview .vc-main{ display:none; }
+    body.vc-mode-overview .vc-aside{ grid-column: 1 / -1; }
+
+    /* FULL mode: two-column layout on desktop */
+    body.vc-mode-full .vc-grid{
+      grid-template-columns: 320px minmax(0,1fr);
+    }
+    body.vc-mode-full .vc-main{ display:block; }
+
+    /* Mobile adjustments for FULL mode */
     @media (max-width: 992px){
-      .vc-grid{ grid-template-columns: 1fr; }
-      .vc-aside.mobile-hidden{ display: none !important; }
-      .vc-main.mobile-hidden{ display: none !important; }
+      .vc-grid{ 
+        grid-template-columns: 1fr;
+        gap: 12px;
+      }
+      
+      body.vc-mode-full .vc-grid{
+        grid-template-columns: 1fr;
+      }
+
+      /* Default in FULL mode on mobile: show main (tabs), hide sidebar */
+      body.vc-mode-full .vc-aside {
+        display: none;
+      }
+
+      body.vc-mode-full .vc-main{
+        display: block;
+        margin-top: 0;
+      }
+
+      /* When hamburger toggles sidebar open: show sidebar, hide main */
+      body.vc-mode-full.mobile-sidebar-open .vc-aside {
+        display: block;
+      }
+
+      body.vc-mode-full.mobile-sidebar-open .vc-main {
+        display: none !important;
+      }
     }
 
-    /* Desktop: collapsible sidebar */
-    .vc-grid.sidebar-collapsed{
-      grid-template-columns: minmax(0,1fr);
+    /* In FULL mode, hide the "View full course content" button */
+    body.vc-mode-full #viewAllBtn{
+      display: none !important;
     }
-    .vc-grid.sidebar-collapsed .vc-aside{ display:none !important; }
-    .vc-grid.sidebar-collapsed .vc-main{ grid-column: 1 / -1; }
 
     /* ===== Back button ===== */
-    .back-to-courses-btn{
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      padding: 8px 16px;
-      margin-bottom: 16px;
-      background: var(--surface);
-      border: 1px solid var(--line-strong);
-      border-radius: 10px;
-      cursor: pointer;
-      color: var(--ink);
-      font-weight: 600;
-      text-decoration: none;
-      transition: var(--transition);
-    }
-    .back-to-courses-btn:hover{
-      background: color-mix(in oklab, var(--accent-color) 8%, transparent);
-      border-color: var(--accent-color);
-      color: var(--ink);
-    }
-
-    /* ===== Aside Back button ===== */
     .aside-back-btn {
       display: inline-flex;
       align-items: center;
       gap: 6px;
-      padding: 6px 12px;
-      background: var(--surface);
-      border: 1px solid var(--line-strong);
-      border-radius: 8px;
-      cursor: pointer;
-      color: var(--ink);
-      font-weight: 500;
-      font-size: var(--fs-13);
-      text-decoration: none;
-      transition: var(--transition);
-      margin-bottom: 12px;
-      white-space: nowrap;
-    }
-    .aside-back-btn:hover {
-      background: color-mix(in oklab, var(--accent-color) 8%, transparent);
-      border-color: var(--accent-color);
-      color: var(--ink);
-    }
-
-    /* ===== Mobile back button ===== */
-    .mobile-back-btn{
-      display: none;
-      align-items: center;
-      gap: 8px;
-      padding: 8px 12px;
-      margin-bottom: 12px;
+      padding: 8px 14px;
       background: var(--surface);
       border: 1px solid var(--line-strong);
       border-radius: 10px;
       cursor: pointer;
       color: var(--ink);
-      font-weight: 600;
+      font-weight: 500;
+      font-size: var(--fs-14);
+      text-decoration: none;
+      transition: var(--transition);
+      margin-bottom: 12px;
+      white-space: nowrap;
+      touch-action: manipulation;
     }
-    @media (max-width: 992px){
-      .mobile-back-btn{ display: inline-flex; }
+    
+    .aside-back-btn:hover, .aside-back-btn:active {
+      background: color-mix(in oklab, var(--accent-color) 8%, transparent);
+      border-color: var(--accent-color);
+      color: var(--ink);
+    }
+    
+    @media (max-width: 576px) {
+      .aside-back-btn {
+        padding: 8px 12px;
+        font-size: var(--fs-13);
+      }
     }
 
-    /* ===== Desktop hamburger toggle ===== */
-    .vc-side-toggle{
-      width: 40px; height: 40px;
-      display: inline-flex;
-      align-items:center; justify-content:center;
+    /* ===== Mobile Hamburger Menu ======================================== */
+    .mobile-hamburger {
+      display: none;
+      width: 44px;
+      height: 44px;
       border-radius: 12px;
-      border:1px solid var(--line-strong);
+      border: 1px solid var(--line-strong);
       background: var(--surface);
       color: var(--ink);
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
       transition: var(--transition);
-      flex: 0 0 auto;
+      flex-shrink: 0;
     }
-    .vc-side-toggle:hover{
-      border-color: color-mix(in oklab, var(--accent-color) 55%, transparent);
+    
+    .mobile-hamburger:hover {
+      border-color: var(--accent-color);
       background: color-mix(in oklab, var(--accent-color) 8%, transparent);
     }
-    @media (max-width: 992px){
-      .vc-side-toggle{ display:none !important; }
+    
+    @media (max-width: 992px) {
+      .mobile-hamburger {
+        display: inline-flex;
+      }
     }
 
-    /* ===== Left column (sticky card) ====================================== */
-    .vc-aside .panel{ padding: 12px; position: sticky; top: 16px; }
+    /* ===== Left column ================================================== */
+    .vc-aside .panel{ 
+      padding: 16px;
+      height: 100%;
+      overflow-y: auto;
+    }
+    
+    @media (max-width: 768px) {
+      .vc-aside .panel {
+        padding: 14px;
+      }
+    }
+    
+    @media (max-width: 576px) {
+      .vc-aside .panel {
+        padding: 12px;
+      }
+    }
+
     .vc-head-left{
-      display:flex; align-items:flex-start; justify-content:space-between; gap:10px; margin-bottom:8px;
+      display:flex; 
+      align-items:flex-start; 
+      justify-content:space-between; 
+      gap:10px; 
+      margin-bottom:12px;
     }
-    .vc-title{ font-family: var(--font-head); font-weight:700; color:var(--ink); margin:0; font-size:1.12rem; }
-
-    .vc-cover{
-      width:100%; aspect-ratio: 16/10;
-      border:1px solid var(--line-strong); border-radius:12px; overflow:hidden;
-      background:#f6f3fb; display:flex; align-items:center; justify-content:center;
+    
+    .vc-title{ 
+      font-family: var(--font-head); 
+      font-weight:700; 
+      color:var(--ink); 
+      margin:0; 
+      font-size:1.25rem;
+      line-height: 1.3;
     }
-    html.theme-dark .vc-cover{ background:#0e1930; }
-    .vc-cover img{ width:100%; height:100%; object-fit:cover; }
-
-    .vc-thumbs{ display:flex; gap:8px; overflow:auto; padding:8px 2px 2px; }
-    .vc-thumb{
-      width:56px; height:56px; border:1px solid var(--line-strong); border-radius:10px;
-      overflow:hidden; flex:0 0 auto; background:#fff; cursor:pointer;
+    
+    @media (max-width: 768px) {
+      .vc-title {
+        font-size: 1.15rem;
+      }
     }
-    .vc-thumb img{ width:100%; height:100%; object-fit:cover; }
-    html.theme-dark .vc-thumb{ background:#0f172a; }
 
-    .vc-chips{ display:flex; flex-wrap:wrap; gap:8px; margin: 6px 0 4px; }
+    /* Group all "course basic details" to hide in full mode */
+    .vc-course-basic {}
+
+    body.vc-mode-full .vc-course-basic{
+      display:none;
+    }
+
+    /* ===== Hero + Gallery =============================================== */
+    .vc-hero{
+      border-radius:16px;
+      overflow:hidden;
+      box-shadow:var(--shadow-2);
+      border:1px solid var(--line-strong);
+      background:#000;
+      min-height:220px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      width:100%;
+      margin-bottom: 12px;
+    }
+    
+    @media (max-width: 768px) {
+      .vc-hero {
+        min-height: 180px;
+        border-radius: 14px;
+      }
+    }
+    
+    @media (max-width: 576px) {
+      .vc-hero {
+        min-height: 160px;
+        border-radius: 12px;
+        margin-bottom: 10px;
+      }
+    }
+
+    .vc-hero img{
+      display:none;
+      margin:0 auto;
+      max-width:100%;
+      height:auto;
+      max-height:60vh;
+      object-fit:contain;
+    }
+
+    /* Hero skeleton */
+    #vcHeroSkel{
+      width:100%;
+      height:260px;
+      border-radius:16px;
+      border:1px solid var(--line-strong);
+      display:block;
+      box-sizing:border-box;
+      background:linear-gradient(90deg,#0001,#0000000d,#0001);
+    }
+    
+    @media (max-width: 768px) {
+      #vcHeroSkel {
+        height: 200px;
+      }
+    }
+    
+    @media (max-width: 576px) {
+      #vcHeroSkel {
+        height: 160px;
+        border-radius: 12px;
+      }
+    }
+
+    /* Thumbs strip */
+    #vcThumbs{
+      margin-top:.5rem;
+      justify-content:center;
+    }
+    
+    .vc-thumbs .thumb{
+      display:block;
+      width:100%;
+      padding:0;
+      border:1px solid var(--line-strong);
+      border-radius:10px;
+      overflow:hidden;
+      background:transparent;
+      cursor:pointer;
+      box-sizing:border-box;
+      touch-action: manipulation;
+    }
+    
+    .vc-thumbs .thumb img{
+      width:100% !important;
+      height:56px !important;
+      object-fit:cover !important;
+      display:block !important;
+    }
+    
+    @media (max-width: 576px) {
+      .vc-thumbs .thumb img {
+        height: 48px !important;
+      }
+    }
+    
+    .vc-thumbs .thumb.active{ 
+      outline:2px solid var(--primary-color); 
+      outline-offset:2px; 
+    }
+    
+    .vc-thumbs .thumb:focus-visible{ 
+      outline:2px solid var(--primary-color); 
+      outline-offset:3px; 
+    }
+
+    .vc-chips{ 
+      display:flex; 
+      flex-wrap:wrap; 
+      gap:8px; 
+      margin: 10px 0 12px; 
+    }
+    
     .vc-chip{
-      display:inline-flex; align-items:center; gap:6px; padding:6px 10px;
-      border:1px solid var(--line-strong); border-radius:999px; background:#fff; font-size:var(--fs-13);
+      display:inline-flex; 
+      align-items:center; 
+      gap:6px; 
+      padding:8px 12px;
+      border:1px solid var(--line-strong); 
+      border-radius:999px; 
+      background:var(--surface); 
+      font-size:var(--fs-13);
     }
-    html.theme-dark .vc-chip{ background:#0f172a; }
+    
+    @media (max-width: 576px) {
+      .vc-chip {
+        padding: 6px 10px;
+        font-size: var(--fs-12);
+      }
+    }
 
+    /* ===== Batch Details & Modules Row ================================== */
+    .details-modules-row {
+      margin-top: 20px;
+    }
+    
+    @media (max-width: 992px) {
+      .details-modules-row {
+        margin-top: 16px;
+      }
+    }
+
+    /* Batch Details */
     .vc-batch-details{
-      margin: 12px 0;
-      padding: 12px;
+      margin: 0 0 16px 0;
+      padding: 16px;
       border: 1px solid var(--line-strong);
       border-radius: 12px;
       background: var(--surface);
+      height: 100%;
     }
-    .vc-batch-title{ font-weight: 600; color: var(--ink); margin-bottom: 4px; }
-    .vc-batch-description{ font-size: var(--fs-14); color: var(--text-color); margin-bottom: 8px; line-height: 1.5; }
-    .vc-batch-tagline{ font-size: var(--fs-13); color: var(--muted-color); margin-bottom: 8px; }
-    .vc-batch-info{ display: flex; flex-wrap: wrap; gap: 8px; font-size: var(--fs-13); }
-    .vc-batch-info-item{ display: inline-flex; align-items: center; gap: 4px; color: var(--muted-color); }
-    .vc-batch-info-item i{ width: 14px; text-align: center; }
+    
+    @media (max-width: 768px) {
+      .vc-batch-details {
+        padding: 14px;
+      }
+    }
+    
+    .vc-batch-title{ 
+      font-weight: 600; 
+      color: var(--ink); 
+      margin-bottom: 8px; 
+      font-size: 1.1rem;
+    }
+    
+    .vc-batch-description{ 
+      font-size: var(--fs-14); 
+      color: var(--text-color); 
+      margin-bottom: 10px; 
+      line-height: 1.5; 
+    }
+    
+    .vc-batch-tagline{ 
+      font-size: var(--fs-13); 
+      color: var(--muted-color); 
+      margin-bottom: 10px; 
+      font-style: italic;
+    }
+    
+    .vc-batch-info{ 
+      display: flex; 
+      flex-wrap: wrap; 
+      gap: 10px; 
+      font-size: var(--fs-13); 
+    }
+    
+    .vc-batch-info-item{ 
+      display: inline-flex; 
+      align-items: center; 
+      gap: 6px; 
+      color: var(--muted-color);
+      white-space: nowrap;
+    }
+    
+    .vc-batch-info-item i{ 
+      width: 16px; 
+      text-align: center; 
+      flex-shrink: 0;
+    }
+    
+    @media (max-width: 1200px) {
+      .vc-batch-info {
+        flex-direction: column;
+        gap: 8px;
+      }
+    }
 
-    .vc-search{ position:relative; margin-top:8px; }
-    .vc-search input{ padding-left:34px; height:40px; border-radius:12px; }
-    .vc-search i{ position:absolute; left:10px; top:50%; transform:translateY(-50%); color:#8a8593; }
+    /* Search */
+    .vc-search{ 
+      position:relative; 
+      margin-bottom: 12px;
+    }
+    
+    .vc-search input{ 
+      padding-left:42px; 
+      height:44px; 
+      border-radius:12px; 
+      font-size: var(--fs-14);
+      border: 1px solid var(--line-strong);
+      background: var(--surface);
+      color: var(--text-color);
+    }
+    
+    .vc-search input:focus {
+      border-color: var(--accent-color);
+      box-shadow: 0 0 0 3px color-mix(in oklab, var(--accent-color) 20%, transparent);
+    }
+    
+    .vc-search i{ 
+      position:absolute; 
+      left:14px; 
+      top:50%; 
+      transform:translateY(-50%); 
+      color:var(--muted-color);
+      pointer-events: none;
+    }
+    
+    @media (max-width: 576px) {
+      .vc-search input {
+        height: 42px;
+        padding-left: 40px;
+      }
+    }
 
+    /* Modules List */
     .vc-modules{
-      margin-top:10px; display:flex; flex-direction:column; gap:8px;
-      max-height: calc(100dvh - 420px); overflow: auto;
+      margin-top: 0;
+      display:flex; 
+      flex-direction:column; 
+      gap:10px;
+      max-height: 50vh; 
+      overflow-y: auto;
+      padding-right: 4px;
     }
+    
+    /* Scrollbar styling */
+    .vc-modules::-webkit-scrollbar {
+      width: 6px;
+    }
+    
+    .vc-modules::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    
+    .vc-modules::-webkit-scrollbar-thumb {
+      background-color: var(--line-strong);
+      border-radius: 3px;
+    }
+    
+    .vc-modules::-webkit-scrollbar-thumb:hover {
+      background-color: var(--muted-color);
+    }
+    
+    @media (max-width: 768px) {
+      .vc-modules {
+        max-height: 60vh;
+      }
+    }
+
     .vc-module{
-      border:1px solid var(--line-strong); border-radius:12px; background:var(--surface);
-      padding:10px; cursor:pointer; transition: var(--transition);
-      display: flex; justify-content: space-between; align-items: center; gap: 10px;
+      border:1px solid var(--line-strong); 
+      border-radius:12px; 
+      background:var(--surface);
+      padding:14px; 
+      cursor:pointer; 
+      transition: var(--transition);
+      display: flex; 
+      justify-content: space-between; 
+      align-items: center; 
+      gap: 12px;
+      touch-action: manipulation;
     }
-    .vc-module:hover{ border:2px solid color-mix(in oklab, var(--accent-color) 55%, transparent); }
-    .vc-module .module-content{ flex: 1; }
-    .vc-module .t{ font-weight:600; color:var(--ink); }
-    .vc-module .d{ font-size: var(--fs-13); color: var(--muted-color); }
+    
+    .vc-module:hover, .vc-module:active{ 
+      border-color: var(--accent-color);
+      transform: translateX(2px);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+    }
+    
+    .vc-module .module-content{ 
+      flex: 1; 
+      min-width: 0;
+    }
+    
+    .vc-module .t{ 
+      font-weight:600; 
+      color:var(--ink); 
+      margin-bottom: 4px;
+      font-size: var(--fs-15);
+      line-height: 1.3;
+    }
+    
+    .vc-module .d{ 
+      font-size: var(--fs-13); 
+      color: var(--muted-color);
+      line-height: 1.4;
+    }
+
+    /* In FULL mode: hide module descriptions on desktop, show on mobile */
+    body.vc-mode-full .vc-module .d{
+      display: none;
+    }
+    
+    @media (max-width: 992px) {
+      body.vc-mode-full .vc-module .d{
+        display: block;
+      }
+    }
+
     .vc-module .module-arrow{
       color: var(--muted-color);
       font-size: 1.2rem;
       flex-shrink: 0;
       transition: var(--transition);
     }
-    .vc-module.active{ border:2px solid color-mix(in oklab, var(--accent-color) 55%, transparent); }
-    .vc-module.active .module-arrow{ color: var(--accent-color); }
+    
+    .vc-module.active{ 
+      border:2px solid var(--accent-color);
+      background: color-mix(in oklab, var(--accent-color) 5%, transparent);
+    }
+    
+    .vc-module.active .module-arrow{ 
+      color: var(--accent-color);
+      transform: translateX(4px);
+    }
 
-    .vc-empty{ border:1px dashed var(--line-strong); border-radius: 10px; padding: 16px; text-align:center; color: var(--muted-color); }
+    .vc-empty{ 
+      border:1px dashed var(--line-strong); 
+      border-radius: 12px; 
+      padding: 32px 16px; 
+      text-align:center; 
+      color: var(--muted-color);
+      font-size: var(--fs-14);
+    }
+    
+    .vc-empty i {
+      font-size: 2rem;
+      margin-bottom: 12px;
+      opacity: 0.5;
+    }
 
-    /* ===== Right column (module header + tabs) ============================ */
-    .vc-main .panel{ padding: 14px; min-height: calc(100% - 0px); }
+    /* View All Button */
+    .vc-view-all-btn{
+      margin-top: 16px;
+      border-radius: 12px;
+      font-weight: 600;
+      padding: 12px 20px;
+      font-size: var(--fs-15);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      transition: all 0.3s ease;
+      touch-action: manipulation;
+    }
+    
+    .vc-view-all-btn:hover, .vc-view-all-btn:active {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(var(--accent-color-rgb, 59, 130, 246), 0.2);
+    }
+    
+    @media (max-width: 576px) {
+      .vc-view-all-btn {
+        padding: 14px 20px;
+        margin-top: 20px;
+      }
+    }
+
+    /* ===== Right column (module header + tabs) ========================== */
+    .vc-main .panel{ 
+      padding: 16px; 
+      min-height: calc(100% - 0px);
+      height: 100%;
+      overflow-y: auto;
+    }
+    
+    @media (max-width: 768px) {
+      .vc-main .panel {
+        padding: 14px;
+      }
+    }
+    
+    @media (max-width: 576px) {
+      .vc-main .panel {
+        padding: 12px;
+      }
+    }
+
+    /* Top header: row 1 = hamburger + title, row 2 = description */
     .vc-top{
-      display:flex; align-items:flex-start; justify-content:space-between; gap:10px; margin-bottom:8px;
+      display:flex; 
+      flex-direction: column;
+      gap:6px; 
+      margin-bottom:16px;
     }
-    .vc-top .title{ font-family:var(--font-head); font-weight:700; color:var(--ink); margin:0; font-size:1.18rem; }
-    .vc-top .sub{ color: var(--muted-color); }
-
-    .vc-top-left{
+    
+    .vc-top-row1{
       display:flex;
-      align-items:flex-start;
-      gap:10px;
-      min-width: 0;
-    }
-    .vc-top-left .txt{
-      min-width:0;
+      align-items:center;
+      gap:12px;
     }
 
-    .vc-price{
-      display:inline-flex; align-items:center; gap:6px; padding:6px 10px; border:1px solid var(--line-strong);
-      border-radius:999px; background:#fff; font-size:var(--fs-13);
-      white-space: nowrap;
+    .vc-top-row2{
+      padding-left: 0;
     }
-    html.theme-dark .vc-price{ background:#0f172a; }
 
+    @media (max-width: 576px) {
+      .vc-top {
+        margin-bottom: 14px;
+      }
+      .vc-top-row1{
+        gap:10px;
+      }
+    }
+
+    .vc-top .title{ 
+      font-family:var(--font-head); 
+      font-weight:700; 
+      color:var(--ink); 
+      margin:0; 
+      font-size:1.3rem;
+      line-height: 1.3;
+      flex: 1;
+    }
+    
+    @media (max-width: 768px) {
+      .vc-top .title {
+        font-size: 1.2rem;
+      }
+    }
+    
+    @media (max-width: 576px) {
+      .vc-top .title {
+        font-size: 1.15rem;
+      }
+    }
+    
+    .vc-top .sub{ 
+      color: var(--muted-color); 
+      font-size: var(--fs-14);
+      margin-top: 2px;
+      line-height: 1.4;
+    }
+
+    /* Course Details in Hamburger Menu */
+    .mobile-course-details {
+      display: none;
+      padding: 16px;
+      border: 1px solid var(--line-strong);
+      border-radius: 12px;
+      background: var(--surface);
+      margin-bottom: 16px;
+      animation: slideDown 0.3s ease;
+    }
+    
+    @keyframes slideDown {
+      from {
+        opacity: 0;
+        transform: translateY(-10px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+    
+    .mobile-course-details.show {
+      display: block;
+    }
+    
+    .mobile-course-details .section-title {
+      font-weight: 600;
+      color: var(--ink);
+      margin-bottom: 12px;
+      font-size: 1.1rem;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    
+    .mobile-course-details .course-description {
+      font-size: var(--fs-14);
+      color: var(--text-color);
+      line-height: 1.6;
+      margin-bottom: 12px;
+    }
+    
+    .mobile-course-details .course-meta {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+      gap: 10px;
+      margin-top: 12px;
+    }
+    
+    .mobile-course-details .meta-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: var(--fs-13);
+      color: var(--text-color);
+    }
+    
+    .mobile-course-details .meta-item i {
+      width: 16px;
+      color: var(--accent-color);
+      text-align: center;
+    }
+    
+    @media (max-width: 576px) {
+      .mobile-course-details .course-meta {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* Tabs */
     .tabbar{
-      margin-top:6px; border-bottom:1px solid var(--line-strong); padding-bottom:4px;
-      display:flex; flex-wrap:wrap; gap:6px;
+      margin-top:8px; 
+      border-bottom:1px solid var(--line-strong); 
+      padding-bottom:4px;
+      display:flex; 
+      flex-wrap:wrap; 
+      gap:6px;
+      overflow-x: auto;
+      scrollbar-width: none;
+      -ms-overflow-style: none;
     }
+    
+    .tabbar::-webkit-scrollbar {
+      display: none;
+    }
+    
+    @media (max-width: 768px) {
+      .tabbar {
+        gap: 4px;
+      }
+    }
+
     .tabbar .nav-link{
-      border:0; border-radius:10px; padding:8px 12px;
-      color: var(--muted-color); background: transparent;
+      border:0; 
+      border-radius:10px; 
+      padding:10px 14px;
+      color: var(--muted-color); 
+      background: transparent;
+      font-size: var(--fs-14);
+      white-space: nowrap;
+      transition: var(--transition);
+      touch-action: manipulation;
     }
-    .tabbar .nav-link i{ width:16px; text-align:center; margin-right:6px; }
-    .tabbar .nav-link:hover{ background: rgba(2,6,23,.04); }
-    html.theme-dark .tabbar .nav-link:hover{ background:#0c172d; }
+    
+    .tabbar .nav-link i{ 
+      width:16px; 
+      text-align:center; 
+      margin-right:6px; 
+      font-size: var(--fs-15);
+    }
+    
+    .tabbar .nav-link:hover{ 
+      background: rgba(2,6,23,.04); 
+    }
+    
+    html.theme-dark .tabbar .nav-link:hover{ 
+      background:#0c172d; 
+    }
+    
     .tabbar .nav-link.active{
-      color: var(--ink); background: color-mix(in oklab, var(--accent-color) 12%, transparent);
+      color: var(--ink); 
+      background: color-mix(in oklab, var(--accent-color) 12%, transparent);
       box-shadow: var(--shadow-1);
     }
+    
+    @media (max-width: 768px) {
+      .tabbar .nav-link {
+        padding: 8px 12px;
+        font-size: var(--fs-13);
+      }
+    }
+    
+    @media (max-width: 576px) {
+      .tabbar .nav-link {
+        padding: 8px 10px;
+        font-size: var(--fs-12);
+      }
+      
+      .tabbar .nav-link i {
+        margin-right: 4px;
+        font-size: var(--fs-14);
+      }
+    }
 
-    /* ===== Tab switching (no full page reload) ===== */
-    #tabContent{ position: relative; }
+    /* ===== Tab switching ================================================ */
+    #tabContent{ 
+      position: relative; 
+      margin-top: 16px;
+    }
+    
     #tabContent.is-loading{
       opacity: .65;
       pointer-events: none;
       filter: saturate(.9);
       transition: opacity .12s ease;
     }
+    
     .vc-tab-spinner{
       position:absolute;
       inset: 10px 10px auto auto;
       display:none;
       align-items:center;
       gap:8px;
-      padding:8px 10px;
+      padding:8px 12px;
       background: var(--surface);
       border:1px solid var(--line-strong);
       border-radius: 999px;
@@ -293,90 +871,141 @@
       color: var(--muted-color);
       font-size: var(--fs-13);
     }
-    #tabContent.is-loading .vc-tab-spinner{ display:flex; }
+    
+    #tabContent.is-loading .vc-tab-spinner{ 
+      display:flex; 
+    }
+    
     .vc-dot{
-      width: 8px; height: 8px; border-radius: 999px;
+      width: 8px; 
+      height: 8px; 
+      border-radius: 999px;
       background: var(--muted-color);
       animation: vcPulse 900ms infinite ease-in-out;
     }
-    .vc-dot:nth-child(2){ animation-delay: 150ms; }
-    .vc-dot:nth-child(3){ animation-delay: 300ms; }
+    
+    .vc-dot:nth-child(2){ 
+      animation-delay: 150ms; 
+    }
+    
+    .vc-dot:nth-child(3){ 
+      animation-delay: 300ms; 
+    }
+    
     @keyframes vcPulse{
-      0%, 100%{ transform: translateY(0); opacity:.35; }
-      50%{ transform: translateY(-3px); opacity:.95; }
+      0%, 100%{ 
+        transform: translateY(0); 
+        opacity:.35; 
+      }
+      50%{ 
+        transform: translateY(-3px); 
+        opacity:.95; 
+      }
     }
   </style>
 </head>
 <body data-initial-tab="{{ $tabKey }}">
+
+  {{-- Global overlay loader (shared partial) --}}
+  @include('partials.overlay')
+
   <main class="vc-wrap">
     <div class="vc-grid" id="vcGrid">
-      {{-- ================= LEFT: Overview + Modules ================= --}}
+      {{-- ================= LEFT: Overview / Sidebar ================= --}}
       <aside class="vc-aside" id="vcAside">
         <div class="panel shadow-1">
 
-          <h2>Course Details - </h2>
-          <div class="vc-head-left">
-            <div>
-              <h2 class="vc-title" id="courseTitle">Course</h2>
-              <div class="text-muted" id="courseShort">—</div>
-            </div>
-
+          <div class="d-flex justify-content-between align-items-center mb-3">
             <a href="javascript:void(0)" class="aside-back-btn" id="asideBackBtn">
               <i class="fa fa-arrow-left"></i>
-              <span>Back To Courses</span>
+              <span>Back to Courses</span>
             </a>
           </div>
 
-          <div class="vc-cover rounded-1 shadow-1 mb-2" id="mediaCover">
-            <i class="fa-regular fa-image"></i>
+          {{-- COURSE BASIC DETAILS (hidden in full mode) --}}
+          <div class="vc-course-basic">
+            <div class="vc-head-left">
+              <div>
+                <h2 class="vc-title" id="courseTitle">Course</h2>
+                <div class="text-muted" id="courseShort">—</div>
+              </div>
+            </div>
+
+            {{-- Hero + thumbs (gallery like viewCourse.blade) --}}
+            <div class="vc-hero" id="vcHero">
+              <div id="vcHeroSkel" class="placeholder"></div>
+              <img class="img-fluid" id="vcCover"
+                   src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw=="
+                   alt="Course cover">
+            </div>
+            <div id="vcThumbs" class="d-flex justify-content-center row g-2 mb-3 vc-thumbs"></div>
+
+            <div class="divider my-2"></div>
+
+            <div class="vc-chips" id="courseChips"></div>
           </div>
-          <div class="vc-thumbs" id="mediaThumbs"></div>
 
-          <div class="divider my-2"></div>
-
-          <div class="vc-chips" id="courseChips"></div>
-
-          <h2>Batch Details - </h2>
-          <div class="vc-batch-details" id="batchDetails" style="display:none">
-            <div class="vc-batch-title" id="batchTitle"></div>
-            <div class="vc-batch-description" id="batchDescription"></div>
-            <div class="vc-batch-tagline" id="batchTagline"></div>
-            <div class="vc-batch-info" id="batchInfo"></div>
+          {{-- Mobile Course Details (Visible only in FULL mode on mobile) --}}
+          <div class="mobile-course-details" id="mobileCourseDetails">
+            <div class="section-title">
+              <i class="fa-solid fa-book-open"></i>
+              <span>Course Details</span>
+            </div>
+            <div class="course-description" id="mobileCourseDescription">No description available.</div>
+            <div class="course-meta" id="mobileCourseMeta"></div>
           </div>
 
-          <h2>Course Modules - </h2>
-          <div class="vc-search">
-            <i class="fa fa-search"></i>
-            <input id="moduleSearch" type="text" class="form-control" placeholder="Search modules...">
+          {{-- ROW: Batch Details + Modules (stacked; Batch between course + modules) --}}
+          <div class="details-modules-row">
+            {{-- Batch Details --}}
+            <h3 class="h5 mb-3">Batch Details</h3>
+            <div class="vc-batch-details" id="batchDetails" style="display:none">
+              <div class="vc-batch-title" id="batchTitle"></div>
+              <div class="vc-batch-description" id="batchDescription"></div>
+              <div class="vc-batch-tagline" id="batchTagline"></div>
+              <div class="vc-batch-info" id="batchInfo"></div>
+            </div>
+
+            {{-- View All (only visible in overview mode) --}}
+            <div class="d-grid mt-3 mb-3">
+              <button type="button" class="btn btn-primary vc-view-all-btn" id="viewAllBtn">
+                <i class="fa fa-arrow-right me-2"></i>
+                View full course content
+              </button>
+            </div>
+
+            {{-- Modules --}}
+            <h3 class="h5 mb-3">Course Modules</h3>
+            <div class="vc-search d-flex align-items-center">
+              <i class="fa fa-search me-2"></i>
+              <input id="moduleSearch" type="text" class="form-control" placeholder="Search modules...">
+            </div>
+            <div class="vc-modules" id="modulesList">
+              <div class="vc-empty" id="modulesEmpty" style="display:none">
+                <i class="fa-regular fa-folder-open"></i>
+                <div>No modules found</div>
+              </div>
+            </div>
           </div>
 
-          <div class="vc-modules" id="modulesList">
-            <div class="vc-empty" id="modulesEmpty" style="display:none">No modules found.</div>
-          </div>
         </div>
       </aside>
 
       {{-- ================= RIGHT: Module Header + Tabs ================= --}}
       <section class="vc-main" id="vcMain">
         <div class="panel shadow-1">
-          <div class="mobile-back-btn" id="mobileBackBtn">
-            <i class="fa fa-arrow-left"></i>
-            <span>Back to Modules</span>
-          </div>
-
           <div class="vc-top">
-            <div class="vc-top-left">
-              <button class="vc-side-toggle" id="sidebarToggleBtn" type="button" title="Toggle sidebar">
-                <i class="fa-solid fa-bars" id="sidebarToggleIcon"></i>
+            <div class="vc-top-row1">
+              {{-- Hamburger Menu for Mobile --}}
+              <button class="mobile-hamburger" id="mobileHamburgerBtn" type="button" aria-label="Toggle sidebar">
+                <i class="fa-solid fa-bars"></i>
               </button>
 
-              <div class="txt">
-                <h1 class="title" id="moduleTitle">Select a module</h1>
-                <div class="sub" id="moduleShort">Pick a module from the left to see its content.</div>
-              </div>
+              <h1 class="title" id="moduleTitle">Select a module</h1>
             </div>
-
-            <div id="pricePill" class="vc-price" style="display:none"></div>
+            <div class="vc-top-row2">
+              <div class="sub" id="moduleShort">Pick a module from the left to see its content.</div>
+            </div>
           </div>
 
           @php
@@ -417,7 +1046,6 @@
               </a>
             </li>
 
-            {{-- NEW TAB: Coding Tests (next to Quizzes) --}}
             <li class="nav-item">
               <a class="nav-link {{ $tabKey==='codingtests'?'active':'' }}"
                  data-tab="codingtests"
@@ -461,9 +1089,17 @@
 
   <script>
 document.addEventListener('DOMContentLoaded', () => {
-  const isMobile = () => window.matchMedia('(max-width: 992px)').matches;
+  const qs  = (sel) => document.querySelector(sel);
+  const qsa = (sel) => Array.from(document.querySelectorAll(sel));
 
-  // ===== Derive {uuid} from /.../courses/{uuid}/view OR /.../courses/{uuid}
+  // Use global overlay helpers from partials.overlay
+  const showPageOverlay = () => { if (window.showOverlay) window.showOverlay(); };
+  const hidePageOverlay = () => { if (window.hideOverlay) window.hideOverlay(); };
+
+  // Start in OVERVIEW mode (only left card visible)
+  document.body.classList.add('vc-mode-overview');
+  document.body.classList.remove('vc-mode-full');
+
   const deriveCourseKey = () => {
     const parts = location.pathname.split('/').filter(Boolean);
     const last = parts.at(-1)?.toLowerCase();
@@ -473,7 +1109,6 @@ document.addEventListener('DOMContentLoaded', () => {
   };
   const courseKey = deriveCourseKey();
 
-  // ===== Elements
   const el = {
     grid:   document.getElementById('vcGrid'),
     aside:  document.getElementById('vcAside'),
@@ -481,8 +1116,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
     title:  document.getElementById('courseTitle'),
     short:  document.getElementById('courseShort'),
-    cover:  document.getElementById('mediaCover'),
-    thumbs: document.getElementById('mediaThumbs'),
+
+    heroSkel: document.getElementById('vcHeroSkel'),
+    coverImg: document.getElementById('vcCover'),
+    thumbs:   document.getElementById('vcThumbs'),
+
     chips:  document.getElementById('courseChips'),
 
     mSearch:document.getElementById('moduleSearch'),
@@ -491,10 +1129,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
     mTitle: document.getElementById('moduleTitle'),
     mShort: document.getElementById('moduleShort'),
-    price:  document.getElementById('pricePill'),
 
-    backBtn: document.getElementById('mobileBackBtn'),
     asideBackBtn: document.getElementById('asideBackBtn'),
+    viewAllBtn: document.getElementById('viewAllBtn'),
+    mobileHamburgerBtn: document.getElementById('mobileHamburgerBtn'),
+
+    mobileCourseDetails: document.getElementById('mobileCourseDetails'),
+    mobileCourseDescription: document.getElementById('mobileCourseDescription'),
+    mobileCourseMeta: document.getElementById('mobileCourseMeta'),
 
     batchDetails: document.getElementById('batchDetails'),
     batchTitle: document.getElementById('batchTitle'),
@@ -504,25 +1146,24 @@ document.addEventListener('DOMContentLoaded', () => {
 
     tabs:   document.getElementById('vcTabs'),
     tabContent: document.getElementById('tabContent'),
-
-    sideToggleBtn: document.getElementById('sidebarToggleBtn'),
-    sideToggleIcon: document.getElementById('sidebarToggleIcon'),
   };
 
-  // ===== Token & role for protected API
+  // Check if mobile
+  const isMobile = () => window.matchMedia('(max-width: 992px)').matches;
+
+  // Token & role
   const tok = sessionStorage.getItem('token') || localStorage.getItem('token') || '';
   const auth = tok ? { 'Authorization': 'Bearer ' + tok } : {};
 
-  // ===== Module param handling: keep ?module in URL and on tab links
-  const qs = new URLSearchParams(location.search);
-  let selectedModuleUuid = qs.get('module') || null;
+  // Module param
+  const qsObj = new URLSearchParams(location.search);
+  let selectedModuleUuid = qsObj.get('module') || null;
 
   const getTabFromUrl = () => {
     const p = new URLSearchParams(location.search);
     return p.get('tab') || (document.body.dataset.initialTab || 'recorded');
   };
 
-  // Update tab links to include (or remove) module param
   const syncTabLinks = (moduleUuid) => {
     const links = document.querySelectorAll('#vcTabs .nav-link');
     links.forEach(a => {
@@ -531,13 +1172,10 @@ document.addEventListener('DOMContentLoaded', () => {
         if (moduleUuid) u.searchParams.set('module', moduleUuid);
         else u.searchParams.delete('module');
         a.href = u.toString();
-      } catch (err) {
-        // fallback best-effort
-      }
+      } catch (err) {}
     });
   };
 
-  // Utility: update query param without reload
   const updateQueryParam = (key, val) => {
     const usp = new URLSearchParams(location.search);
     if (!val) usp.delete(key); else usp.set(key, val);
@@ -548,7 +1186,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   syncTabLinks(selectedModuleUuid);
 
-  // ===== Role-aware back to courses
+  // Role-aware back button
   const USER_ROLE = (sessionStorage.getItem('role') || localStorage.getItem('role') || '').toLowerCase();
   const derivedRole = (USER_ROLE && ['student','admin','instructor'].includes(USER_ROLE)) ? USER_ROLE : (USER_ROLE || '');
 
@@ -566,89 +1204,169 @@ document.addEventListener('DOMContentLoaded', () => {
       return false;
     };
 
-    window.backToCourses = handler; // keep compatibility
+    window.backToCourses = handler;
     el.asideBackBtn?.addEventListener('click', handler);
   })();
 
-  // ===== Small bus (tabs can listen)
+  // ===== Mobile Hamburger Menu ===========================================
+  const toggleMobileSidebar = () => {
+    if (!isMobile()) return;
+    
+    if (document.body.classList.contains('mobile-sidebar-open')) {
+      // Closing sidebar -> show main/tabs, show mobile course details (in full mode)
+      document.body.classList.remove('mobile-sidebar-open');
+      if (document.body.classList.contains('vc-mode-full')) {
+        el.mobileCourseDetails?.classList.add('show');
+      }
+    } else {
+      // Opening sidebar -> show sidebar, hide mobile course details
+      document.body.classList.add('mobile-sidebar-open');
+      el.mobileCourseDetails?.classList.remove('show');
+    }
+  };
+
+  el.mobileHamburgerBtn?.addEventListener('click', toggleMobileSidebar);
+
+  // Close sidebar when clicking a module on mobile
+  const closeMobileSidebar = () => {
+    if (isMobile()) {
+      document.body.classList.remove('mobile-sidebar-open');
+      // Show mobile course details when in full mode
+      if (document.body.classList.contains('vc-mode-full')) {
+        el.mobileCourseDetails?.classList.add('show');
+      }
+    }
+  };
+
+  // ===== Small bus (tabs can listen) =====================================
   const bus = { emit(evt, detail){ document.dispatchEvent(new CustomEvent(evt, { detail })); } };
   window.__VCBUS__ = bus;
 
-  // ===== Desktop sidebar toggle (hamburger)
-  const SIDEBAR_KEY = 'vc_sidebar_open';
-  let desktopSidebarOpen = false;
+  // ===== Gallery helpers (hero + thumbs, like public view) ===============
+  const setCoverUrl = (url) => {
+    if (!el.coverImg) return;
+    if (!url) {
+      if (el.heroSkel) el.heroSkel.style.display = 'block';
+      el.coverImg.style.display = 'none';
+      return;
+    }
+    if (el.heroSkel) el.heroSkel.style.display = 'block';
+    el.coverImg.style.display = 'none';
+    el.coverImg.onload = () => {
+      if (el.heroSkel) el.heroSkel.style.display = 'none';
+      el.coverImg.style.display = 'block';
+    };
+    el.coverImg.onerror = () => {
+      if (el.heroSkel) el.heroSkel.style.display = 'none';
+      el.coverImg.style.display = 'none';
+    };
+    el.coverImg.src = url;
+  };
 
-  const applyDesktopSidebar = (open) => {
-    desktopSidebarOpen = !!open;
-    if (!el.grid) return;
+  const cleanUrl = (u) => {
+    if (!u) return '';
+    try { return String(u).replace(/%22"?$/,'').replace(/"$/,''); } catch { return u; }
+  };
 
-    if (desktopSidebarOpen) {
-      el.grid.classList.remove('sidebar-collapsed');
-      document.body.classList.remove('vc-wide');
-      if (el.sideToggleIcon) el.sideToggleIcon.className = 'fa-solid fa-xmark';
-      localStorage.setItem(SIDEBAR_KEY, '1');
-    } else {
-      el.grid.classList.add('sidebar-collapsed');
-      document.body.classList.add('vc-wide');
-      if (el.sideToggleIcon) el.sideToggleIcon.className = 'fa-solid fa-bars';
-      localStorage.setItem(SIDEBAR_KEY, '0');
+  const onThumbClick = (e) => {
+    const btn = e.target.closest('.thumb');
+    if (!btn) return;
+    e.preventDefault();
+    const src = btn.dataset.src;
+    if (src) {
+      setCoverUrl(src);
+      el.thumbs.querySelectorAll('.thumb').forEach(x => x.classList.remove('active'));
+      btn.classList.add('active');
+      el.coverImg?.parentElement?.scrollIntoView({ behavior:'smooth', block:'center', inline:'nearest' });
+    }
+  };
+  const onThumbKeyDown = (e) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      const btn = e.target.closest('.thumb');
+      if (btn) {
+        e.preventDefault();
+        btn.click();
+      }
     }
   };
 
-  const initDesktopSidebar = () => {
-    if (isMobile()) return; // desktop only
-    const saved = localStorage.getItem(SIDEBAR_KEY);
-    // Per your requirement: sidebar shows ONLY when hamburger is clicked (default hidden)
-    const open = saved === null ? false : (saved === '1');
-    applyDesktopSidebar(open);
-  };
-
-  el.sideToggleBtn?.addEventListener('click', () => {
-    if (isMobile()) return;
-    applyDesktopSidebar(!desktopSidebarOpen);
-    // focus search when opening
-    if (desktopSidebarOpen) setTimeout(() => el.mSearch?.focus?.(), 50);
-  });
-
-  // ===== Mobile view flow:
-  // - Start: show ONLY left sidebar (modules)
-  // - On module click: show ONLY right side
-  // - Back: show left again
-  const ensureMobileInitialView = () => {
-    if (!isMobile()) return;
-    if (!selectedModuleUuid) {
-      el.aside?.classList.remove('mobile-hidden');
-      el.main?.classList.add('mobile-hidden');
-    } else {
-      el.aside?.classList.add('mobile-hidden');
-      el.main?.classList.remove('mobile-hidden');
+  const renderGallery = (gallery = [], activeUrl = '') => {
+    if (!el.thumbs) return;
+    if (!Array.isArray(gallery) || !gallery.length) {
+      el.thumbs.innerHTML = '';
+      return;
     }
+    const html = gallery.map((g, i) => {
+      const url = cleanUrl(g.url || g.image_url || g.path || '');
+      if (!url) return '';
+      const active = (url === activeUrl) ? 'active' : '';
+      return `
+        <div class="col-4 col-sm-3 col-md-2">
+          <button type="button"
+                  class="thumb ${active}"
+                  data-src="${url}"
+                  aria-label="Preview image ${i+1}"
+                  tabindex="0">
+            <img src="${url}" loading="lazy" alt="Gallery ${i+1}">
+          </button>
+        </div>`;
+    }).join('');
+    el.thumbs.innerHTML = html;
+
+    el.thumbs.removeEventListener('click', onThumbClick);
+    el.thumbs.addEventListener('click', onThumbClick);
+    el.thumbs.removeEventListener('keydown', onThumbKeyDown);
+    el.thumbs.addEventListener('keydown', onThumbKeyDown);
   };
 
-  el.backBtn?.addEventListener('click', () => {
-    el.aside?.classList.remove('mobile-hidden');
-    el.main?.classList.add('mobile-hidden');
-  });
-
-  // ===== Render helpers
-  const setCover = (m) => {
-    if (!m || !m.url) return;
-    el.cover.innerHTML = `<img src="${m.url}" alt="cover">`;
+  // ===== Mobile Course Details ===========================================
+  const renderMobileCourseDetails = (course) => {
+    if (!course || !el.mobileCourseDescription || !el.mobileCourseMeta) return;
+    
+    el.mobileCourseDescription.textContent = course.description || 'No description available.';
+    
+    // Course meta information
+    const metaItems = [];
+    if (course.difficulty) {
+      metaItems.push(`
+        <div class="meta-item">
+          <i class="fa fa-signal"></i>
+          <span>${course.difficulty} Level</span>
+        </div>
+      `);
+    }
+    
+    if (course.language) {
+      metaItems.push(`
+        <div class="meta-item">
+          <i class="fa fa-language"></i>
+          <span>${course.language}</span>
+        </div>
+      `);
+    }
+    
+    if (course.duration_hours) {
+      metaItems.push(`
+        <div class="meta-item">
+          <i class="fa fa-clock"></i>
+          <span>${course.duration_hours} hours</span>
+        </div>
+      `);
+    }
+    
+    if (course.category) {
+      metaItems.push(`
+        <div class="meta-item">
+          <i class="fa fa-tag"></i>
+          <span>${course.category}</span>
+        </div>
+      `);
+    }
+    
+    el.mobileCourseMeta.innerHTML = metaItems.join('');
   };
 
-  const renderThumbs = (gallery=[]) => {
-    el.thumbs.innerHTML = '';
-    (gallery || []).forEach(m => {
-      if (m.type !== 'image') return;
-      const d = document.createElement('div');
-      d.className = 'vc-thumb';
-      d.title = 'Cover';
-      d.innerHTML = `<img src="${m.url}" alt="">`;
-      d.addEventListener('click', () => setCover(m));
-      el.thumbs.appendChild(d);
-    });
-  };
-
+  // ===== Render helpers ===================================================
   const setModuleHeader = (m) => {
     if (!m){
       el.mTitle.textContent = 'Select a module';
@@ -660,18 +1378,25 @@ document.addEventListener('DOMContentLoaded', () => {
   };
 
   const tryRefreshCurrentTab = () => {
-    // best-effort auto refresh for tabs that depend on module
-    // (these buttons exist only inside the active tab DOM)
-    const btns = [
-      '#btn-refresh',   // study material / assignments / notices
-      '#qz-refresh',    // quizzes
-    ];
+    const btns = ['#btn-refresh', '#qz-refresh'];
     for (const sel of btns) {
       const b = document.querySelector(sel);
       if (b && typeof b.click === 'function') { b.click(); break; }
     }
   };
 
+  // ===== ENTER FULL MODE ==================================================
+  const enterFullMode = () => {
+    document.body.classList.remove('vc-mode-overview');
+    document.body.classList.add('vc-mode-full');
+    
+    // On mobile, show course details card when main area is visible
+    if (isMobile()) {
+      el.mobileCourseDetails?.classList.add('show');
+    }
+  };
+
+  // ===== Modules ==========================================================
   const renderModules = (modules=[]) => {
     el.mList.innerHTML = '';
     el.mEmpty.style.display = modules.length ? 'none' : '';
@@ -696,16 +1421,13 @@ document.addEventListener('DOMContentLoaded', () => {
         updateQueryParam('module', selectedModuleUuid);
         bus.emit('vc:module-changed', { moduleUuid: selectedModuleUuid, module: m });
 
-        // Mobile: hide aside, show main
-        if (isMobile()) {
-          el.aside?.classList.add('mobile-hidden');
-          el.main?.classList.remove('mobile-hidden');
-        } else {
-          // Desktop: after selecting a module, collapse sidebar for full screen
-          applyDesktopSidebar(false);
-        }
+        // Go to FULL mode when clicking a module
+        enterFullMode();
+        
+        // Close mobile sidebar (so main area + tabs are visible)
+        closeMobileSidebar();
 
-        // Refresh active tab data (module-sensitive tabs read module from URL)
+        // Refresh active tab (module-sensitive)
         tryRefreshCurrentTab();
       });
       frag.appendChild(div);
@@ -713,15 +1435,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
     el.mList.appendChild(frag);
 
-    // Preselect behavior:
-    // - Mobile: DO NOT auto-select (unless module is already in URL)
-    // - Desktop: auto-select first module if none is selected (nice UX)
-    let chosen = modules.find(x => x.uuid === selectedModuleUuid) || null;
-
-    if (!chosen && modules.length && !isMobile()) {
-      chosen = modules[0];
-      selectedModuleUuid = chosen.uuid;
-      updateQueryParam('module', selectedModuleUuid);
+    // === DEFAULT SELECTION: first module if none selected yet ============
+    let chosen = null;
+    if (modules.length) {
+      if (selectedModuleUuid) {
+        chosen = modules.find(x => x.uuid === selectedModuleUuid) || null;
+      }
+      if (!chosen) {
+        chosen = modules[0];
+        selectedModuleUuid = chosen.uuid || null;
+        if (selectedModuleUuid) {
+          updateQueryParam('module', selectedModuleUuid);
+        }
+      }
     }
 
     if (chosen) {
@@ -731,9 +1457,6 @@ document.addEventListener('DOMContentLoaded', () => {
     } else {
       setModuleHeader(null);
     }
-
-    // Ensure correct initial view on mobile
-    ensureMobileInitialView();
   };
 
   const wireSearch = (modules=[]) => {
@@ -748,9 +1471,9 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   };
 
-  // ===== Tab switching without full page reload (cache panes)
-  const tabCache = new Map();     // tabKey -> paneEl
-  const tabMeta  = new Map();     // tabKey -> { inited:boolean, inlineScripts:string[] }
+  // ===== Tab switching (no reload) =======================================
+  const tabCache = new Map();
+  const tabMeta  = new Map();
 
   const setTabsActiveUI = (tabKey) => {
     document.querySelectorAll('#vcTabs .nav-link').forEach(a => {
@@ -804,18 +1527,16 @@ document.addEventListener('DOMContentLoaded', () => {
     pane.className = 'vc-tab-pane';
     pane.dataset.tab = initialTab;
 
-    // move current rendered nodes into the pane
     const nodes = [...el.tabContent.childNodes].filter(n => !(n.nodeType === 1 && n.classList.contains('vc-tab-spinner')));
     nodes.forEach(n => pane.appendChild(n));
 
-    // clear and re-add spinner + pane
     const spinner = el.tabContent.querySelector('.vc-tab-spinner');
     el.tabContent.innerHTML = '';
     if (spinner) el.tabContent.appendChild(spinner);
     el.tabContent.appendChild(pane);
 
     tabCache.set(initialTab, pane);
-    tabMeta.set(initialTab, { inited: true, inlineScripts: [] }); // already executed by browser on first load
+    tabMeta.set(initialTab, { inited: true, inlineScripts: [] });
     setTabsActiveUI(initialTab);
     syncTabLinks(selectedModuleUuid);
   };
@@ -833,7 +1554,6 @@ document.addEventListener('DOMContentLoaded', () => {
       if (!res.ok) throw new Error('Failed to load tab');
     } catch (e) {
       setTabLoading(false);
-      // fallback to hard navigation if fetch fails
       window.location.href = url;
       return;
     }
@@ -851,18 +1571,15 @@ document.addEventListener('DOMContentLoaded', () => {
     pane.dataset.tab = tabKey;
     pane.innerHTML = src.innerHTML;
 
-    // Strip duplicate external resources inside pane
     pane.querySelectorAll('link[rel="stylesheet"]').forEach(l => l.remove());
     pane.querySelectorAll('script[src]').forEach(s => {
       const srcUrl = (s.getAttribute('src') || '').trim();
-      // SweetAlert2 is already loaded globally; keep future-proof loader for other libs
       if (srcUrl && !srcUrl.includes('sweetalert2')) {
         loadScriptOnce(srcUrl).catch(()=>{});
       }
       s.remove();
     });
 
-    // Collect inline scripts and remove from DOM (we will execute once when pane is shown)
     const inline = [];
     pane.querySelectorAll('script:not([src])').forEach(s => {
       inline.push(s.textContent || '');
@@ -879,7 +1596,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const currentTab = getTabFromUrl();
     if (!tabKey) tabKey = currentTab;
 
-    // no-op
     const currentPane = tabCache.get(currentTab);
     if (currentPane && currentPane.dataset.tab === tabKey) return;
 
@@ -888,14 +1604,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     await ensurePaneLoaded(tabKey);
 
-    // detach current pane (keep cached)
     const existing = el.tabContent.querySelector('.vc-tab-pane');
     if (existing) existing.remove();
 
     const pane = tabCache.get(tabKey);
     if (pane) el.tabContent.appendChild(pane);
 
-    // update URL (no reload)
     if (opts.push) {
       const u = new URL(window.location.href);
       u.searchParams.set('tab', tabKey);
@@ -904,11 +1618,9 @@ document.addEventListener('DOMContentLoaded', () => {
       history.pushState({ tab: tabKey }, '', u.toString());
     }
 
-    // init inline scripts once
     const meta = tabMeta.get(tabKey);
     if (meta && !meta.inited) {
       meta.inited = true;
-      // run after mount
       setTimeout(() => {
         (meta.inlineScripts || []).forEach(execInline);
         bus.emit('vc:tab-changed', { tab: tabKey, moduleUuid: selectedModuleUuid });
@@ -920,7 +1632,6 @@ document.addEventListener('DOMContentLoaded', () => {
     setTabLoading(false);
   };
 
-  // Intercept tab clicks (no full page reload)
   el.tabs?.addEventListener('click', async (e) => {
     const a = e.target.closest('a.nav-link');
     if (!a) return;
@@ -931,13 +1642,36 @@ document.addEventListener('DOMContentLoaded', () => {
     await showPane(tabKey, { push: true });
   });
 
-  // Browser back/forward: swap panes
   window.addEventListener('popstate', () => {
     const t = getTabFromUrl();
     showPane(t, { push: false });
   });
 
-  // ===== Fetch course view payload
+  // ===== View All button (switch mode, ensure module) =====================
+  el.viewAllBtn?.addEventListener('click', () => {
+    enterFullMode();
+
+    // If no module selected yet, select the first one
+    const first = el.mList?.querySelector('.vc-module');
+    if (first && !selectedModuleUuid) {
+      const uuid = first.dataset.uuid;
+      if (uuid) {
+        selectedModuleUuid = uuid;
+        updateQueryParam('module', selectedModuleUuid);
+        [...el.mList.children].forEach(c => c.classList.toggle('active', c.dataset.uuid === selectedModuleUuid));
+        bus.emit('vc:module-changed', { moduleUuid: selectedModuleUuid });
+        tryRefreshCurrentTab();
+      }
+    }
+    
+    // Ensure we're not in mobile-sidebar-open state
+    if (isMobile()) {
+      document.body.classList.remove('mobile-sidebar-open');
+      el.mobileCourseDetails?.classList.add('show');
+    }
+  });
+
+  // ===== Fetch course view payload =======================================
   const api = courseKey ? `/api/courses/by-batch/${encodeURIComponent(courseKey)}/view` : null;
   if (!api) {
     el.title.textContent = 'Course';
@@ -945,27 +1679,9 @@ document.addEventListener('DOMContentLoaded', () => {
     return;
   }
 
-  // init UI states
-  initDesktopSidebar();
-  ensureMobileInitialView();
   captureInitialPane();
 
-  // handle resize: keep flows correct
-  window.addEventListener('resize', () => {
-    if (isMobile()) {
-      // mobile flow controlled by module selection
-      ensureMobileInitialView();
-      // ensure desktop classes cleared
-      el.grid?.classList.remove('sidebar-collapsed');
-      document.body.classList.remove('vc-wide');
-    } else {
-      initDesktopSidebar();
-      // show both columns if sidebar open
-      el.aside?.classList.remove('mobile-hidden');
-      el.main?.classList.remove('mobile-hidden');
-    }
-  });
-
+  showPageOverlay();
   fetch(api, { headers: { 'Accept':'application/json', ...auth } })
     .then(r => r.ok ? r.json() : r.json().then(j => Promise.reject(j)))
     .then(({ data }) => {
@@ -974,24 +1690,15 @@ document.addEventListener('DOMContentLoaded', () => {
       el.title.textContent  = course.title || 'Course';
       el.short.textContent  = course.short_description || '';
 
-      if (pricing){
-        el.price.style.display = 'inline-flex';
-        el.price.innerHTML = pricing.is_free
-          ? `<i class="fa fa-badge-check"></i> Free`
-          : (pricing.has_discount
-              ? `<i class="fa fa-tags"></i> ${pricing.currency} ${pricing.final}
-                 <span class="text-muted" style="text-decoration:line-through">&nbsp;${pricing.currency} ${pricing.original}</span>`
-              : `<i class="fa fa-tag"></i> ${pricing.currency} ${pricing.original}`);
-      }
+      // Render mobile course details
+      renderMobileCourseDetails(course);
 
-      // chips
       const chips = [];
       if (course.difficulty)     chips.push(`<span class="vc-chip"><i class="fa fa-signal"></i>${course.difficulty}</span>`);
       if (course.language)       chips.push(`<span class="vc-chip"><i class="fa fa-language"></i>${course.language}</span>`);
       if (course.duration_hours) chips.push(`<span class="vc-chip"><i class="fa fa-clock"></i>${course.duration_hours} hrs</span>`);
       el.chips.innerHTML = chips.join(' ');
 
-      // batch details
       if (batch) {
         el.batchDetails.style.display = 'block';
         el.batchTitle.textContent = batch.badge_title || 'Batch';
@@ -999,37 +1706,97 @@ document.addEventListener('DOMContentLoaded', () => {
         el.batchTagline.textContent = batch.tagline || '';
 
         const batchInfoItems = [];
+
         if (batch.mode) {
-          const modeIcon = batch.mode === 'online' ? 'fa-globe' : batch.mode === 'offline' ? 'fa-location-dot' : 'fa-layer-group';
-          batchInfoItems.push(`<span class="vc-batch-info-item"><i class="fa ${modeIcon}"></i>${batch.mode.charAt(0).toUpperCase() + batch.mode.slice(1)}</span>`);
+          const modeIcon =
+            batch.mode === 'online'
+              ? 'fa-globe'
+              : batch.mode === 'offline'
+              ? 'fa-location-dot'
+              : 'fa-layer-group';
+
+          const modeLabel =
+            (batch.mode.charAt(0).toUpperCase() + batch.mode.slice(1));
+
+          batchInfoItems.push(
+            `<span class="vc-batch-info-item"><i class="fa ${modeIcon}"></i>${modeLabel}</span>`
+          );
         }
+
         if (batch.starts_at) {
-          const startDate = new Date(batch.starts_at).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
-          batchInfoItems.push(`<span class="vc-batch-info-item"><i class="fa fa-calendar-day"></i>Starts: ${startDate}</span>`);
+          const startDate = new Date(batch.starts_at).toLocaleDateString('en-US', {
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric'
+          });
+          batchInfoItems.push(
+            `<span class="vc-batch-info-item"><i class="fa fa-calendar-day"></i>Starts: ${startDate}</span>`
+          );
         }
+
         if (batch.ends_at) {
-          const endDate = new Date(batch.ends_at).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
-          batchInfoItems.push(`<span class="vc-batch-info-item"><i class="fa fa-calendar-check"></i>Ends: ${endDate}</span>`);
+          const endDate = new Date(batch.ends_at).toLocaleDateString('en-US', {
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric'
+          });
+          batchInfoItems.push(
+            `<span class="vc-batch-info-item"><i class="fa fa-calendar-check"></i>Ends: ${endDate}</span>`
+          );
         }
+
         el.batchInfo.innerHTML = batchInfoItems.join('');
       }
 
-      if (media?.cover) setCover(media.cover);
-      renderThumbs(media?.gallery || []);
+      // ===== Hero + gallery from media =====
+      const gallery = Array.isArray(media?.gallery) ? media.gallery : [];
+      let coverUrl = cleanUrl(
+        media?.cover?.url ||
+        media?.cover?.image_url ||
+        media?.cover?.path ||
+        ''
+      );
 
-      const sorted = (modules || []).slice().sort((a,b)=> (a.order_no ?? 0) - (b.order_no ?? 0));
+      if (!coverUrl && gallery.length) {
+        const first = gallery[0];
+        coverUrl = cleanUrl(first.url || first.image_url || first.path || '');
+      }
+
+      if (coverUrl) setCoverUrl(coverUrl);
+      else setCoverUrl('');
+
+      renderGallery(gallery, coverUrl);
+
+      const sorted = (modules || []).slice().sort(
+        (a, b) => (a.order_no ?? 0) - (b.order_no ?? 0)
+      );
+
       renderModules(sorted);
       wireSearch(sorted);
-
-      // Ensure mobile initial view after data
-      ensureMobileInitialView();
+      
+      // If we're already in full mode (from URL parameter), show mobile course details
+      if (document.body.classList.contains('vc-mode-full') && isMobile()) {
+        el.mobileCourseDetails?.classList.add('show');
+      }
     })
     .catch(err => {
       console.error('viewCourse.fetch', err);
       if (el.title) el.title.textContent = 'Failed to load course';
       if (el.short) el.short.textContent = 'Please check API or authentication.';
+    })
+    .finally(() => {
+      hidePageOverlay();
     });
+    
+  // Handle window resize
+  window.addEventListener('resize', () => {
+    if (!isMobile()) {
+      // On desktop, ensure sidebar state reset (no mobile-only flag)
+      document.body.classList.remove('mobile-sidebar-open');
+      // mobileCourseDetails visibility doesn't matter on desktop
+    }
+  });
 });
-</script>
+  </script>
 </body>
 </html>

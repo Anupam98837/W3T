@@ -1,6 +1,6 @@
 @extends('pages.users.admin.layout.structure')
  
-@section('title', 'Create Assignment')
+@section('title', 'Manage Assignment')
  
 @include('modules.assignments.manageAssignment')
  

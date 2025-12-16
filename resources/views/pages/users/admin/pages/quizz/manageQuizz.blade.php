@@ -1,6 +1,6 @@
 @extends('pages.users.admin.layout.structure')
 
-@section('title', 'Create Course')
+@section('title', 'Manage Quizz')
 
 @include('modules.quizz.manageQuizz')
 

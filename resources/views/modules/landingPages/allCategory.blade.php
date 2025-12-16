@@ -241,7 +241,6 @@
 .results-counter {
   font-size: 0.9rem;
   color: var(--muted-color);
-  margin-top: 16px;
   text-align: center;
   font-family: var(--font-sans);
 }
@@ -353,11 +352,10 @@
 }
 .categories-toolbar{
   max-width: 1200px;
-  margin: 0 auto 16px;
   display: flex;
   align-items: center;
   justify-content: space-between; /* key line */
-  gap: 16px;
+  gap: 10px;
 }
 
 /* Search width control */

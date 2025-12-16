@@ -7,7 +7,7 @@
      ================================ */
  
   .updates-shell {
-    max-width: 960px;
+    max-width: 1200px;
     margin: 32px auto 56px;
     padding: 0 16px;
   }

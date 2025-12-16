@@ -380,7 +380,6 @@ public function store(Request $request)
         'data'    => $fresh,
     ], 201);
 }
-
 public function index(Request $r)
 {
     $page        = max(1, (int)$r->query('page', 1));
@@ -398,27 +397,29 @@ public function index(Request $r)
     $categoryFilterId = null;
     if ($categoryToken !== '') {
         try {
-            // Ensure table exists before querying
             if (\Schema::hasTable('course_categories')) {
                 $token = $categoryToken;
 
-                // first try exact uuid match
                 $catQuery = DB::table('course_categories')->select('id', 'uuid');
 
                 $cat = $catQuery->where('uuid', $token)->first();
 
-                // if not found and token numeric, try id
                 if (!$cat && ctype_digit($token)) {
-                    $cat = DB::table('course_categories')->select('id', 'uuid')->where('id', (int)$token)->first();
+                    $cat = DB::table('course_categories')
+                        ->select('id', 'uuid')
+                        ->where('id', (int)$token)
+                        ->first();
                 }
 
-                // if still not found: try UUID without dashes match (32 hex chars)
                 if (!$cat) {
                     $maybeHex = preg_replace('/[^a-fA-F0-9]/', '', $token);
                     if (strlen($maybeHex) === 32) {
                         $cat = DB::table('course_categories')
                             ->select('id', 'uuid')
-                            ->whereRaw("LOWER(REPLACE(`uuid`, '-', '')) = ?", [mb_strtolower($maybeHex)])
+                            ->whereRaw(
+                                "LOWER(REPLACE(`uuid`, '-', '')) = ?",
+                                [mb_strtolower($maybeHex)]
+                            )
                             ->first();
                     }
                 }
@@ -443,12 +444,11 @@ public function index(Request $r)
                 'token' => $categoryToken,
                 'error' => $ex->getMessage(),
             ]);
-            // continue without applying category filter
             $categoryFilterId = null;
         }
     }
 
-    // 🔹 Subquery: pick ONE featured image per course (min featured_url)
+    // 🔹 Subquery: pick ONE featured image per course
     $mediaSub = DB::table('course_featured_media as cfm2')
         ->select(
             'cfm2.course_id',
@@ -456,15 +456,25 @@ public function index(Request $r)
         )
         ->groupBy('cfm2.course_id');
 
-    // 🔹 Base query on courses + join featured image
+    // 🔹 Base query on courses + featured image + ✅ category join
     $q = DB::table('courses as c')
         ->leftJoinSub($mediaSub, 'cfm', function ($join) {
             $join->on('cfm.course_id', '=', 'c.id');
         })
+        ->leftJoin('course_categories as cc', function ($join) {
+            $join->on('cc.id', '=', 'c.category_id')
+                 ->whereNull('cc.deleted_at');
+        })
         ->select(
             'c.*',
-            // Expose as thumbnail_url so frontend can use directly
-            DB::raw('cfm.featured_url as thumbnail_url')
+
+            // Featured image
+            DB::raw('cfm.featured_url as thumbnail_url'),
+
+            // ✅ Category data for frontend badge
+            'cc.id as category_id',
+            'cc.uuid as category_uuid',
+            'cc.title as category_title'
         );
 
     // Soft delete filter
@@ -474,7 +484,7 @@ public function index(Request $r)
         $q->whereNull('c.deleted_at');
     }
 
-    // Search by title / slug
+    // Search
     if ($qText !== '') {
         $q->where(function ($w) use ($qText) {
             $w->where('c.title', 'like', "%{$qText}%")
@@ -482,7 +492,7 @@ public function index(Request $r)
         });
     }
 
-    // Status filter (only for non-deleted)
+    // Status filter
     if ($status && !$onlyDeleted) {
         $q->where('c.status', $status);
     }
@@ -492,7 +502,7 @@ public function index(Request $r)
         $q->where('c.course_type', $type);
     }
 
-    // ✅ Apply category filter (course_categories.id resolved from uuid)
+    // Category filter
     if (!empty($categoryFilterId)) {
         $q->where('c.category_id', $categoryFilterId);
     }
@@ -510,17 +520,16 @@ public function index(Request $r)
         $dir = 'desc';
     }
 
-    // Make sure we sort by the aliased table
     $col = 'c.' . $col;
 
-    // Pagination + fetch
+    // Pagination
     $total = (clone $q)->count();
     $rows  = $q->orderBy($col, $dir)
         ->offset(($page - 1) * $perPage)
         ->limit($perPage)
         ->get();
 
-    // Compute final_price_ui on each row
+    // Final price UI
     foreach ($rows as $row) {
         $row->final_price_ui = $this->computeFinalPrice(
             (float)$row->price_amount,

@@ -11,7 +11,7 @@
 /* ===== Wrapper ===== */
 .contact-section{
     max-width:1200px;
-    margin:60px auto;
+    margin: 10px auto;
     padding:0 20px;
 }
 
