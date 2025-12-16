@@ -29,8 +29,8 @@ tr.is-draft td{background:color-mix(in oklab, var(--warning-color) 4%, transpare
 tr.is-deleted td{background:color-mix(in oklab, var(--danger-color) 6%, transparent)}
 
 /* Dropdowns inside table */
-.table-wrap .dropdown{position:relative;z-index:6}
-.table-wrap .dd-toggle{position:relative;z-index:7}
+
+
 .dropdown [data-bs-toggle="dropdown"]{border-radius:10px}
 /* Default dropdown menu (when not portaled) */
 .table-wrap .dropdown-menu{border-radius:12px;border:1px solid var(--line-strong);box-shadow:var(--shadow-2);min-width:220px;z-index:5000}
@@ -120,7 +120,7 @@ html.theme-dark .media-item{background:#0b1020;border-color:var(--line-strong)}
 
 /* Dropdown visibility safety nets */
 .table-wrap .dropdown { position: relative; }
-.table-wrap .dropdown-menu { z-index: 2050; }
+.table-wrap .dropdown-menu { z-index: 1000; }
 
 /* File button look */
 .btn-light{background:var(--surface);border:1px solid var(--line-strong)}
@@ -680,85 +680,7 @@ html.theme-dark .media-item{background:#0b1020;border-color:var(--line-strong)}
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <script>
-/* ===== Force dropdown overflows to body (portal) ===== */
-(function(){
-  let activePortal = null;
-  const placeMenu = (menu, btnRect) => {
-    const vw = Math.max(document.documentElement.clientWidth, window.innerWidth || 0);
-    const spaceRight = vw - btnRect.right;
-    menu.classList.add('dd-portal');
-    menu.style.display = 'block';
-    menu.style.visibility = 'hidden'; // measure first
-    document.body.appendChild(menu);
 
-    // compute size after in body
-    const mw = menu.offsetWidth, mh = menu.offsetHeight;
-    let left = btnRect.left;
-    if (spaceRight < mw && btnRect.right - mw > 8) {
-      left = btnRect.right - mw; // flip to align right if not enough space
-    }
-    let top = btnRect.bottom + 4; // little offset below button
-    // Keep within viewport vertically
-    const vh = Math.max(document.documentElement.clientHeight, window.innerHeight || 0);
-    if (top + mh > vh - 8) top = Math.max(8, vh - mh - 8);
-
-    menu.style.left = left + 'px';
-    menu.style.top  = top + 'px';
-    menu.style.visibility = 'visible';
-  };
-
-  document.addEventListener('show.bs.dropdown', function(ev){
-    const toggle = ev.target; // .dropdown
-    const btn = toggle.querySelector('.dd-toggle, [data-bs-toggle="dropdown"]');
-    const menu = toggle.querySelector('.dropdown-menu');
-    if (!btn || !menu) return;
-
-    // clean any previous
-    if (activePortal && activePortal.menu && activePortal.menu.isConnected) {
-      activePortal.menu.classList.remove('dd-portal');
-      activePortal.parent.appendChild(activePortal.menu);
-      activePortal = null;
-    }
-
-    const rect = btn.getBoundingClientRect();
-    // Remember original parent to restore on hide
-    menu.__ddParent = menu.parentElement;
-    placeMenu(menu, rect);
-    activePortal = { menu: menu, parent: menu.__ddParent };
-
-    // Close on scroll/resize to avoid stale position
-    const closeOnEnv = () => {
-      try { bootstrap.Dropdown.getOrCreateInstance(btn).hide(); } catch {}
-    };
-    menu.__ddListeners = [
-      ['scroll', closeOnEnv, true],
-      ['resize', closeOnEnv, false]
-    ];
-    window.addEventListener('resize', closeOnEnv);
-    document.addEventListener('scroll', closeOnEnv, true);
-  });
-
-  document.addEventListener('hidden.bs.dropdown', function(ev){
-    const toggle = ev.target;
-    const menu = toggle.querySelector('.dropdown-menu.dd-portal') || activePortal?.menu;
-    if (!menu) return;
-
-    // remove listeners
-    if (menu.__ddListeners) {
-      document.removeEventListener('scroll', menu.__ddListeners[0][1], true);
-      window.removeEventListener('resize', menu.__ddListeners[1][1]);
-      menu.__ddListeners = null;
-    }
-
-    // restore to original parent
-    if (menu.__ddParent) {
-      menu.classList.remove('dd-portal');
-      menu.style.cssText = ''; // reset inline styles
-      menu.__ddParent.appendChild(menu);
-      activePortal = null;
-    }
-  });
-})();
 
 /* ================= Dropdown toggle handler ================= */
 document.addEventListener('click', (e) => {

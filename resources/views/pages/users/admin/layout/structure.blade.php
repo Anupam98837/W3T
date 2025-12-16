@@ -806,31 +806,59 @@ document.addEventListener('DOMContentLoaded', () => {
     active = null;
   }
 
-  function positionMenu(toggleEl, menuEl){
-    const rect = toggleEl.getBoundingClientRect();
-    if (!rect || (rect.width === 0 && rect.height === 0)) return;
+function getSafeTop(){
+  const bar = document.querySelector('.w3-appbar'); // your sticky header
+  if (!bar) return 8;
 
-    // Ensure menu is measurable
-    menuEl.style.visibility = 'hidden';
-    menuEl.style.display = 'block';
+  const st = getComputedStyle(bar);
+  if (st.position !== 'sticky' && st.position !== 'fixed') return 8;
 
-    const mw = menuEl.offsetWidth;
-    const mh = menuEl.offsetHeight;
+  const r = bar.getBoundingClientRect();
+  return Math.ceil((r.bottom || 0) + 8); // header bottom + gap
+}
 
-    const vw = document.documentElement.clientWidth;
-    const vh = document.documentElement.clientHeight;
+function positionMenu(toggleEl, menuEl){
+  const rect = toggleEl.getBoundingClientRect();
+  if (!rect || (rect.width === 0 && rect.height === 0)) return;
 
-    let left = rect.left;
-    if (left + mw > vw - 8) left = Math.max(8, rect.right - mw);
-    if (left < 8) left = 8;
+  const vw = document.documentElement.clientWidth;
+  const vh = document.documentElement.clientHeight;
 
-    let top = rect.bottom + 6;
-    if (top + mh > vh - 8) top = Math.max(8, rect.top - mh - 6);
+  const safeTop = getSafeTop();
+  const pad = 8;
 
-    menuEl.style.left = left + 'px';
-    menuEl.style.top  = top  + 'px';
-    menuEl.style.visibility = 'visible';
+  // measurable + constrain height so it never needs to go into header
+  menuEl.style.visibility = 'hidden';
+  menuEl.style.display = 'block';
+  menuEl.style.overflowY = 'auto';
+  menuEl.style.maxHeight = Math.max(140, vh - safeTop - pad) + 'px';
+
+  const mw = menuEl.offsetWidth;
+  const mh = menuEl.offsetHeight;
+
+  // X: dropdown-menu-end behavior
+  let left = rect.right - mw;
+  if (left + mw > vw - pad) left = Math.max(pad, vw - mw - pad);
+  if (left < pad) left = pad;
+
+  // Y: prefer below; flip only if ABOVE is still below header
+  const below = rect.bottom + 6;
+  const above = rect.top - mh - 6;
+
+  let top = below;
+  if ((below + mh > vh - pad) && (above >= safeTop)) {
+    top = above;
   }
+
+  // hard clamp: NEVER enter header zone
+  if (top < safeTop) top = safeTop;
+  if (top + mh > vh - pad) top = Math.max(safeTop, vh - mh - pad);
+
+  menuEl.style.left = left + 'px';
+  menuEl.style.top  = top  + 'px';
+  menuEl.style.visibility = 'visible';
+}
+
 
   // Use SHOWN so bootstrap already applied "show" class (sizes are correct)
   document.addEventListener('shown.bs.dropdown', function(e){
