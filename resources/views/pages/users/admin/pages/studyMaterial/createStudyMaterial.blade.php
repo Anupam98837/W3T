@@ -1,7 +1,7 @@
 {{-- resources/views/pages/users/admin/pages/users/manageUsers.blade.php --}}
 @extends('pages.users.admin.layout.structure')
 
-@section('title', 'Users')
+@section('title', 'Study Material')
 @section('header', 'Create Study Material')
 
 @section('content')

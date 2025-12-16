@@ -1,7 +1,7 @@
 {{-- pages/users/admin/pages/privileges/assignPrivileges --}}
 @extends('pages.users.admin.layout.structure')
 
-@section('title','Module')
+@section('title','Privileges')
 @section('subtitle','Create, edit and manage module')
 
 @push('styles')

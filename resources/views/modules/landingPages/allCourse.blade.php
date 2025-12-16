@@ -3,64 +3,6 @@
 <body class="lp-page">
   {{-- Enhanced CSS for better UI --}}
   <style>
-    :root {
-  /* Brand */
-  --primary-color:   #951eaa;    /* Vibrant violet / royal purple */
-  --secondary-color: #5e1570;    /* Deeper supporting purple */
-  --accent-color:    #c94ff0;    /* Soft neon-lavender accent */
-
-  /* Neutrals */
-  --bg-body:     #faf8fc;
-  --surface:     #ffffff;
-  --ink:         #1c1324;
-  --text-color:  #352f3b;
-  --muted-color: #7a6e85;
-
-  /* Lines */
-  --line-strong: #e4dfee;
-  --line-soft:   #f3edf9;
-
-  /* States */
-  --info-color:    #6366f1;  /* Indigo blue tone for info */
-  --success-color: #16a34a;
-  --warning-color: #f59e0b;
-  --danger-color:  #dc2626;
-
-  /* Effects */
-  --shadow-1: 0 1px 2px rgba(30,12,48,.06);
-  --shadow-2: 0 10px 24px rgba(30,12,48,.08);
-  --shadow-3: 0 18px 50px rgba(30,12,48,.12);
-  --radius-0: 0px;
-  --radius-1: 10px;
-  --transition: all .18s ease;
-  --ring: 0 0 0 .18rem rgba(149,30,170,.25);
-
-  /* Type */
-  --font-sans: 'Inter', system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, 'Noto Sans', sans-serif;
-  --font-head: 'Poppins', var(--font-sans);
-  --fs-12: .75rem;
-  --fs-13: .8125rem;
-  --fs-14: .875rem;
-  --fs-15: .9375rem;
-  --fs-16: 1rem;
-
-  /* Table density */
-  --row-pad-y: 10px;
-  --row-pad-x: 12px;
-
-  /* Pagination tones */
-  --page-bg: #fff;
-  --page-hover: #f5f0fa;
-  --page-disabled: #f8f3fc;
-
-  /* Badge pastel tints */
-  --t-success: rgba(22,163,74,.12);
-  --t-danger:  rgba(220,38,38,.12);
-  --t-info:    rgba(99,102,241,.12);
-  --t-warn:    rgba(245,158,11,.14);
-  --t-primary: rgba(149,30,170,.14);
-}
-
 /* Filter section */
 .courses-filter-section {
   background: var(--surface);
@@ -181,9 +123,6 @@
 .courses-counter {
   font-size: 0.9rem;
   color: var(--muted-color);
-  margin-top: 16px;
-  padding-top: 16px;
-  border-top: 1px solid var(--line-soft);
 }
 
 /* Enhanced skeleton loader */
@@ -248,7 +187,6 @@
 .lp-category-badge {
   position: absolute;
   top: 12px;
-  left: 12px;
   background: var(--primary-color);
   color: var(--surface);
   padding: 4px 10px;
@@ -386,6 +324,19 @@
   margin: 0 auto;
   font-family: var(--font-sans);
 }
+.lp-sectionhead{
+  margin-bottom: 18px;
+}
+.lp-section-title{
+  font-size: 2.2rem;
+  font-weight: 700;
+  margin-bottom: 12px;
+  font-family: var(--font-head);
+  background: linear-gradient(135deg, var(--primary-color) 0%, var(--ink) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
 
   </style>
 
@@ -393,10 +344,10 @@
     <div class="lp-section-inner">
 
       {{-- Page heading --}}
-      <div class="lp-section-head mb-4">
+      <div class="lp-sectionhead">
         <div>
-          <h2 class="lp-section-title" style=" color: #1f2937; text-align:center;">All Courses</h2>
-          <div class="lp-section-sub" style="font-size: 1.1rem;text-align:center; color: #6b7280;">
+          <h2 class="lp-section-title" style="text-align:center;">All Courses</h2>
+          <div class="lp-section-sub" style="font-size: 1.1rem; text-align:center; color: #6b7280;">
             Browse our comprehensive catalog of job-ready programs
           </div>
         </div>
@@ -404,10 +355,10 @@
 
       {{-- Enhanced filter section --}}
       <div class="courses-filter-section">
-        <div class="filter-header">
-          <!-- <div class="filter-title">Filter Courses</div>
-          <div class="filter-subtitle">Refine your search by category or keywords</div> -->
-        </div>
+        <!-- <div class="filter-header">
+          <div class="filter-title">Filter Courses</div>
+          <div class="filter-subtitle">Refine your search by category or keywords</div>
+        </div> -->
         
         <form id="coursesFilterForm" class="row g-3 align-items-center filter-form">
 
@@ -440,7 +391,7 @@
 
   {{-- Results counter (inline right) --}}
   <div class="col-md-3 text-md-end">
-    <div id="resultsCounter" class="courses-counter" style="display:none;">
+    <div id="resultsCounter" class="courses-counter" >
       Showing <span id="resultsCount">0</span> courses
     </div>
   </div>
@@ -513,7 +464,8 @@ document.addEventListener('DOMContentLoaded', () => {
   let currentPage = 1;
   const perPage = 12;
   let totalResults = 0;
-  let categoryList = []; // store categories for matching later (each item should have uuid if available)
+  let categoryList = [];
+  let isInitialized = false; // Flag to prevent double loading
 
   const fetchJson = async (url, opts = {}) => {
     try {
@@ -537,21 +489,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
   /* ============= Load Categories ============= */
   const loadCategories = async () => {
-    grid.innerHTML = createSkeletonCards(8);
-
     const url = "{{ url('api/landing/categories/display') }}";
     const data = await fetchJson(url);
 
     if (!data || !Array.isArray(data.data)) {
       console.warn('Failed to load categories');
-      // fallback: populate an "All Categories" option and still load courses
       categorySel.innerHTML = '<option value="">All Categories</option>';
       categoryList = [];
-      loadCourses(1);
       return;
     }
 
-    // store categories (prefer uuid when present)
     categoryList = data.data.map(c => ({
       id: c.id,
       uuid: c.uuid || c.category_uuid || null,
@@ -562,7 +509,6 @@ document.addEventListener('DOMContentLoaded', () => {
     categorySel.innerHTML = '<option value="">All Categories</option>';
     data.data.forEach(cat => {
       const opt = document.createElement('option');
-      // Use UUID as the option value if available, otherwise fall back to numeric id
       opt.value = String(cat.uuid || cat.id || '');
       opt.setAttribute('data-slug', (cat.slug || cat.slug_name || '').toString());
       opt.setAttribute('data-id', String(cat.id || ''));
@@ -570,11 +516,8 @@ document.addEventListener('DOMContentLoaded', () => {
       categorySel.appendChild(opt);
     });
 
-    // After categories are loaded, detect category from URL (if any) and set the select
+    // Apply URL-based category selection
     applyInitialCategoryFromUrl();
-
-    // Load courses after categories are loaded
-    loadCourses(1);
   };
 
   /* ============= Skeleton Loader ============= */
@@ -609,10 +552,10 @@ document.addEventListener('DOMContentLoaded', () => {
   const buildCoursesApiUrl = (page = 1) => {
     const params = new URLSearchParams();
     const q = searchInput.value.trim();
-    const c = categorySel.value; // will be UUID (preferred) or fallback id
+    const c = categorySel.value;
 
     if (q) params.set('q', q);
-    if (c) params.set('category', c); // backend should accept category UUID here
+    if (c) params.set('category', c);
     params.set('page', page);
     params.set('per_page', perPage);
 
@@ -705,7 +648,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const ul = document.createElement('ul');
     ul.className = 'pagination';
 
-    // Previous button
     const prevLi = document.createElement('li');
     prevLi.className = `page-item ${meta.page <= 1 ? 'disabled' : ''}`;
     const prevBtn = document.createElement('button');
@@ -717,7 +659,6 @@ document.addEventListener('DOMContentLoaded', () => {
       prevBtn.addEventListener('click', () => loadCourses(meta.page - 1));
     }
     prevLi.appendChild(prevBtn);
-
     ul.appendChild(prevLi);
 
     const maxVisible = 5;
@@ -786,7 +727,6 @@ document.addEventListener('DOMContentLoaded', () => {
       ul.appendChild(lastLi);
     }
 
-    // Next button
     const nextLi = document.createElement('li');
     nextLi.className = `page-item ${meta.page >= totalPages ? 'disabled' : ''}`;
     const nextBtn = document.createElement('button');
@@ -808,16 +748,15 @@ document.addEventListener('DOMContentLoaded', () => {
   const loadCourses = async (page = 1) => {
     currentPage = page;
 
-    // Show loading state
     grid.innerHTML = createSkeletonCards(8);
-    emptyState.style.display = 'none'; // Hide empty state during loading
-    resultsCounter.style.display = 'none'; // Hide counter during loading
+    emptyState.style.display = 'none';
+    resultsCounter.style.display = 'none';
 
     const url = buildCoursesApiUrl(page);
     const data = await fetchJson(url);
 
     if (!data || !Array.isArray(data.data)) {
-      grid.innerHTML = ''; // Clear the skeleton loaders
+      grid.innerHTML = '';
       renderCourses([]);
       pagination.innerHTML = '';
       return;
@@ -825,7 +764,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     totalResults = data.pagination?.total || data.data.length;
 
-    // Clear the grid before rendering
     grid.innerHTML = '';
     renderCourses(data.data);
 
@@ -836,23 +774,17 @@ document.addEventListener('DOMContentLoaded', () => {
     };
     renderPagination(meta);
 
-    // Update browser URL to reflect selected filters (query params) without reloading
     updateBrowserUrlWithFilters();
   };
 
   /* ============= URL Helpers ============= */
-
-  // Try to extract a category token from multiple places:
-  // 1. query param '?category=...' (which will now be UUID if links were generated with UUID)
-  // 2. path like '/courses/category/<token>' or '/courses/<token>'
   const detectCategoryTokenFromUrl = () => {
     const params = new URLSearchParams(window.location.search);
     const qCategory = params.get('category');
     if (qCategory) return qCategory;
 
-    // look at path segments
-    const path = window.location.pathname.replace(/\/+$/, ''); // strip trailing slash
-    const parts = path.split('/').filter(Boolean); // remove empty
+    const path = window.location.pathname.replace(/\/+$/, '');
+    const parts = path.split('/').filter(Boolean);
     const idx = parts.findIndex(p => p === 'courses');
     if (idx >= 0 && parts.length > idx + 1) {
       if (parts[idx + 1] === 'category' && parts.length > idx + 2) {
@@ -866,54 +798,40 @@ document.addEventListener('DOMContentLoaded', () => {
     return null;
   };
 
-  // Given the detected token, match it against loaded categories.
-  // Prefer matching by UUID, then slug, then title/name, then id.
-  // Returns the value that should be set on the select (uuid if available, else id or '')
   const matchCategoryTokenToValue = (token) => {
     if (!token || !categoryList.length) return '';
     const t = String(token).trim();
 
-    // UUID exact match (common UUID pattern includes dashes; but use direct match)
     const byUuid = categoryList.find(c => c.uuid && String(c.uuid) === t);
     if (byUuid) return String(byUuid.uuid);
 
-    // direct id match (numeric)
     const byId = categoryList.find(c => c.id && String(c.id) === t);
-    if (byId) {
-      // prefer to return uuid if present for that category, otherwise return id
-      return String(byId.uuid || byId.id);
-    }
+    if (byId) return String(byId.uuid || byId.id);
 
-    // slug match
     const bySlug = categoryList.find(c => c.slug && String(c.slug).toLowerCase() === t.toLowerCase());
     if (bySlug) return String(bySlug.uuid || bySlug.id);
 
-    // title/name exact match
     const byTitle = categoryList.find(c => c.title && String(c.title).toLowerCase() === t.toLowerCase());
     if (byTitle) return String(byTitle.uuid || byTitle.id);
 
-    // partial title startsWith fallback
     const partial = categoryList.find(c => c.title && String(c.title).toLowerCase().startsWith(t.toLowerCase()));
     if (partial) return String(partial.uuid || partial.id);
 
-    return ''; // no match
+    return '';
   };
 
-  // Apply initial category logic (called after categories are loaded)
   const applyInitialCategoryFromUrl = () => {
     const urlToken = detectCategoryTokenFromUrl();
-    if (!urlToken) return; // no category token present
+    if (!urlToken) return;
 
     const matchedVal = matchCategoryTokenToValue(urlToken);
     if (matchedVal) {
       categorySel.value = matchedVal;
     } else {
-      // If no match, but user provided a UUID-like token or numeric id, set it directly (best-effort)
       categorySel.value = urlToken;
     }
   };
 
-  // update browser URL (querystring) to reflect filters (without reloading)
   const updateBrowserUrlWithFilters = () => {
     const params = new URLSearchParams(window.location.search);
     const q = searchInput.value.trim();
@@ -927,8 +845,6 @@ document.addEventListener('DOMContentLoaded', () => {
   };
 
   /* ============= Event Listeners ============= */
-
-  
   resetFromEmpty.addEventListener('click', () => {
     searchInput.value = '';
     categorySel.value = '';
@@ -942,7 +858,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // Debounced search input
   let searchTimeout;
   searchInput.addEventListener('input', () => {
     clearTimeout(searchTimeout);
@@ -957,10 +872,16 @@ document.addEventListener('DOMContentLoaded', () => {
     loadCourses(1);
   });
 
-  /* ============= Initialize ============= */
+  /* ============= Initialize - Single Load ============= */
   (async () => {
-    // We will load categories which will in turn call loadCourses(1) after detecting URL
+    if (isInitialized) return;
+    isInitialized = true;
+
+    // Load categories first (without triggering course load)
     await loadCategories();
+    
+    // Then load courses once
+    await loadCourses(1);
   })();
 });
 </script>

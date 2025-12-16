@@ -2,7 +2,7 @@
 
 @extends('pages.users.admin.layout.structure')
 
-@section('title', 'Topic')
+@section('title', 'Manage Coding Questions')
 @section('header', 'Dashboard')
 
 @section('content')

@@ -1,7 +1,7 @@
 {{-- pages/users/super_admin/pages/mailers/manageMailers.blade.php --}}
 @extends('pages.users.admin.layout.structure')
 
-@section('title','Mailers')
+@section('title','contacts')
 @section('subtitle','Create, edit and manage application mail drivers')
 
 @push('styles')

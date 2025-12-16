@@ -1,8 +1,7 @@
 {{-- pages/users/super_admin/pages/mailers/manageMailers.blade.php --}}
 @extends('pages.users.admin.layout.structure')
 
-@section('title','Mailers')
-@section('subtitle','Create, edit and manage application mail drivers')
+@section('title','Terms & Conditions')
 
 @push('styles')
   {{-- If your layout already loads main.css, you can remove this line --}}
