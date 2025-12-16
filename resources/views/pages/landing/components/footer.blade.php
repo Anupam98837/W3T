@@ -466,7 +466,7 @@ const renderCategoriesGrid = categories => {
           '';
       }
 
-      const finalImageUrl = imageUrl || "{{ asset('assets/media/images/web/course-placeholder.jpg') }}";
+      const finalImageUrl = imageUrl || "{{ asset('assets/media/images/course/default_course.jpg') }}";
 
       const categoryLabel =
         course.category_title ||

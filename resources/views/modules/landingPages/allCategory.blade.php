@@ -10,7 +10,6 @@
   background: linear-gradient(135deg, var(--surface) 0%, var(--bg-body) 100%);
   border-radius: var(--radius-1);
   padding: 24px;
-  margin-bottom: 32px;
   border: 1px solid var(--line-soft);
   box-shadow: var(--shadow-1);
 }
@@ -352,6 +351,38 @@
     grid-template-columns: 1fr;
   }
 }
+.categories-toolbar{
+  max-width: 1200px;
+  margin: 0 auto 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between; /* key line */
+  gap: 16px;
+}
+
+/* Search width control */
+.search-container{
+  max-width: 420px;
+  width: 100%;
+}
+
+/* Counter styling */
+.results-counter{
+  font-size: 0.95rem;
+  color: #6b7280;
+  white-space: nowrap;
+}
+@media (max-width: 576px){
+  .categories-toolbar{
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .results-counter{
+    text-align: right;
+  }
+}
+
 
   </style>
 
@@ -368,24 +399,30 @@
 
       {{-- Search section --}}
       <div class="categories-section">
-        <div class="search-container mx-auto">
-          <div class="search-wrapper">
-            <i class="fa fa-search search-icon"></i>
-            <input
-              type="text"
-              id="categoriesSearchInput"
-              class="form-control"
-              placeholder="Search categories by name or description..."
-              aria-label="Search categories"
-            >
-          </div>
-        </div>
-        
-        {{-- Results counter --}}
-        <div id="categoriesCounter" class="results-counter" style="display: none;">
-          Found <span id="categoriesCount">0</span> categories
-        </div>
+  <div class="categories-toolbar">
+
+    <!-- Search -->
+    <div class="search-container">
+      <div class="search-wrapper">
+        <i class="fa fa-search search-icon"></i>
+        <input
+          type="text"
+          id="categoriesSearchInput"
+          class="form-control"
+          placeholder="Search categories by name or description..."
+          aria-label="Search categories"
+        >
       </div>
+    </div>
+
+    <!-- Results counter -->
+    <div id="categoriesCounter" class="results-counter">
+      Found <span id="categoriesCount">0</span> categories
+    </div>
+
+  </div>
+</div>
+
 
       {{-- Categories grid --}}
       <div id="allCategoriesGrid" class="categories-grid">

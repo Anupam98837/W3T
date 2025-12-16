@@ -395,8 +395,8 @@
       {{-- Page heading --}}
       <div class="lp-section-head mb-4">
         <div>
-          <h2 class="lp-section-title" style=" color: #1f2937;">All Courses</h2>
-          <div class="lp-section-sub" style="font-size: 1.1rem; color: #6b7280;">
+          <h2 class="lp-section-title" style=" color: #1f2937; text-align:center;">All Courses</h2>
+          <div class="lp-section-sub" style="font-size: 1.1rem;text-align:center; color: #6b7280;">
             Browse our comprehensive catalog of job-ready programs
           </div>
         </div>
@@ -405,56 +405,48 @@
       {{-- Enhanced filter section --}}
       <div class="courses-filter-section">
         <div class="filter-header">
-          <div class="filter-title">Filter Courses</div>
-          <div class="filter-subtitle">Refine your search by category or keywords</div>
+          <!-- <div class="filter-title">Filter Courses</div>
+          <div class="filter-subtitle">Refine your search by category or keywords</div> -->
         </div>
         
-        <form id="coursesFilterForm" class="row g-3 filter-form">
-          {{-- Search --}}
-          <div class="col-md-6">
-            <div class="input-group">
-              <span class="input-group-text bg-white border-end-0">
-                <i class="fa fa-search text-muted"></i>
-              </span>
-              <input
-                type="text"
-                id="courseSearchInput"
-                class="form-control border-start-0 ps-0"
-                placeholder="Search courses, topics, or skills..."
-              >
-            </div>
-          </div>
+        <form id="coursesFilterForm" class="row g-3 align-items-center filter-form">
 
-          {{-- Category filter --}}
-          <div class="col-md-4">
-            <div class="input-group">
-              <span class="input-group-text bg-white border-end-0">
-                <i class="fa fa-filter text-muted"></i>
-              </span>
-              <select id="courseCategorySelect" class="form-select border-start-0">
-                <option value="">All Categories</option>
-              </select>
-            </div>
-          </div>
+  {{-- Search --}}
+  <div class="col-md-5">
+    <div class="input-group">
+      <span class="input-group-text bg-white border-end-0">
+        <i class="fa fa-search text-muted"></i>
+      </span>
+      <input
+        type="text"
+        id="courseSearchInput"
+        class="form-control border-start-0 ps-0"
+        placeholder="Search courses, topics, or skills..."
+      >
+    </div>
+  </div>
 
-          {{-- Action buttons --}}
-          <div class="col-md-2">
-            <div class="filter-actions">
-              <button type="button" id="courseApplyBtn" class="btn-apply">
-                <i class="fa fa-search"></i>
-                <span>Search</span>
-              </button>
-              <button type="button" id="courseResetBtn" class="btn-reset" title="Reset filters">
-                <i class="fa fa-times"></i>
-              </button>
-            </div>
-          </div>
-          
-          {{-- Results counter --}}
-          <div id="resultsCounter" class="courses-counter" style="display: none;">
-            Showing <span id="resultsCount">0</span> courses
-          </div>
-        </form>
+  {{-- Category filter --}}
+  <div class="col-md-4">
+    <div class="input-group">
+      <span class="input-group-text bg-white border-end-0">
+        <i class="fa fa-filter text-muted"></i>
+      </span>
+      <select id="courseCategorySelect" class="form-select border-start-0">
+        <option value="">All Categories</option>
+      </select>
+    </div>
+  </div>
+
+  {{-- Results counter (inline right) --}}
+  <div class="col-md-3 text-md-end">
+    <div id="resultsCounter" class="courses-counter" style="display:none;">
+      Showing <span id="resultsCount">0</span> courses
+    </div>
+  </div>
+
+</form>
+
       </div>
 
       {{-- Courses grid --}}
@@ -514,8 +506,6 @@ document.addEventListener('DOMContentLoaded', () => {
   const pagination = qs('#coursesPagination');
   const searchInput = qs('#courseSearchInput');
   const categorySel = qs('#courseCategorySelect');
-  const applyBtn = qs('#courseApplyBtn');
-  const resetBtn = qs('#courseResetBtn');
   const resetFromEmpty = qs('#resetFromEmpty');
   const resultsCounter = qs('#resultsCounter');
   const resultsCount = qs('#resultsCount');
@@ -661,7 +651,7 @@ document.addEventListener('DOMContentLoaded', () => {
     grid.innerHTML = items.map(course => {
       const imageUrl = course.thumbnail_url || 
                       course.banner_url || 
-                      "{{ asset('assets/media/images/web/course-placeholder.jpg') }}";
+                      "{{ asset('assets/media/images/course/default_course.jpg') }}";
 
       const categoryLabel = course.category_title || 
                           course.category_name || 
@@ -937,16 +927,8 @@ document.addEventListener('DOMContentLoaded', () => {
   };
 
   /* ============= Event Listeners ============= */
-  applyBtn.addEventListener('click', () => loadCourses(1));
 
-  resetBtn.addEventListener('click', () => {
-    searchInput.value = '';
-    categorySel.value = '';
-    const baseUrl = "{{ url('courses/all') }}";
-    window.history.replaceState({}, '', baseUrl);
-    loadCourses(1);
-  });
-
+  
   resetFromEmpty.addEventListener('click', () => {
     searchInput.value = '';
     categorySel.value = '';

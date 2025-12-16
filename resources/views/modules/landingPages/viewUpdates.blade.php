@@ -331,10 +331,10 @@
         {{-- Header --}}
         <div class="updates-header">
           <h1 class="updates-title">What’s New at W3Techiez</h1>
-          <p class="updates-subtitle">
+          <!-- <p class="updates-subtitle">
             Short highlight strips for your landing page – new bootcamps, placement-oriented batches,
             mentor support and more. This pulls live data from your <code>landingpage_updates</code> table.
-          </p>
+          </p> -->
         </div>
  
         {{-- Search + counter --}}
@@ -354,7 +354,7 @@
             <span class="updates-counter" id="updatesCounter" style="display:none;">
               Showing <strong><span id="updatesCount">0</span></strong> update(s)
             </span>
-            <span class="updates-badge-new">
+            <span class="updates-badge-new" style="display:none;">
               <i class="fa fa-bolt"></i>
               Live landing highlights
             </span>
@@ -516,7 +516,7 @@
                     <i class="fa fa-star"></i>&nbsp;New
                   </span>
                 ` : ''}
-                <span class="update-pill">
+                <span class="update-pill" style="display:none;">
                   ID&nbsp;#${row.id}
                 </span>
               </div>

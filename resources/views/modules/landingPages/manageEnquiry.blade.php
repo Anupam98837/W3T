@@ -106,9 +106,24 @@
     </div>
   </div>
 </div>
+<!-- Message View Modal -->
+<div class="modal fade" id="msgModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Message</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+
+      <div class="modal-body">
+        <div id="msgModalBody" style="white-space:pre-wrap;"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
 @endsection
 @push('scripts')
-<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <script>
 document.addEventListener('DOMContentLoaded', () => {
 
@@ -124,6 +139,10 @@ document.addEventListener('DOMContentLoaded', () => {
   const pager = document.getElementById('pager');
   const info  = document.getElementById('pageInfo');
   const count = document.getElementById('totalCount');
+
+  const modalEl = document.getElementById('msgModal');
+  const modalBody = document.getElementById('msgModalBody');
+  const modal = new bootstrap.Modal(modalEl);
 
   async function load(){
     tbody.innerHTML = `
@@ -199,7 +218,6 @@ document.addEventListener('DOMContentLoaded', () => {
   function buildPager(meta){
     const current = meta.page || 1;
     const pages = meta.total_pages || 1;
-
     info.textContent = `Page ${current} of ${pages}`;
 
     let html = '';
@@ -224,33 +242,21 @@ document.addEventListener('DOMContentLoaded', () => {
     load();
   });
 
-  // 👁 View full message (auto marks as read via backend)
+  // 👁 View full message in modal (ONLY message)
   window.viewMsg = async (id)=>{
     const r = await fetch(`${API}/${id}`);
     const j = await r.json();
 
-    Swal.fire({
-      title: j.message.name,
-      html: `
-        <div style="text-align:left">
-          <p><b>Email:</b> ${esc(j.message.email)}</p>
-          <p><b>Phone:</b> ${esc(j.message.phone || '—')}</p>
-          <hr>
-          <div style="white-space:pre-wrap">${esc(j.message.message)}</div>
-        </div>
-      `,
-      icon: 'info',
-      width: 600
-    }).then(load); // refresh list
+    modalBody.textContent = j.message.message;
+    modal.show();
+    load(); // refresh read state
   };
 
-  // ✅ Explicit mark-as-read
+  // Mark as read button
   window.markRead = async (id)=>{
     const r = await fetch(`${API}/${id}/read`, { method: 'PATCH' });
     const j = await r.json();
-
     if (j.success) load();
-    else Swal.fire('Error', j.message || 'Failed', 'error');
   };
 
   document.getElementById('searchBox').addEventListener('input', e=>{
