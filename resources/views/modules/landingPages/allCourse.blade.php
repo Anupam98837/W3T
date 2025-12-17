@@ -460,7 +460,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const resetFromEmpty = qs('#resetFromEmpty');
   const resultsCounter = qs('#resultsCounter');
   const resultsCount = qs('#resultsCount');
-
+  
   let currentPage = 1;
   const perPage = 12;
   let totalResults = 0;

@@ -193,8 +193,24 @@ Route::get('/user-privileges/manage', function () {
 Route::get('/test', function () {
     return view('pages.users.admin.pages.compiler.testCompiler');});
 
-    Route::get('/coding-test/{uuid}', function () {
-        return view('modules.codingTest.codingTest');});
+   Route::get('/coding-test', function (\Illuminate\Http\Request $request) {
+
+    $batch    = $request->query('batch');
+    $question = $request->query('question');
+    $attempt  = $request->query('attempt'); // optional
+
+    // Optional safety check
+    if (!$batch || !$question) {
+        abort(404, 'Missing required parameters');
+    }
+
+    return view('modules.codingTest.codingTest', compact(
+        'batch',
+        'question',
+        'attempt'
+    ));
+});
+
     
     
 Route::get('/admin/topic/manage', function () {

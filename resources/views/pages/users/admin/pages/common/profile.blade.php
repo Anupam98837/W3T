@@ -1,10 +1,10 @@
-{{-- pages/users/super_admin/pages/mailers/manageMailers.blade.php --}}
 @extends('pages.users.admin.layout.structure')
 
 @push('styles')
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"/>
 <link rel="stylesheet" href="{{ asset('assets/css/common/main.css') }}"/>
 <style>
+
 
 .profile-container {
     max-width: 1000px;
@@ -332,6 +332,52 @@
         padding: .75rem 1rem;
     }
 }
+/* ===============================
+   DROPZONE UPLOAD
+   =============================== */
+
+.dropzone {
+    cursor: pointer;
+    position: relative;
+}
+
+.dropzone.dragover {
+    background: rgba(149,30,170,.08);
+    border-color: var(--primary-color);
+}
+
+.dz-content {
+    pointer-events: none;
+}
+
+.dz-icon {
+    font-size: 2.2rem;
+    color: var(--primary-color);
+    margin-bottom: .75rem;
+}
+
+.dz-text {
+    font-weight: 500;
+    margin-bottom: .25rem;
+}
+
+.dz-link {
+    color: var(--primary-color);
+    text-decoration: underline;
+}
+
+.dz-preview {
+    margin-top: 1rem;
+}
+
+.dz-preview img {
+    max-width: 140px;
+    max-height: 140px;
+    border-radius: 50%;
+    object-fit: cover;
+    box-shadow: var(--shadow-2);
+}
+
 </style>
 @endpush
 
@@ -428,24 +474,33 @@
                 
                 <div id="imageMessage" class="status-message"></div>
                 
-                <div class="file-upload-container">
-                    <form id="imgForm" enctype="multipart/form-data">
-                        @csrf
-                        <div class="mb-3">
-                            <label class="form-label d-block mb-3">
-                                <i class="fas fa-cloud-upload-alt me-2"></i>Upload New Photo
-                            </label>
-                            <input type="file" class="form-control editable" name="image" 
-                                   accept="image/*">
-                            <small class="text-muted mt-2 d-block">
-                                Supported formats: JPG, PNG, GIF. Max size: 5MB
-                            </small>
-                        </div>
-                        <button type="button" class="btn btn-dark edit-btn" id="btnUploadImg">
-                            <i class="fas fa-upload me-2"></i>Upload Image
-                        </button>
-                    </form>
-                </div>
+                <div class="file-upload-container dropzone" id="dropzone">
+    <form id="imgForm" enctype="multipart/form-data">
+        @csrf
+
+        <input type="file" name="image" id="imageInput" accept="image/*" hidden>
+
+        <div class="dz-content">
+            <i class="fas fa-cloud-upload-alt dz-icon"></i>
+            <p class="dz-text">
+                <strong>Drag & drop</strong> your image here<br>
+                or <span class="dz-link">browse</span>
+            </p>
+            <small class="text-muted">
+                JPG, PNG, GIF • Max 5MB
+            </small>
+        </div>
+
+        <div id="previewBox" class="dz-preview" style="display:none;">
+            <img id="previewImg" src="" alt="Preview">
+        </div>
+
+        <button type="button" class="btn btn-dark edit-btn mt-3" id="btnUploadImg">
+            <i class="fas fa-upload me-2"></i>Upload Image
+        </button>
+    </form>
+</div>
+
             </div>
 
             {{-- Tab 2: Security --}}
@@ -514,131 +569,117 @@
     </div>
 </div>
 @endsection
-
 @push('scripts')
 <script>
-document.addEventListener("DOMContentLoaded", function() {
+/* ===============================
+   DOM READY
+   =============================== */
+document.addEventListener("DOMContentLoaded", function () {
     loadProfile();
-    
-    // Add Font Awesome if not present
+
+    // Add Font Awesome if missing
     if (!document.querySelector('link[href*="font-awesome"]')) {
         const faLink = document.createElement('link');
         faLink.rel = 'stylesheet';
         faLink.href = 'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css';
         document.head.appendChild(faLink);
     }
-    
+
     // Toggle password visibility
-    document.getElementById('showPasswords')?.addEventListener('change', function(e) {
-        const passwords = document.querySelectorAll('#passwordForm input[type="password"]');
-        passwords.forEach(input => {
-            input.type = e.target.checked ? 'text' : 'password';
-        });
+    document.getElementById('showPasswords')?.addEventListener('change', function (e) {
+        document
+            .querySelectorAll('#passwordForm input[type="password"]')
+            .forEach(i => i.type = e.target.checked ? 'text' : 'password');
     });
+
+    initDropzone();
 });
 
-// Get token from storage
+/* ===============================
+   HELPERS
+   =============================== */
 function getToken() {
     return localStorage.getItem("token") || sessionStorage.getItem("token");
-}
-
-// Show message
-function showMessage(elementId, message, type) {
-    const element = document.getElementById(elementId);
-    element.textContent = message;
-    element.className = `status-message ${type}`;
-    element.style.display = 'block';
-    
-    setTimeout(() => {
-        element.style.display = 'none';
-    }, 5000);
-}
-
-// Load profile from backend API
-function loadProfile() {
-    const token = getToken();
-
-    if (!token) {
-        window.location.href = "/login";
-        return;
-    }
-
-    // Show loading state
-    document.getElementById('pf_name').innerHTML = 'Loading <span class="loading"></span>';
-    
-    fetch("/api/profile", {
-        headers: { 
-            Authorization: "Bearer " + token,
-            'Accept': 'application/json'
-        }
-    })
-    .then(r => {
-        if (r.status === 401) {
-            localStorage.removeItem("token");
-            sessionStorage.removeItem("token");
-            window.location.href = "/login";
-            return;
-        }
-        return r.json();
-    })
-    .then(res => {
-        if (!res || res.status !== "success") {
-            throw new Error(res?.message || "Failed to load profile");
-        }
-
-        const user = res.user;
-        const perm = res.permissions;
-        const endpoint = res.endpoints;
-
-        // Update header
-        document.getElementById("pf_name").textContent = user.name || 'No Name';
-        document.getElementById("pf_email").innerHTML = `
-            <i class="fas fa-envelope me-2"></i>${user.email || 'No Email'}
-        `;
-        document.getElementById("pf_role").textContent = 
-            (user.role_short_form || 'User') + ' • ' + 
-            (user.role ? capitalize(user.role) : 'Role');
-        document.getElementById("pf_img").src = user.image || "/default-avatar.png";
-
-        // Fill form fields
-        document.querySelector("input[name='name']").value = user.name || '';
-        document.querySelector("input[name='email']").value = user.email || '';
-        document.querySelector("input[name='phone_number']").value = user.phone_number || '';
-        document.querySelector("input[name='address']").value = user.address || '';
-
-        // Handle permissions
-        if (!perm?.can_edit_profile) {
-            document.querySelectorAll(".editable").forEach(i => i.disabled = true);
-            document.querySelectorAll(".edit-btn").forEach(b => b.style.display = "none");
-            showMessage('profileMessage', 'Your role does not allow editing profile information.', 'error');
-        }
-
-        // Store endpoints globally
-        window.profileApi = endpoint;
-    })
-    .catch(error => {
-        console.error('Profile load error:', error);
-        document.getElementById("pf_name").textContent = "Error Loading Profile";
-        showMessage('profileMessage', error.message, 'error');
-    });
 }
 
 function capitalize(s) {
     return s ? s.charAt(0).toUpperCase() + s.slice(1).toLowerCase() : '';
 }
 
-// -----------------------
-// Update Profile
-// -----------------------
-document.getElementById("btnSaveProfile")?.addEventListener("click", function () {
+function showMessage(id, msg, type) {
+    const el = document.getElementById(id);
+    el.textContent = msg;
+    el.className = `status-message ${type}`;
+    el.style.display = 'block';
+    setTimeout(() => el.style.display = 'none', 5000);
+}
+
+/* ===============================
+   LOAD PROFILE
+   =============================== */
+function loadProfile() {
+    const token = getToken();
+    if (!token) return location.href = "/login";
+
+    document.getElementById('pf_name').innerHTML = 'Loading...';
+
+    fetch("/api/profile", {
+        headers: {
+            Authorization: "Bearer " + token,
+            Accept: "application/json"
+        }
+    })
+    .then(r => {
+        if (r.status === 401) {
+            localStorage.clear();
+            sessionStorage.clear();
+            location.href = "/login";
+            return;
+        }
+        return r.json();
+    })
+    .then(res => {
+        if (res.status !== "success") throw new Error(res.message);
+
+        const { user, permissions, endpoints } = res;
+
+        // Header
+        pf_name.textContent  = user.name || 'No Name';
+        pf_email.innerHTML   = `<i class="fas fa-envelope me-2"></i>${user.email || 'No Email'}`;
+        pf_role.textContent  = `${user.role_short_form || 'User'} • ${capitalize(user.role)}`;
+        pf_img.src           = user.image || '/default-avatar.png';
+
+        // Form fields
+        document.querySelector("[name=name]").value = user.name || '';
+        document.querySelector("[name=email]").value = user.email || '';
+        document.querySelector("[name=phone_number]").value = user.phone_number || '';
+        document.querySelector("[name=address]").value = user.address || '';
+
+        // Permissions
+        if (!permissions?.can_edit_profile) {
+            document.querySelectorAll('.editable').forEach(i => i.disabled = true);
+            document.querySelectorAll('.edit-btn').forEach(b => b.remove());
+            showMessage('profileMessage', 'You do not have permission to edit profile.', 'error');
+        }
+
+        window.profileApi = endpoints;
+    })
+    .catch(err => {
+        pf_name.textContent = "Error";
+        showMessage('profileMessage', err.message, 'error');
+    });
+}
+
+/* ===============================
+   UPDATE PROFILE
+   =============================== */
+btnSaveProfile?.addEventListener("click", function () {
     const token = getToken();
     const btn = this;
-    const originalText = btn.innerHTML;
-    
-    btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Saving...';
+    const original = btn.innerHTML;
+
+    btn.innerHTML = `<i class="fas fa-spinner fa-spin me-2"></i>Saving...`;
     btn.disabled = true;
-    
-    let form = new FormData(document.getElementById("profileForm"));
 
     fetch(profileApi.update_profile, {
         method: "POST",
@@ -646,83 +687,109 @@ document.getElementById("btnSaveProfile")?.addEventListener("click", function ()
             Authorization: "Bearer " + token,
             "X-HTTP-Method-Override": "PATCH"
         },
-        body: form
+        body: new FormData(profileForm)
     })
     .then(r => r.json())
     .then(res => {
-        if (res.status === "success") {
-            showMessage('profileMessage', 'Profile updated successfully!', 'success');
-            setTimeout(() => loadProfile(), 1000);
-        } else {
-            showMessage('profileMessage', res.message || 'Update failed', 'error');
-        }
-    })
-    .catch(error => {
-        showMessage('profileMessage', 'Network error. Please try again.', 'error');
+        res.status === "success"
+            ? (showMessage('profileMessage', 'Profile updated!', 'success'), loadProfile())
+            : showMessage('profileMessage', res.message, 'error');
     })
     .finally(() => {
-        btn.innerHTML = originalText;
+        btn.innerHTML = original;
         btn.disabled = false;
     });
 });
 
-// -----------------------
-// Upload Image
-// -----------------------
-document.getElementById("btnUploadImg")?.addEventListener("click", function () {
+/* ===============================
+   DRAG & DROP IMAGE UPLOAD
+   =============================== */
+function initDropzone() {
+    const dropzone   = document.getElementById('dropzone');
+    const input      = document.getElementById('imageInput');
+    const previewBox = document.getElementById('previewBox');
+    const previewImg = document.getElementById('previewImg');
+
+    if (!dropzone || !input) return;
+
+    dropzone.addEventListener('click', () => input.click());
+
+    dropzone.addEventListener('dragover', e => {
+        e.preventDefault();
+        dropzone.classList.add('dragover');
+    });
+
+    dropzone.addEventListener('dragleave', () =>
+        dropzone.classList.remove('dragover')
+    );
+
+    dropzone.addEventListener('drop', e => {
+        e.preventDefault();
+        dropzone.classList.remove('dragover');
+        if (e.dataTransfer.files.length) {
+            input.files = e.dataTransfer.files;
+            preview(input.files[0]);
+        }
+    });
+
+    input.addEventListener('change', e => {
+        if (e.target.files.length) preview(e.target.files[0]);
+    });
+
+    function preview(file) {
+        if (!file.type.startsWith('image/')) return;
+        const r = new FileReader();
+        r.onload = e => {
+            previewImg.src = e.target.result;
+            previewBox.style.display = 'block';
+        };
+        r.readAsDataURL(file);
+    }
+}
+
+/* ===============================
+   UPLOAD IMAGE
+   =============================== */
+btnUploadImg?.addEventListener("click", function () {
     const token = getToken();
     const btn = this;
-    const originalText = btn.innerHTML;
-    const fileInput = document.querySelector("input[name='image']");
-    
-    if (!fileInput.files.length) {
-        showMessage('imageMessage', 'Please select an image first.', 'error');
-        return;
-    }
-    
-    btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Uploading...';
+    const original = btn.innerHTML;
+    const input = document.getElementById('imageInput');
+
+    if (!input.files.length)
+        return showMessage('imageMessage', 'Select an image first.', 'error');
+
+    btn.innerHTML = `<i class="fas fa-spinner fa-spin me-2"></i>Uploading...`;
     btn.disabled = true;
-    
-    let form = new FormData(document.getElementById("imgForm"));
 
     fetch(profileApi.update_image, {
         method: "POST",
-        headers: {
-            Authorization: "Bearer " + token
-        },
-        body: form
+        headers: { Authorization: "Bearer " + token },
+        body: new FormData(imgForm)
     })
     .then(r => r.json())
     .then(res => {
-        if (res.status === "success") {
-            showMessage('imageMessage', 'Profile picture updated successfully!', 'success');
-            fileInput.value = '';
-            setTimeout(() => loadProfile(), 1000);
-        } else {
-            showMessage('imageMessage', res.message || 'Upload failed', 'error');
-        }
-    })
-    .catch(error => {
-        showMessage('imageMessage', 'Upload failed. Please try again.', 'error');
+        res.status === "success"
+            ? (showMessage('imageMessage', 'Image updated!', 'success'), loadProfile())
+            : showMessage('imageMessage', res.message, 'error');
     })
     .finally(() => {
-        btn.innerHTML = originalText;
+        btn.innerHTML = original;
         btn.disabled = false;
+        input.value = '';
     });
 });
 
-// -----------------------
-// Change Password
-// -----------------------
-document.getElementById("btnChangePassword")?.addEventListener("click", function () {
+/* ===============================
+   CHANGE PASSWORD
+   =============================== */
+btnChangePassword?.addEventListener("click", function () {
     const token = getToken();
     const btn = this;
-    const originalText = btn.innerHTML;
-    
-    btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Updating...';
+    const original = btn.innerHTML;
+
+    btn.innerHTML = `<i class="fas fa-spinner fa-spin me-2"></i>Updating...`;
     btn.disabled = true;
-    
-    let form = new FormData(document.getElementById("passwordForm"));
 
     fetch(profileApi.update_password, {
         method: "POST",
@@ -730,24 +797,19 @@ document.getElementById("btnChangePassword")?.addEventListener("click", function
             Authorization: "Bearer " + token,
             "X-HTTP-Method-Override": "PATCH"
         },
-        body: form
+        body: new FormData(passwordForm)
     })
     .then(r => r.json())
     .then(res => {
-        if (res.status === "success") {
-            showMessage('passwordMessage', 'Password changed successfully!', 'success');
-            document.getElementById("passwordForm").reset();
-            document.getElementById('showPasswords').checked = false;
-        } else {
-            showMessage('passwordMessage', res.message || "Failed to update password", 'error');
-        }
-    })
-    .catch(error => {
-        showMessage('passwordMessage', 'Network error. Please try again.', 'error');
+        res.status === "success"
+            ? (showMessage('passwordMessage', 'Password updated!', 'success'), passwordForm.reset())
+            : showMessage('passwordMessage', res.message, 'error');
     })
     .finally(() => {
-        btn.innerHTML = originalText;
+        btn.innerHTML = original;
         btn.disabled = false;
+        showPasswords.checked = false;
     });
 });
 </script>
+@endpush

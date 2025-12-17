@@ -313,12 +313,12 @@
   }
 
   function getAssignedFlag(q){
-    // support multiple shapes:
-    if(typeof q?.assigned === 'boolean') return q.assigned;
-    if(typeof q?.is_assigned === 'boolean') return q.is_assigned;
-    if(typeof q?.assigned_to_batch === 'boolean') return q.assigned_to_batch;
-    return false;
-  }
+  if (q?.assigned === true || q?.assigned === 1) return true;
+  if (q?.is_assigned === true || q?.is_assigned === 1) return true;
+  if (q?.assigned_to_batch === true || q?.assigned_to_batch === 1) return true;
+  return false;
+}
+
 
   function normalizeQuestion(q){
     const uuid = q?.uuid || q?.question_uuid || q?.questionUuid || q?.id;

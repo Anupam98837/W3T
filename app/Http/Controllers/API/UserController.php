@@ -928,7 +928,7 @@ public function getProfile(Request $request)
     }
 
     // Role-based frontend permissions
-    $isEditable = in_array($user->role, ['admin', 'super_admin']);
+    $isEditable = in_array($user->role, ['admin', 'super_admin','student','instructor']);
 
     $permissions = [
         'can_edit_profile'   => $isEditable,
