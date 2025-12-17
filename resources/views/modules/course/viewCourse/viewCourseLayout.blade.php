@@ -45,31 +45,24 @@
   <style>
     /* ===== Base Styles =================================================== */
     html, body { height: 100%; }
-    body{ 
-      background: var(--bg-body); 
-      color: var(--text-color); 
+    body{
+      background: var(--bg-body);
+      color: var(--text-color);
       min-height: 100dvh;
       overflow-x: hidden;
     }
 
-    .vc-wrap{ 
-      max-width: 1180px; 
-      margin: 18px auto 40px; 
-      padding: 0 14px; 
+    .vc-wrap{
+      max-width: 100%;
+      margin: 18px auto 40px;
+      padding: 0 14px;
     }
 
     @media (max-width: 768px) {
-      .vc-wrap {
-        padding: 0 12px;
-        margin: 12px auto 20px;
-      }
+      .vc-wrap { padding: 0 12px; margin: 12px auto 20px; }
     }
-
     @media (max-width: 576px) {
-      .vc-wrap {
-        padding: 0 10px;
-        margin: 8px auto 16px;
-      }
+      .vc-wrap { padding: 0 10px; margin: 8px auto 16px; }
     }
 
     .vc-grid{
@@ -79,12 +72,7 @@
       min-height: calc(100dvh - 90px);
     }
 
-    /* ===== Modes ======================================================== */
-    /* OVERVIEW mode: show only left card (course details) */
-    body.vc-mode-overview .vc-main{ display:none; }
-    body.vc-mode-overview .vc-aside{ grid-column: 1 / -1; }
-
-    /* FULL mode: two-column layout on desktop */
+    /* ===== FULL mode: two-column layout on desktop (DEFAULT) ============= */
     body.vc-mode-full .vc-grid{
       grid-template-columns: 320px minmax(0,1fr);
     }
@@ -92,11 +80,11 @@
 
     /* Mobile adjustments for FULL mode */
     @media (max-width: 992px){
-      .vc-grid{ 
+      .vc-grid{
         grid-template-columns: 1fr;
         gap: 12px;
       }
-      
+
       body.vc-mode-full .vc-grid{
         grid-template-columns: 1fr;
       }
@@ -105,7 +93,6 @@
       body.vc-mode-full .vc-aside {
         display: none;
       }
-
       body.vc-mode-full .vc-main{
         display: block;
         margin-top: 0;
@@ -115,15 +102,9 @@
       body.vc-mode-full.mobile-sidebar-open .vc-aside {
         display: block;
       }
-
       body.vc-mode-full.mobile-sidebar-open .vc-main {
         display: none !important;
       }
-    }
-
-    /* In FULL mode, hide the "View full course content" button */
-    body.vc-mode-full #viewAllBtn{
-      display: none !important;
     }
 
     /* ===== Back button ===== */
@@ -145,18 +126,13 @@
       white-space: nowrap;
       touch-action: manipulation;
     }
-    
     .aside-back-btn:hover, .aside-back-btn:active {
       background: color-mix(in oklab, var(--accent-color) 8%, transparent);
       border-color: var(--accent-color);
       color: var(--ink);
     }
-    
     @media (max-width: 576px) {
-      .aside-back-btn {
-        padding: 8px 12px;
-        font-size: var(--fs-13);
-      }
+      .aside-back-btn { padding: 8px 12px; font-size: var(--fs-13); }
     }
 
     /* ===== Mobile Hamburger Menu ======================================== */
@@ -174,207 +150,26 @@
       transition: var(--transition);
       flex-shrink: 0;
     }
-    
     .mobile-hamburger:hover {
       border-color: var(--accent-color);
       background: color-mix(in oklab, var(--accent-color) 8%, transparent);
     }
-    
     @media (max-width: 992px) {
-      .mobile-hamburger {
-        display: inline-flex;
-      }
+      .mobile-hamburger { display: inline-flex; }
     }
 
     /* ===== Left column ================================================== */
-    .vc-aside .panel{ 
+    .vc-aside .panel{
       padding: 16px;
       height: 100%;
       overflow-y: auto;
     }
-    
-    @media (max-width: 768px) {
-      .vc-aside .panel {
-        padding: 14px;
-      }
-    }
-    
-    @media (max-width: 576px) {
-      .vc-aside .panel {
-        padding: 12px;
-      }
-    }
-
-    .vc-head-left{
-      display:flex; 
-      align-items:flex-start; 
-      justify-content:space-between; 
-      gap:10px; 
-      margin-bottom:12px;
-    }
-    
-    .vc-title{ 
-      font-family: var(--font-head); 
-      font-weight:700; 
-      color:var(--ink); 
-      margin:0; 
-      font-size:1.25rem;
-      line-height: 1.3;
-    }
-    
-    @media (max-width: 768px) {
-      .vc-title {
-        font-size: 1.15rem;
-      }
-    }
-
-    /* Group all "course basic details" to hide in full mode */
-    .vc-course-basic {}
-
-    body.vc-mode-full .vc-course-basic{
-      display:none;
-    }
-
-    /* ===== Hero + Gallery =============================================== */
-    .vc-hero{
-      border-radius:16px;
-      overflow:hidden;
-      box-shadow:var(--shadow-2);
-      border:1px solid var(--line-strong);
-      background:#000;
-      min-height:220px;
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      width:100%;
-      margin-bottom: 12px;
-    }
-    
-    @media (max-width: 768px) {
-      .vc-hero {
-        min-height: 180px;
-        border-radius: 14px;
-      }
-    }
-    
-    @media (max-width: 576px) {
-      .vc-hero {
-        min-height: 160px;
-        border-radius: 12px;
-        margin-bottom: 10px;
-      }
-    }
-
-    .vc-hero img{
-      display:none;
-      margin:0 auto;
-      max-width:100%;
-      height:auto;
-      max-height:60vh;
-      object-fit:contain;
-    }
-
-    /* Hero skeleton */
-    #vcHeroSkel{
-      width:100%;
-      height:260px;
-      border-radius:16px;
-      border:1px solid var(--line-strong);
-      display:block;
-      box-sizing:border-box;
-      background:linear-gradient(90deg,#0001,#0000000d,#0001);
-    }
-    
-    @media (max-width: 768px) {
-      #vcHeroSkel {
-        height: 200px;
-      }
-    }
-    
-    @media (max-width: 576px) {
-      #vcHeroSkel {
-        height: 160px;
-        border-radius: 12px;
-      }
-    }
-
-    /* Thumbs strip */
-    #vcThumbs{
-      margin-top:.5rem;
-      justify-content:center;
-    }
-    
-    .vc-thumbs .thumb{
-      display:block;
-      width:100%;
-      padding:0;
-      border:1px solid var(--line-strong);
-      border-radius:10px;
-      overflow:hidden;
-      background:transparent;
-      cursor:pointer;
-      box-sizing:border-box;
-      touch-action: manipulation;
-    }
-    
-    .vc-thumbs .thumb img{
-      width:100% !important;
-      height:56px !important;
-      object-fit:cover !important;
-      display:block !important;
-    }
-    
-    @media (max-width: 576px) {
-      .vc-thumbs .thumb img {
-        height: 48px !important;
-      }
-    }
-    
-    .vc-thumbs .thumb.active{ 
-      outline:2px solid var(--primary-color); 
-      outline-offset:2px; 
-    }
-    
-    .vc-thumbs .thumb:focus-visible{ 
-      outline:2px solid var(--primary-color); 
-      outline-offset:3px; 
-    }
-
-    .vc-chips{ 
-      display:flex; 
-      flex-wrap:wrap; 
-      gap:8px; 
-      margin: 10px 0 12px; 
-    }
-    
-    .vc-chip{
-      display:inline-flex; 
-      align-items:center; 
-      gap:6px; 
-      padding:8px 12px;
-      border:1px solid var(--line-strong); 
-      border-radius:999px; 
-      background:var(--surface); 
-      font-size:var(--fs-13);
-    }
-    
-    @media (max-width: 576px) {
-      .vc-chip {
-        padding: 6px 10px;
-        font-size: var(--fs-12);
-      }
-    }
+    @media (max-width: 768px) { .vc-aside .panel { padding: 14px; } }
+    @media (max-width: 576px) { .vc-aside .panel { padding: 12px; } }
 
     /* ===== Batch Details & Modules Row ================================== */
-    .details-modules-row {
-      margin-top: 20px;
-    }
-    
-    @media (max-width: 992px) {
-      .details-modules-row {
-        margin-top: 16px;
-      }
-    }
+    .details-modules-row { margin-top: 6px; }
+    @media (max-width: 992px) { .details-modules-row { margin-top: 8px; } }
 
     /* Batch Details */
     .vc-batch-details{
@@ -385,182 +180,130 @@
       background: var(--surface);
       height: 100%;
     }
-    
-    @media (max-width: 768px) {
-      .vc-batch-details {
-        padding: 14px;
-      }
-    }
-    
-    .vc-batch-title{ 
-      font-weight: 600; 
-      color: var(--ink); 
-      margin-bottom: 8px; 
+    @media (max-width: 768px) { .vc-batch-details { padding: 14px; } }
+
+    .vc-batch-title{
+      font-weight: 600;
+      color: var(--ink);
+      margin-bottom: 8px;
       font-size: 1.1rem;
     }
-    
-    .vc-batch-description{ 
-      font-size: var(--fs-14); 
-      color: var(--text-color); 
-      margin-bottom: 10px; 
-      line-height: 1.5; 
+    .vc-batch-description{
+      font-size: var(--fs-14);
+      color: var(--text-color);
+      margin-bottom: 10px;
+      line-height: 1.5;
     }
-    
-    .vc-batch-tagline{ 
-      font-size: var(--fs-13); 
-      color: var(--muted-color); 
-      margin-bottom: 10px; 
+    .vc-batch-tagline{
+      font-size: var(--fs-13);
+      color: var(--muted-color);
+      margin-bottom: 10px;
       font-style: italic;
     }
-    
-    .vc-batch-info{ 
-      display: flex; 
-      flex-wrap: wrap; 
-      gap: 10px; 
-      font-size: var(--fs-13); 
+    .vc-batch-info{
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      font-size: var(--fs-13);
     }
-    
-    .vc-batch-info-item{ 
-      display: inline-flex; 
-      align-items: center; 
-      gap: 6px; 
+    .vc-batch-info-item{
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
       color: var(--muted-color);
       white-space: nowrap;
     }
-    
-    .vc-batch-info-item i{ 
-      width: 16px; 
-      text-align: center; 
+    .vc-batch-info-item i{
+      width: 16px;
+      text-align: center;
       flex-shrink: 0;
     }
-    
     @media (max-width: 1200px) {
-      .vc-batch-info {
-        flex-direction: column;
-        gap: 8px;
-      }
+      .vc-batch-info { flex-direction: column; gap: 8px; }
     }
 
     /* Search */
-    .vc-search{ 
-      position:relative; 
+    .vc-search{
+      position:relative;
       margin-bottom: 12px;
     }
-    
-    .vc-search input{ 
-      padding-left:42px; 
-      height:44px; 
-      border-radius:12px; 
+    .vc-search input{
+      padding-left:42px;
+      height:44px;
+      border-radius:12px;
       font-size: var(--fs-14);
       border: 1px solid var(--line-strong);
       background: var(--surface);
       color: var(--text-color);
     }
-    
     .vc-search input:focus {
       border-color: var(--accent-color);
       box-shadow: 0 0 0 3px color-mix(in oklab, var(--accent-color) 20%, transparent);
     }
-    
-    .vc-search i{ 
-      position:absolute; 
-      left:14px; 
-      top:50%; 
-      transform:translateY(-50%); 
+    .vc-search i{
+      position:absolute;
+      left:14px;
+      top:50%;
+      transform:translateY(-50%);
       color:var(--muted-color);
       pointer-events: none;
     }
-    
     @media (max-width: 576px) {
-      .vc-search input {
-        height: 42px;
-        padding-left: 40px;
-      }
+      .vc-search input { height: 42px; padding-left: 40px; }
     }
 
     /* Modules List */
     .vc-modules{
       margin-top: 0;
-      display:flex; 
-      flex-direction:column; 
+      display:flex;
+      flex-direction:column;
       gap:10px;
-      max-height: 50vh; 
+      max-height: 50vh;
       overflow-y: auto;
       padding-right: 4px;
     }
-    
-    /* Scrollbar styling */
-    .vc-modules::-webkit-scrollbar {
-      width: 6px;
-    }
-    
-    .vc-modules::-webkit-scrollbar-track {
-      background: transparent;
-    }
-    
-    .vc-modules::-webkit-scrollbar-thumb {
-      background-color: var(--line-strong);
-      border-radius: 3px;
-    }
-    
-    .vc-modules::-webkit-scrollbar-thumb:hover {
-      background-color: var(--muted-color);
-    }
-    
-    @media (max-width: 768px) {
-      .vc-modules {
-        max-height: 60vh;
-      }
-    }
+    .vc-modules::-webkit-scrollbar { width: 6px; }
+    .vc-modules::-webkit-scrollbar-track { background: transparent; }
+    .vc-modules::-webkit-scrollbar-thumb { background-color: var(--line-strong); border-radius: 3px; }
+    .vc-modules::-webkit-scrollbar-thumb:hover { background-color: var(--muted-color); }
+    @media (max-width: 768px) { .vc-modules { max-height: 60vh; } }
 
     .vc-module{
-      border:1px solid var(--line-strong); 
-      border-radius:12px; 
+      border:1px solid var(--line-strong);
+      border-radius:12px;
       background:var(--surface);
-      padding:14px; 
-      cursor:pointer; 
+      padding:14px;
+      cursor:pointer;
       transition: var(--transition);
-      display: flex; 
-      justify-content: space-between; 
-      align-items: center; 
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
       gap: 12px;
       touch-action: manipulation;
     }
-    
-    .vc-module:hover, .vc-module:active{ 
+    .vc-module:hover, .vc-module:active{
       border-color: var(--accent-color);
       transform: translateX(2px);
       box-shadow: 0 4px 12px rgba(0,0,0,0.05);
     }
-    
-    .vc-module .module-content{ 
-      flex: 1; 
-      min-width: 0;
-    }
-    
-    .vc-module .t{ 
-      font-weight:600; 
-      color:var(--ink); 
+    .vc-module .module-content{ flex: 1; min-width: 0; }
+    .vc-module .t{
+      font-weight:600;
+      color:var(--ink);
       margin-bottom: 4px;
       font-size: var(--fs-15);
       line-height: 1.3;
     }
-    
-    .vc-module .d{ 
-      font-size: var(--fs-13); 
+    .vc-module .d{
+      font-size: var(--fs-13);
       color: var(--muted-color);
       line-height: 1.4;
     }
 
     /* In FULL mode: hide module descriptions on desktop, show on mobile */
-    body.vc-mode-full .vc-module .d{
-      display: none;
-    }
-    
+    body.vc-mode-full .vc-module .d{ display: none; }
     @media (max-width: 992px) {
-      body.vc-mode-full .vc-module .d{
-        display: block;
-      }
+      body.vc-mode-full .vc-module .d{ display: block; }
     }
 
     .vc-module .module-arrow{
@@ -569,130 +312,71 @@
       flex-shrink: 0;
       transition: var(--transition);
     }
-    
-    .vc-module.active{ 
+    .vc-module.active{
       border:2px solid var(--accent-color);
       background: color-mix(in oklab, var(--accent-color) 5%, transparent);
     }
-    
-    .vc-module.active .module-arrow{ 
+    .vc-module.active .module-arrow{
       color: var(--accent-color);
       transform: translateX(4px);
     }
 
-    .vc-empty{ 
-      border:1px dashed var(--line-strong); 
-      border-radius: 12px; 
-      padding: 32px 16px; 
-      text-align:center; 
+    .vc-empty{
+      border:1px dashed var(--line-strong);
+      border-radius: 12px;
+      padding: 32px 16px;
+      text-align:center;
       color: var(--muted-color);
       font-size: var(--fs-14);
     }
-    
     .vc-empty i {
       font-size: 2rem;
       margin-bottom: 12px;
       opacity: 0.5;
     }
 
-    /* View All Button */
-    .vc-view-all-btn{
-      margin-top: 16px;
-      border-radius: 12px;
-      font-weight: 600;
-      padding: 12px 20px;
-      font-size: var(--fs-15);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 8px;
-      transition: all 0.3s ease;
-      touch-action: manipulation;
-    }
-    
-    .vc-view-all-btn:hover, .vc-view-all-btn:active {
-      transform: translateY(-2px);
-      box-shadow: 0 6px 20px rgba(var(--accent-color-rgb, 59, 130, 246), 0.2);
-    }
-    
-    @media (max-width: 576px) {
-      .vc-view-all-btn {
-        padding: 14px 20px;
-        margin-top: 20px;
-      }
-    }
-
     /* ===== Right column (module header + tabs) ========================== */
-    .vc-main .panel{ 
-      padding: 16px; 
+    .vc-main .panel{
+      padding: 16px;
       min-height: calc(100% - 0px);
       height: 100%;
       overflow-y: auto;
     }
-    
-    @media (max-width: 768px) {
-      .vc-main .panel {
-        padding: 14px;
-      }
-    }
-    
-    @media (max-width: 576px) {
-      .vc-main .panel {
-        padding: 12px;
-      }
-    }
+    @media (max-width: 768px) { .vc-main .panel { padding: 14px; } }
+    @media (max-width: 576px) { .vc-main .panel { padding: 12px; } }
 
     /* Top header: row 1 = hamburger + title, row 2 = description */
     .vc-top{
-      display:flex; 
+      display:flex;
       flex-direction: column;
-      gap:6px; 
+      gap:6px;
       margin-bottom:16px;
     }
-    
     .vc-top-row1{
       display:flex;
       align-items:center;
       gap:12px;
     }
-
-    .vc-top-row2{
-      padding-left: 0;
-    }
-
+    .vc-top-row2{ padding-left: 0; }
     @media (max-width: 576px) {
-      .vc-top {
-        margin-bottom: 14px;
-      }
-      .vc-top-row1{
-        gap:10px;
-      }
+      .vc-top { margin-bottom: 14px; }
+      .vc-top-row1{ gap:10px; }
     }
 
-    .vc-top .title{ 
-      font-family:var(--font-head); 
-      font-weight:700; 
-      color:var(--ink); 
-      margin:0; 
+    .vc-top .title{
+      font-family:var(--font-head);
+      font-weight:700;
+      color:var(--ink);
+      margin:0;
       font-size:1.3rem;
       line-height: 1.3;
       flex: 1;
     }
-    
-    @media (max-width: 768px) {
-      .vc-top .title {
-        font-size: 1.2rem;
-      }
-    }
-    
-    @media (max-width: 576px) {
-      .vc-top .title {
-        font-size: 1.15rem;
-      }
-    }
-    
-    .vc-top .sub{ 
-      color: var(--muted-color); 
+    @media (max-width: 768px) { .vc-top .title { font-size: 1.2rem; } }
+    @media (max-width: 576px) { .vc-top .title { font-size: 1.15rem; } }
+
+    .vc-top .sub{
+      color: var(--muted-color);
       font-size: var(--fs-14);
       margin-top: 2px;
       line-height: 1.4;
@@ -708,22 +392,12 @@
       margin-bottom: 16px;
       animation: slideDown 0.3s ease;
     }
-    
     @keyframes slideDown {
-      from {
-        opacity: 0;
-        transform: translateY(-10px);
-      }
-      to {
-        opacity: 1;
-        transform: translateY(0);
-      }
+      from { opacity: 0; transform: translateY(-10px); }
+      to { opacity: 1; transform: translateY(0); }
     }
-    
-    .mobile-course-details.show {
-      display: block;
-    }
-    
+    .mobile-course-details.show { display: block; }
+
     .mobile-course-details .section-title {
       font-weight: 600;
       color: var(--ink);
@@ -733,21 +407,18 @@
       align-items: center;
       gap: 8px;
     }
-    
     .mobile-course-details .course-description {
       font-size: var(--fs-14);
       color: var(--text-color);
       line-height: 1.6;
       margin-bottom: 12px;
     }
-    
     .mobile-course-details .course-meta {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
       gap: 10px;
       margin-top: 12px;
     }
-    
     .mobile-course-details .meta-item {
       display: flex;
       align-items: center;
@@ -755,107 +426,75 @@
       font-size: var(--fs-13);
       color: var(--text-color);
     }
-    
     .mobile-course-details .meta-item i {
       width: 16px;
       color: var(--accent-color);
       text-align: center;
     }
-    
     @media (max-width: 576px) {
-      .mobile-course-details .course-meta {
-        grid-template-columns: 1fr;
-      }
+      .mobile-course-details .course-meta { grid-template-columns: 1fr; }
     }
 
     /* Tabs */
     .tabbar{
-      margin-top:8px; 
-      border-bottom:1px solid var(--line-strong); 
+      margin-top:8px;
+      border-bottom:1px solid var(--line-strong);
       padding-bottom:4px;
-      display:flex; 
-      flex-wrap:wrap; 
+      display:flex;
+      flex-wrap:wrap;
       gap:6px;
       overflow-x: auto;
       scrollbar-width: none;
       -ms-overflow-style: none;
     }
-    
-    .tabbar::-webkit-scrollbar {
-      display: none;
-    }
-    
-    @media (max-width: 768px) {
-      .tabbar {
-        gap: 4px;
-      }
-    }
+    .tabbar::-webkit-scrollbar { display: none; }
+    @media (max-width: 768px) { .tabbar { gap: 4px; } }
 
     .tabbar .nav-link{
-      border:0; 
-      border-radius:10px; 
+      border:0;
+      border-radius:10px;
       padding:10px 14px;
-      color: var(--muted-color); 
+      color: var(--muted-color);
       background: transparent;
       font-size: var(--fs-14);
       white-space: nowrap;
       transition: var(--transition);
       touch-action: manipulation;
     }
-    
-    .tabbar .nav-link i{ 
-      width:16px; 
-      text-align:center; 
-      margin-right:6px; 
+    .tabbar .nav-link i{
+      width:16px;
+      text-align:center;
+      margin-right:6px;
       font-size: var(--fs-15);
     }
-    
-    .tabbar .nav-link:hover{ 
-      background: rgba(2,6,23,.04); 
-    }
-    
-    html.theme-dark .tabbar .nav-link:hover{ 
-      background:#0c172d; 
-    }
-    
+    .tabbar .nav-link:hover{ background: rgba(2,6,23,.04); }
+    html.theme-dark .tabbar .nav-link:hover{ background:#0c172d; }
+
     .tabbar .nav-link.active{
-      color: var(--ink); 
+      color: var(--ink);
       background: color-mix(in oklab, var(--accent-color) 12%, transparent);
       box-shadow: var(--shadow-1);
     }
-    
+
     @media (max-width: 768px) {
-      .tabbar .nav-link {
-        padding: 8px 12px;
-        font-size: var(--fs-13);
-      }
+      .tabbar .nav-link { padding: 8px 12px; font-size: var(--fs-13); }
     }
-    
     @media (max-width: 576px) {
-      .tabbar .nav-link {
-        padding: 8px 10px;
-        font-size: var(--fs-12);
-      }
-      
-      .tabbar .nav-link i {
-        margin-right: 4px;
-        font-size: var(--fs-14);
-      }
+      .tabbar .nav-link { padding: 8px 10px; font-size: var(--fs-12); }
+      .tabbar .nav-link i { margin-right: 4px; font-size: var(--fs-14); }
     }
 
     /* ===== Tab switching ================================================ */
-    #tabContent{ 
-      position: relative; 
+    #tabContent{
+      position: relative;
       margin-top: 16px;
     }
-    
     #tabContent.is-loading{
       opacity: .65;
       pointer-events: none;
       filter: saturate(.9);
       transition: opacity .12s ease;
     }
-    
     .vc-tab-spinner{
       position:absolute;
       inset: 10px 10px auto auto;
@@ -871,47 +510,35 @@
       color: var(--muted-color);
       font-size: var(--fs-13);
     }
-    
-    #tabContent.is-loading .vc-tab-spinner{ 
-      display:flex; 
-    }
-    
+    #tabContent.is-loading .vc-tab-spinner{ display:flex; }
+
     .vc-dot{
-      width: 8px; 
-      height: 8px; 
+      width: 8px;
+      height: 8px;
       border-radius: 999px;
       background: var(--muted-color);
       animation: vcPulse 900ms infinite ease-in-out;
     }
-    
-    .vc-dot:nth-child(2){ 
-      animation-delay: 150ms; 
-    }
-    
-    .vc-dot:nth-child(3){ 
-      animation-delay: 300ms; 
-    }
-    
+    .vc-dot:nth-child(2){ animation-delay: 150ms; }
+    .vc-dot:nth-child(3){ animation-delay: 300ms; }
+
     @keyframes vcPulse{
-      0%, 100%{ 
-        transform: translateY(0); 
-        opacity:.35; 
-      }
-      50%{ 
-        transform: translateY(-3px); 
-        opacity:.95; 
-      }
+      0%, 100%{ transform: translateY(0); opacity:.35; }
+      50%{ transform: translateY(-3px); opacity:.95; }
     }
   </style>
 </head>
-<body data-initial-tab="{{ $tabKey }}">
+
+{{-- ✅ DEFAULT is FULL mode now --}}
+<body class="vc-mode-full" data-initial-tab="{{ $tabKey }}">
 
   {{-- Global overlay loader (shared partial) --}}
   @include('partials.overlay')
 
   <main class="vc-wrap">
     <div class="vc-grid" id="vcGrid">
-      {{-- ================= LEFT: Overview / Sidebar ================= --}}
+
+      {{-- ================= LEFT: Sidebar ================= --}}
       <aside class="vc-aside" id="vcAside">
         <div class="panel shadow-1">
 
@@ -922,40 +549,7 @@
             </a>
           </div>
 
-          {{-- COURSE BASIC DETAILS (hidden in full mode) --}}
-          <div class="vc-course-basic">
-            <div class="vc-head-left">
-              <div>
-                <h2 class="vc-title" id="courseTitle">Course</h2>
-                <div class="text-muted" id="courseShort">—</div>
-              </div>
-            </div>
-
-            {{-- Hero + thumbs (gallery like viewCourse.blade) --}}
-            <div class="vc-hero" id="vcHero">
-              <div id="vcHeroSkel" class="placeholder"></div>
-              <img class="img-fluid" id="vcCover"
-                   src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw=="
-                   alt="Course cover">
-            </div>
-            <div id="vcThumbs" class="d-flex justify-content-center row g-2 mb-3 vc-thumbs"></div>
-
-            <div class="divider my-2"></div>
-
-            <div class="vc-chips" id="courseChips"></div>
-          </div>
-
-          {{-- Mobile Course Details (Visible only in FULL mode on mobile) --}}
-          <div class="mobile-course-details" id="mobileCourseDetails">
-            <div class="section-title">
-              <i class="fa-solid fa-book-open"></i>
-              <span>Course Details</span>
-            </div>
-            <div class="course-description" id="mobileCourseDescription">No description available.</div>
-            <div class="course-meta" id="mobileCourseMeta"></div>
-          </div>
-
-          {{-- ROW: Batch Details + Modules (stacked; Batch between course + modules) --}}
+          {{-- Batch Details + Modules --}}
           <div class="details-modules-row">
             {{-- Batch Details --}}
             <h3 class="h5 mb-3">Batch Details</h3>
@@ -966,20 +560,13 @@
               <div class="vc-batch-info" id="batchInfo"></div>
             </div>
 
-            {{-- View All (only visible in overview mode) --}}
-            <div class="d-grid mt-3 mb-3">
-              <button type="button" class="btn btn-primary vc-view-all-btn" id="viewAllBtn">
-                <i class="fa fa-arrow-right me-2"></i>
-                View full course content
-              </button>
-            </div>
-
             {{-- Modules --}}
             <h3 class="h5 mb-3">Course Modules</h3>
             <div class="vc-search d-flex align-items-center">
               <i class="fa fa-search me-2"></i>
               <input id="moduleSearch" type="text" class="form-control" placeholder="Search modules...">
             </div>
+
             <div class="vc-modules" id="modulesList">
               <div class="vc-empty" id="modulesEmpty" style="display:none">
                 <i class="fa-regular fa-folder-open"></i>
@@ -1007,6 +594,16 @@
               <div class="sub" id="moduleShort">Pick a module from the left to see its content.</div>
             </div>
           </div>
+
+          {{-- Mobile Course Details --}}
+          {{-- <div class="mobile-course-details" id="mobileCourseDetails">
+            <div class="section-title">
+              <i class="fa-solid fa-book-open"></i>
+              <span>Course Details</span>
+            </div>
+            <div class="course-description" id="mobileCourseDescription">No description available.</div>
+            <div class="course-meta" id="mobileCourseMeta"></div>
+          </div> --}}
 
           @php
             $self = url()->current();
@@ -1090,15 +687,14 @@
   <script>
 document.addEventListener('DOMContentLoaded', () => {
   const qs  = (sel) => document.querySelector(sel);
-  const qsa = (sel) => Array.from(document.querySelectorAll(sel));
 
   // Use global overlay helpers from partials.overlay
   const showPageOverlay = () => { if (window.showOverlay) window.showOverlay(); };
   const hidePageOverlay = () => { if (window.hideOverlay) window.hideOverlay(); };
 
-  // Start in OVERVIEW mode (only left card visible)
-  document.body.classList.add('vc-mode-overview');
-  document.body.classList.remove('vc-mode-full');
+  // ✅ DEFAULT is FULL mode now (no intro screen)
+  document.body.classList.add('vc-mode-full');
+  document.body.classList.remove('vc-mode-overview');
 
   const deriveCourseKey = () => {
     const parts = location.pathname.split('/').filter(Boolean);
@@ -1110,18 +706,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const courseKey = deriveCourseKey();
 
   const el = {
-    grid:   document.getElementById('vcGrid'),
-    aside:  document.getElementById('vcAside'),
-    main:   document.getElementById('vcMain'),
-
-    title:  document.getElementById('courseTitle'),
-    short:  document.getElementById('courseShort'),
-
-    heroSkel: document.getElementById('vcHeroSkel'),
-    coverImg: document.getElementById('vcCover'),
-    thumbs:   document.getElementById('vcThumbs'),
-
-    chips:  document.getElementById('courseChips'),
+    asideBackBtn: document.getElementById('asideBackBtn'),
+    mobileHamburgerBtn: document.getElementById('mobileHamburgerBtn'),
 
     mSearch:document.getElementById('moduleSearch'),
     mList:  document.getElementById('modulesList'),
@@ -1130,11 +716,7 @@ document.addEventListener('DOMContentLoaded', () => {
     mTitle: document.getElementById('moduleTitle'),
     mShort: document.getElementById('moduleShort'),
 
-    asideBackBtn: document.getElementById('asideBackBtn'),
-    viewAllBtn: document.getElementById('viewAllBtn'),
-    mobileHamburgerBtn: document.getElementById('mobileHamburgerBtn'),
-
-    mobileCourseDetails: document.getElementById('mobileCourseDetails'),
+    // mobileCourseDetails: document.getElementById('mobileCourseDetails'),
     mobileCourseDescription: document.getElementById('mobileCourseDescription'),
     mobileCourseMeta: document.getElementById('mobileCourseMeta'),
 
@@ -1144,11 +726,10 @@ document.addEventListener('DOMContentLoaded', () => {
     batchTagline: document.getElementById('batchTagline'),
     batchInfo: document.getElementById('batchInfo'),
 
-    tabs:   document.getElementById('vcTabs'),
+    tabs: document.getElementById('vcTabs'),
     tabContent: document.getElementById('tabContent'),
   };
 
-  // Check if mobile
   const isMobile = () => window.matchMedia('(max-width: 992px)').matches;
 
   // Token & role
@@ -1211,30 +792,21 @@ document.addEventListener('DOMContentLoaded', () => {
   // ===== Mobile Hamburger Menu ===========================================
   const toggleMobileSidebar = () => {
     if (!isMobile()) return;
-    
+
     if (document.body.classList.contains('mobile-sidebar-open')) {
-      // Closing sidebar -> show main/tabs, show mobile course details (in full mode)
       document.body.classList.remove('mobile-sidebar-open');
-      if (document.body.classList.contains('vc-mode-full')) {
-        el.mobileCourseDetails?.classList.add('show');
-      }
+      // el.mobileCourseDetails?.classList.add('show');
     } else {
-      // Opening sidebar -> show sidebar, hide mobile course details
       document.body.classList.add('mobile-sidebar-open');
-      el.mobileCourseDetails?.classList.remove('show');
+      // el.mobileCourseDetails?.classList.remove('show');
     }
   };
-
   el.mobileHamburgerBtn?.addEventListener('click', toggleMobileSidebar);
 
-  // Close sidebar when clicking a module on mobile
   const closeMobileSidebar = () => {
     if (isMobile()) {
       document.body.classList.remove('mobile-sidebar-open');
-      // Show mobile course details when in full mode
-      if (document.body.classList.contains('vc-mode-full')) {
-        el.mobileCourseDetails?.classList.add('show');
-      }
+      // el.mobileCourseDetails?.classList.add('show');
     }
   };
 
@@ -1242,127 +814,26 @@ document.addEventListener('DOMContentLoaded', () => {
   const bus = { emit(evt, detail){ document.dispatchEvent(new CustomEvent(evt, { detail })); } };
   window.__VCBUS__ = bus;
 
-  // ===== Gallery helpers (hero + thumbs, like public view) ===============
-  const setCoverUrl = (url) => {
-    if (!el.coverImg) return;
-    if (!url) {
-      if (el.heroSkel) el.heroSkel.style.display = 'block';
-      el.coverImg.style.display = 'none';
-      return;
-    }
-    if (el.heroSkel) el.heroSkel.style.display = 'block';
-    el.coverImg.style.display = 'none';
-    el.coverImg.onload = () => {
-      if (el.heroSkel) el.heroSkel.style.display = 'none';
-      el.coverImg.style.display = 'block';
-    };
-    el.coverImg.onerror = () => {
-      if (el.heroSkel) el.heroSkel.style.display = 'none';
-      el.coverImg.style.display = 'none';
-    };
-    el.coverImg.src = url;
-  };
-
-  const cleanUrl = (u) => {
-    if (!u) return '';
-    try { return String(u).replace(/%22"?$/,'').replace(/"$/,''); } catch { return u; }
-  };
-
-  const onThumbClick = (e) => {
-    const btn = e.target.closest('.thumb');
-    if (!btn) return;
-    e.preventDefault();
-    const src = btn.dataset.src;
-    if (src) {
-      setCoverUrl(src);
-      el.thumbs.querySelectorAll('.thumb').forEach(x => x.classList.remove('active'));
-      btn.classList.add('active');
-      el.coverImg?.parentElement?.scrollIntoView({ behavior:'smooth', block:'center', inline:'nearest' });
-    }
-  };
-  const onThumbKeyDown = (e) => {
-    if (e.key === 'Enter' || e.key === ' ') {
-      const btn = e.target.closest('.thumb');
-      if (btn) {
-        e.preventDefault();
-        btn.click();
-      }
-    }
-  };
-
-  const renderGallery = (gallery = [], activeUrl = '') => {
-    if (!el.thumbs) return;
-    if (!Array.isArray(gallery) || !gallery.length) {
-      el.thumbs.innerHTML = '';
-      return;
-    }
-    const html = gallery.map((g, i) => {
-      const url = cleanUrl(g.url || g.image_url || g.path || '');
-      if (!url) return '';
-      const active = (url === activeUrl) ? 'active' : '';
-      return `
-        <div class="col-4 col-sm-3 col-md-2">
-          <button type="button"
-                  class="thumb ${active}"
-                  data-src="${url}"
-                  aria-label="Preview image ${i+1}"
-                  tabindex="0">
-            <img src="${url}" loading="lazy" alt="Gallery ${i+1}">
-          </button>
-        </div>`;
-    }).join('');
-    el.thumbs.innerHTML = html;
-
-    el.thumbs.removeEventListener('click', onThumbClick);
-    el.thumbs.addEventListener('click', onThumbClick);
-    el.thumbs.removeEventListener('keydown', onThumbKeyDown);
-    el.thumbs.addEventListener('keydown', onThumbKeyDown);
-  };
-
   // ===== Mobile Course Details ===========================================
   const renderMobileCourseDetails = (course) => {
     if (!course || !el.mobileCourseDescription || !el.mobileCourseMeta) return;
-    
+
     el.mobileCourseDescription.textContent = course.description || 'No description available.';
-    
-    // Course meta information
+
     const metaItems = [];
     if (course.difficulty) {
-      metaItems.push(`
-        <div class="meta-item">
-          <i class="fa fa-signal"></i>
-          <span>${course.difficulty} Level</span>
-        </div>
-      `);
+      metaItems.push(`<div class="meta-item"><i class="fa fa-signal"></i><span>${course.difficulty} Level</span></div>`);
     }
-    
     if (course.language) {
-      metaItems.push(`
-        <div class="meta-item">
-          <i class="fa fa-language"></i>
-          <span>${course.language}</span>
-        </div>
-      `);
+      metaItems.push(`<div class="meta-item"><i class="fa fa-language"></i><span>${course.language}</span></div>`);
     }
-    
     if (course.duration_hours) {
-      metaItems.push(`
-        <div class="meta-item">
-          <i class="fa fa-clock"></i>
-          <span>${course.duration_hours} hours</span>
-        </div>
-      `);
+      metaItems.push(`<div class="meta-item"><i class="fa fa-clock"></i><span>${course.duration_hours} hours</span></div>`);
     }
-    
     if (course.category) {
-      metaItems.push(`
-        <div class="meta-item">
-          <i class="fa fa-tag"></i>
-          <span>${course.category}</span>
-        </div>
-      `);
+      metaItems.push(`<div class="meta-item"><i class="fa fa-tag"></i><span>${course.category}</span></div>`);
     }
-    
+
     el.mobileCourseMeta.innerHTML = metaItems.join('');
   };
 
@@ -1382,17 +853,6 @@ document.addEventListener('DOMContentLoaded', () => {
     for (const sel of btns) {
       const b = document.querySelector(sel);
       if (b && typeof b.click === 'function') { b.click(); break; }
-    }
-  };
-
-  // ===== ENTER FULL MODE ==================================================
-  const enterFullMode = () => {
-    document.body.classList.remove('vc-mode-overview');
-    document.body.classList.add('vc-mode-full');
-    
-    // On mobile, show course details card when main area is visible
-    if (isMobile()) {
-      el.mobileCourseDetails?.classList.add('show');
     }
   };
 
@@ -1421,13 +881,7 @@ document.addEventListener('DOMContentLoaded', () => {
         updateQueryParam('module', selectedModuleUuid);
         bus.emit('vc:module-changed', { moduleUuid: selectedModuleUuid, module: m });
 
-        // Go to FULL mode when clicking a module
-        enterFullMode();
-        
-        // Close mobile sidebar (so main area + tabs are visible)
         closeMobileSidebar();
-
-        // Refresh active tab (module-sensitive)
         tryRefreshCurrentTab();
       });
       frag.appendChild(div);
@@ -1444,9 +898,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (!chosen) {
         chosen = modules[0];
         selectedModuleUuid = chosen.uuid || null;
-        if (selectedModuleUuid) {
-          updateQueryParam('module', selectedModuleUuid);
-        }
+        if (selectedModuleUuid) updateQueryParam('module', selectedModuleUuid);
       }
     }
 
@@ -1647,37 +1099,9 @@ document.addEventListener('DOMContentLoaded', () => {
     showPane(t, { push: false });
   });
 
-  // ===== View All button (switch mode, ensure module) =====================
-  el.viewAllBtn?.addEventListener('click', () => {
-    enterFullMode();
-
-    // If no module selected yet, select the first one
-    const first = el.mList?.querySelector('.vc-module');
-    if (first && !selectedModuleUuid) {
-      const uuid = first.dataset.uuid;
-      if (uuid) {
-        selectedModuleUuid = uuid;
-        updateQueryParam('module', selectedModuleUuid);
-        [...el.mList.children].forEach(c => c.classList.toggle('active', c.dataset.uuid === selectedModuleUuid));
-        bus.emit('vc:module-changed', { moduleUuid: selectedModuleUuid });
-        tryRefreshCurrentTab();
-      }
-    }
-    
-    // Ensure we're not in mobile-sidebar-open state
-    if (isMobile()) {
-      document.body.classList.remove('mobile-sidebar-open');
-      el.mobileCourseDetails?.classList.add('show');
-    }
-  });
-
   // ===== Fetch course view payload =======================================
   const api = courseKey ? `/api/courses/by-batch/${encodeURIComponent(courseKey)}/view` : null;
-  if (!api) {
-    el.title.textContent = 'Course';
-    el.short.textContent = '';
-    return;
-  }
+  if (!api) return;
 
   captureInitialPane();
 
@@ -1685,19 +1109,9 @@ document.addEventListener('DOMContentLoaded', () => {
   fetch(api, { headers: { 'Accept':'application/json', ...auth } })
     .then(r => r.ok ? r.json() : r.json().then(j => Promise.reject(j)))
     .then(({ data }) => {
-      const { course, pricing, media, modules, batch } = data;
+      const { course, modules, batch } = data;
 
-      el.title.textContent  = course.title || 'Course';
-      el.short.textContent  = course.short_description || '';
-
-      // Render mobile course details
       renderMobileCourseDetails(course);
-
-      const chips = [];
-      if (course.difficulty)     chips.push(`<span class="vc-chip"><i class="fa fa-signal"></i>${course.difficulty}</span>`);
-      if (course.language)       chips.push(`<span class="vc-chip"><i class="fa fa-language"></i>${course.language}</span>`);
-      if (course.duration_hours) chips.push(`<span class="vc-chip"><i class="fa fa-clock"></i>${course.duration_hours} hrs</span>`);
-      el.chips.innerHTML = chips.join(' ');
 
       if (batch) {
         el.batchDetails.style.display = 'block';
@@ -1715,86 +1129,40 @@ document.addEventListener('DOMContentLoaded', () => {
               ? 'fa-location-dot'
               : 'fa-layer-group';
 
-          const modeLabel =
-            (batch.mode.charAt(0).toUpperCase() + batch.mode.slice(1));
+          const modeLabel = (batch.mode.charAt(0).toUpperCase() + batch.mode.slice(1));
 
-          batchInfoItems.push(
-            `<span class="vc-batch-info-item"><i class="fa ${modeIcon}"></i>${modeLabel}</span>`
-          );
+          batchInfoItems.push(`<span class="vc-batch-info-item"><i class="fa ${modeIcon}"></i>${modeLabel}</span>`);
         }
 
         if (batch.starts_at) {
-          const startDate = new Date(batch.starts_at).toLocaleDateString('en-US', {
-            year: 'numeric',
-            month: 'short',
-            day: 'numeric'
-          });
-          batchInfoItems.push(
-            `<span class="vc-batch-info-item"><i class="fa fa-calendar-day"></i>Starts: ${startDate}</span>`
-          );
+          const startDate = new Date(batch.starts_at).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+          batchInfoItems.push(`<span class="vc-batch-info-item"><i class="fa fa-calendar-day"></i>Starts: ${startDate}</span>`);
         }
 
         if (batch.ends_at) {
-          const endDate = new Date(batch.ends_at).toLocaleDateString('en-US', {
-            year: 'numeric',
-            month: 'short',
-            day: 'numeric'
-          });
-          batchInfoItems.push(
-            `<span class="vc-batch-info-item"><i class="fa fa-calendar-check"></i>Ends: ${endDate}</span>`
-          );
+          const endDate = new Date(batch.ends_at).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+          batchInfoItems.push(`<span class="vc-batch-info-item"><i class="fa fa-calendar-check"></i>Ends: ${endDate}</span>`);
         }
 
         el.batchInfo.innerHTML = batchInfoItems.join('');
       }
 
-      // ===== Hero + gallery from media =====
-      const gallery = Array.isArray(media?.gallery) ? media.gallery : [];
-      let coverUrl = cleanUrl(
-        media?.cover?.url ||
-        media?.cover?.image_url ||
-        media?.cover?.path ||
-        ''
-      );
-
-      if (!coverUrl && gallery.length) {
-        const first = gallery[0];
-        coverUrl = cleanUrl(first.url || first.image_url || first.path || '');
-      }
-
-      if (coverUrl) setCoverUrl(coverUrl);
-      else setCoverUrl('');
-
-      renderGallery(gallery, coverUrl);
-
-      const sorted = (modules || []).slice().sort(
-        (a, b) => (a.order_no ?? 0) - (b.order_no ?? 0)
-      );
-
+      const sorted = (modules || []).slice().sort((a, b) => (a.order_no ?? 0) - (b.order_no ?? 0));
       renderModules(sorted);
       wireSearch(sorted);
-      
-      // If we're already in full mode (from URL parameter), show mobile course details
-      if (document.body.classList.contains('vc-mode-full') && isMobile()) {
-        el.mobileCourseDetails?.classList.add('show');
-      }
+
+      // In FULL mode on mobile, show details card when main area is visible
+      if (isMobile()) el.mobileCourseDetails?.classList.add('show');
     })
     .catch(err => {
       console.error('viewCourse.fetch', err);
-      if (el.title) el.title.textContent = 'Failed to load course';
-      if (el.short) el.short.textContent = 'Please check API or authentication.';
     })
     .finally(() => {
       hidePageOverlay();
     });
-    
-  // Handle window resize
+
   window.addEventListener('resize', () => {
-    if (!isMobile()) {
-      // On desktop, ensure sidebar state reset (no mobile-only flag)
-      document.body.classList.remove('mobile-sidebar-open');
-      // mobileCourseDetails visibility doesn't matter on desktop
-    }
+    if (!isMobile()) document.body.classList.remove('mobile-sidebar-open');
   });
 });
   </script>

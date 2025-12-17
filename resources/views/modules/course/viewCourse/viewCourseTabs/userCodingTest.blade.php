@@ -45,16 +45,16 @@
   </div>
 
   <div class="ct-stats" id="ctStats" style="display:none;">
-    <div class="ct-stat">
+    <div class="ct-stat" style="display:none;" >
       <div class="k">Total</div><div class="v" id="stTotal">0</div>
     </div>
-    <div class="ct-stat">
+    <div class="ct-stat" style="display:none;">
       <div class="k">Assigned</div><div class="v" id="stAssigned">0</div>
     </div>
-    <div class="ct-stat">
+    <div class="ct-stat" style="display:none;">
       <div class="k">Your Attempts</div><div class="v" id="stAttempts">0</div>
     </div>
-    <div class="ct-stat">
+    <div class="ct-stat" style="display:none;">
       <div class="k">Role</div><div class="v" id="stRole">—</div>
     </div>
   </div>
