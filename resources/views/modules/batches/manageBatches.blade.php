@@ -2302,7 +2302,7 @@ async function loadCodingQuestions(){
         attemptEl.value = String(attemptAllowed);
 
         ch.disabled = true;
-        attemptEl.disabled = true;
+        // attemptEl.disabled = true;
 
         try{
           if(wantAssigned){
@@ -2330,7 +2330,7 @@ async function loadCodingQuestions(){
       inp.addEventListener('blur', async ()=>{
         const row = inp.closest('tr');
         const ch  = row.querySelector('.cq-tg');
-        if(!ch || !ch.checked) return;
+        if(!ch )return;
 
         const questionUuid = ch.dataset.uuid;
         if(!questionUuid) return;

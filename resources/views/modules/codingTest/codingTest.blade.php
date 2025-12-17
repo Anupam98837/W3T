@@ -732,11 +732,16 @@
         - /coding-test/{identifier}
         - optional: ?batch_uuid=xxxx
       ========================== */
-      const pathParts = window.location.pathname.split('/').filter(Boolean);
-      const questionIdentifier = pathParts[pathParts.length - 1]; // uuid/slug/id
+
+
 
       const qs = new URLSearchParams(window.location.search);
       const batchUuid = (qs.get('batch_uuid') || qs.get('batch') || qs.get('quiz_batch_uuid') || '').trim();
+      const questionIdentifier =
+  qs.get('question') ||
+  qs.get('question_uuid') ||
+  qs.get('qid') ||
+  '';
 
       /* storage keys */
       const attemptKey      = `w3t_attempt_${questionIdentifier}_${batchUuid || 'solo'}`;

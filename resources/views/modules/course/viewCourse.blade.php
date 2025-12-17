@@ -127,6 +127,23 @@
   .cv-hero{ min-height:180px; }
   .cv-hero img{ max-height:40vh; }
 }
+.course-details-title {
+  font-size: 2rem;
+  text-align:center;
+  font-weight: 700;
+  margin-bottom: 12px;
+  font-family: var(--font-head);
+
+  background: linear-gradient(
+    135deg,
+    var(--primary-color) 0%,
+    var(--ink) 100%
+  );
+
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
 
 </style>
 
@@ -147,17 +164,18 @@
   </div>
 
   {{-- ===== Hero ===== --}}
+<h1 class="course-details-title">Course Details</h1>
   <div class="cv-hero d-flex justify-content-center mb-3">
     <div id="cvHeroSkel" class="placeholder"></div>
     {{-- tiny transparent pixel as placeholder; hidden until real cover loads --}}
     <img class="img-fluid" id="cvCover" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==" alt="Course cover">
   </div>
-  <h1 id="cvTitle" class="cv-title">—</h1>
-    <div id="cvSub" class="cv-sub">—</div>
+  
 
   {{-- ===== Thumb strip (gallery) ===== --}}
   <div id="cvThumbs" class="d-flex justify-content-center row g-2 mb-4 cv-thumbs"></div>
-
+<h1 id="cvTitle" class="cv-title">—</h1>
+    <div id="cvSub" class="cv-sub">—</div>
   <div class="row g-3">
     {{-- ===== Left column ===== --}}
     <div class="col-lg-8">
@@ -266,6 +284,7 @@
 const FETCH_TIMEOUT_MS = 10_000; // 10s
 const TOKEN = (() => localStorage.getItem('token') || sessionStorage.getItem('token') || '')();
 const wrap = document.getElementById('cvWrap');
+const DEFAULT_COURSE_IMG = "{{ asset('assets/media/images/course/default_course.jpg') }}";
 
 /* ---------- Utilities ---------- */
 const esc = (s) => (s == null ? '' : String(s))
@@ -1518,7 +1537,8 @@ async function loadCourse() {
     renderBadges(c, p);
 
     // Hero image
-    const coverUrl = cleanUrl(m?.cover?.url) || cleanUrl((Array.isArray(m.gallery) && m.gallery[0]?.url) || '');
+    const coverUrl = cleanUrl(m?.cover?.url) || cleanUrl((Array.isArray(m.gallery) && m.gallery[0]?.url) || '')||
+  DEFAULT_COURSE_IMG;
     if (coverUrl) {
       n.cover.onload = () => revealHero();
       n.cover.onerror = () => revealHero();
