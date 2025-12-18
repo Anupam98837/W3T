@@ -642,7 +642,80 @@
     </div>
   </div>
 </div>
-
+{{-- ================= Assign Coding Questions (modal) ================= --}}
+<div class="modal fade" id="codingQuestionsModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="fa fa-code me-2"></i>Assign Coding Questions</h5>
+        <!-- <a id="cq_add_btn" href="/admin/coding-questions/create" class="btn btn-primary btn-sm ms-auto">
+          <i class="fa fa-plus me-1"></i> Add Coding Question
+        </a> -->
+        <button type="button" class="btn-close ms-2" data-bs-dismiss="modal"></button>
+      </div>
+ 
+      <div class="modal-body">
+        <div class="d-flex align-items-center justify-content-between mstab-head mb-3">
+          <div class="left-tools d-flex align-items-center gap-2 flex-wrap">
+            <input id="cq_q" class="form-control" style="width:260px" placeholder="Search by title/difficulty…">
+            <label class="text-muted small mb-0">Per page</label>
+            <select id="cq_per" class="form-select" style="width:90px">
+              <option>10</option><option selected>20</option><option>30</option><option>50</option>
+            </select>
+ 
+            <label class="text-muted small mb-0">Assigned</label>
+            <select id="cq_assigned" class="form-select" style="width:150px">
+              <option value="all" selected>All</option>
+              <option value="assigned">Assigned</option>
+              <option value="unassigned">Unassigned</option>
+            </select>
+ 
+            <button id="cq_apply" class="btn btn-primary">
+              <i class="fa fa-check me-1"></i>Apply
+            </button>
+          </div>
+ 
+          <div class="text-muted small" id="cq_meta">—</div>
+        </div>
+ 
+        <div class="table-responsive">
+          <table class="table table-hover align-middle st-table mb-0">
+            <thead>
+  <tr>
+    <th>Title</th>
+    <th style="width:120px;">Difficulty</th>
+    <th style="width:140px;" class="text-center">Max Attempts</th>
+    <th style="width:220px;" class="text-center">Batch Attempts</th>
+    <th class="text-center" style="width:110px;">Assign</th>
+  </tr>
+</thead>
+ 
+ 
+            <tbody id="cq_rows">
+              <tr id="cq_loader" style="display:none;">
+                <td colspan="5" class="p-3">
+                  <div class="placeholder-wave">
+                    <div class="placeholder col-12 mb-2" style="height:16px;"></div>
+                    <div class="placeholder col-12 mb-2" style="height:16px;"></div>
+                    <div class="placeholder col-12 mb-2" style="height:16px;"></div>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+ 
+        <div class="d-flex justify-content-end p-2">
+          <ul id="cq_pager" class="pagination mb-0"></ul>
+        </div>
+      </div>
+ 
+      <div class="modal-footer">
+        <button class="btn btn-light" data-bs-dismiss="modal">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
   {{-- tiny toast --}}
   <div class="ct-toast" id="ctToast" style="display:none;"></div>
 </div>
@@ -654,9 +727,25 @@
   const API_BASE  = root.dataset.apiBase || '';
   const TEST_URL  = root.dataset.testUrl || '';
   const BATCH_ID  = root.dataset.batchId || '';
-  const token     = sessionStorage.getItem('token');
+  const token     = sessionStorage.getItem('token') || localStorage.getItem('token');
 
   const el = (id) => document.getElementById(id);
+  function syncAssignSwitch(questionUuid, assigned) {
+    const ctSwitch = root.querySelector(
+      `.ct-switch[data-uuid="${CSS.escape(questionUuid)}"]`
+    );
+    if (ctSwitch) {
+      ctSwitch.classList.toggle('on', assigned);
+      ctSwitch.setAttribute('aria-checked', assigned ? 'true' : 'false');
+    }
+
+    const cqSwitch = document.querySelector(
+      `.cq-tg[data-uuid="${CSS.escape(questionUuid)}"]`
+    );
+    if (cqSwitch) {
+      cqSwitch.checked = !!assigned;
+    }
+  }
 
   const $skeleton = el('ctSkeleton');
   const $tableWrap= el('ctTableWrap');
@@ -686,8 +775,19 @@
   const $adminPart  = el('ctAdminParticipated');
   const $adminNot   = el('ctAdminNotParticipated');
 
-  // Assign button (added integration)
   const $assignBtn = el('ctAssignBtn');
+
+  // Assign modal elements
+  const cq_q = el('cq_q');
+  const cq_per = el('cq_per');
+  const cq_apply = el('cq_apply');
+  const cq_assigned = el('cq_assigned');
+  const cq_rows = el('cq_rows');
+  const cq_loader = el('cq_loader');
+  const cq_meta = el('cq_meta');
+  const cq_pager = el('cq_pager');
+
+  let codingQuestionsModal, cq_batch_key = null, cq_page = 1, cqT;
 
   const getMyRole = async token => {
     if (!token) return '';
@@ -716,13 +816,11 @@
   function openAttemptsModal(uuid){
     $attemptsModal.style.display = 'grid';
     
-    // Set loading state
     $attemptsBody.innerHTML = `
       <div class="ct-skeleton">
         <div class="r"></div><div class="r"></div><div class="r"></div>
       </div>`;
     
-    // Load attempts for this specific question
     loadQuestionAttempts(uuid);
   }
   
@@ -731,7 +829,6 @@
     $attemptsBody.innerHTML = '';
   }
   
-  // Close modal when clicking backdrop
   $attemptsModal.addEventListener('click', (e) => {
     if(e.target === $attemptsModal) {
       closeAttemptsModal();
@@ -751,10 +848,19 @@
     $adminNot.innerHTML  = '';
   }
 
+  function openCodingQuestions(batchKey){
+    codingQuestionsModal = codingQuestionsModal || new bootstrap.Modal(el('codingQuestionsModal'));
+    cq_batch_key = batchKey;
+    cq_page = 1;
+    cq_assigned.value = 'all';
+    codingQuestionsModal.show();
+    loadCodingQuestions();
+  }
+
   let RAW = null;
   let ROLE = '';
   let CAN_MANAGE = false;
-  let LIST = [];       // normalized questions
+  let LIST = [];
   let FILTERED = [];
 
   function toast(msg){
@@ -782,7 +888,6 @@
   }
 
   function pickArray(obj){
-    // try common response shapes
     return obj?.questions || obj?.data || obj?.items || obj?.list || [];
   }
 
@@ -810,10 +915,8 @@
     const tags = Array.isArray(q?.tags) ? q.tags : (typeof q?.tags === 'string' ? q.tags.split(',').map(t=>t.trim()).filter(Boolean) : []);
     const assigned = getAssignedFlag(q);
 
-    // student attempts (array OR count)
     let attemptsUsed = 0;
 
-    // If attempts array exists → take highest attempt_no
     const arr =
       q?.my_attempts ||
       q?.attempts ||
@@ -824,7 +927,6 @@
         ...arr.map(a => Number(a?.attempt_no || 0))
       );
     } else {
-      // fallback if API gives last_attempt_no directly
       attemptsUsed = Number(
         q?.last_attempt_no ??
         q?.attempt_no ??
@@ -832,8 +934,6 @@
       );
     }
 
-    // assignment limit
-    // assignment limit (AUTHORITATIVE)
     const maxAttempts = Number(
       q?.attempt_allowed ??
       q?.max_attempts ??
@@ -908,9 +1008,6 @@
 
   function actionsCell(q){
 
-    /* =========================================================
-       PRIVILEGED USERS (CAN_MANAGE === true)
-       ========================================================= */
     if (CAN_MANAGE) {
       const on  = q.assigned ? 'on' : '';
       const lbl = q.assigned ? 'Assigned' : 'Unassigned';
@@ -950,9 +1047,6 @@
       `;
     }
 
-    /* =========================================================
-       NON-PRIVILEGED USERS (NO RESTRICTIONS)
-       ========================================================= */
     return `
       <div style="display:flex;justify-content:flex-end;gap:8px;align-items:center;">
         
@@ -1082,40 +1176,64 @@
   }
 
   function renderParticipated(list){
-    if (!list.length) {
-      $adminPart.innerHTML = `<div class="ct-empty">No students participated yet</div>`;
-      return;
-    }
-
-    $adminPart.innerHTML = list.map(s => `
-      <div class="ct-student">
-        <div class="ct-student-hd">
-          <div>
-            <strong>${esc(s.name)}</strong>
-            <div class="muted">${esc(s.email)}</div>
-          </div>
-
-          <button class="ct-btn ct-btn-ghost"
-                  data-act="toggle-student-attempts">
-            Attempts ▾
-          </button>
-        </div>
-
-        <div class="ct-student-attempts" style="display:none;">
-          ${s.attempts.map(a => `
-            <div class="ct-attempt-row"
-                 data-act="open-result"
-                 data-result="${esc(a.result_uuid)}">
-              Attempt #${a.attempt_no}
-              <span class="ct-status ${a.status === 'PASS' ? 'pass' : 'fail'}">
-                ${a.status}
-              </span>
-            </div>
-          `).join('')}
-        </div>
-      </div>
-    `).join('');
+  if (!list.length) {
+    $adminPart.innerHTML = `<div class="ct-empty">No students participated yet</div>`;
+    return;
   }
+
+  $adminPart.innerHTML = list.map(s => `
+    <div class="ct-student">
+      <div class="ct-student-hd">
+        <div>
+          <strong>${esc(s.name)}</strong>
+          <div class="muted">${esc(s.email)}</div>
+        </div>
+
+        <button class="ct-btn ct-btn-ghost"
+                data-act="toggle-student-attempts">
+          Attempts ▾
+        </button>
+      </div>
+
+      <div class="ct-student-attempts" style="display:none;">
+        ${s.attempts.map(a => {
+          const resultUuid =
+            a?.result_uuid ||
+            a?.coding_result_uuid ||
+            a?.result?.uuid ||
+            a?.uuid ||
+            '';
+
+          return `
+            <div class="ct-attempt-row">
+              <div class="ct-attempt-left"
+                   data-act="open-result"
+                   data-result="${esc(resultUuid)}">
+                Attempt #${a.attempt_no}
+                <span class="ct-status ${a.status === 'PASS' ? 'pass' : 'fail'}">
+                  ${a.status}
+                </span>
+              </div>
+
+              ${
+                resultUuid
+                  ? `<button
+                        class="ct-btn ct-btn-ghost ct-btn-icon"
+                        title="View Result"
+                        data-act="open-result"
+                        data-result="${esc(resultUuid)}">
+                        <i class="fa-solid fa-arrow-up-right-from-square"></i>
+                     </button>`
+                  : ''
+              }
+            </div>
+          `;
+        }).join('')}
+      </div>
+    </div>
+  `).join('');
+}
+
 
   function renderNotParticipated(list){
     if (!list.length) {
@@ -1153,14 +1271,12 @@
 
   function renderAttemptsModal(attempts, questionTitle){
 
-    // ✅ IMPORTANT: sort attempts by real attempt_no
     attempts = Array.isArray(attempts)
       ? [...attempts].sort(
           (a, b) => (a.attempt_no ?? 0) - (b.attempt_no ?? 0)
         )
       : [];
 
-    // ✅ Empty state
     if(!attempts.length){
       $attemptsBody.innerHTML = `
         <div class="ct-empty">
@@ -1171,7 +1287,6 @@
       return;
     }
 
-    // ✅ Render
     $attemptsBody.innerHTML = `
       <div class="ct-attempts-header">
         <h4>${esc(questionTitle)}</h4>
@@ -1184,6 +1299,8 @@
             a?.result_uuid ||
             a?.coding_result_uuid ||
             a?.result?.uuid ||
+            a?.uuid ||
+            a?.data?.attempt_uuid ||
             '';
 
           const status = (a?.status || a?.verdict || '—').toUpperCase();
@@ -1273,22 +1390,17 @@
     setLoading(true);
 
     try{
-      // ✅ 1. Fetch real role from auth (authoritative)
       const myRole = await getMyRole(token);
 
-      // ✅ 2. Load batch questions
       RAW = await api(`/batches/${encodeURIComponent(BATCH_ID)}/coding-questions`, {
         method: 'GET'
       });
 
-      // ✅ 3. Decide role (auth role > API role)
       ROLE = myRole || detectRole(RAW);
       console.log('[CodingTests]', { ROLE, CAN_MANAGE });
 
-      // ✅ 4. Decide permissions
       CAN_MANAGE = ['admin', 'superadmin', 'instructor'].includes(ROLE);
 
-      // Show/hide assign button
       if ($assignBtn) {
         $assignBtn.style.display = CAN_MANAGE ? 'inline-flex' : 'none';
       }
@@ -1296,9 +1408,7 @@
       const arr = pickArray(RAW);
       LIST = Array.isArray(arr) ? arr.map(normalizeQuestion) : [];
 
-      // If student & API returns all questions, optionally auto-hide unassigned:
       if(!CAN_MANAGE){
-        // show only assigned by default
         LIST = LIST.filter(q => q.assigned === true || RAW?.only_assigned === true);
       }
 
@@ -1329,7 +1439,11 @@
       question_uuids: [uuid],
       max_attempts: maxAttempts,
       allowed_attempts: maxAttempts,
-      attempt_limit: maxAttempts
+      attempt_limit: maxAttempts,
+      attempt_allowed: maxAttempts,
+      attemptAllowed: maxAttempts,
+      publish_to_students: 1,
+      assign_status: 1
     };
 
     await api(`/batches/${encodeURIComponent(BATCH_ID)}/coding-questions/assign`, {
@@ -1360,12 +1474,10 @@
     window.location.href = url.toString();
   }
 
-  // Listen for events dispatched by assign modal to refresh list
   window.addEventListener('codingQuestionsAssigned', ()=> {
-    try { loadIndex(); } catch(e) { /* ignore */ }
+    try { loadIndex(); } catch(e) { }
   });
 
-  // Tab switching for admin modal
   document.addEventListener('click', (e) => {
     const tab = e.target.closest('.ct-tab');
     if (!tab) return;
@@ -1378,7 +1490,6 @@
     $adminNot.style.display  = isPart ? 'none' : 'block';
   });
 
-  // Close dropdowns when clicking outside
   document.addEventListener('click', (e) => {
     if (!e.target.closest('.ct-dropdown')) {
       document.querySelectorAll('.ct-dropdown-menu').forEach(menu => {
@@ -1387,20 +1498,16 @@
     }
   });
 
-  // Event listeners
   $refresh.addEventListener('click', loadIndex);
   $search.addEventListener('input', applyFilters);
   $diff.addEventListener('change', applyFilters);
 
-  // Wire assign button (calls openCodingQuestions when clicked)
   if ($assignBtn) {
     $assignBtn.addEventListener('click', () => {
-      // openCodingQuestions is defined in assign modal script (global)
       try { openCodingQuestions(BATCH_ID); } catch (e) { console.error(e); }
     });
   }
 
-  // Delegate clicks
   root.addEventListener('click', async (e)=>{
     const btn = e.target.closest('[data-act]');
     if(!btn) return;
@@ -1410,34 +1517,32 @@
 
     try{
       if(act === 'toggle-assign'){
-        if(!CAN_MANAGE) return;
+  if(!CAN_MANAGE) return;
 
-        const q = LIST.find(x=>x.uuid === uuid);
-        if(!q) return;
+  const q = LIST.find(x=>x.uuid === uuid);
+  if(!q) return;
 
-        const input = root.querySelector(`input[data-act="attempts-input"][data-uuid="${CSS.escape(uuid)}"]`);
-        let maxA = input ? Number(input.value || 1) : Number(q.maxAttempts||1);
-        if(!Number.isFinite(maxA) || maxA < 1) maxA = 1;
-        if(maxA > 999) maxA = 999;
+  btn.style.pointerEvents = 'none';
 
-        btn.style.pointerEvents = 'none';
+  if(!q.assigned){
+    await assignQuestion(uuid, q.maxAttempts);
+    q.assigned = true;
 
-        if(!q.assigned){
-          await assignQuestion(uuid, maxA);
-          q.assigned = true;
-          q.maxAttempts = maxA;
-          toast('Assigned');
-        }else{
-          await unassignQuestion(uuid);
-          q.assigned = false;
-          toast('Unassigned');
-        }
+    syncAssignSwitch(uuid, true); // 🔁
+    toast('Assigned');
+  }else{
+    await unassignQuestion(uuid);
+    q.assigned = false;
 
-        applyFilters();
-        updateStats();
-        btn.style.pointerEvents = '';
-      }
-      
+    syncAssignSwitch(uuid, false); // 🔁
+    toast('Unassigned');
+  }
+
+  applyFilters();
+  updateStats();
+  btn.style.pointerEvents = '';
+}
+
       if(act === 'toggle-dropdown'){
         e.stopPropagation();
         const dropdown = btn.closest('.ct-dropdown');
@@ -1446,12 +1551,10 @@
       }
       
       if(act === 'open-attempts-modal'){
-        // Close the dropdown
         const dropdown = btn.closest('.ct-dropdown');
         const menu = dropdown.querySelector('.ct-dropdown-menu');
         menu.classList.remove('show');
         
-        // Open the modal
         openAttemptsModal(uuid);
       }
       
@@ -1492,7 +1595,6 @@
     }
   });
 
-  // Keep attempts input synced
   root.addEventListener('input', (e)=>{
     const inp = e.target.closest('input[data-act="attempts-input"]');
     if(!inp) return;
@@ -1506,7 +1608,6 @@
     q.maxAttempts = v;
   });
 
-  // Close modal with escape key
   document.addEventListener('keydown', (e) => {
     if(e.key === 'Escape') {
       if($attemptsModal.style.display === 'grid') {
@@ -1518,414 +1619,322 @@
     }
   });
 
-  // Initialize
-  loadIndex();
-})();
-</script>
+  // ================= ASSIGN MODAL FUNCTIONS =================
 
-{{-- ================= Assign Coding Questions (modal) ================= --}}
-<div class="modal fade" id="codingQuestionsModal" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog modal-xl modal-dialog-scrollable">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title"><i class="fa fa-code me-2"></i>Assign Coding Questions</h5>
-        <a id="cq_add_btn" href="/admin/coding-questions/create" class="btn btn-primary btn-sm ms-auto">
-          <i class="fa fa-plus me-1"></i> Add Coding Question
-        </a>
-        <button type="button" class="btn-close ms-2" data-bs-dismiss="modal"></button>
-      </div>
- 
-      <div class="modal-body">
-        <div class="d-flex align-items-center justify-content-between mstab-head mb-3">
-          <div class="left-tools d-flex align-items-center gap-2 flex-wrap">
-            <input id="cq_q" class="form-control" style="width:260px" placeholder="Search by title/difficulty…">
-            <label class="text-muted small mb-0">Per page</label>
-            <select id="cq_per" class="form-select" style="width:90px">
-              <option>10</option><option selected>20</option><option>30</option><option>50</option>
-            </select>
- 
-            <label class="text-muted small mb-0">Assigned</label>
-            <select id="cq_assigned" class="form-select" style="width:150px">
-              <option value="all" selected>All</option>
-              <option value="assigned">Assigned</option>
-              <option value="unassigned">Unassigned</option>
-            </select>
- 
-            <button id="cq_apply" class="btn btn-primary">
-              <i class="fa fa-check me-1"></i>Apply
-            </button>
-          </div>
- 
-          <div class="text-muted small" id="cq_meta">—</div>
-        </div>
- 
-        <div class="table-responsive">
-          <table class="table table-hover align-middle st-table mb-0">
-            <thead>
-  <tr>
-    <th>Title</th>
-    <th style="width:120px;">Difficulty</th>
-    <th style="width:140px;" class="text-center">Max Attempts</th>
-    <th style="width:220px;" class="text-center">Batch Attempts</th>
-    <th class="text-center" style="width:110px;">Assign</th>
-  </tr>
-</thead>
- 
- 
-            <tbody id="cq_rows">
-              <tr id="cq_loader" style="display:none;">
-                <td colspan="5" class="p-3">
-                  <div class="placeholder-wave">
-                    <div class="placeholder col-12 mb-2" style="height:16px;"></div>
-                    <div class="placeholder col-12 mb-2" style="height:16px;"></div>
-                    <div class="placeholder col-12 mb-2" style="height:16px;"></div>
-                  </div>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
- 
-        <div class="d-flex justify-content-end p-2">
-          <ul id="cq_pager" class="pagination mb-0"></ul>
-        </div>
-      </div>
- 
-      <div class="modal-footer">
-        <button class="btn btn-light" data-bs-dismiss="modal">Close</button>
-      </div>
-    </div>
-  </div>
-</div>
-<!-- /Assign modal -->
-
-<script>
-/* ================= CODING QUESTIONS (Assign Coding Question UI) ================= */
-const cq_q = document.getElementById('cq_q'),
-      cq_per = document.getElementById('cq_per'),
-      cq_apply = document.getElementById('cq_apply'),
-      cq_assigned = document.getElementById('cq_assigned'),
-      cq_rows = document.getElementById('cq_rows'),
-      cq_loader = document.getElementById('cq_loader'),
-      cq_meta = document.getElementById('cq_meta'),
-      cq_pager = document.getElementById('cq_pager');
-
-let codingQuestionsModal, cq_batch_key = null, cq_page = 1;
-
-// Ensure TOKEN is available for modal actions
-const TOKEN =
-  localStorage.getItem('token') ||
-  sessionStorage.getItem('token');
-
-function cqParams(){
-  const p = new URLSearchParams();
-  if (cq_q.value.trim()) p.set('q', cq_q.value.trim());
-  p.set('per_page', cq_per.value || 20);
-  p.set('page', cq_page);
-  if (cq_assigned.value === 'assigned') p.set('assigned', '1');
-  if (cq_assigned.value === 'unassigned') p.set('assigned', '0');
-  return p.toString();
-}
-
-function pickItems(j){
-  // supports: {data: []} OR {data:{data:[]}} OR {questions: []} OR {items:[]}
-  if (Array.isArray(j?.data)) return j.data;
-  if (Array.isArray(j?.data?.data)) return j.data.data;
-  if (Array.isArray(j?.questions)) return j.questions;
-  if (Array.isArray(j?.items)) return j.items;
-  return [];
-}
-function pickPagination(j, fallbackLen){
-  // supports: {pagination:{...}} OR {meta:{...}} OR paginator {data:{...}}
-  return j?.pagination || j?.meta || j?.data?.meta || {
-    current_page: 1,
-    per_page: Number(cq_per?.value || 20),
-    total: fallbackLen
-  };
-}
-
-function getQTitle(q){ return q?.title || q?.name || q?.question_title || 'Untitled'; }
-function getQDifficulty(q){ return (q?.difficulty || q?.level || '—').toString(); }
-function getQUuid(q){
-  return (q?.question_uuid
-    || q?.uuid
-    || q?.questionUuid
-    || q?.questionUUID
-    || q?.question_key
-    || q?.questionKey
-    || '').toString();
-}
-
-function getAssigned(q){
-  return !!(q?.assigned ?? q?.is_assigned ?? q?.assigned_to_batch ?? q?.assignedToBatch);
-}
-function getMaxAttempts(q){
-  return Number(q?.total_attempts ?? q?.max_attempts ?? q?.maxAttempts ?? q?.attempt_limit ?? 1) || 1;
-}
-function getAttemptAllowed(q){
-  const v = (q?.attempt_allowed ?? q?.allowed_attempts ?? q?.attemptAllowed ?? q?.attempts_allowed);
-  return (v === null || v === undefined || v === '') ? '' : Number(v);
-}
-function clampAttempts(v, hardMax){
-  const lim = Math.max(1, Math.min(50, Number(hardMax) || 1));
-  let n = parseInt(v, 10);
-  if (!Number.isFinite(n) || n < 1) n = lim;
-  if (n > lim) n = lim;
-  return n;
-}
-
-function openCodingQuestions(batchKey){
-  codingQuestionsModal = codingQuestionsModal || new bootstrap.Modal(document.getElementById('codingQuestionsModal'));
-  cq_batch_key = batchKey;
-  cq_page = 1;
-  cq_assigned.value = 'all';
-  codingQuestionsModal.show();
-  loadCodingQuestions();
-}
-
-cq_apply.addEventListener('click', ()=>{ cq_page = 1; loadCodingQuestions(); });
-cq_per.addEventListener('change', ()=>{ cq_page = 1; loadCodingQuestions(); });
-cq_assigned.addEventListener('change', ()=>{ cq_page = 1; loadCodingQuestions(); });
-
-let cqT;
-cq_q.addEventListener('input', ()=>{
-  clearTimeout(cqT);
-  cqT = setTimeout(()=>{ cq_page = 1; loadCodingQuestions(); }, 350);
-});
-
-async function assignCodingQuestion(batchKey, questionUuid, attemptAllowed, quiet=false){
-  const payload = {
-    // support multiple backend expectations safely
-    question_uuid: questionUuid,
-    questionUuid: questionUuid,
-    question_uuids: [questionUuid],
-    questionUuids: [questionUuid],
-
-    attempt_allowed: attemptAllowed,
-    attemptAllowed: attemptAllowed,
-    max_attempts: attemptAllowed,
-    allowed_attempts: attemptAllowed,
-
-    publish_to_students: 1,
-    assign_status: 1
-  };
-
-  const res = await fetch(`/api/batches/${encodeURIComponent(batchKey)}/coding-questions/assign`, {
-    method: 'POST',
-    headers: { 'Authorization':'Bearer '+TOKEN, 'Content-Type':'application/json', 'Accept':'application/json' },
-    body: JSON.stringify(payload)
-  });
-
-  const j = await res.json().catch(()=>({}));
-  if(!res.ok) throw new Error(j?.message || firstError(j) || 'Assign failed');
-  if(!quiet) ok('Coding question assigned');
-
-  // Notify main page to refresh list
-  if (typeof window !== 'undefined') {
-    try {
-      window.dispatchEvent(new CustomEvent('codingQuestionsAssigned', { detail: { questionUuid, assigned: true } }));
-    } catch(e) {}
+  function pickItems(j){
+    if (Array.isArray(j?.data)) return j.data;
+    if (Array.isArray(j?.data?.data)) return j.data.data;
+    if (Array.isArray(j?.questions)) return j.questions;
+    if (Array.isArray(j?.items)) return j.items;
+    return [];
   }
 
-  return j;
-}
-
-async function unassignCodingQuestion(batchKey, questionUuid, quiet=false){
-  const res = await fetch(`/api/batches/${encodeURIComponent(batchKey)}/coding-questions/${encodeURIComponent(questionUuid)}`, {
-    method: 'DELETE',
-    headers: { 'Authorization':'Bearer '+TOKEN, 'Accept':'application/json' }
-  });
-
-  const j = await res.json().catch(()=>({}));
-  if(!res.ok) throw new Error(j?.message || firstError(j) || 'Unassign failed');
-  if(!quiet) ok('Coding question unassigned');
-
-  // Notify main page to refresh list
-  if (typeof window !== 'undefined') {
-    try {
-      window.dispatchEvent(new CustomEvent('codingQuestionsAssigned', { detail: { questionUuid, assigned: false } }));
-    } catch(e) {}
+  function pickPagination(j, fallbackLen){
+    return j?.pagination || j?.meta || j?.data?.meta || {
+      current_page: 1,
+      per_page: Number(cq_per?.value || 20),
+      total: fallbackLen
+    };
   }
 
-  return j;
-}
+  function getQTitle(q){ return q?.title || q?.name || q?.question_title || 'Untitled'; }
+  function getQDifficulty(q){ return (q?.difficulty || q?.level || '—').toString(); }
+  function getQUuid(q){
+    return (q?.question_uuid
+      || q?.uuid
+      || q?.questionUuid
+      || q?.questionUUID
+      || q?.question_key
+      || q?.questionKey
+      || '').toString();
+  }
 
-async function loadCodingQuestions(){
-  if(!cq_batch_key) return;
+  function getAssigned(q){
+    return !!(q?.assigned ?? q?.is_assigned ?? q?.assigned_to_batch ?? q?.assignedToBatch);
+  }
 
-  cq_loader.style.display = '';
-  cq_rows.querySelectorAll('tr:not(#cq_loader)').forEach(tr=>tr.remove());
+  function getMaxAttempts(q){
+    return Number(q?.total_attempts ?? q?.max_attempts ?? q?.maxAttempts ?? q?.attempt_limit ?? 1) || 1;
+  }
 
-  try{
-    const res = await fetch(`/api/batches/${encodeURIComponent(cq_batch_key)}/coding-questions?mode=all&${cqParams()}`, {
-      headers: { 'Authorization': 'Bearer ' + TOKEN, 'Accept': 'application/json' }
+  function getAttemptAllowed(q){
+    const v = (q?.attempt_allowed ?? q?.attempts_allowed);
+    return (v === null || v === undefined || v === '') ? '' : Number(v);
+  }
+
+  function clampAttempts(v, hardMax){
+    const lim = Math.max(1, Math.min(50, Number(hardMax) || 1));
+    let n = parseInt(v, 10);
+    if (!Number.isFinite(n) || n < 1) n = lim;
+    if (n > lim) n = lim;
+    return n;
+  }
+
+  function cqParams(){
+    const p = new URLSearchParams();
+    if (cq_q.value.trim()) p.set('q', cq_q.value.trim());
+    p.set('per_page', cq_per.value || 20);
+    p.set('page', cq_page);
+    if (cq_assigned.value === 'assigned') p.set('assigned', '1');
+    if (cq_assigned.value === 'unassigned') p.set('assigned', '0');
+    return p.toString();
+  }
+
+  function firstError(j){
+    if (typeof j?.errors === 'object' && j.errors) {
+      const firstKey = Object.keys(j.errors)[0];
+      if (firstKey && Array.isArray(j.errors[firstKey])) {
+        return j.errors[firstKey][0];
+      }
+    }
+    return '';
+  }
+
+  function ok(msg){
+    toast(msg);
+  }
+
+  function err(msg){
+    toast(msg);
+  }
+
+  async function assignCodingQuestion(batchKey, questionUuid, attemptAllowed, quiet=false){
+    const payload = {
+      question_uuid: questionUuid,
+      questionUuid: questionUuid,
+      question_uuids: [questionUuid],
+      questionUuids: [questionUuid],
+
+      attempt_allowed: attemptAllowed,
+      attemptAllowed: attemptAllowed,
+      max_attempts: attemptAllowed,
+      allowed_attempts: attemptAllowed,
+
+      publish_to_students: 1,
+      assign_status: 1
+    };
+
+    const res = await fetch(`/api/batches/${encodeURIComponent(batchKey)}/coding-questions/assign`, {
+      method: 'POST',
+      headers: { 'Authorization':'Bearer '+token, 'Content-Type':'application/json', 'Accept':'application/json' },
+      body: JSON.stringify(payload)
     });
-
 
     const j = await res.json().catch(()=>({}));
-    if(!res.ok) throw new Error(j?.message || 'Failed to load coding questions');
+    if(!res.ok) throw new Error(j?.message || firstError(j) || 'Assign failed');
+    if(!quiet) ok('Coding question assigned');
 
-    const items = pickItems(j);
-    const pag   = pickPagination(j, items.length);
-
-    const frag = document.createDocumentFragment();
-
-    items.forEach(qn=>{
-      const qUuid = getQUuid(qn);
-      const assigned = getAssigned(qn);
-
-      const title = getQTitle(qn);
-      const diff  = getQDifficulty(qn);
-
-      const maxAttempts = getMaxAttempts(qn);
-      const limit = Math.min(50, maxAttempts);
-
-      let attemptAllowed = getAttemptAllowed(qn);
-      if (attemptAllowed === '') attemptAllowed = maxAttempts;
-      attemptAllowed = clampAttempts(attemptAllowed, limit);
-
-      const tr = document.createElement('tr');
-      tr.innerHTML = `
-        <td class="fw-semibold">${esc(title)}</td>
-        <td class="text-capitalize">${esc(diff)}</td>
-
-        <td class="text-center">
-          <span class="badge badge-info">${esc(maxAttempts)}</span>
-        </td>
-
-        <td class="text-center">
-          <input
-            class="form-control form-control-sm cq-attempt"
-            type="number"
-            min="1"
-            max="${esc(limit)}"
-            value="${esc(attemptAllowed)}"
-            style="width:120px; margin-inline:auto; text-align:center;"
-          >
-          <div class="small text-muted mt-1">1 — ${esc(limit)}</div>
-        </td>
-
-        <td class="text-center">
-          <div class="form-check form-switch d-inline-block">
-            <input
-              class="form-check-input cq-tg"
-              type="checkbox"
-              data-uuid="${esc(qUuid)}"
-              ${assigned ? 'checked' : ''}
-              ${qUuid ? '' : 'disabled'}
-            >
-          </div>
-        </td>
-      `;
-      frag.appendChild(tr);
-    });
-
-    cq_rows.appendChild(frag);
-
-    // Toggle assign/unassign
-    cq_rows.querySelectorAll('.cq-tg').forEach(ch=>{
-      ch.addEventListener('change', async ()=>{
-        const row = ch.closest('tr');
-        const attemptEl = row.querySelector('.cq-attempt');
-
-        const questionUuid = ch.dataset.uuid;
-        if(!questionUuid){
-          ch.checked = !ch.checked;
-          return err('Question UUID missing from API response (uuid/question_uuid not found).');
-        }
-
-        const wantAssigned = !!ch.checked;
-        const limit = Number(attemptEl.max || 1);
-        const attemptAllowed = clampAttempts(attemptEl.value, limit);
-        attemptEl.value = String(attemptAllowed);
-
-        ch.disabled = true;
-        // attemptEl.disabled = true;
-
-        try{
-          if(wantAssigned){
-            await assignCodingQuestion(cq_batch_key, questionUuid, attemptAllowed);
-          }else{
-            await unassignCodingQuestion(cq_batch_key, questionUuid);
-          }
-
-          if ((cq_assigned.value==='assigned' && !wantAssigned) ||
-              (cq_assigned.value==='unassigned' && wantAssigned)){
-            loadCodingQuestions();
-          }
-        }catch(e){
-          ch.checked = !wantAssigned;
-          err(e.message);
-        }finally{
-          ch.disabled = false;
-          attemptEl.disabled = false;
-        }
-      });
-    });
-
-    // Save attempts only if assigned
-    cq_rows.querySelectorAll('.cq-attempt').forEach(inp=>{
-      inp.addEventListener('blur', async ()=>{
-        const row = inp.closest('tr');
-        const ch  = row.querySelector('.cq-tg');
-        if(!ch )return;
-
-        const questionUuid = ch.dataset.uuid;
-        if(!questionUuid) return;
-
-        const limit = Number(inp.max || 1);
-        const attemptAllowed = clampAttempts(inp.value, limit);
-        inp.value = String(attemptAllowed);
-
-        try{
-          await assignCodingQuestion(cq_batch_key, questionUuid, attemptAllowed, true);
-          ok('Attempts updated');
-          // notify main page as well
-          if (typeof window !== 'undefined') {
-            try { window.dispatchEvent(new CustomEvent('codingQuestionsAssigned', { detail: { questionUuid, assigned: true } })); } catch(e) {}
-          }
-        }catch(e){
-          err(e.message || 'Failed to update attempts');
-        }
-      });
-    });
-
-    // Pagination
-    const total = Number(pag.total || items.length);
-    const per   = Number(pag.per_page || cq_per.value || 20);
-    const cur   = Number(pag.current_page || pag.page || 1);
-    const pages = Math.max(1, Math.ceil(total / per));
-
-    function li(dis, act, label, t){
-      return `<li class="page-item ${dis?'disabled':''} ${act?'active':''}">
-                <a class="page-link" href="javascript:void(0)" data-page="${t||''}">${label}</a>
-              </li>`;
+    if (typeof window !== 'undefined') {
+      try {
+        window.dispatchEvent(new CustomEvent('codingQuestionsAssigned', { detail: { questionUuid, assigned: true } }));
+      } catch(e) {}
     }
 
-    let html='';
-    html += li(cur<=1,false,'Prev',cur-1);
-    const w=2, s=Math.max(1,cur-w), e=Math.min(pages,cur+w);
-    for(let i=s;i<=e;i++) html += li(false,i===cur,i,i);
-    html += li(cur>=pages,false,'Next',cur+1);
+    return j;
+  }
 
-    cq_pager.innerHTML = html;
-    cq_pager.querySelectorAll('a.page-link[data-page]').forEach(a=>{
-      a.addEventListener('click', ()=>{
-        const t = Number(a.dataset.page);
-        if(!t || t===cq_page) return;
-        cq_page = t;
-        loadCodingQuestions();
-      });
+  async function unassignCodingQuestion(batchKey, questionUuid, quiet=false){
+    const res = await fetch(`/api/batches/${encodeURIComponent(batchKey)}/coding-questions/${encodeURIComponent(questionUuid)}`, {
+      method: 'DELETE',
+      headers: { 'Authorization':'Bearer '+token, 'Accept':'application/json' }
     });
 
-    cq_meta.textContent = `Page ${cur} of ${pages} — ${total} coding question(s)`;
+    const j = await res.json().catch(()=>({}));
+    if(!res.ok) throw new Error(j?.message || firstError(j) || 'Unassign failed');
+    if(!quiet) ok('Coding question unassigned');
 
-  }catch(e){
-    console.error(e);
-    err(e.message || 'Failed to load coding questions');
-  }finally{
-    cq_loader.style.display = 'none';
+    if (typeof window !== 'undefined') {
+      try {
+        window.dispatchEvent(new CustomEvent('codingQuestionsAssigned', { detail: { questionUuid, assigned: false } }));
+      } catch(e) {}
+    }
+
+    return j;
   }
-}
-/* end coding questions section */
+
+  async function loadCodingQuestions(){
+    if(!cq_batch_key) return;
+
+    cq_loader.style.display = '';
+    cq_rows.querySelectorAll('tr:not(#cq_loader)').forEach(tr=>tr.remove());
+
+    try{
+      const res = await fetch(`/api/batches/${encodeURIComponent(cq_batch_key)}/coding-questions?mode=all&${cqParams()}`, {
+        headers: { 'Authorization': 'Bearer ' + token, 'Accept': 'application/json' }
+      });
+
+      const j = await res.json().catch(()=>({}));
+      if(!res.ok) throw new Error(j?.message || 'Failed to load coding questions');
+
+      const items = pickItems(j);
+      const pag   = pickPagination(j, items.length);
+
+      const frag = document.createDocumentFragment();
+
+      items.forEach(qn=>{
+        const qUuid = getQUuid(qn);
+        const assigned = getAssigned(qn);
+
+        const title = getQTitle(qn);
+        const diff  = getQDifficulty(qn);
+
+        const maxAttempts = getMaxAttempts(qn);
+        const limit = Math.min(50, maxAttempts);
+
+        let attemptAllowed = getAttemptAllowed(qn);
+        if (attemptAllowed === '') attemptAllowed = maxAttempts;
+        attemptAllowed = clampAttempts(attemptAllowed, limit);
+
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td class="fw-semibold">${esc(title)}</td>
+          <td class="text-capitalize">${esc(diff)}</td>
+
+          <td class="text-center">
+            <span class="badge badge-info">${esc(maxAttempts)}</span>
+          </td>
+
+          <td class="text-center">
+            <input
+              class="form-control form-control-sm cq-attempt"
+              type="number"
+              min="1"
+              max="${esc(limit)}"
+              value="${esc(attemptAllowed)}"
+              style="width:120px; margin-inline:auto; text-align:center;"
+            >
+            <div class="small text-muted mt-1">1 — ${esc(limit)}</div>
+          </td>
+
+          <td class="text-center">
+            <div class="form-check form-switch d-inline-block">
+              <input
+                class="form-check-input cq-tg"
+                type="checkbox"
+                data-uuid="${esc(qUuid)}"
+                ${assigned ? 'checked' : ''}
+                ${qUuid ? '' : 'disabled'}
+              >
+            </div>
+          </td>
+        `;
+        frag.appendChild(tr);
+        syncAssignSwitch(qUuid, assigned);
+      });
+
+      cq_rows.appendChild(frag);
+
+      cq_rows.querySelectorAll('.cq-tg').forEach(ch=>{
+        ch.addEventListener('change', async ()=>{
+          const row = ch.closest('tr');
+          const attemptEl = row.querySelector('.cq-attempt');
+
+          const questionUuid = ch.dataset.uuid;
+          if(!questionUuid){
+            ch.checked = !ch.checked;
+            return err('Question UUID missing from API response (uuid/question_uuid not found).');
+          }
+
+          const wantAssigned = !!ch.checked;
+          const limit = Number(attemptEl.max || 1);
+          const attemptAllowed = clampAttempts(attemptEl.value, limit);
+          attemptEl.value = String(attemptAllowed);
+
+          ch.disabled = true;
+
+          try{
+            if(wantAssigned){
+              await assignCodingQuestion(cq_batch_key, questionUuid, attemptAllowed);
+            }else{
+              await unassignCodingQuestion(cq_batch_key, questionUuid);
+            }
+              syncAssignSwitch(questionUuid, wantAssigned); 
+            if ((cq_assigned.value==='assigned' && !wantAssigned) ||
+                (cq_assigned.value==='unassigned' && wantAssigned)){
+              loadCodingQuestions();
+            }
+          }catch(e){
+            ch.checked = !wantAssigned;
+            err(e.message);
+          }finally{
+            ch.disabled = false;
+            attemptEl.disabled = false;
+          }
+        });
+        
+      });
+
+      cq_rows.querySelectorAll('.cq-attempt').forEach(inp=>{
+        inp.addEventListener('blur', async ()=>{
+          const row = inp.closest('tr');
+          const ch  = row.querySelector('.cq-tg');
+          if(!ch) return;
+
+          const questionUuid = ch.dataset.uuid;
+          if(!questionUuid) return;
+
+          const limit = Number(inp.max || 1);
+          const attemptAllowed = clampAttempts(inp.value, limit);
+          inp.value = String(attemptAllowed);
+
+          try{
+            await assignCodingQuestion(cq_batch_key, questionUuid, attemptAllowed, true);
+            ok('Attempts updated');
+            if (typeof window !== 'undefined') {
+              try { window.dispatchEvent(new CustomEvent('codingQuestionsAssigned', { detail: { questionUuid, assigned: true } })); } catch(e) {}
+            }
+          }catch(e){
+            err(e.message || 'Failed to update attempts');
+          }
+        });
+      });
+
+      const total = Number(pag.total || items.length);
+      const per   = Number(pag.per_page || cq_per.value || 20);
+      const cur   = Number(pag.current_page || pag.page || 1);
+      const pages = Math.max(1, Math.ceil(total / per));
+
+      function li(dis, act, label, t){
+        return `<li class="page-item ${dis?'disabled':''} ${act?'active':''}">
+                  <a class="page-link" href="javascript:void(0)" data-page="${t||''}">${label}</a>
+                </li>`;
+      }
+
+      let html='';
+      html += li(cur<=1,false,'Prev',cur-1);
+      const w=2, s=Math.max(1,cur-w), e=Math.min(pages,cur+w);
+      for(let i=s;i<=e;i++) html += li(false,i===cur,i,i);
+      html += li(cur>=pages,false,'Next',cur+1);
+
+      cq_pager.innerHTML = html;
+      cq_pager.querySelectorAll('a.page-link[data-page]').forEach(a=>{
+        a.addEventListener('click', ()=>{
+          const t = Number(a.dataset.page);
+          if(!t || t===cq_page) return;
+          cq_page = t;
+          loadCodingQuestions();
+        });
+      });
+
+      cq_meta.textContent = `Page ${cur} of ${pages} — ${total} coding question(s)`;
+
+    }catch(e){
+      console.error(e);
+      err(e.message || 'Failed to load coding questions');
+    }finally{
+      cq_loader.style.display = 'none';
+    }
+  }
+
+  cq_apply.addEventListener('click', ()=>{ cq_page = 1; loadCodingQuestions(); });
+  cq_per.addEventListener('change', ()=>{ cq_page = 1; loadCodingQuestions(); });
+  cq_assigned.addEventListener('change', ()=>{ cq_page = 1; loadCodingQuestions(); });
+
+  cq_q.addEventListener('input', ()=>{
+    clearTimeout(cqT);
+    cqT = setTimeout(()=>{ cq_page = 1; loadCodingQuestions(); }, 350);
+  });
+
+  loadIndex();
+})();
 </script>

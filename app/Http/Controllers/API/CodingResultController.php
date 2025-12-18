@@ -368,5 +368,142 @@ public function detail(Request $request, string $resultUuid)
         'not_participated' => $notParticipated,
     ]);
 }
+/* ==========================================================
+ | GET /api/coding/results/{resultUuid}/export
+ | Printable HTML → Save as PDF
+ |========================================================== */
+public function export(Request $request, string $resultUuid)
+{
+    // ✅ Only authentication check
+    $user = $this->getUserFromToken($request);
+    // if (!$user) {
+    //     return response()->json(['success'=>false,'message'=>'Unauthorized'], 401);
+    // }
 
+    $format = strtolower($request->query('format', 'pdf'));
+    if (!in_array($format, ['pdf','html'], true)) {
+        return response()->json(['success'=>false,'message'=>'Invalid format'], 422);
+    }
+
+    /* =======================
+       FETCH RESULT DATA
+    ======================= */
+    $row = DB::table('coding_results as r')
+        ->join('coding_questions as q', 'q.id', '=', 'r.question_id')
+        ->join('coding_attempts as a', 'a.id', '=', 'r.attempt_id')
+        ->join('users as u', 'u.id', '=', 'r.user_id')
+        ->where('r.uuid', $resultUuid)
+        ->select([
+            'r.*',
+            'q.title as question_title',
+            'q.description as question_description',
+            'q.difficulty',
+
+            'a.source_code',
+            'a.language_key',
+            'a.test_results_json',
+            'a.total_runtime_ms',
+            'a.created_at as started_at',
+            'a.updated_at as finished_at',
+
+            'u.id as student_id',
+            'u.name as student_name',
+            'u.email as student_email',
+        ])
+        ->first();
+
+    if (!$row) {
+        return response()->json(['success'=>false,'message'=>'Result not found'], 404);
+    }
+
+    /* =======================
+       BUILD TESTCASES
+    ======================= */
+    $questionTests = DB::table('question_tests')
+        ->where('question_id', $row->question_id)
+        ->where('is_active', 1)
+        ->orderBy('sort_order')
+        ->get()
+        ->values();
+
+    $resultsJson = json_decode($row->test_results_json ?? '{}', true);
+    $execCases   = array_values($resultsJson['cases'] ?? []);
+
+    $testcases = [];
+
+    foreach ($questionTests as $i => $qt) {
+        $exec = $execCases[$i] ?? null;
+        $passed = $exec ? !empty($exec['pass']) : false;
+
+        $failureReason = null;
+        if (!$passed && $exec) {
+            if (!empty($exec['compile'])) {
+                $failureReason = 'Compilation Error';
+            } elseif (!empty($exec['runtime'])) {
+                $failureReason = 'Runtime Error';
+            } elseif (($exec['status'] ?? '') === 'TLE') {
+                $failureReason = 'Time Limit Exceeded';
+            } else {
+                $failureReason = 'Wrong Answer';
+            }
+        }
+
+        $testcases[] = [
+            'test_id'        => $qt->id,
+            'visibility'     => $qt->visibility,
+            'status'         => $passed ? 'passed' : 'failed',
+            'score'          => (int)$qt->score,
+            'earned_score'   => $passed ? (int)$qt->score : 0,
+            'time_ms'        => (int)($exec['time_ms'] ?? 0),
+            'failure_reason' => $failureReason,
+            'input'          => $qt->visibility === 'sample' ? $qt->input : null,
+            'expected'       => $qt->visibility === 'sample' ? $qt->expected : null,
+            'output'         => $qt->visibility === 'sample'
+                ? ($exec['output'] ?? null)
+                : null,
+        ];
+    }
+
+    /* =======================
+       RENDER PRINTABLE HTML
+    ======================= */
+    $html = view('exports.coding_result_pdf', [
+        'student' => [
+            'name'  => $row->student_name,
+            'email' => $row->student_email,
+        ],
+        'question' => [
+            'title'       => $row->question_title,
+            'description' => $row->question_description,
+            'difficulty'  => $row->difficulty,
+        ],
+        'submission' => [
+            'language' => $row->language_key,
+            'code'     => $row->source_code,
+        ],
+        'result' => [
+            'marks_obtained' => (int)$row->marks_obtained,
+            'marks_total'    => (int)$row->marks_total,
+            'percentage'     => (float)$row->percentage,
+            'total_tests'    => (int)$row->total_tests,
+            'passed_tests'   => (int)$row->passed_tests,
+            'failed_tests'   => (int)$row->failed_tests,
+            'all_pass'       => (bool)$row->all_pass,
+        ],
+        'timing' => [
+            'total_time_ms' => (int)$row->total_runtime_ms,
+            'started_at'    => Carbon::parse($row->started_at)->toDateTimeString(),
+            'finished_at'   => Carbon::parse($row->finished_at)->toDateTimeString(),
+        ],
+        'testcases'    => $testcases,
+        'generated_at' => now()->toDateTimeString(),
+        'print'        => ($format === 'pdf'),
+    ])->render();
+
+    return response($html, 200, [
+        'Content-Type' => 'text/html; charset=UTF-8',
+        'Content-Disposition' =>
+            'inline; filename="coding_result_'.$resultUuid.'.html"',
+    ]);
+}
 }

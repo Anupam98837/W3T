@@ -1815,6 +1815,7 @@ function showAlertInModal(message, type) {
   alertBox.style.display = 'block';
 }
 function showAlert(message, type='error') { showAlertInModal(message, type); }
+
 // Robust role getter — reads storage and normalizes variants
 function getCurrentRole() {
   const raw =

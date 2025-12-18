@@ -681,3 +681,4 @@ Route::get(
   '/batches/{batch}/coding-questions/{question}/allstudent-results',
   [CodingResultController::class, 'AllStudentResults']
 );
+ Route::get('/coding/results/{resultUuid}/export',[CodingResultController::class, 'export']);

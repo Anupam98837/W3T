@@ -174,9 +174,30 @@ pre{
       <div class="sub" id="quizSub">Loading…</div>
       <div id="verdictBadge"></div>
     </div>
-    <div class="ring" id="scoreRing">
-      <div class="inner" id="ringPct">0%</div>
-    </div>
+    <div style="display:flex;flex-direction:column;align-items:center;gap:10px;">
+  <div class="ring" id="scoreRing">
+    <div class="inner" id="ringPct">0%</div>
+  </div>
+
+  <button id="exportPdfBtn"
+    style="
+      padding:8px 14px;
+      border-radius:10px;
+      border:1px solid #4f46e5;
+      background:#4f46e5;
+      color:#fff;
+      font-weight:700;
+      font-size:13px;
+      cursor:pointer;
+      display:flex;
+      align-items:center;
+      gap:6px;
+    ">
+    <i class="fa-solid fa-file-pdf"></i>
+    Export PDF
+  </button>
+</div>
+
   </div>
 
   <div class="kpis">
@@ -229,6 +250,18 @@ pre{
 
   const el = id => document.getElementById(id);
   const fmtMs = ms => ms < 1000 ? `${ms} ms` : `${(ms/1000).toFixed(2)} s`;
+// Export PDF
+document.getElementById('exportPdfBtn')?.addEventListener('click', () => {
+  if (!resultUuid) {
+    alert('Result not found');
+    return;
+  }
+
+  const url = `/api/coding/results/${resultUuid}/export?format=pdf`;
+
+  // open in new tab so print dialog doesn't block UI
+  window.open(url, '_blank');
+});
 
   async function load(){
     console.log('Fetching from:', `${api}/coding/results/${resultUuid}/details`);

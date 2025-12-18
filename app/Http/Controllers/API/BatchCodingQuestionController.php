@@ -192,7 +192,7 @@ class BatchCodingQuestionController extends Controller
      * - Students: returns assigned questions + attempts info + can_start
      * - Staff: returns assigned questions (or all if ?mode=all) with assigned flag
      */
-   public function index(Request $r, $batch)
+public function index(Request $r, $batch)
 {
     [$mapTable, $questionTable, $attemptTable] = $this->detectTables();
 
@@ -221,10 +221,8 @@ class BatchCodingQuestionController extends Controller
 
     $isStudent = ($role === 'student');
 
-    // Determine which question column to join on (map side might store _id or uuid)
     $useQuestionIdJoin = preg_match('/_id$/', $mapQCol);
-
-    $questionJoinCol = $useQuestionIdJoin ? 'id' : ($qPkCol ?? 'uuid');
+    $questionJoinCol   = $useQuestionIdJoin ? 'id' : ($qPkCol ?? 'uuid');
 
     /* ================= ASSIGNED QUERY ================= */
     $assignedQ = DB::table($mapTable.' as bcq')
@@ -237,6 +235,11 @@ class BatchCodingQuestionController extends Controller
     $selectAssigned = [
         'cq.uuid as question_key',
         'cq.uuid',
+
+        // ✅ ADD ONLY THIS (name unchanged)
+        'cq.total_attempts',
+
+        DB::raw('1 as is_assigned'),
     ];
 
     foreach (['title','slug','difficulty','status','sort_order','description'] as $col) {
@@ -244,8 +247,6 @@ class BatchCodingQuestionController extends Controller
             $selectAssigned[] = "cq.$col";
         }
     }
-
-    $selectAssigned[] = DB::raw('1 as is_assigned');
 
     if ($attemptAllowedCol) $selectAssigned[] = "bcq.$attemptAllowedCol as attempt_allowed";
     if ($startCol) $selectAssigned[] = "bcq.$startCol as available_from";
@@ -272,6 +273,9 @@ class BatchCodingQuestionController extends Controller
         $selectAll = [
             'cq.uuid as question_key',
             'cq.uuid',
+
+            // ✅ ADD ONLY THIS (name unchanged)
+            'cq.total_attempts',
         ];
 
         foreach (['title','slug','difficulty','status','sort_order','description'] as $col) {
@@ -315,7 +319,6 @@ class BatchCodingQuestionController extends Controller
         'items' => $assignedQ->get()
     ]);
 }
-
 
    /**
  * POST /api/batches/{batch}/coding-questions/assign

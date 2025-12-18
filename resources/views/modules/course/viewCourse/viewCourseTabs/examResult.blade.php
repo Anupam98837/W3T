@@ -9,8 +9,26 @@
   <title>Exam Result</title>
 
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"/>
-  {{-- Uses your shared tokens, shadows, and dark mode --}}
   <link rel="stylesheet" href="{{ asset('assets/css/common/main.css') }}"/>
+
+  {{-- ✅ DOMPurify (sanitize HTML safely before inserting innerHTML) --}}
+  <script defer src="https://cdn.jsdelivr.net/npm/dompurify@3.1.7/dist/purify.min.js"></script>
+
+  {{-- ✅ MathJax (LaTeX renderer) --}}
+  <script>
+    window.MathJax = {
+      tex: {
+        inlineMath: [['$', '$'], ['\\(', '\\)']],
+        displayMath: [['$$', '$$'], ['\\[', '\\]']],
+        processEscapes: true,
+        processEnvironments: true
+      },
+      options: {
+        skipHtmlTags: ['script','noscript','style','textarea','pre','code']
+      }
+    };
+  </script>
+  <script defer src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
 
   <style>
     /* ========= Theme Bridge (fallbacks if a token is missing) ========= */
@@ -43,7 +61,6 @@
       --ring-bg: #1f2937;
     }
 
-    /* ========= Layout ========= */
     body{ background:var(--bg); color:var(--ink); font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,"Apple Color Emoji","Segoe UI Emoji"; }
     .wrap{ max-width:1200px; margin:24px auto 40px; padding:0 12px; display:grid; grid-template-columns: 1fr; gap:16px; }
     @media(min-width:1100px){ .wrap{ grid-template-columns: 1.15fr .85fr; } }
@@ -51,7 +68,6 @@
     .panel{ background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); box-shadow:var(--shadow-2); padding:var(--pad); }
     .panel.compact{ padding:12px; }
 
-    /* ========= Header / Hero ========= */
     .hero{ position:relative; overflow:hidden; border-radius:var(--radius); background:linear-gradient(135deg, rgba(79,70,229,.12), rgba(99,102,241,.08)); border:1px solid var(--line); padding:18px; }
     .hero .top{ display:flex; align-items:center; justify-content:space-between; gap:12px; }
     .hero .title{ font-size:20px; font-weight:800; letter-spacing:.2px; }
@@ -64,14 +80,12 @@
     .btn.ghost{ background:transparent; }
     .btn:disabled{ opacity:.6; cursor:default; }
 
-    /* ========= Score Ring ========= */
     .score-card{ display:flex; align-items:center; gap:16px; }
     .ring{
-      --p: 0; /* 0..100 */
+      --p: 0;
       width:96px; height:96px; border-radius:50%;
-      background:
-          conic-gradient(var(--brand) calc(var(--p)*1%), var(--ring-bg) 0);
-      display:grid; place-items:center; box-shadow:inset 0 0 0 8px #fff0;
+      background: conic-gradient(var(--brand) calc(var(--p)*1%), var(--ring-bg) 0);
+      display:grid; place-items:center;
       border:6px solid var(--surface); outline:1px solid var(--line);
     }
     .ring > .inner{ width:72px; height:72px; border-radius:50%; background:var(--surface); display:grid; place-items:center; border:1px solid var(--line); }
@@ -79,7 +93,6 @@
     .score-meta .big{ font-size:28px; font-weight:900; }
     .score-meta .muted{ color:var(--muted); font-size:12px; }
 
-    /* ========= KPIs ========= */
     .kpis{ display:grid; gap:12px; grid-template-columns: repeat(2,1fr); }
     @media(min-width:680px){ .kpis{ grid-template-columns: repeat(4,1fr); } }
     .kpi{ border:1px solid var(--line); background:var(--surface); border-radius:14px; padding:14px; }
@@ -88,7 +101,6 @@
     .kpi.pass{ outline:1px solid rgba(22,163,74,.15); }
     .kpi.fail{ outline:1px solid rgba(220,38,38,.15); }
 
-    /* ========= Tools (filters) ========= */
     .tools{ display:flex; flex-wrap:wrap; gap:10px; align-items:center; justify-content:space-between; margin-top:10px; }
     .seg{ display:flex; gap:6px; padding:6px; border:1px solid var(--line); border-radius:999px; background:var(--surface); }
     .seg button{ border:0; background:transparent; padding:8px 12px; border-radius:999px; font-weight:700; color:var(--muted); cursor:pointer; }
@@ -100,14 +112,14 @@
     .badge.pass{ background:#ecfdf5; color:#065f46; border-color:#a7f3d0; }
     .badge.fail{ background:#fef2f2; color:#991b1b; border-color:#fecaca; }
 
-    /* ========= Questions ========= */
     .questions{ display:grid; gap:12px; }
     .q{ border:1px solid var(--line); border-radius:14px; background:var(--surface); padding:14px; transition:box-shadow var(--transition), transform var(--transition); }
     .q:hover{ box-shadow:var(--shadow-2); transform:translateY(-1px); }
-    .qhead{ display:flex; justify-content:space-between; gap:10px; align-items:center; }
+    .qhead{ display:flex; justify-content:space-between; gap:10px; align-items:flex-start; }
     .qtitle{ font-weight:800; }
-    .qmeta{ font-size:12px; color:var(--muted); display:flex; gap:10px; flex-wrap:wrap; }
-    .pill{ font-size:11px; border:1px solid var(--line); border-radius:999px; padding:4px 8px; }
+    .qdesc{ margin-top:8px; color:var(--ink); font-size:14px; line-height:1.45; }
+    .qmeta{ font-size:12px; color:var(--muted); display:flex; gap:10px; flex-wrap:wrap; margin-top:6px; }
+    .pill{ font-size:11px; border:1px solid var(--line); border-radius:999px; padding:4px 8px; white-space:nowrap; }
     .answers{ margin-top:10px; display:grid; gap:8px; }
     .ans{ padding:10px; border-radius:12px; border:1px dashed var(--line); display:flex; justify-content:space-between; align-items:center; gap:10px; }
     .ans.correct{ background:#f0fdf4; border-color:#86efac; }
@@ -115,29 +127,32 @@
     .left{ display:flex; align-items:center; gap:10px; }
     .tick{ width:22px; height:22px; border-radius:999px; display:inline-grid; place-items:center; border:1px solid var(--line); font-size:12px; }
 
-    /* ========= Right column (Summary) ========= */
     .summary .head{ font-weight:900; margin-bottom:10px; }
     .summary .row{ display:flex; align-items:center; justify-content:space-between; padding:10px 0; border-bottom:1px dashed var(--line); }
     .summary .row:last-child{ border-bottom:0; }
     .summary .key{ color:var(--muted); font-size:13px; }
     .summary .val{ font-weight:800; }
 
-    /* ========= Helpers ========= */
     .divider{ height:1px; background:var(--line); margin:12px 0; }
     .muted{ color:var(--muted); }
-    .center{ display:grid; place-items:center; }
     .spinner{ width:18px; height:18px; border:3px solid var(--line); border-top-color:var(--brand); border-radius:50%; animation:spin .9s linear infinite; }
     @keyframes spin{ to{ transform:rotate(360deg); } }
     .hide{ display:none !important; }
     .error{ background:#fef2f2; border:1px solid #fecaca; padding:12px; border-radius:12px; color:#7f1d1d; }
     .empty{ background:var(--surface-2); border:1px dashed var(--line); border-radius:12px; padding:16px; text-align:center; color:var(--muted); }
     .skeleton{ position:relative; overflow:hidden; background:linear-gradient(90deg, rgba(0,0,0,0.06), rgba(0,0,0,0.04), rgba(0,0,0,0.06)); border-radius:12px; min-height:64px; }
-    .skeleton-row{ height:52px; border-radius:12px; background:rgba(0,0,0,0.05); }
+
+    /* ✅ Make HTML content look nice inside options/questions */
+    .qtitle p, .qdesc p, .ans .left div p{ margin:0 0 8px; }
+    .qtitle img, .qdesc img, .ans .left img{ max-width:100%; height:auto; border-radius:10px; }
+    .qdesc table, .ans .left table{ width:100%; border-collapse:collapse; overflow:hidden; border-radius:12px; }
+    .qdesc table td, .qdesc table th, .ans .left table td, .ans .left table th{
+      border:1px solid var(--line); padding:8px; vertical-align:top;
+    }
   </style>
 </head>
 <body>
   <div class="wrap">
-    <!-- ===== Left: Main Content ===== -->
     <div class="panel">
       <div class="hero">
         <div class="top">
@@ -162,9 +177,7 @@
           <div class="score-meta">
             <div class="big" id="scoreBig">—</div>
             <div class="muted" id="scoreMeta">Accuracy — | Time —</div>
-            <div class="badges" id="passBadge" style="margin-top:6px;">
-              <!-- BADGE INJECT -->
-            </div>
+            <div class="badges" id="passBadge" style="margin-top:6px;"></div>
           </div>
         </div>
 
@@ -204,7 +217,6 @@
       <div class="questions" id="questionsWrap" style="margin-top:12px;"></div>
     </div>
 
-    <!-- ===== Right: Summary / Meta ===== -->
     <div class="panel summary compact">
       <div class="head">Attempt Summary</div>
       <div class="row"><div class="key">Attempt #</div><div class="val" id="sumAttemptNo">—</div></div>
@@ -239,9 +251,6 @@
       for (const p of parts) if (/^\d+$/.test(p)) return p;
       return null;
     }
-    function escapeHtml(s){ return String(s ?? '')
-      .replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;')
-      .replaceAll('"','&quot;').replaceAll("'",'&#39;'); }
     function fmtDate(dt) {
       if (!dt) return '—';
       try { return new Date((dt+'').replace(' ','T')).toLocaleString(); } catch(e){ return dt; }
@@ -252,11 +261,43 @@
       const hh = h>0 ? (h+':') : '';
       return hh + String(m).padStart(2,'0') + ':' + String(s).padStart(2,'0');
     }
+
+    // ✅ Safe HTML setter (DOMPurify sanitize, then innerHTML)
+    function setHtml(el, html) {
+      const s = String(html ?? '');
+      if (window.DOMPurify) {
+        el.innerHTML = window.DOMPurify.sanitize(s, {
+          // allow common formatting + images + tables
+          ALLOWED_TAGS: [
+            'b','strong','i','em','u','s','br','hr','span','div','p',
+            'ul','ol','li',
+            'h1','h2','h3','h4','h5','h6',
+            'table','thead','tbody','tr','th','td',
+            'img','a','code','sup','sub','small'
+          ],
+          ALLOWED_ATTR: ['href','target','rel','src','alt','title','style','class']
+        });
+        return;
+      }
+      // fallback: trusted HTML only
+      el.innerHTML = s;
+    }
+
+    // ✅ MathJax re-typeset after dynamic DOM injection
+    function typesetMath() {
+      try {
+        if (window.MathJax && typeof window.MathJax.typesetPromise === 'function') {
+          window.MathJax.typesetClear && window.MathJax.typesetClear();
+          return window.MathJax.typesetPromise();
+        }
+      } catch(e){}
+      return Promise.resolve();
+    }
+
     const PASS_THRESHOLD = 60;
 
     /* ===== Refs ===== */
     const els = {
-      // hero
       quizTitle: document.getElementById('quizTitle'),
       quizSub: document.getElementById('quizSub'),
       scoreRing: document.getElementById('scoreRing'),
@@ -264,27 +305,21 @@
       scoreBig: document.getElementById('scoreBig'),
       scoreMeta: document.getElementById('scoreMeta'),
       passBadge: document.getElementById('passBadge'),
-      // kpis
       kKpiScore: document.querySelector('#kpiScore .value'),
       kKpiAccuracy: document.querySelector('#kpiAccuracy .value'),
       kKpiCorrect: document.querySelector('#kpiCorrect .value'),
       kKpiTime: document.querySelector('#kpiTime .value'),
-      kpiScoreBox: document.getElementById('kpiScore'),
       kpiAccuracyBox: document.getElementById('kpiAccuracy'),
-      // states
       loading: document.getElementById('stateLoading'),
       error: document.getElementById('stateError'),
       empty: document.getElementById('stateEmpty'),
       qwrap: document.getElementById('questionsWrap'),
-      // tools
       btnToggle: document.getElementById('btnToggleAnswers'),
       btnPrint: document.getElementById('btnPrint'),
       btnDocx: document.getElementById('btnDocx'),
       btnHtml: document.getElementById('btnHtml'),
-      seg: document.querySelector('.seg'),
       search: document.getElementById('searchBox'),
       countBadge: document.getElementById('countBadge'),
-      // summary right
       sAttemptNo: document.getElementById('sumAttemptNo'),
       sStatus: document.getElementById('sumStatus'),
       sStart: document.getElementById('sumStart'),
@@ -320,16 +355,13 @@
       const timeUsed = a.time_used_sec ?? 0;
       const totalSec = a.total_time_sec ?? (q.total_time ? q.total_time*60 : 0);
 
-      // title / subtitle
       els.quizTitle.textContent = q.name || 'Exam Result';
       els.quizSub.textContent = `Attempt #${r.attempt_number ?? 1} • ${String(a.status||'').toUpperCase()} • Started ${fmtDate(a.started_at)} • Finished ${fmtDate(a.finished_at)}`;
 
-      // ring + score
       setRing(pct);
       els.scoreBig.textContent = scoreText;
       els.scoreMeta.textContent = `Accuracy ${pct.toFixed(2)}%  |  Time ${ totalSec ? (fmtDur(timeUsed)+' / '+fmtDur(totalSec)) : fmtDur(timeUsed) }`;
 
-      // badges pass/fail
       els.passBadge.innerHTML = '';
       const pass = pct >= PASS_THRESHOLD;
       const div = document.createElement('div');
@@ -337,16 +369,14 @@
       div.innerHTML = `<i class="fa-solid ${pass ? 'fa-check' : 'fa-xmark'}"></i> <b>${pass ? 'PASS' : 'FAIL'}</b>`;
       els.passBadge.appendChild(div);
 
-      // KPIs
       els.kKpiScore.textContent = scoreText;
       els.kKpiAccuracy.textContent = pct.toFixed(2) + '%';
       els.kKpiCorrect.textContent = `${r.total_correct} / ${r.total_questions}`;
       els.kKpiTime.textContent = totalSec ? `${fmtDur(timeUsed)} / ${fmtDur(totalSec)}` : fmtDur(timeUsed);
 
-      // decorate KPI panels
-      (pct >= PASS_THRESHOLD ? els.kpiAccuracyBox.classList.add('pass') : els.kpiAccuracyBox.classList.add('fail'));
+      els.kpiAccuracyBox.classList.toggle('pass', pass);
+      els.kpiAccuracyBox.classList.toggle('fail', !pass);
 
-      // right summary
       els.sAttemptNo.textContent = (r.attempt_number ?? 1);
       els.sStatus.textContent = String(a.status || '').toUpperCase();
       els.sStart.textContent = fmtDate(a.started_at);
@@ -365,12 +395,14 @@
     function statusOf(q){
       const sel = q.selected_answer_ids;
       const isCorrect = (q.is_correct ?? 0) === 1;
-      const skipped = (sel === null || (Array.isArray(sel) && sel.length === 0)) && !(q.selected_text && String(q.selected_text).trim() !== '');
+      const skipped =
+        (sel === null || (Array.isArray(sel) && sel.length === 0)) &&
+        !(q.selected_text && String(q.selected_text).trim() !== '');
       if (skipped) return 'skipped';
       return isCorrect ? 'correct' : 'wrong';
     }
 
-    function renderQuestions(data){
+    async function renderQuestions(data){
       const list = Array.isArray(data.questions) ? data.questions.slice() : [];
       els.qwrap.innerHTML = '';
 
@@ -386,7 +418,9 @@
       els.countBadge.innerHTML = `<i class="fa-regular fa-square-check"></i> ${filtered.length} shown`;
 
       if (!filtered.length){
-        hide(els.loading); show(els.empty); return;
+        hide(els.loading); show(els.empty);
+        await typesetMath();
+        return;
       }
       hide(els.loading); hide(els.empty);
 
@@ -400,24 +434,49 @@
 
         const head = document.createElement('div');
         head.className = 'qhead';
-        head.innerHTML = `
-          <div>
-            <div class="qtitle">Q${q.order}. ${escapeHtml(q.title ?? '')}</div>
-            <div class="qmeta">
-              <span>Type: ${escapeHtml(q.type || '—')}</span>
-              <span>Marks: ${markStr}</span>
-              <span>Time: ${timeStr}</span>
-            </div>
-          </div>
-          <div class="right">
-            <span class="pill ${correct?'':'muted'}">${correct ? '<i class="fa-solid fa-check"></i> Correct' : '<i class="fa-solid fa-xmark"></i> Incorrect'}</span>
-          </div>
+
+        const leftBlock = document.createElement('div');
+
+        const title = document.createElement('div');
+        title.className = 'qtitle';
+        // ✅ HTML render (question title may contain HTML + LaTeX)
+        setHtml(title, `Q${q.order}. ${q.title ?? ''}`);
+        leftBlock.appendChild(title);
+
+        const descText = (q.description ?? '').toString().trim();
+        if (descText) {
+          const desc = document.createElement('div');
+          desc.className = 'qdesc';
+          // ✅ HTML render (description may contain HTML + LaTeX)
+          setHtml(desc, descText);
+          leftBlock.appendChild(desc);
+        }
+
+        const meta = document.createElement('div');
+        meta.className = 'qmeta';
+        meta.innerHTML = `
+          <span>Type: ${(q.type || '—')}</span>
+          <span>Marks: ${markStr}</span>
+          <span>Time: ${timeStr}</span>
         `;
+        leftBlock.appendChild(meta);
+
+        const rightBlock = document.createElement('div');
+        const pill = document.createElement('span');
+        pill.className = 'pill ' + (correct ? '' : 'muted');
+        pill.innerHTML = correct
+          ? `<i class="fa-solid fa-check"></i> Correct`
+          : `<i class="fa-solid fa-xmark"></i> Incorrect`;
+        rightBlock.appendChild(pill);
+
+        head.appendChild(leftBlock);
+        head.appendChild(rightBlock);
 
         const ansWrap = document.createElement('div');
         ansWrap.className = 'answers ' + (answersVisible ? '' : 'hide');
 
         const chosenIds = (q.selected_answer_ids && Array.isArray(q.selected_answer_ids)) ? q.selected_answer_ids.map(Number) : [];
+
         if (q.type === 'fill_in_the_blank') {
           const a = document.createElement('div');
           a.className = 'ans chosen ' + (correct ? 'correct' : '');
@@ -425,28 +484,48 @@
             <div class="left">
               <span class="tick">${correct?'<i class="fa-solid fa-check"></i>':'<i class="fa-solid fa-xmark"></i>'}</span>
               <div>
-                <div><b>Your answer:</b> ${q.selected_text ? escapeHtml(q.selected_text) : '—'}</div>
+                <div><b>Your answer:</b> <span class="fibText"></span></div>
                 <div class="muted" style="font-size:12px">FIB</div>
               </div>
             </div>
           `;
+          // ✅ if typed answer includes HTML/LaTeX
+          setHtml(a.querySelector('.fibText'), q.selected_text ? String(q.selected_text) : '—');
           ansWrap.appendChild(a);
         } else {
           const options = Array.isArray(q.answers) ? q.answers : [];
           options.forEach(opt => {
             const isCorrect = (opt.is_correct ?? 0) === 1;
             const isChosen  = chosenIds.includes(Number(opt.answer_id));
+
             const row = document.createElement('div');
             row.className = 'ans' + (isCorrect ? ' correct' : '') + (isChosen ? ' chosen' : '');
-            row.innerHTML = `
-              <div class="left">
-                <span class="tick">${isChosen ? '<i class="fa-solid fa-check-double"></i>' : ''}</span>
-                <div>${escapeHtml(opt.title ?? '')}</div>
-              </div>
-              <div class="right">
-                ${isCorrect ? '<span class="pill"><i class="fa-solid fa-check"></i> Correct</span>' : ''}
-              </div>
-            `;
+
+            const left = document.createElement('div');
+            left.className = 'left';
+
+            const tick = document.createElement('span');
+            tick.className = 'tick';
+            tick.innerHTML = isChosen ? '<i class="fa-solid fa-check-double"></i>' : '';
+
+            const text = document.createElement('div');
+            // ✅ HTML render (option title may contain HTML + LaTeX)
+            setHtml(text, (opt.title ?? '').toString());
+
+            left.appendChild(tick);
+            left.appendChild(text);
+
+            const right = document.createElement('div');
+            right.className = 'right';
+            if (isCorrect) {
+              const p = document.createElement('span');
+              p.className = 'pill';
+              p.innerHTML = '<i class="fa-solid fa-check"></i> Correct';
+              right.appendChild(p);
+            }
+
+            row.appendChild(left);
+            row.appendChild(right);
             ansWrap.appendChild(row);
           });
 
@@ -462,6 +541,9 @@
         card.appendChild(ansWrap);
         els.qwrap.appendChild(card);
       });
+
+      // ✅ IMPORTANT: typeset AFTER DOM injection
+      await typesetMath();
     }
 
     async function fetchResult() {
@@ -490,10 +572,8 @@
         }
 
         current = data;
-        // header / kpis / summary
         setHeader(data);
-        // questions
-        renderQuestions(data);
+        await renderQuestions(data);
       } catch (e) {
         hide(els.loading);
         els.error.textContent = 'Network error. Please try again.';
@@ -535,28 +615,27 @@
     }
 
     /* ===== Events ===== */
-    // Answers visibility
-    document.getElementById('btnToggleAnswers').addEventListener('click', () => {
+    els.btnToggle.addEventListener('click', async () => {
       answersVisible = !answersVisible;
-      document.getElementById('btnToggleAnswers').querySelector('span').textContent = answersVisible ? 'Hide answers' : 'Show answers';
-      document.querySelectorAll('.answers').forEach(el => { el.classList.toggle('hide', !answersVisible); });
+      els.btnToggle.querySelector('span').textContent = answersVisible ? 'Hide answers' : 'Show answers';
+      document.querySelectorAll('.answers').forEach(el => el.classList.toggle('hide', !answersVisible));
+      await typesetMath();
     });
-    // Print
-    document.getElementById('btnPrint').addEventListener('click', () => window.print());
-    // Exports
-    document.getElementById('btnDocx').addEventListener('click', () => downloadExport('docx'));
-    document.getElementById('btnHtml').addEventListener('click', () => downloadExport('html'));
-    // Filter segment
-    document.querySelectorAll('.seg button').forEach(b => b.addEventListener('click', (e) => {
+
+    els.btnPrint.addEventListener('click', () => window.print());
+    els.btnDocx.addEventListener('click', () => downloadExport('docx'));
+    els.btnHtml.addEventListener('click', () => downloadExport('html'));
+
+    document.querySelectorAll('.seg button').forEach(b => b.addEventListener('click', async (e) => {
       document.querySelectorAll('.seg button').forEach(x => x.classList.remove('active'));
       e.currentTarget.classList.add('active');
       filterMode = e.currentTarget.dataset.filter || 'all';
-      if (current) renderQuestions(current);
+      if (current) await renderQuestions(current);
     }));
-    // Search
-    els.search.addEventListener('input', (e) => {
+
+    els.search.addEventListener('input', async (e) => {
       searchTerm = String(e.target.value || '').toLowerCase().trim();
-      if (current) renderQuestions(current);
+      if (current) await renderQuestions(current);
     });
 
     /* ===== Start ===== */
