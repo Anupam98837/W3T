@@ -1003,6 +1003,173 @@ public function saveAnswer(Request $request, string $attemptUuid)
     }
 }
 
+/* ============================================
+ | POST /api/exam/attempts/{attempt}/bulk-answer
+ | Bulk submission with batch context
+ |============================================ */
+ public function bulkAnswer(Request $request, string $attemptUuid)
+{
+    $user = $this->getUserFromToken($request);
+    if (!$user) return response()->json(['success'=>false,'message'=>'Unauthorized'], 401);
+
+    $v = Validator::make($request->all(), [
+        'answers'                  => ['required','array','min:1'],
+        'answers.*.question_id'    => ['required','integer','min:1'],
+        'answers.*.selected'       => ['nullable'],
+        'answers.*.time_spent_sec' => ['nullable','integer','min:0'],
+
+        // OPTIONAL but recommended: frontend can send this
+        'batch_quiz'               => ['nullable'], // uuid or id
+    ]);
+    if ($v->fails()) return response()->json(['success'=>false,'errors'=>$v->errors()], 422);
+
+    $attempt = DB::table('quizz_attempts')->where('uuid', $attemptUuid)->first();
+    if (!$attempt || (int)$attempt->user_id !== (int)$user->id) {
+        return response()->json(['success'=>false,'message'=>'Attempt not found'], 404);
+    }
+    if ($attempt->status !== 'in_progress') {
+        return response()->json(['success'=>false,'message'=>'Attempt is not running'], 409);
+    }
+
+    $now = Carbon::now();
+    if ($this->deadlinePassed($attempt)) {
+        $attempt = $this->autoFinalize($attempt, true);
+        return response()->json([
+            'success'=>false,
+            'message'=>'Time over — attempt auto-submitted',
+            'attempt'=>['status'=>$attempt->status,'time_left_sec'=>0]
+        ], 409);
+    }
+
+    // ---------- 🔒 Batch context lock ----------
+    $attemptBatch = DB::table('quizz_attempt_batch')
+        ->where('attempt_id', $attempt->id)
+        ->where('user_id', (int)$user->id)
+        ->first();
+
+    if ($attemptBatch) {
+        // ensure still enrolled
+        if (!$this->isStudentInBatch((int)$attemptBatch->batch_id, (int)$user->id)) {
+            return response()->json([
+                'success'=>false,
+                'message'=>'You are not enrolled in this batch anymore'
+            ], 403);
+        }
+
+        // if frontend sends batch_quiz, enforce match
+        $batchKey = $request->input('batch_quiz');
+        if (!empty($batchKey)) {
+            $batchQuiz = $this->batchQuizByKey($batchKey, (int)$attempt->quiz_id);
+            if (!$batchQuiz || (int)$batchQuiz->id !== (int)$attemptBatch->batch_quiz_id) {
+                return response()->json([
+                    'success'=>false,
+                    'message'=>'Batch context mismatch for this attempt'
+                ], 409);
+            }
+        }
+    } else {
+        // standalone attempt: do not allow passing batch_quiz
+        if (!empty($request->input('batch_quiz'))) {
+            return response()->json([
+                'success'=>false,
+                'message'=>'This attempt is not a batch attempt'
+            ], 409);
+        }
+    }
+
+    $payload = $request->input('answers', []);
+    $qIds = array_values(array_unique(array_map(fn($x)=> (int)($x['question_id'] ?? 0), $payload)));
+    $qIds = array_values(array_filter($qIds, fn($x)=> $x > 0));
+
+    // Validate question belongs to quiz
+    $qMap = DB::table('quizz_questions')
+        ->where('quiz_id', $attempt->quiz_id)
+        ->whereIn('id', $qIds)
+        ->get(['id','question_type'])
+        ->keyBy('id');
+
+    if ($qMap->count() !== count($qIds)) {
+        return response()->json([
+            'success'=>false,
+            'message'=>'One or more questions are invalid for this quiz',
+        ], 422);
+    }
+
+    DB::beginTransaction();
+    try {
+        foreach ($payload as $row) {
+            $qid = (int)($row['question_id'] ?? 0);
+            if ($qid <= 0) continue;
+
+            $selected  = $row['selected'] ?? null;
+
+            // ✅ IMPORTANT: treat time_spent_sec as ABSOLUTE time, NOT slice to add
+            $timeSpentIncoming = (int)($row['time_spent_sec'] ?? 0);
+            if ($timeSpentIncoming < 0) $timeSpentIncoming = 0;
+
+            $qType = (string)($qMap[$qid]->question_type ?? '');
+            $selectedJson = json_encode($selected, JSON_UNESCAPED_UNICODE);
+
+            $existing = DB::table('quizz_attempt_answers')
+                ->where('attempt_id', $attempt->id)
+                ->where('question_id', $qid)
+                ->lockForUpdate()
+                ->first();
+
+            if ($existing) {
+                $existingTime = (int)($existing->time_spent_sec ?? 0);
+
+                DB::table('quizz_attempt_answers')->where('id', $existing->id)->update([
+                    'selected_raw'   => $selectedJson,
+                    'question_type'  => $existing->question_type ?: $qType,
+
+                    // ✅ prevent double-add: keep max
+                    'time_spent_sec' => max($existingTime, $timeSpentIncoming),
+
+                    'answered_at'    => $existing->answered_at ?: $now,
+                    'updated_at'     => $now,
+                ]);
+            } else {
+                DB::table('quizz_attempt_answers')->insert([
+                    'attempt_id'     => $attempt->id,
+                    'question_id'    => $qid,
+                    'question_type'  => $qType,
+                    'selected_raw'   => $selectedJson,
+                    'time_spent_sec' => $timeSpentIncoming,
+                    'answered_at'    => $now,
+                    'created_at'     => $now,
+                    'updated_at'     => $now,
+                ]);
+            }
+        }
+
+        DB::table('quizz_attempts')->where('id', $attempt->id)->update([
+            'last_activity_at' => $now,
+            'updated_at'       => $now,
+        ]);
+
+        DB::commit();
+
+        return response()->json([
+            'success' => true,
+            'attempt' => [
+                'time_left_sec' => $this->timeLeftSec($attempt),
+                'server_end_at' => (string)$attempt->server_deadline_at,
+            ],
+            'batch' => $attemptBatch ? [
+                'batch_quiz_id' => (int)$attemptBatch->batch_quiz_id,
+                'batch_id'      => (int)$attemptBatch->batch_id,
+            ] : null,
+        ], 200);
+
+    } catch (\Throwable $e) {
+        DB::rollBack();
+        Log::error('[Exam bulkAnswer] failed', ['e'=>$e->getMessage()]);
+        return response()->json(['success'=>false,'message'=>'Failed to save answers'], 500);
+    }
+}
+
+
 
     /* ============================================
      | POST /api/exam/attempts/{attempt}/submit

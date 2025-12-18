@@ -693,9 +693,10 @@ class JudgeController extends Controller
                 ]);
 
             DB::table('coding_results')->where('attempt_id', $attemptId)->delete();
+                $resultUuid = (string) Str::uuid();
 
             DB::table('coding_results')->insert([
-                'uuid'                     => (string)Str::uuid(),
+                'uuid'                     => $resultUuid,
                 'attempt_id'               => $attemptId,
                 'question_id'              => $question->id,
                 'user_id'                  => $userId,
@@ -716,10 +717,11 @@ class JudgeController extends Controller
             DB::commit();
 
             $sampleResults = array_values(array_filter($cases, fn($c) => ($c['visibility'] ?? '') === 'sample'));
-
+            
             return response()->json([
                 'status'       => 'success',
                 'mode'         => 'submit',
+                'result_uuid'   => $resultUuid,
                 'attempt_uuid' => $attemptUuid,
                 'attempt_no'   => $attemptNo,
                 'all_pass'     => $allPass,

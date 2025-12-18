@@ -1619,7 +1619,17 @@
           setButtonsEnabled(false);
 
           // show results (submit usually returns sample_results)
-          renderResults(res.results || res.sample_results || [], !!res.all_pass);
+         if (res.result_uuid) {
+          await Swal.fire({
+  title: 'Code Submitted ✅',
+  text: 'Redirecting outside the Coding Test...',
+  icon: 'success',
+  timer: 2000,
+  showConfirmButton: false
+});
+window.location.href = `/student/courses`;
+  return;
+}
 
           await Swal.fire({
             title: res.all_pass ? 'Submitted ✅' : 'Submitted',
@@ -1635,10 +1645,26 @@
             showLocked(err.message || 'Attempt limit reached.');
             return;
           }
-          if (err.status === 409){
-            showLocked(err.message || 'This attempt is already evaluated.');
-            return;
-          }
+          if (err.status === 409) {
+  // attempt already evaluated → go to result page
+  if (err.payload?.result_uuid) {
+  window.location.href = `/coding/results/${err.payload.result_uuid}/view`;
+  return;
+}
+
+
+  // fallback: show message
+  Swal.fire({
+    title: 'Already submitted',
+    text: 'This attempt was already evaluated. Redirecting to result.',
+    icon: 'info',
+    timer: 2000,
+    showConfirmButton: false
+  });
+
+  return;
+}
+
           if (err.status === 403){
             showLocked(err.message || 'Submission not allowed.');
             return;

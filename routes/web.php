@@ -286,6 +286,12 @@ Route::get('/exam/results/{resultId}/view', function ($resultId) {
     return view('modules.course.viewCourse.viewCourseTabs.examResult', ['resultId' => $resultId]);
 });
 
+Route::get('/coding/results/{resultUuid}/view', function ($resultUuid) {
+    return view('modules.course.viewCourse.viewCourseTabs.codingResult', [
+        'resultUuid' => $resultUuid
+    ]);
+});
+
 
 // Instructor Routes
 Route::get('/instructor/dashboard', function () {

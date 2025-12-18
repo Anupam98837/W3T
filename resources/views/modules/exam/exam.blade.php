@@ -24,7 +24,7 @@
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" rel="stylesheet"/>
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
-  {{-- MathJax (robust typeset after dynamic HTML injection) --}}
+  {{-- MathJax --}}
   <script>
     window.MathJax = {
       tex: {
@@ -32,16 +32,13 @@
         displayMath: [['\\[','\\]'], ['$$','$$']],
         processEscapes: true
       },
-      options: {
-        skipHtmlTags: ['script','noscript','style','textarea','pre','code']
-      },
-      startup: { typeset: false } // we call typeset manually after rendering
+      options: { skipHtmlTags: ['script','noscript','style','textarea','pre','code'] },
+      startup: { typeset: false }
     };
   </script>
   <script id="MathJax-script" defer src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml-full.js"></script>
 
   <style>
-    /* Do NOT override main.css root tokens — use fallbacks locally */
     :root{
       --exam-accent: var(--accent-color, #4f46e5);
       --exam-primary: var(--primary-color, #4f46e5);
@@ -55,210 +52,59 @@
       --exam-success: var(--t-success, #16a34a);
       --exam-warn: var(--t-warn, #f59e0b);
     }
-
-    body{
-      background: var(--exam-bg);
-      color: var(--exam-ink);
-      font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
-    }
-
-    .exam-topbar{
-      background: var(--exam-surface);
-      border-bottom: 1px solid var(--exam-line);
-      box-shadow: 0 6px 18px rgba(15,23,42,.05);
-      z-index: 20;
-    }
-
-    .exam-brand{
-      display:flex; align-items:center; gap:.6rem;
-      font-weight: 800;
-      letter-spacing:.01em;
-    }
+    body{ background: var(--exam-bg); color: var(--exam-ink); font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; }
+    .exam-topbar{ background: var(--exam-surface); border-bottom: 1px solid var(--exam-line); box-shadow: 0 6px 18px rgba(15,23,42,.05); z-index: 20; }
+    .exam-brand{ display:flex; align-items:center; gap:.6rem; font-weight: 800; letter-spacing:.01em; }
     .exam-brand img{height:32px; width:auto}
-
-    .timer-pill{
-      padding:.48rem .95rem;
-      border-radius:999px;
-      font-weight:700;
-      font-size:.92rem;
-      background: var(--exam-primary);
-      color:#fff;
-      display:flex;
-      align-items:center;
-      gap:.55rem;
-      box-shadow: 0 10px 18px rgba(0,0,0,.08);
-      user-select:none;
-    }
-
-    .exam-card{
-      background: var(--exam-surface);
-      border: 1px solid var(--exam-line);
-      border-radius: 16px;
-      box-shadow: 0 10px 30px rgba(15,23,42,.08);
-    }
-    .exam-card-slim{
-      background: var(--exam-surface);
-      border: 1px solid var(--exam-line);
-      border-radius: 16px;
-      box-shadow: 0 6px 18px rgba(15,23,42,.05);
-    }
-
-    .btn{
-      border-radius:.85rem;
-      font-weight:700;
-      padding:.7rem 1rem;
-    }
-    .btn-primary{
-      background: var(--exam-primary);
-      border-color: var(--exam-primary);
-    }
+    .timer-pill{ padding:.48rem .95rem; border-radius:999px; font-weight:700; font-size:.92rem; background: var(--exam-primary); color:#fff; display:flex; align-items:center; gap:.55rem; box-shadow: 0 10px 18px rgba(0,0,0,.08); user-select:none; }
+    .exam-card{ background: var(--exam-surface); border: 1px solid var(--exam-line); border-radius: 16px; box-shadow: 0 10px 30px rgba(15,23,42,.08); }
+    .exam-card-slim{ background: var(--exam-surface); border: 1px solid var(--exam-line); border-radius: 16px; box-shadow: 0 6px 18px rgba(15,23,42,.05); }
+    .btn{ border-radius:.85rem; font-weight:700; padding:.7rem 1rem; }
+    .btn-primary{ background: var(--exam-primary); border-color: var(--exam-primary); }
     .btn-primary:hover{ filter: brightness(.97); }
-    .btn-light{
-      background: var(--exam-surface);
-      border: 1px solid var(--exam-line);
-      color: #334155;
-      font-weight: 700;
-    }
+    .btn-light{ background: var(--exam-surface); border: 1px solid var(--exam-line); color: #334155; font-weight: 700; }
     .btn-light:hover{ background: var(--exam-hover); }
-
-    .nav-grid{
-      display:grid;
-      grid-template-columns: repeat(6, 1fr);
-      gap:.5rem;
-    }
-    @media (max-width: 576px){
-      .nav-grid{ grid-template-columns: repeat(8, 1fr); }
-    }
+    .nav-grid{ display:grid; grid-template-columns: repeat(6, 1fr); gap:.5rem; }
+    @media (max-width: 576px){ .nav-grid{ grid-template-columns: repeat(8, 1fr); } }
     @media (min-width: 992px){
       .col-fixed-260{ flex:0 0 260px; max-width:260px; }
       .nav-grid{ grid-template-columns: repeat(5, 1fr); }
     }
-
     .nav-btn{
-      width:38px; height:38px;
-      border-radius:999px;
-      border:1px solid var(--exam-line);
-      background: var(--exam-surface);
-      font-size:.84rem;
-      font-weight:800;
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      transition: all .16s ease;
+      width:38px; height:38px; border-radius:999px; border:1px solid var(--exam-line);
+      background: var(--exam-surface); font-size:.84rem; font-weight:800;
+      display:flex; align-items:center; justify-content:center;
+      transition: all .10s ease;
+      cursor:pointer;
     }
     .nav-btn:hover{ background: var(--exam-hover); }
-    .nav-btn.current{
-      background: var(--exam-accent);
-      border-color: var(--exam-accent);
-      color:#fff;
-      box-shadow: 0 0 0 2px rgba(79,70,229,.15);
-    }
-    .nav-btn.answered{
-      background: var(--exam-success);
-      border-color: var(--exam-success);
-      color:#fff;
-    }
-    .nav-btn.review{
-      background: var(--exam-warn);
-      border-color: var(--exam-warn);
-      color:#111827;
-    }
+    .nav-btn.current{ background: var(--exam-accent); border-color: var(--exam-accent); color:#fff; box-shadow: 0 0 0 2px rgba(79,70,229,.15); }
+    .nav-btn.answered{ background: var(--exam-success); border-color: var(--exam-success); color:#111827; }
+    .nav-btn.review{ background: var(--exam-warn); border-color: var(--exam-warn); color:#111827; }
     .nav-btn.visited{ background: var(--exam-hover); }
-
-    .w3-progress{
-      height:10px;
-      border-radius:999px;
-      background: var(--exam-line-soft);
-      overflow:hidden;
-    }
-    .w3-progress > div{
-      height:100%;
-      width:0%;
-      background: var(--exam-accent);
-      transition: width .2s ease;
-    }
-
-    /* question */
-    .q-title{
-      font-family: Poppins, Inter, system-ui, sans-serif;
-      font-weight: 700;
-      font-size: 1.03rem;
-      line-height: 1.35;
-    }
-    .q-meta{
-      font-size:.84rem;
-      color: var(--exam-muted);
-      display:flex;
-      align-items:center;
-      flex-wrap: wrap;
-      gap:.45rem;
-    }
-    .q-badge{
-      font-size:.72rem;
-      padding:.18rem .6rem;
-      border-radius:999px;
-      background: color-mix(in oklab, var(--exam-accent) 10%, transparent);
-      border: 1px solid color-mix(in oklab, var(--exam-accent) 25%, transparent);
-      color: var(--exam-accent);
-      font-weight: 800;
-    }
-
-    /* option */
-    .opt{
-      border-radius: 12px;
-      border: 1px solid var(--exam-line-soft);
-      padding: .65rem .75rem;
-      margin-bottom: .42rem;
-      background: var(--exam-surface);
-      cursor: pointer;
-      transition: background .16s ease, border-color .16s ease, box-shadow .16s ease;
-    }
-    .opt:hover{
-      background: var(--exam-hover);
-      border-color: color-mix(in oklab, var(--exam-accent) 45%, var(--exam-line-soft));
-      box-shadow: 0 10px 18px rgba(15,23,42,.06);
-    }
+    .w3-progress{ height:10px; border-radius:999px; background: var(--exam-line-soft); overflow:hidden; }
+    .w3-progress > div{ height:100%; width:0%; background: var(--exam-accent); transition: width .2s ease; }
+    .q-title{ font-family: Poppins, Inter, system-ui, sans-serif; font-weight: 700; font-size: 1.03rem; line-height: 1.35; }
+    .q-meta{ font-size:.84rem; color: var(--exam-muted); display:flex; align-items:center; flex-wrap: wrap; gap:.45rem; }
+    .q-badge{ font-size:.72rem; padding:.18rem .6rem; border-radius:999px; background: color-mix(in oklab, var(--exam-accent) 10%, transparent); border: 1px solid color-mix(in oklab, var(--exam-accent) 25%, transparent); color: var(--exam-accent); font-weight: 800; }
+    .opt{ border-radius: 12px; border: 1px solid var(--exam-line-soft); padding: .65rem .75rem; margin-bottom: .42rem; background: var(--exam-surface); cursor: pointer; transition: background .12s ease, border-color .12s ease, box-shadow .12s ease; }
+    .opt:hover{ background: var(--exam-hover); border-color: color-mix(in oklab, var(--exam-accent) 45%, var(--exam-line-soft)); box-shadow: 0 10px 18px rgba(15,23,42,.06); }
     .opt input.form-check-input{ margin-top: 0; }
     .opt .form-check-label{ cursor:pointer; font-weight: 650; font-size: .94rem; }
-
-    /* FIB */
-    .fib-underline{
-      display:inline-block;
-      min-width:90px;
-      border-bottom:2px solid #cbd5e1;
-      margin: 0 .22rem .18rem .22rem;
-    }
-    .fib-fields .form-control{
-      height:40px;
-      border-radius:10px;
-    }
-
-    /* skeleton */
-    .skeleton{
-      position:relative;
-      overflow:hidden;
-      background: var(--exam-line-soft);
-      border-radius: 10px;
-    }
-    .skeleton::after{
-      content:"";
-      position:absolute;
-      inset:0;
-      transform: translateX(-100%);
-      background: linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,.55) 50%, rgba(255,255,255,0) 100%);
-      animation: shimmer 1.2s infinite;
-    }
+    .fib-underline{ display:inline-block; min-width:90px; border-bottom:2px solid #cbd5e1; margin: 0 .22rem .18rem .22rem; }
+    .fib-fields .form-control{ height:40px; border-radius:10px; }
+    .skeleton{ position:relative; overflow:hidden; background: var(--exam-line-soft); border-radius: 10px; }
+    .skeleton::after{ content:""; position:absolute; inset:0; transform: translateX(-100%); background: linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,.55) 50%, rgba(255,255,255,0) 100%); animation: shimmer 1.2s infinite; }
     @keyframes shimmer{ 100% { transform: translateX(100%); } }
-
-    /* MathJax sizing + overflow fixes (prevents clipping) */
     mjx-container[display="block"]{ display:block !important; margin:.45rem 0; }
     mjx-container{ max-width:100%; overflow-x:auto; overflow-y:hidden; }
-    mjx-container svg, .mjx-chtml svg{ vertical-align: middle; }
   </style>
 </head>
 
 <body>
-  {{-- Top --}}
+  {{-- ✅ Overlay used ONLY for first load / refresh --}}
+  @include('partials.overlay')
+
   <header class="exam-topbar sticky-top">
     <div class="container-xxl py-3 d-flex align-items-center justify-content-between">
       <div class="d-flex align-items-center gap-2">
@@ -280,7 +126,6 @@
 
   <main class="container-xxl py-4">
     <div class="row g-3 g-lg-4">
-      {{-- Navigator --}}
       <aside class="col-12 col-lg-3 col-fixed-260">
         <div class="exam-card-slim p-3">
           <div class="d-flex align-items-center justify-content-between mb-2">
@@ -309,19 +154,9 @@
               <span class="spinner-border spinner-border-sm me-1"></span>Submitting…
             </span>
           </button>
-
-          <div class="mt-3 small text-muted">
-            <div class="d-flex flex-wrap gap-2">
-              <span><span class="legend-dot d-inline-block rounded-circle me-1" style="width:10px;height:10px;background:var(--exam-accent)"></span>Current</span>
-              <span><span class="legend-dot d-inline-block rounded-circle me-1" style="width:10px;height:10px;background:var(--exam-success)"></span>Answered</span>
-              <span><span class="legend-dot d-inline-block rounded-circle me-1" style="width:10px;height:10px;background:var(--exam-warn)"></span>Marked</span>
-              <span><span class="legend-dot d-inline-block rounded-circle me-1" style="width:10px;height:10px;background:var(--exam-hover); border:1px solid var(--exam-line)"></span>Visited</span>
-            </div>
-          </div>
         </div>
       </aside>
 
-      {{-- Question --}}
       <section class="col-12 col-lg">
         <div id="question-wrap" class="exam-card p-4">
           <div id="q-skeleton">
@@ -334,10 +169,7 @@
 
         <div class="mt-3 d-flex flex-wrap gap-2 justify-content-center">
           <button id="prev-btn" class="btn btn-light" disabled>
-            <span class="lbl"><i class="fa-solid fa-arrow-left me-2"></i>Previous</span>
-            <span class="spin d-none">
-              <span class="spinner-border spinner-border-sm me-2"></span>Loading
-            </span>
+            <i class="fa-solid fa-arrow-left me-2"></i>Previous
           </button>
 
           <button id="review-btn" class="btn btn-light">
@@ -345,10 +177,7 @@
           </button>
 
           <button id="next-btn" class="btn btn-primary">
-            <span class="lbl">Next<i class="fa-solid fa-arrow-right ms-2"></i></span>
-            <span class="spin d-none">
-              <span class="spinner-border spinner-border-sm me-2"></span>Saving
-            </span>
+            Next<i class="fa-solid fa-arrow-right ms-2"></i>
           </button>
         </div>
       </section>
@@ -365,13 +194,8 @@ function typeset(el){
       return window.MathJax?.typesetPromise ? MathJax.typesetPromise([el]) : null;
     } catch (e) { console.warn('MathJax typeset error:', e); }
   };
-
-  if (window.MathJax?.startup?.promise) {
-    MathJax.startup.promise.then(run);
-  } else {
-    const s = document.getElementById('MathJax-script');
-    if (s) s.addEventListener('load', run, { once:true });
-  }
+  if (window.MathJax?.startup?.promise) MathJax.startup.promise.then(run);
+  else document.getElementById('MathJax-script')?.addEventListener('load', run, { once:true });
 }
 
 /* ================= Globals ================= */
@@ -389,12 +213,15 @@ const BATCH_KEY =
   || new URLSearchParams(location.search).get('batch') || '';
 
 const EXAM_SCOPE  = BATCH_KEY ? `${QUIZ_KEY}::${BATCH_KEY}` : QUIZ_KEY;
+
 const STORAGE_KEY = 'attempt_uuid:' + EXAM_SCOPE;
+const CACHE_KEY   = 'exam_cache:' + EXAM_SCOPE;
+const TIME_KEY    = 'exam_time:' + EXAM_SCOPE;
 
 let ATTEMPT_UUID = localStorage.getItem(STORAGE_KEY) || null;
 
 let questions = [];
-let selections = {}; // qid -> int | int[] | string | string[]
+let selections = {};
 let reviews = {};
 let visited = {};
 let currentIndex = 0;
@@ -402,20 +229,36 @@ let currentIndex = 0;
 let timeLeft = 0;
 let timerHandle = null;
 let isSubmitting = false;
-let navLock = false;
-let qStartedAt = null; // local millis when current question focus started
 
-/* ================= Guardrails ================= */
-document.addEventListener('DOMContentLoaded', () => {
-  if (!QUIZ_KEY) {
-    Swal.fire({icon:'error', title:'Missing quiz key', text:'No quiz id/uuid provided.'})
-      .then(() => history.back());
-  }
-  if (!token) {
-    Swal.fire({icon:'error', title:'Not authenticated', text:'Please log in again.'})
-      .then(() => window.location.href = '/login');
-  }
-});
+let qStartedAt = null;
+let currentQid = null;
+let timeSpentMap = {};
+let SUBMITTED_OK = false;
+
+/* ================= Overlay Helpers (partials.overlay) ================= */
+function getOverlayEl(){
+  return document.getElementById('overlay')
+    || document.getElementById('overlayLoading')
+    || document.getElementById('pageOverlay')
+    || document.querySelector('.overlay')
+    || document.querySelector('.overlay-loading')
+    || document.querySelector('[data-overlay="loading"]')
+    || null;
+}
+function showOverlay(){
+  const el = getOverlayEl();
+  if (!el) return;
+  el.classList.remove('d-none');
+  el.style.display = '';
+  el.setAttribute('aria-hidden', 'false');
+}
+function hideOverlay(){
+  const el = getOverlayEl();
+  if (!el) return;
+  el.classList.add('d-none');
+  el.style.display = 'none';
+  el.setAttribute('aria-hidden', 'true');
+}
 
 /* ================= Helpers ================= */
 async function api(path, opts={}){
@@ -445,7 +288,7 @@ const mmss = s => {
 };
 
 function startTimer(sec){
-  timeLeft = sec;
+  timeLeft = Math.max(0, Number(sec || 0));
   $('#time-left').textContent = mmss(timeLeft);
 
   if (timerHandle) clearInterval(timerHandle);
@@ -469,36 +312,20 @@ function typeLabel(t){
   return 'Single choice';
 }
 
-function setBtnLoading(selector, on){
-  const b = $(selector);
-  if (!b) return;
-  b.disabled = !!on;
-  b.querySelector('.lbl')?.classList.toggle('d-none', !!on);
-  b.querySelector('.spin')?.classList.toggle('d-none', !on);
-}
-
 function showSkeleton(on=true){
   $('#q-skeleton')?.classList.toggle('d-none', !on);
 }
 
-/* LaTeX issues commonly happen because delimiters are double-escaped.
-   Normalize only delimiter patterns (safe), NOT all backslashes. */
 function normalizeTeXDelimiters(s){
   return String(s ?? '')
     .replace(/\\\\\[/g, '\\[').replace(/\\\\\]/g, '\\]')
     .replace(/\\\\\(/g, '\\(').replace(/\\\\\)/g, '\\)');
 }
 
-/* Lightweight sanitizer (client-side). For full security, sanitize server-side.
-   This removes script tags + inline on* handlers. */
 function safeHTML(html){
   const tpl = document.createElement('template');
   tpl.innerHTML = String(html ?? '');
-
-  // remove scripts
   tpl.content.querySelectorAll('script').forEach(n => n.remove());
-
-  // remove on* handlers and javascript: URLs
   tpl.content.querySelectorAll('*').forEach(el => {
     [...el.attributes].forEach(a => {
       const name = a.name.toLowerCase();
@@ -509,7 +336,6 @@ function safeHTML(html){
       }
     });
   });
-
   return tpl.innerHTML;
 }
 
@@ -525,17 +351,81 @@ function answeredVal(qid){
   return String(sel).trim() !== '';
 }
 
+function escapeHtml(str){
+  return (str ?? '').toString()
+    .replace(/&/g,'&amp;')
+    .replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;')
+    .replace(/'/g,'&#39;');
+}
+
+/* ================= Cache ================= */
+function loadCache(){
+  try{
+    const raw = localStorage.getItem(CACHE_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw);
+  }catch(e){ return null; }
+}
+function saveCache(){
+  try{
+    const payload = { selections, reviews, visited, currentIndex, saved_at: Date.now() };
+    localStorage.setItem(CACHE_KEY, JSON.stringify(payload));
+  }catch(e){}
+}
+function loadTimeCache(){
+  try{
+    const raw = localStorage.getItem(TIME_KEY);
+    if (!raw) return {};
+    const obj = JSON.parse(raw);
+    return obj && typeof obj === 'object' ? obj : {};
+  }catch(e){ return {}; }
+}
+function saveTimeCache(){
+  try{
+    localStorage.setItem(TIME_KEY, JSON.stringify(timeSpentMap || {}));
+  }catch(e){}
+}
+function clearAllCache(){
+  localStorage.removeItem(CACHE_KEY);
+  localStorage.removeItem(TIME_KEY);
+  localStorage.removeItem(STORAGE_KEY);
+}
+
+/* ================= Time Accounting ================= */
+function stopAndAccumulateTime(){
+  if (!currentQid || !qStartedAt) return;
+  const sec = Math.max(0, Math.round((Date.now() - qStartedAt) / 1000));
+  if (sec > 0){
+    const qid = String(currentQid);
+    timeSpentMap[qid] = (timeSpentMap[qid] || 0) + sec;
+    saveTimeCache();
+  }
+  qStartedAt = null;
+}
+
 /* ================= Boot ================= */
 document.addEventListener('DOMContentLoaded', init);
 
 async function init(){
+  // ✅ Overlay ONLY for first load / refresh
+  showOverlay();
+
   try{
+    const cached = loadCache();
+    if (cached) {
+      selections   = cached.selections || {};
+      reviews      = cached.reviews || {};
+      visited      = cached.visited || {};
+      currentIndex = Number.isFinite(cached.currentIndex) ? cached.currentIndex : 0;
+    }
+    timeSpentMap = loadTimeCache();
+
+    // API #1 (start)
     const started = await api('/api/exam/start', {
       method:'POST',
-      body: JSON.stringify({
-        quiz: QUIZ_KEY,
-        batch_quiz: BATCH_KEY || null
-      })
+      body: JSON.stringify({ quiz: QUIZ_KEY, batch_quiz: BATCH_KEY || null })
     });
 
     const attempt = started.attempt || {};
@@ -547,20 +437,28 @@ async function init(){
 
     startTimer(attempt.time_left_sec ?? attempt.total_time_sec ?? 0);
 
+    // API #2 (questions)
     await loadQuestions();
     buildNavigator();
     renderQuestion();
-    await focusQuestion(questions[0]?.question_id);
 
     $('#prev-btn').addEventListener('click', onPrev);
     $('#next-btn').addEventListener('click', onNext);
     $('#review-btn').addEventListener('click', onToggleReview);
     $('#submit-btn').addEventListener('click', () => doSubmit(false));
 
-    setInterval(syncStatus, 30000);
+    window.addEventListener('beforeunload', () => {
+      if (SUBMITTED_OK) return;
+      stopAndAccumulateTime();
+      saveCache();
+      saveTimeCache();
+    });
+
   }catch(e){
     console.error(e);
     Swal.fire({icon:'error', title:'Cannot start exam', text: e.message || 'Please try again.'});
+  }finally{
+    hideOverlay();
   }
 }
 
@@ -570,14 +468,12 @@ async function loadQuestions(){
 
   const data = await api(`/api/exam/attempts/${encodeURIComponent(ATTEMPT_UUID)}/questions`);
   questions  = data.questions || [];
-  selections = data.selections || {};
 
-  if (data.attempt && typeof data.attempt.time_left_sec === 'number') {
-    timeLeft = data.attempt.time_left_sec;
-    $('#time-left').textContent = mmss(timeLeft);
-  }
+  const serverSelections = data.selections || {};
+  Object.keys(serverSelections).forEach(k => {
+    if (selections[k] == null) selections[k] = serverSelections[k];
+  });
 
-  // Normalize FIB selections to array
   questions.forEach(q => {
     if (String(q.question_type).toLowerCase() === 'fill_in_the_blank') {
       const cur = selections[q.question_id];
@@ -589,9 +485,14 @@ async function loadQuestions(){
     }
   });
 
+  if (currentIndex < 0) currentIndex = 0;
+  if (currentIndex >= questions.length) currentIndex = 0;
+
   $('#progress-total').textContent = String(questions.length);
   updateProgress();
   showSkeleton(false);
+
+  saveCache();
 }
 
 /* ================= Nav / Progress ================= */
@@ -604,27 +505,27 @@ function buildNavigator(){
     b.type = 'button';
     b.className = 'nav-btn';
     b.textContent = String(idx+1);
-    b.setAttribute('aria-label', `Go to question ${idx+1}`);
-    b.addEventListener('click', async () => {
-      if (navLock) return;
-      try{
-        navLock = true;
-        await saveCurrent();
-        currentIndex = idx;
-        renderQuestion();
-        await focusQuestion(q.question_id);
-      } finally { navLock = false; }
-    });
+
+    b.addEventListener('click', () => goToIndexInstant(idx));
     grid.appendChild(b);
   });
 
   refreshNav();
 }
 
+function goToIndexInstant(idx){
+  stopAndAccumulateTime();
+  saveCache();
+
+  currentIndex = idx;
+  renderQuestion();
+}
+
 function refreshNav(){
   const grid = $('#nav-grid').children;
   questions.forEach((q, idx) => {
     const btn = grid[idx];
+    if (!btn) return;
     btn.className = 'nav-btn';
     if (idx === currentIndex) btn.classList.add('current');
     else if (reviews[q.question_id]) btn.classList.add('review');
@@ -696,7 +597,6 @@ function renderQuestion(){
     }
     html += `
         </div>
-        <div class="form-text">Enter each blank separately. Answers are case-insensitive.</div>
       </div>`;
   } else {
     (q.answers || []).forEach(a => {
@@ -721,33 +621,26 @@ function renderQuestion(){
   html += `</div>`;
   wrap.innerHTML = html;
 
-  // typeset ONLY the question container
   typeset(wrap);
 
-  // local-only handlers
   if (rawType === 'fill_in_the_blank') {
     $$('#options input[data-fib-index]').forEach(inp => {
       inp.addEventListener('input', () => {
         selections[q.question_id] = $$('#options input[data-fib-index]').map(i => i.value || '');
-        updateProgress(); refreshNav();
-      });
-      inp.addEventListener('blur', () => {
-        selections[q.question_id] = $$('#options input[data-fib-index]').map(i => i.value || '');
-        updateProgress(); refreshNav();
+        saveCache(); updateProgress(); refreshNav();
       });
     });
   } else {
     $$('#options input').forEach(inp => {
       inp.addEventListener('change', () => {
         selections[q.question_id] = collectSelectionFor(q);
-        updateProgress(); refreshNav();
+        saveCache(); updateProgress(); refreshNav();
       });
     });
   }
 
-  // controls
   $('#prev-btn').disabled = currentIndex === 0;
-  $('#next-btn .lbl').innerHTML =
+  $('#next-btn').innerHTML =
     (currentIndex < questions.length - 1)
       ? `Next<i class="fa-solid fa-arrow-right ms-2"></i>`
       : `Submit<i class="fa-solid fa-paper-plane ms-2"></i>`;
@@ -758,6 +651,11 @@ function renderQuestion(){
 
   refreshNav();
   updateProgress();
+
+  // time tracking local only
+  stopAndAccumulateTime();
+  currentQid  = q.question_id;
+  qStartedAt  = Date.now();
 }
 
 function countGaps(q){
@@ -773,7 +671,6 @@ function countGaps(q){
 function collectSelectionFor(q){
   const multi = !!q.has_multiple_correct_answer;
   const type  = String(q.question_type || '').toLowerCase();
-
   if (type === 'fill_in_the_blank') {
     return $$('#options input[data-fib-index]').map(i => i.value || '');
   }
@@ -781,105 +678,43 @@ function collectSelectionFor(q){
   return multi ? checked : (checked[0] ?? null);
 }
 
-/* ================= Focus + Save ================= */
-async function focusQuestion(questionId){
-  if (!questionId) return;
-  try{
-    const res = await api(`/api/exam/attempts/${encodeURIComponent(ATTEMPT_UUID)}/focus`, {
-      method:'POST',
-      body: JSON.stringify({ question_id: Number(questionId) })
-    });
-
-    if (res?.attempt && typeof res.attempt.time_left_sec === 'number') {
-      timeLeft = res.attempt.time_left_sec;
-      $('#time-left').textContent = mmss(timeLeft);
-    }
-
-    qStartedAt = Date.now();
-  }catch(e){
-    console.warn('focus failed:', e.message);
-    if ((e.message||'').toLowerCase().includes('time over')) await doSubmit(true);
-  }
+/* ================= Prev/Next ================= */
+function onPrev(){
+  if (currentIndex > 0) goToIndexInstant(currentIndex - 1);
 }
-
-async function saveCurrent(){
-  const q = questions[currentIndex];
-  if (!q) return;
-
-  const selected = collectSelectionFor(q);
-
-  // time slice since last focus
-  let timeSpent = 0;
-  if (qStartedAt) {
-    timeSpent = Math.max(1, Math.round((Date.now() - qStartedAt) / 1000));
-  }
-
-  try{
-    await api(`/api/exam/attempts/${encodeURIComponent(ATTEMPT_UUID)}/answer`, {
-      method:'POST',
-      body: JSON.stringify({
-        question_id: Number(q.question_id),
-        selected: selected ?? null,
-        time_spent: timeSpent
-      })
-    });
-
-    selections[q.question_id] = selected ?? null;
-
-    // IMPORTANT: reset local timer so we don't double-count time on repeated saves
-    qStartedAt = null;
-
-  }catch(e){
-    console.warn('saveCurrent failed:', e.message);
-    if ((e.message||'').toLowerCase().includes('time over')) await doSubmit(true);
-  }
+function onNext(){
+  if (currentIndex < questions.length - 1) goToIndexInstant(currentIndex + 1);
+  else doSubmit(false);
 }
-
-/* ================= Nav Buttons ================= */
-async function onPrev(){
-  if (navLock) return;
-  setBtnLoading('#prev-btn', true);
-  try{
-    navLock = true;
-    await saveCurrent();
-    if (currentIndex > 0) {
-      currentIndex--;
-      renderQuestion();
-      await focusQuestion(questions[currentIndex].question_id);
-    }
-  }finally{
-    setBtnLoading('#prev-btn', false);
-    navLock = false;
-  }
-}
-
-async function onNext(){
-  if (navLock) return;
-  setBtnLoading('#next-btn', true);
-  try{
-    navLock = true;
-    await saveCurrent();
-    if (currentIndex < questions.length - 1) {
-      currentIndex++;
-      renderQuestion();
-      await focusQuestion(questions[currentIndex].question_id);
-    } else {
-      await doSubmit(false);
-    }
-  }finally{
-    setBtnLoading('#next-btn', false);
-    navLock = false;
-  }
-}
-
 function onToggleReview(){
   const q = questions[currentIndex];
   if (!q) return;
   reviews[q.question_id] = !reviews[q.question_id];
+  saveCache();
   renderQuestion();
 }
 
-/* ================= Submit ================= */
+/* ================= Build Bulk Payload ================= */
+function buildBulkPayload(){
+  const payload = [];
+  questions.forEach(q => {
+    const qid = Number(q.question_id);
+    const selected = selections[q.question_id] ?? null;
+
+    let normalized = selected;
+    if (Array.isArray(normalized) && normalized.filter(v => String(v).trim() !== '').length === 0) normalized = null;
+    if (!Array.isArray(normalized) && (normalized === '' || normalized === undefined)) normalized = null;
+
+    payload.push({
+      question_id: qid,
+      selected: normalized,
+      time_spent_sec: Number(timeSpentMap[String(q.question_id)] || 0)
+    });
+  });
+  return payload;
+}
+
+/* ================= Submit (Swal only, NO overlay) ================= */
 async function doSubmit(auto){
   if (isSubmitting) return;
 
@@ -892,6 +727,23 @@ async function doSubmit(auto){
       confirmButtonText:'Submit'
     })).isConfirmed;
     if (!ok) return;
+
+    Swal.fire({
+      title: 'Submitting your answers…',
+      text: 'Please wait',
+      allowOutsideClick: false,
+      allowEscapeKey: false,
+      didOpen: () => Swal.showLoading()
+    });
+  } else {
+    // auto submit => show small loading too
+    Swal.fire({
+      title: 'Time over',
+      text: 'Submitting…',
+      allowOutsideClick: false,
+      allowEscapeKey: false,
+      didOpen: () => Swal.showLoading()
+    });
   }
 
   try{
@@ -901,70 +753,52 @@ async function doSubmit(auto){
     $('#submit-btn .btn-label').classList.add('d-none');
     $('#submit-btn .btn-spinner').classList.remove('d-none');
 
-    await saveCurrent();
+    stopAndAccumulateTime();
+    saveCache();
+    saveTimeCache();
 
-    const res = await api(`/api/exam/attempts/${encodeURIComponent(ATTEMPT_UUID)}/submit`, {
+    // API #1 submit bulk
+    const answersPayload = buildBulkPayload();
+    await api(`/api/exam/attempts/${encodeURIComponent(ATTEMPT_UUID)}/bulk-answer`, {
+      method:'POST',
+      body: JSON.stringify({ answers: answersPayload })
+    });
+
+    // API #2 final submit
+    await api(`/api/exam/attempts/${encodeURIComponent(ATTEMPT_UUID)}/submit`, {
       method:'POST'
     });
 
     if (timerHandle) clearInterval(timerHandle);
 
-    const result = res.result || null;
-    if (result && (result.publish_to_student || result.publish_to_student === 1)) {
-      await Swal.fire({
-        icon:'success',
-        title:'Submitted',
-        html:`<div class="text-start">
-          <div><b>Marks:</b> ${result.marks_obtained}/${result.total_marks}</div>
-          <div><b>Percentage:</b> ${result.percentage}%</div>
-        </div>`
-      });
-    } else {
-      await Swal.fire({
-        icon:'success',
-        title:'Submitted',
-        text:'Your attempt has been submitted. Results will be released later.'
-      });
-    }
+    Swal.close();
 
-    localStorage.removeItem(STORAGE_KEY);
+    await Swal.fire({
+      icon:'success',
+      title:'Submitted',
+      text:'Your exam has been submitted.'
+    });
+
+    SUBMITTED_OK = true;
+    clearAllCache();
 
     const role = sessionStorage.getItem('role') || 'student';
-    window.location.href = `/${role}/dashboard`;
+    window.location.replace(`/${role}/dashboard`);
+
   }catch(e){
     console.error(e);
-    Swal.fire({icon:'error', title:'Submit failed', text: e.message || 'Please try again.'});
+    Swal.close();
+    Swal.fire({
+      icon:'error',
+      title:'Submit failed',
+      text: e.message || 'Please try again.'
+    });
   }finally{
     isSubmitting = false;
     $('#submit-btn').disabled = false;
     $('#submit-btn .btn-label').classList.remove('d-none');
     $('#submit-btn .btn-spinner').classList.add('d-none');
   }
-}
-
-/* ================= Status Sync ================= */
-async function syncStatus(){
-  try{
-    if (!ATTEMPT_UUID) return;
-    const s = await api(`/api/exam/attempts/${encodeURIComponent(ATTEMPT_UUID)}/status`);
-    if (s.attempt) {
-      timeLeft = Number(s.attempt.time_left_sec ?? timeLeft);
-      $('#time-left').textContent = mmss(timeLeft);
-      if ((s.attempt.status || '') !== 'in_progress') {
-        await doSubmit(true);
-      }
-    }
-  }catch(e){ /* silent */ }
-}
-
-/* ================= Utils ================= */
-function escapeHtml(str){
-  return (str ?? '').toString()
-    .replace(/&/g,'&amp;')
-    .replace(/</g,'&lt;')
-    .replace(/>/g,'&gt;')
-    .replace(/"/g,'&quot;')
-    .replace(/'/g,'&#39;');
 }
 </script>
 </body>

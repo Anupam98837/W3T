@@ -545,123 +545,85 @@ public function unassign(Request $r, $batch, string $questionUuid)
     }
 }
 
-    /**
-     * GET /api/batches/{batch}/coding-questions/{questionUuid}/my-attempts
-     * Student-only: returns attempt list for result dropdown.
-     */
-    public function myAttempts(Request $r, $batch, string $questionUuid)
-    {
-        [$mapTable, $questionTable, $attemptTable] = $this->detectTables();
-        if (!$attemptTable) {
-            return response()->json(['ok' => true, 'attempts' => []]); // no attempts table detected
-        }
+ public function myAttempts(Request $r, $batch, string $questionUuid)
+{
+    [$mapTable, $questionTable, $attemptTable] = $this->detectTables();
+    if (!$attemptTable) {
+        return response()->json(['ok' => true, 'attempts' => []]);
+    }
 
-        $actor = $this->actor($r);
-        $role  = strtolower($actor['role'] ?? '');
-        $uid   = (int)($actor['id'] ?? 0);
+    $actor = $this->actor($r);
+    $role  = strtolower($actor['role'] ?? '');
+    $uid   = (int)($actor['id'] ?? 0);
 
-        if ($role !== 'student') {
-            return response()->json(['ok' => false, 'error' => 'Forbidden'], 403);
-        }
+    if ($role !== 'student') {
+        return response()->json(['ok' => false, 'error' => 'Forbidden'], 403);
+    }
 
-        $batchId = $this->resolveBatchId($batch);
-        if ($batchId <= 0 && is_numeric($batch)) $batchId = (int)$batch;
-        if ($batchId <= 0) return response()->json(['ok' => false, 'error' => 'Batch not found/invalid.'], 404);
+    $batchId = $this->resolveBatchId($batch);
+    if ($batchId <= 0 && is_numeric($batch)) $batchId = (int)$batch;
+    if ($batchId <= 0) {
+        return response()->json(['ok' => false, 'error' => 'Batch not found'], 404);
+    }
 
-        // Ensure question is assigned to this batch (best effort)
-        if ($mapTable && $questionTable) {
-            [$mapQCol] = $this->detectQuestionFkCols($mapTable, $questionTable);
-            $mapBatchCol = $this->detectBatchFkCol($mapTable);
-            if ($mapQCol && $mapBatchCol) {
-                // choose correct comparison value
-                $mapStoresId = preg_match('/_id$/', $mapQCol);
+    [$userCol, $qCol, $attBatchCol, $attUuidCol, $statusCol, $startedCol, $submittedCol, $createdCol]
+        = $this->detectAttemptCols($attemptTable);
 
-                // resolve id if map stores id
-                $questionId = null;
-                if ($mapStoresId) {
-                    $questionId = DB::table($questionTable)
-                        ->where('uuid', $questionUuid)
-                        ->when($this->tableHasColumn($questionTable, 'deleted_at'), fn($q) => $q->whereNull('deleted_at'))
-                        ->value('id');
+    if (!$userCol || !$qCol) {
+        return response()->json(['ok' => true, 'attempts' => []]);
+    }
 
-                    if (!$questionId) {
-                        return response()->json(['ok' => false, 'error' => 'Question not found.'], 404);
-                    }
-                }
-
-                $assigned = DB::table($mapTable)
-                    ->where($mapBatchCol, $batchId)
-                    ->where($mapQCol, $mapStoresId ? $questionId : $questionUuid);
-
-                if ($this->tableHasColumn($mapTable, 'deleted_at')) $assigned->whereNull('deleted_at');
-                if (!$assigned->exists()) {
-                    return response()->json(['ok' => false, 'error' => 'Not assigned to this batch.'], 404);
-                }
-            }
-        }
-
-        [$userCol, $qCol, $attBatchCol, $attUuidCol, $statusCol, $startedCol, $submittedCol, $createdCol] = $this->detectAttemptCols($attemptTable);
-
-        if (!$userCol || !$qCol) {
+    // Resolve question id if attempts table stores numeric FK
+    $attemptQuestionValue = $questionUuid;
+    if (preg_match('/_id$/', $qCol)) {
+        $qid = DB::table($questionTable)->where('uuid', $questionUuid)->value('id');
+        if (!$qid) {
             return response()->json(['ok' => true, 'attempts' => []]);
         }
-
-        // Use question identifier expected by attempts table (could be uuid or id)
-        $attemptQuestionValue = $questionUuid;
-        if ($qCol && preg_match('/_id$/', $qCol)) {
-            // attempts table expects numeric id
-            $resolvedQid = DB::table($questionTable)
-                ->where('uuid', $questionUuid)
-                ->when($this->tableHasColumn($questionTable, 'deleted_at'), fn($q) => $q->whereNull('deleted_at'))
-                ->value('id');
-
-            if (!$resolvedQid) return response()->json(['ok' => true, 'attempts' => []]);
-            $attemptQuestionValue = $resolvedQid;
-        }
-
-        $q = DB::table($attemptTable)->where($userCol, $uid)->where($qCol, $attemptQuestionValue);
-        if ($attBatchCol) $q->where($attBatchCol, $batchId);
-
-        // Soft delete safe
-        if ($this->tableHasColumn($attemptTable, 'deleted_at')) $q->whereNull('deleted_at');
-
-        // Select columns
-        $sel = [];
-        if ($attUuidCol) $sel[] = $attUuidCol . ' as attempt_key';
-        if ($this->tableHasColumn($attemptTable, 'id')) $sel[] = 'id';
-        if ($statusCol) $sel[] = "$statusCol as status";
-        if ($startedCol) $sel[] = "$startedCol as started_at";
-        if ($submittedCol) $sel[] = "$submittedCol as submitted_at";
-        if ($createdCol) $sel[] = "$createdCol as created_at";
-
-        // attempt number if exists
-        if ($this->tableHasColumn($attemptTable, 'attempt_no')) $sel[] = 'attempt_no';
-
-        if (empty($sel)) $sel = ['*'];
-
-        $rows = $q->select($sel)->orderBy($createdCol ?: ($submittedCol ?: ($startedCol ?: 'id')), 'desc')->get();
-
-        $attempts = [];
-        $i = 0;
-        foreach ($rows as $row) {
-            $i++;
-            $key = $row->attempt_key ?? ($row->uuid ?? ($row->id ?? null));
-            if (!$key) continue;
-
-            $attemptNo = isset($row->attempt_no) ? (int)$row->attempt_no : $i;
-
-            $attempts[] = [
-                'attempt_key'  => (string)$key,
-                'attempt_no'   => $attemptNo,
-                'status'       => $row->status ?? null,
-                'started_at'   => $row->started_at ?? null,
-                'submitted_at' => $row->submitted_at ?? null,
-                'created_at'   => $row->created_at ?? null,
-                // Your UI can open this page (you can implement route/view)
-                'view_url'     => url('/coding-tests/results/' . $key),
-            ];
-        }
-
-        return response()->json(['ok' => true, 'attempts' => $attempts]);
+        $attemptQuestionValue = $qid;
     }
+
+    $rows = DB::table($attemptTable . ' as a')
+        ->leftJoin('coding_results as r', 'r.attempt_id', '=', 'a.id')
+        ->where('a.' . $userCol, $uid)
+        ->where('a.' . $qCol, $attemptQuestionValue)
+        ->when($attBatchCol, fn($q) => $q->where('a.' . $attBatchCol, $batchId))
+        ->when(
+            $this->tableHasColumn($attemptTable, 'deleted_at'),
+            fn($q) => $q->whereNull('a.deleted_at')
+        )
+        // 🔥 FIX: order oldest → newest so numbering is correct
+        ->orderBy($createdCol ?: 'a.id', 'asc')
+        ->get([
+            'a.id',
+            'a.' . $attUuidCol . ' as attempt_uuid',
+            'r.uuid as result_uuid',
+            $statusCol ? 'a.' . $statusCol . ' as status' : DB::raw('NULL as status'),
+            $submittedCol ? 'a.' . $submittedCol . ' as submitted_at' : DB::raw('NULL as submitted_at'),
+            $createdCol ? 'a.' . $createdCol . ' as created_at' : DB::raw('NULL as created_at'),
+        ]);
+
+    $attempts = [];
+    $i = 0;
+
+    foreach ($rows as $row) {
+        $i++;
+        $attempts[] = [
+            'attempt_uuid' => (string)$row->attempt_uuid,
+            'attempt_no'   => $i, // ✅ now matches actual attempt
+            'status'       => $row->status,
+            'submitted_at' => $row->submitted_at,
+            'result_uuid'  => $row->result_uuid,
+            'view_url'     => $row->result_uuid
+                ? url('/coding/results/' . $row->result_uuid . '/view')
+                : null,
+        ];
+    }
+
+    return response()->json([
+        'ok'       => true,
+        'attempts' => $attempts
+    ]);
+}
+
 }

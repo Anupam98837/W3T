@@ -566,9 +566,9 @@
     <div class="modal-content">
       <div class="modal-header">
         <h5 class="modal-title"><i class="fa fa-code me-2"></i>Assign Coding Questions</h5>
-        <a id="cq_add_btn" href="/admin/coding-questions/create" class="btn btn-primary btn-sm ms-auto">
+        <!-- <a id="cq_add_btn" href="/admin/coding-questions/create" class="btn btn-primary btn-sm ms-auto">
           <i class="fa fa-plus me-1"></i> Add Coding Question
-        </a>
+        </a> -->
         <button type="button" class="btn-close ms-2" data-bs-dismiss="modal"></button>
       </div>
  

@@ -33,6 +33,7 @@ use App\Http\Controllers\API\PrivacyPolicyController;
 use App\Http\Controllers\API\RefundPolicyController;
 use App\Http\Controllers\API\AboutUsController;
 use App\Http\Controllers\API\ContactUsController;
+use App\Http\Controllers\API\CodingResultController;
 
  
 // Auth Routes
@@ -366,7 +367,7 @@ Route::middleware(['checkRole:student,admin'])->prefix('exam')->group(function (
     Route::get('/results/{resultId}/export', [ExamController::class, 'export']);
  
 });
- 
+ Route::post('/exam/attempts/{attempt}/bulk-answer', [ExamController::class, 'bulkAnswer']);
 // printable answer sheet (usually admin/instructor; expose as needed)
 Route::middleware(['checkRole:admin,instructor,super_admin'])->get(
     '/exam/results/{id}/answer-sheet',
@@ -610,15 +611,15 @@ Route::middleware(['checkRole:superadmin,admin,instructor,student'])->group(func
  
     Route::prefix('judge')->group(function () {
         Route::post('/start',   [JudgeController::class, 'start']);
-        Route::post('/execute', [JudgeController::class, 'run']);
+        Route::post('/run', [JudgeController::class, 'run']);
         Route::post('/submit',  [JudgeController::class, 'submit']);
     });
- 
+         Route::get('batches/{batch}/coding-questions/{questionUuid}/my-attempts', [BatchCodingQuestionController::class, 'myAttempts']);
+                 Route::get('batches/{batch}/coding-questions',                  [BatchCodingQuestionController::class, 'index']);
+
     Route::prefix('batches/{batch}/coding-questions')->group(function () {
-        Route::get('/',                  [BatchCodingQuestionController::class, 'index']);
         Route::post('/assign',           [BatchCodingQuestionController::class, 'assign']);
         Route::delete('/{questionUuid}', [BatchCodingQuestionController::class, 'unassign']);
-        Route::get('/{questionUuid}/my-attempts', [BatchCodingQuestionController::class, 'myAttempts']);
     });
  
 });
@@ -672,3 +673,11 @@ Route::get('/contact-us/{id}', [ContactUsController::class, 'show']);
 Route::delete('/contact-us/{id}', [ContactUsController::class, 'destroy']);
 Route::get('/contact-us/export/csv', [ContactUsController::class, 'exportCsv']);
 Route::patch('/contact-us/{id}/read', [ContactUsController::class, 'markAsRead']);
+//coding results
+Route::get('/coding/results', [CodingResultController::class, 'myResults']);
+Route::get('/coding/results/attempt/{uuid}', [CodingResultController::class, 'byAttempt']);
+Route::get('/coding/results/{resultUuid}/details', [CodingResultController::class, 'detail']);
+Route::get(
+  '/batches/{batch}/coding-questions/{question}/allstudent-results',
+  [CodingResultController::class, 'AllStudentResults']
+);
