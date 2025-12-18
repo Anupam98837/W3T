@@ -516,15 +516,6 @@
       <button id="ctRefresh" class="ct-btn ct-btn-ghost" type="button">
         <i class="fa-solid fa-rotate"></i><span>Refresh</span>
       </button>
-
-      <!-- Added Assign button (top-right) -->
-      <button id="ctAssignBtn"
-              class="ct-btn ct-btn-primary"
-              type="button"
-              style="display:none; margin-left:8px;">
-        <i class="fa-solid fa-plus"></i>
-        <span>Assign Coding Test</span>
-      </button>
     </div>
   </div>
 
@@ -685,33 +676,29 @@
   const $adminModal = el('ctAdminResultsModal');
   const $adminPart  = el('ctAdminParticipated');
   const $adminNot   = el('ctAdminNotParticipated');
+const getMyRole = async token => {
+  if (!token) return '';
 
-  // Assign button (added integration)
-  const $assignBtn = el('ctAssignBtn');
-
-  const getMyRole = async token => {
-    if (!token) return '';
-
-    try {
-      const res = await fetch('/api/auth/my-role', {
-        method: 'GET',
-        headers: {
-          'Authorization': 'Bearer ' + token,
-          'Accept': 'application/json'
-        }
-      });
-
-      if (!res.ok) return '';
-
-      const data = await res.json().catch(() => null);
-
-      if (data?.status === 'success' && data?.role) {
-        return String(data.role).trim().toLowerCase();
+  try {
+    const res = await fetch('/api/auth/my-role', {
+      method: 'GET',
+      headers: {
+        'Authorization': 'Bearer ' + token,
+        'Accept': 'application/json'
       }
-    } catch (e) {}
+    });
 
-    return '';
-  };
+    if (!res.ok) return '';
+
+    const data = await res.json().catch(() => null);
+
+    if (data?.status === 'success' && data?.role) {
+      return String(data.role).trim().toLowerCase();
+    }
+  } catch (e) {}
+
+  return '';
+};
 
   function openAttemptsModal(uuid){
     $attemptsModal.style.display = 'grid';
@@ -813,34 +800,34 @@
     // student attempts (array OR count)
     let attemptsUsed = 0;
 
-    // If attempts array exists → take highest attempt_no
-    const arr =
-      q?.my_attempts ||
-      q?.attempts ||
-      [];
+// If attempts array exists → take highest attempt_no
+const arr =
+  q?.my_attempts ||
+  q?.attempts ||
+  [];
 
-    if (Array.isArray(arr) && arr.length) {
-      attemptsUsed = Math.max(
-        ...arr.map(a => Number(a?.attempt_no || 0))
-      );
-    } else {
-      // fallback if API gives last_attempt_no directly
-      attemptsUsed = Number(
-        q?.last_attempt_no ??
-        q?.attempt_no ??
-        0
-      );
-    }
+if (Array.isArray(arr) && arr.length) {
+  attemptsUsed = Math.max(
+    ...arr.map(a => Number(a?.attempt_no || 0))
+  );
+} else {
+  // fallback if API gives last_attempt_no directly
+  attemptsUsed = Number(
+    q?.last_attempt_no ??
+    q?.attempt_no ??
+    0
+  );
+}
 
     // assignment limit
     // assignment limit (AUTHORITATIVE)
-    const maxAttempts = Number(
-      q?.attempt_allowed ??
-      q?.max_attempts ??
-      q?.allowed_attempts ??
-      q?.attempt_limit ??
-      1
-    ) || 1;
+const maxAttempts = Number(
+  q?.attempt_allowed ??
+  q?.max_attempts ??
+  q?.allowed_attempts ??
+  q?.attempt_limit ??
+  1
+) || 1;
 
 
     return {
@@ -881,87 +868,52 @@
   }
 
   function attemptsCell(q){
-    const max  = Math.max(1, Number(q.maxAttempts));
-    const used = Math.max(0, Number(q.attemptsCount || 0));
-    const left = Math.max(0, max - used);
-    console.log(used);
-    if(CAN_MANAGE){
-      return `
-        <div class="ct-attemptBox">
-          <input class="ct-num" type="number" min="1" max="999"
-                 value="${max}"
-                 data-act="attempts-input"
-                 data-uuid="${esc(q.uuid)}"
-                 aria-label="Max attempts">
-          <span class="ct-tlbl">max</span>
-        </div>
-      `;
-    }
-
+  const max  = Math.max(1, Number(q.maxAttempts));
+  const used = Math.max(0, Number(q.attemptsCount || 0));
+  const left = Math.max(0, max - used);
+  if(CAN_MANAGE){
     return `
       <div class="ct-attemptBox">
-        <div class="ct-num">${left} / ${max}</div>
-        <span class="ct-tlbl">left</span>
+        <input class="ct-num" type="number" min="1" max="999"
+               value="${max}"
+               data-act="attempts-input"
+               data-uuid="${esc(q.uuid)}"
+               aria-label="Max attempts">
+        <span class="ct-tlbl">max</span>
       </div>
     `;
   }
 
-  function actionsCell(q){
+  return `
+    <div class="ct-attemptBox">
+      <div class="ct-num">${left} / ${max}</div>
+      <span class="ct-tlbl">left</span>
+    </div>
+  `;
+}
 
-    /* =========================================================
-       PRIVILEGED USERS (CAN_MANAGE === true)
-       ========================================================= */
-    if (CAN_MANAGE) {
-      const on  = q.assigned ? 'on' : '';
-      const lbl = q.assigned ? 'Assigned' : 'Unassigned';
+function actionsCell(q){
 
-      return `
-        <div style="display:flex;justify-content:flex-end;gap:8px;align-items:center;">
-          
-          <div class="ct-toggle">
-            <div class="ct-switch ${on}"
-                 role="switch"
-                 tabindex="0"
-                 aria-checked="${q.assigned ? 'true' : 'false'}"
-                 data-act="toggle-assign"
-                 data-uuid="${esc(q.uuid)}">
-            </div>
-            <div class="ct-tlbl">${esc(lbl)}</div>
-          </div>
+  /* =========================================================
+     PRIVILEGED USERS (CAN_MANAGE === true)
+     ========================================================= */
+  if (CAN_MANAGE) {
+    const on  = q.assigned ? 'on' : '';
+    const lbl = q.assigned ? 'Assigned' : 'Unassigned';
 
-          <div class="ct-dropdown">
-            <button class="ct-dropdown-toggle"
-                    type="button"
-                    data-act="toggle-dropdown"
-                    data-uuid="${esc(q.uuid)}">
-              <i class="fa-solid fa-ellipsis-vertical"></i>
-            </button>
-
-            <div class="ct-dropdown-menu" data-uuid="${esc(q.uuid)}">
-              <button class="ct-dropdown-item"
-                      type="button"
-                      data-act="open-admin-results"
-                      data-uuid="${esc(q.uuid)}">
-                <i class="fa-solid fa-chart-bar"></i> Results
-              </button>
-            </div>
-          </div>
-        </div>
-      `;
-    }
-
-    /* =========================================================
-       NON-PRIVILEGED USERS (NO RESTRICTIONS)
-       ========================================================= */
     return `
       <div style="display:flex;justify-content:flex-end;gap:8px;align-items:center;">
         
-        <button class="ct-btn ct-btn-primary"
-                type="button"
-                data-act="start"
-                data-uuid="${esc(q.uuid)}">
-          <i class="fa-solid fa-play"></i> Start
-        </button>
+        <div class="ct-toggle">
+          <div class="ct-switch ${on}"
+               role="switch"
+               tabindex="0"
+               aria-checked="${q.assigned ? 'true' : 'false'}"
+               data-act="toggle-assign"
+               data-uuid="${esc(q.uuid)}">
+          </div>
+          <div class="ct-tlbl">${esc(lbl)}</div>
+        </div>
 
         <div class="ct-dropdown">
           <button class="ct-dropdown-toggle"
@@ -974,15 +926,49 @@
           <div class="ct-dropdown-menu" data-uuid="${esc(q.uuid)}">
             <button class="ct-dropdown-item"
                     type="button"
-                    data-act="open-attempts-modal"
+                    data-act="open-admin-results"
                     data-uuid="${esc(q.uuid)}">
-              <i class="fa-solid fa-list-check"></i> My Results
+              <i class="fa-solid fa-chart-bar"></i> Results
             </button>
           </div>
         </div>
       </div>
     `;
   }
+
+  /* =========================================================
+     NON-PRIVILEGED USERS (NO RESTRICTIONS)
+     ========================================================= */
+  return `
+    <div style="display:flex;justify-content:flex-end;gap:8px;align-items:center;">
+      
+      <button class="ct-btn ct-btn-primary"
+              type="button"
+              data-act="start"
+              data-uuid="${esc(q.uuid)}">
+        <i class="fa-solid fa-play"></i> Start
+      </button>
+
+      <div class="ct-dropdown">
+        <button class="ct-dropdown-toggle"
+                type="button"
+                data-act="toggle-dropdown"
+                data-uuid="${esc(q.uuid)}">
+          <i class="fa-solid fa-ellipsis-vertical"></i>
+        </button>
+
+        <div class="ct-dropdown-menu" data-uuid="${esc(q.uuid)}">
+          <button class="ct-dropdown-item"
+                  type="button"
+                  data-act="open-attempts-modal"
+                  data-uuid="${esc(q.uuid)}">
+            <i class="fa-solid fa-list-check"></i> My Results
+          </button>
+        </div>
+      </div>
+    </div>
+  `;
+}
 
   function rowHTML(q){
     return `
@@ -1153,84 +1139,84 @@
 
   function renderAttemptsModal(attempts, questionTitle){
 
-    // ✅ IMPORTANT: sort attempts by real attempt_no
-    attempts = Array.isArray(attempts)
-      ? [...attempts].sort(
-          (a, b) => (a.attempt_no ?? 0) - (b.attempt_no ?? 0)
-        )
-      : [];
+  // ✅ IMPORTANT: sort attempts by real attempt_no
+  attempts = Array.isArray(attempts)
+    ? [...attempts].sort(
+        (a, b) => (a.attempt_no ?? 0) - (b.attempt_no ?? 0)
+      )
+    : [];
 
-    // ✅ Empty state
-    if(!attempts.length){
-      $attemptsBody.innerHTML = `
-        <div class="ct-empty">
-          <div class="ct-empty-ico"><i class="fa-regular fa-folder-open"></i></div>
-          <div class="ct-empty-t">No attempts found</div>
-          <div class="ct-empty-d">You haven't attempted this question yet.</div>
-        </div>`;
-      return;
-    }
-
-    // ✅ Render
+  // ✅ Empty state
+  if(!attempts.length){
     $attemptsBody.innerHTML = `
-      <div class="ct-attempts-header">
-        <h4>${esc(questionTitle)}</h4>
-        <div class="ct-attempts-count">Total attempts: ${attempts.length}</div>
-      </div>
+      <div class="ct-empty">
+        <div class="ct-empty-ico"><i class="fa-regular fa-folder-open"></i></div>
+        <div class="ct-empty-t">No attempts found</div>
+        <div class="ct-empty-d">You haven't attempted this question yet.</div>
+      </div>`;
+    return;
+  }
 
-      <div class="ct-attempts-list">
-        ${attempts.map(a => {
-          const resultUuid =
-            a?.result_uuid ||
-            a?.coding_result_uuid ||
-            a?.result?.uuid ||
-            '';
+  // ✅ Render
+  $attemptsBody.innerHTML = `
+    <div class="ct-attempts-header">
+      <h4>${esc(questionTitle)}</h4>
+      <div class="ct-attempts-count">Total attempts: ${attempts.length}</div>
+    </div>
 
-          const status = (a?.status || a?.verdict || '—').toUpperCase();
-          const time   = a?.submitted_at || a?.created_at || '';
-          const score  = a?.score ?? a?.marks ?? a?.points ?? '';
-          const maxScore = a?.max_score ?? a?.total_marks ?? '';
+    <div class="ct-attempts-list">
+      ${attempts.map(a => {
+        const resultUuid =
+          a?.result_uuid ||
+          a?.coding_result_uuid ||
+          a?.result?.uuid ||
+          '';
 
-          let statusClass = '';
-          if (['PASS','PASSED','SUCCESS'].includes(status)) statusClass = 'pass';
-          else if (['FAIL','FAILED','WRONG'].includes(status)) statusClass = 'fail';
+        const status = (a?.status || a?.verdict || '—').toUpperCase();
+        const time   = a?.submitted_at || a?.created_at || '';
+        const score  = a?.score ?? a?.marks ?? a?.points ?? '';
+        const maxScore = a?.max_score ?? a?.total_marks ?? '';
 
-          return `
-            <div class="ct-attempt-item">
-              <div class="ct-attempt-info">
-                <div class="ct-attempt-number">
-                  <strong>Attempt #${a.attempt_no}</strong>
-                </div>
-                <div class="ct-attempt-meta">
-                  ${time ? new Date(time).toLocaleString() : ''}
-                </div>
+        let statusClass = '';
+        if (['PASS','PASSED','SUCCESS'].includes(status)) statusClass = 'pass';
+        else if (['FAIL','FAILED','WRONG'].includes(status)) statusClass = 'fail';
+
+        return `
+          <div class="ct-attempt-item">
+            <div class="ct-attempt-info">
+              <div class="ct-attempt-number">
+                <strong>Attempt #${a.attempt_no}</strong>
               </div>
-
-              <div class="ct-attempt-details">
-                ${score !== '' ? `
-                  <div class="ct-attempt-score">
-                    Score: ${score}${maxScore ? `/${maxScore}` : ''}
-                  </div>
-                ` : ''}
-
-                <div class="ct-attempt-status ${statusClass}">
-                  ${status}
-                </div>
-
-                ${resultUuid ? `
-                  <a class="ct-btn ct-btn-primary ct-btn-sm"
-                     href="/coding/results/${encodeURIComponent(resultUuid)}/view"
-                     target="_blank">
-                    View Result
-                  </a>
-                ` : ''}
+              <div class="ct-attempt-meta">
+                ${time ? new Date(time).toLocaleString() : ''}
               </div>
             </div>
-          `;
-        }).join('')}
-      </div>
-    `;
-  }
+
+            <div class="ct-attempt-details">
+              ${score !== '' ? `
+                <div class="ct-attempt-score">
+                  Score: ${score}${maxScore ? `/${maxScore}` : ''}
+                </div>
+              ` : ''}
+
+              <div class="ct-attempt-status ${statusClass}">
+                ${status}
+              </div>
+
+              ${resultUuid ? `
+                <a class="ct-btn ct-btn-primary ct-btn-sm"
+                   href="/coding/results/${encodeURIComponent(resultUuid)}/view"
+                   target="_blank">
+                  View Result
+                </a>
+              ` : ''}
+            </div>
+          </div>
+        `;
+      }).join('')}
+    </div>
+  `;
+}
 
   async function loadQuestionAttempts(uuid){
     try {
@@ -1274,24 +1260,19 @@
 
     try{
       // ✅ 1. Fetch real role from auth (authoritative)
-      const myRole = await getMyRole(token);
+const myRole = await getMyRole(token);
 
-      // ✅ 2. Load batch questions
-      RAW = await api(`/batches/${encodeURIComponent(BATCH_ID)}/coding-questions`, {
-        method: 'GET'
-      });
+// ✅ 2. Load batch questions
+RAW = await api(`/batches/${encodeURIComponent(BATCH_ID)}/coding-questions`, {
+  method: 'GET'
+});
 
-      // ✅ 3. Decide role (auth role > API role)
-      ROLE = myRole || detectRole(RAW);
-      console.log('[CodingTests]', { ROLE, CAN_MANAGE });
+// ✅ 3. Decide role (auth role > API role)
+ROLE = myRole || detectRole(RAW);
+console.log('[CodingTests]', { ROLE, CAN_MANAGE });
 
-      // ✅ 4. Decide permissions
-      CAN_MANAGE = ['admin', 'superadmin', 'instructor'].includes(ROLE);
-
-      // Show/hide assign button
-      if ($assignBtn) {
-        $assignBtn.style.display = CAN_MANAGE ? 'inline-flex' : 'none';
-      }
+// ✅ 4. Decide permissions
+CAN_MANAGE = ['admin', 'superadmin', 'instructor'].includes(ROLE);
 
       const arr = pickArray(RAW);
       LIST = Array.isArray(arr) ? arr.map(normalizeQuestion) : [];
@@ -1360,11 +1341,6 @@
     window.location.href = url.toString();
   }
 
-  // Listen for events dispatched by assign modal to refresh list
-  window.addEventListener('codingQuestionsAssigned', ()=> {
-    try { loadIndex(); } catch(e) { /* ignore */ }
-  });
-
   // Tab switching for admin modal
   document.addEventListener('click', (e) => {
     const tab = e.target.closest('.ct-tab');
@@ -1391,14 +1367,6 @@
   $refresh.addEventListener('click', loadIndex);
   $search.addEventListener('input', applyFilters);
   $diff.addEventListener('change', applyFilters);
-
-  // Wire assign button (calls openCodingQuestions when clicked)
-  if ($assignBtn) {
-    $assignBtn.addEventListener('click', () => {
-      // openCodingQuestions is defined in assign modal script (global)
-      try { openCodingQuestions(BATCH_ID); } catch (e) { console.error(e); }
-    });
-  }
 
   // Delegate clicks
   root.addEventListener('click', async (e)=>{
@@ -1521,411 +1489,4 @@
   // Initialize
   loadIndex();
 })();
-</script>
-
-{{-- ================= Assign Coding Questions (modal) ================= --}}
-<div class="modal fade" id="codingQuestionsModal" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog modal-xl modal-dialog-scrollable">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title"><i class="fa fa-code me-2"></i>Assign Coding Questions</h5>
-        <a id="cq_add_btn" href="/admin/coding-questions/create" class="btn btn-primary btn-sm ms-auto">
-          <i class="fa fa-plus me-1"></i> Add Coding Question
-        </a>
-        <button type="button" class="btn-close ms-2" data-bs-dismiss="modal"></button>
-      </div>
- 
-      <div class="modal-body">
-        <div class="d-flex align-items-center justify-content-between mstab-head mb-3">
-          <div class="left-tools d-flex align-items-center gap-2 flex-wrap">
-            <input id="cq_q" class="form-control" style="width:260px" placeholder="Search by title/difficulty…">
-            <label class="text-muted small mb-0">Per page</label>
-            <select id="cq_per" class="form-select" style="width:90px">
-              <option>10</option><option selected>20</option><option>30</option><option>50</option>
-            </select>
- 
-            <label class="text-muted small mb-0">Assigned</label>
-            <select id="cq_assigned" class="form-select" style="width:150px">
-              <option value="all" selected>All</option>
-              <option value="assigned">Assigned</option>
-              <option value="unassigned">Unassigned</option>
-            </select>
- 
-            <button id="cq_apply" class="btn btn-primary">
-              <i class="fa fa-check me-1"></i>Apply
-            </button>
-          </div>
- 
-          <div class="text-muted small" id="cq_meta">—</div>
-        </div>
- 
-        <div class="table-responsive">
-          <table class="table table-hover align-middle st-table mb-0">
-            <thead>
-  <tr>
-    <th>Title</th>
-    <th style="width:120px;">Difficulty</th>
-    <th style="width:140px;" class="text-center">Max Attempts</th>
-    <th style="width:220px;" class="text-center">Batch Attempts</th>
-    <th class="text-center" style="width:110px;">Assign</th>
-  </tr>
-</thead>
- 
- 
-            <tbody id="cq_rows">
-              <tr id="cq_loader" style="display:none;">
-                <td colspan="5" class="p-3">
-                  <div class="placeholder-wave">
-                    <div class="placeholder col-12 mb-2" style="height:16px;"></div>
-                    <div class="placeholder col-12 mb-2" style="height:16px;"></div>
-                    <div class="placeholder col-12 mb-2" style="height:16px;"></div>
-                  </div>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
- 
-        <div class="d-flex justify-content-end p-2">
-          <ul id="cq_pager" class="pagination mb-0"></ul>
-        </div>
-      </div>
- 
-      <div class="modal-footer">
-        <button class="btn btn-light" data-bs-dismiss="modal">Close</button>
-      </div>
-    </div>
-  </div>
-</div>
-<!-- /Assign modal -->
-
-<script>
-/* ================= CODING QUESTIONS (Assign Coding Question UI) ================= */
-const cq_q = document.getElementById('cq_q'),
-      cq_per = document.getElementById('cq_per'),
-      cq_apply = document.getElementById('cq_apply'),
-      cq_assigned = document.getElementById('cq_assigned'),
-      cq_rows = document.getElementById('cq_rows'),
-      cq_loader = document.getElementById('cq_loader'),
-      cq_meta = document.getElementById('cq_meta'),
-      cq_pager = document.getElementById('cq_pager');
-
-let codingQuestionsModal, cq_batch_key = null, cq_page = 1;
-
-// Ensure TOKEN is available for modal actions
-const TOKEN =
-  localStorage.getItem('token') ||
-  sessionStorage.getItem('token');
-
-function cqParams(){
-  const p = new URLSearchParams();
-  if (cq_q.value.trim()) p.set('q', cq_q.value.trim());
-  p.set('per_page', cq_per.value || 20);
-  p.set('page', cq_page);
-  if (cq_assigned.value === 'assigned') p.set('assigned', '1');
-  if (cq_assigned.value === 'unassigned') p.set('assigned', '0');
-  return p.toString();
-}
-
-function pickItems(j){
-  // supports: {data: []} OR {data:{data:[]}} OR {questions: []} OR {items:[]}
-  if (Array.isArray(j?.data)) return j.data;
-  if (Array.isArray(j?.data?.data)) return j.data.data;
-  if (Array.isArray(j?.questions)) return j.questions;
-  if (Array.isArray(j?.items)) return j.items;
-  return [];
-}
-function pickPagination(j, fallbackLen){
-  // supports: {pagination:{...}} OR {meta:{...}} OR paginator {data:{...}}
-  return j?.pagination || j?.meta || j?.data?.meta || {
-    current_page: 1,
-    per_page: Number(cq_per?.value || 20),
-    total: fallbackLen
-  };
-}
-
-function getQTitle(q){ return q?.title || q?.name || q?.question_title || 'Untitled'; }
-function getQDifficulty(q){ return (q?.difficulty || q?.level || '—').toString(); }
-function getQUuid(q){
-  return (q?.question_uuid
-    || q?.uuid
-    || q?.questionUuid
-    || q?.questionUUID
-    || q?.question_key
-    || q?.questionKey
-    || '').toString();
-}
-
-function getAssigned(q){
-  return !!(q?.assigned ?? q?.is_assigned ?? q?.assigned_to_batch ?? q?.assignedToBatch);
-}
-function getMaxAttempts(q){
-  return Number(q?.total_attempts ?? q?.max_attempts ?? q?.maxAttempts ?? q?.attempt_limit ?? 1) || 1;
-}
-function getAttemptAllowed(q){
-  const v = (q?.attempt_allowed ?? q?.allowed_attempts ?? q?.attemptAllowed ?? q?.attempts_allowed);
-  return (v === null || v === undefined || v === '') ? '' : Number(v);
-}
-function clampAttempts(v, hardMax){
-  const lim = Math.max(1, Math.min(50, Number(hardMax) || 1));
-  let n = parseInt(v, 10);
-  if (!Number.isFinite(n) || n < 1) n = lim;
-  if (n > lim) n = lim;
-  return n;
-}
-
-function openCodingQuestions(batchKey){
-  codingQuestionsModal = codingQuestionsModal || new bootstrap.Modal(document.getElementById('codingQuestionsModal'));
-  cq_batch_key = batchKey;
-  cq_page = 1;
-  cq_assigned.value = 'all';
-  codingQuestionsModal.show();
-  loadCodingQuestions();
-}
-
-cq_apply.addEventListener('click', ()=>{ cq_page = 1; loadCodingQuestions(); });
-cq_per.addEventListener('change', ()=>{ cq_page = 1; loadCodingQuestions(); });
-cq_assigned.addEventListener('change', ()=>{ cq_page = 1; loadCodingQuestions(); });
-
-let cqT;
-cq_q.addEventListener('input', ()=>{
-  clearTimeout(cqT);
-  cqT = setTimeout(()=>{ cq_page = 1; loadCodingQuestions(); }, 350);
-});
-
-async function assignCodingQuestion(batchKey, questionUuid, attemptAllowed, quiet=false){
-  const payload = {
-    // support multiple backend expectations safely
-    question_uuid: questionUuid,
-    questionUuid: questionUuid,
-    question_uuids: [questionUuid],
-    questionUuids: [questionUuid],
-
-    attempt_allowed: attemptAllowed,
-    attemptAllowed: attemptAllowed,
-    max_attempts: attemptAllowed,
-    allowed_attempts: attemptAllowed,
-
-    publish_to_students: 1,
-    assign_status: 1
-  };
-
-  const res = await fetch(`/api/batches/${encodeURIComponent(batchKey)}/coding-questions/assign`, {
-    method: 'POST',
-    headers: { 'Authorization':'Bearer '+TOKEN, 'Content-Type':'application/json', 'Accept':'application/json' },
-    body: JSON.stringify(payload)
-  });
-
-  const j = await res.json().catch(()=>({}));
-  if(!res.ok) throw new Error(j?.message || firstError(j) || 'Assign failed');
-  if(!quiet) ok('Coding question assigned');
-
-  // Notify main page to refresh list
-  if (typeof window !== 'undefined') {
-    try {
-      window.dispatchEvent(new CustomEvent('codingQuestionsAssigned', { detail: { questionUuid, assigned: true } }));
-    } catch(e) {}
-  }
-
-  return j;
-}
-
-async function unassignCodingQuestion(batchKey, questionUuid, quiet=false){
-  const res = await fetch(`/api/batches/${encodeURIComponent(batchKey)}/coding-questions/${encodeURIComponent(questionUuid)}`, {
-    method: 'DELETE',
-    headers: { 'Authorization':'Bearer '+TOKEN, 'Accept':'application/json' }
-  });
-
-  const j = await res.json().catch(()=>({}));
-  if(!res.ok) throw new Error(j?.message || firstError(j) || 'Unassign failed');
-  if(!quiet) ok('Coding question unassigned');
-
-  // Notify main page to refresh list
-  if (typeof window !== 'undefined') {
-    try {
-      window.dispatchEvent(new CustomEvent('codingQuestionsAssigned', { detail: { questionUuid, assigned: false } }));
-    } catch(e) {}
-  }
-
-  return j;
-}
-
-async function loadCodingQuestions(){
-  if(!cq_batch_key) return;
-
-  cq_loader.style.display = '';
-  cq_rows.querySelectorAll('tr:not(#cq_loader)').forEach(tr=>tr.remove());
-
-  try{
-    const res = await fetch(`/api/batches/${encodeURIComponent(cq_batch_key)}/coding-questions?mode=all&${cqParams()}`, {
-      headers: { 'Authorization': 'Bearer ' + TOKEN, 'Accept': 'application/json' }
-    });
-
-
-    const j = await res.json().catch(()=>({}));
-    if(!res.ok) throw new Error(j?.message || 'Failed to load coding questions');
-
-    const items = pickItems(j);
-    const pag   = pickPagination(j, items.length);
-
-    const frag = document.createDocumentFragment();
-
-    items.forEach(qn=>{
-      const qUuid = getQUuid(qn);
-      const assigned = getAssigned(qn);
-
-      const title = getQTitle(qn);
-      const diff  = getQDifficulty(qn);
-
-      const maxAttempts = getMaxAttempts(qn);
-      const limit = Math.min(50, maxAttempts);
-
-      let attemptAllowed = getAttemptAllowed(qn);
-      if (attemptAllowed === '') attemptAllowed = maxAttempts;
-      attemptAllowed = clampAttempts(attemptAllowed, limit);
-
-      const tr = document.createElement('tr');
-      tr.innerHTML = `
-        <td class="fw-semibold">${esc(title)}</td>
-        <td class="text-capitalize">${esc(diff)}</td>
-
-        <td class="text-center">
-          <span class="badge badge-info">${esc(maxAttempts)}</span>
-        </td>
-
-        <td class="text-center">
-          <input
-            class="form-control form-control-sm cq-attempt"
-            type="number"
-            min="1"
-            max="${esc(limit)}"
-            value="${esc(attemptAllowed)}"
-            style="width:120px; margin-inline:auto; text-align:center;"
-          >
-          <div class="small text-muted mt-1">1 — ${esc(limit)}</div>
-        </td>
-
-        <td class="text-center">
-          <div class="form-check form-switch d-inline-block">
-            <input
-              class="form-check-input cq-tg"
-              type="checkbox"
-              data-uuid="${esc(qUuid)}"
-              ${assigned ? 'checked' : ''}
-              ${qUuid ? '' : 'disabled'}
-            >
-          </div>
-        </td>
-      `;
-      frag.appendChild(tr);
-    });
-
-    cq_rows.appendChild(frag);
-
-    // Toggle assign/unassign
-    cq_rows.querySelectorAll('.cq-tg').forEach(ch=>{
-      ch.addEventListener('change', async ()=>{
-        const row = ch.closest('tr');
-        const attemptEl = row.querySelector('.cq-attempt');
-
-        const questionUuid = ch.dataset.uuid;
-        if(!questionUuid){
-          ch.checked = !ch.checked;
-          return err('Question UUID missing from API response (uuid/question_uuid not found).');
-        }
-
-        const wantAssigned = !!ch.checked;
-        const limit = Number(attemptEl.max || 1);
-        const attemptAllowed = clampAttempts(attemptEl.value, limit);
-        attemptEl.value = String(attemptAllowed);
-
-        ch.disabled = true;
-        // attemptEl.disabled = true;
-
-        try{
-          if(wantAssigned){
-            await assignCodingQuestion(cq_batch_key, questionUuid, attemptAllowed);
-          }else{
-            await unassignCodingQuestion(cq_batch_key, questionUuid);
-          }
-
-          if ((cq_assigned.value==='assigned' && !wantAssigned) ||
-              (cq_assigned.value==='unassigned' && wantAssigned)){
-            loadCodingQuestions();
-          }
-        }catch(e){
-          ch.checked = !wantAssigned;
-          err(e.message);
-        }finally{
-          ch.disabled = false;
-          attemptEl.disabled = false;
-        }
-      });
-    });
-
-    // Save attempts only if assigned
-    cq_rows.querySelectorAll('.cq-attempt').forEach(inp=>{
-      inp.addEventListener('blur', async ()=>{
-        const row = inp.closest('tr');
-        const ch  = row.querySelector('.cq-tg');
-        if(!ch )return;
-
-        const questionUuid = ch.dataset.uuid;
-        if(!questionUuid) return;
-
-        const limit = Number(inp.max || 1);
-        const attemptAllowed = clampAttempts(inp.value, limit);
-        inp.value = String(attemptAllowed);
-
-        try{
-          await assignCodingQuestion(cq_batch_key, questionUuid, attemptAllowed, true);
-          ok('Attempts updated');
-          // notify main page as well
-          if (typeof window !== 'undefined') {
-            try { window.dispatchEvent(new CustomEvent('codingQuestionsAssigned', { detail: { questionUuid, assigned: true } })); } catch(e) {}
-          }
-        }catch(e){
-          err(e.message || 'Failed to update attempts');
-        }
-      });
-    });
-
-    // Pagination
-    const total = Number(pag.total || items.length);
-    const per   = Number(pag.per_page || cq_per.value || 20);
-    const cur   = Number(pag.current_page || pag.page || 1);
-    const pages = Math.max(1, Math.ceil(total / per));
-
-    function li(dis, act, label, t){
-      return `<li class="page-item ${dis?'disabled':''} ${act?'active':''}">
-                <a class="page-link" href="javascript:void(0)" data-page="${t||''}">${label}</a>
-              </li>`;
-    }
-
-    let html='';
-    html += li(cur<=1,false,'Prev',cur-1);
-    const w=2, s=Math.max(1,cur-w), e=Math.min(pages,cur+w);
-    for(let i=s;i<=e;i++) html += li(false,i===cur,i,i);
-    html += li(cur>=pages,false,'Next',cur+1);
-
-    cq_pager.innerHTML = html;
-    cq_pager.querySelectorAll('a.page-link[data-page]').forEach(a=>{
-      a.addEventListener('click', ()=>{
-        const t = Number(a.dataset.page);
-        if(!t || t===cq_page) return;
-        cq_page = t;
-        loadCodingQuestions();
-      });
-    });
-
-    cq_meta.textContent = `Page ${cur} of ${pages} — ${total} coding question(s)`;
-
-  }catch(e){
-    console.error(e);
-    err(e.message || 'Failed to load coding questions');
-  }finally{
-    cq_loader.style.display = 'none';
-  }
-}
-/* end coding questions section */
 </script>
