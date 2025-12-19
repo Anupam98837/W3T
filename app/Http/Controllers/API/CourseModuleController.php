@@ -554,4 +554,62 @@ private function findModule(string $idOrUuid, bool $withTrashed = false)
             Log::warning('activity_log insert failed (non-fatal)', ['e' => $e]);
         }
     }
+    /**
+ * GET /api/course-modules/my
+ * Returns published course modules for the authenticated user
+ * (via enrolled batches → courses)
+ */
+public function myModules(Request $r)
+{
+    // 🔐 Get logged-in user
+    $actor = $this->actor($r);
+    if (!$actor['id']) {
+        return response()->json(['message' => 'Unauthorized'], 401);
+    }
+
+    try {
+        // ---- Step 1: Find course IDs via batch enrollment
+        $courseIds = DB::table('batch_students as bs')
+            ->join('batches as b', 'b.id', '=', 'bs.batch_id')
+            ->where('bs.user_id', $actor['id'])
+            ->whereNull('bs.deleted_at')
+            ->whereNull('b.deleted_at')
+            ->pluck('b.course_id')
+            ->unique()
+            ->values();
+
+        if ($courseIds->isEmpty()) {
+            return response()->json([
+                'user_id' => $actor['id'],
+                'data'    => [],
+            ]);
+        }
+
+        // ---- Step 2: Fetch published modules for those courses
+        $modules = DB::table('course_modules')
+            ->whereIn('course_id', $courseIds)
+            ->whereNull('deleted_at')
+            ->where('status', 'published')
+            ->orderBy('course_id')
+            ->orderBy('order_no')
+            ->get();
+
+        return response()->json([
+            'user_id' => $actor['id'],
+            'total'   => $modules->count(),
+            'data'    => $modules,
+        ]);
+
+    } catch (Throwable $e) {
+        Log::error('course_modules.myModules failed', [
+            'user_id' => $actor['id'],
+            'error'   => $e->getMessage(),
+        ]);
+
+        return response()->json([
+            'message' => 'Failed to fetch course modules'
+        ], 500);
+    }
+}
+
 }

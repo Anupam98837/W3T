@@ -1755,8 +1755,27 @@ html.theme-dark .as-fullscreen { background: rgba(0,0,0,0.9); }
 
   <script>
 /* ---------- AUTH + API HELPERS ---------- */
-const role = (sessionStorage.getItem('role') || localStorage.getItem('role') || '').toLowerCase();
+//const role = (sessionStorage.getItem('role') || localStorage.getItem('role') || '').toLowerCase();
+let role = '';
+
 const TOKEN = localStorage.getItem('token') || sessionStorage.getItem('token') || '';
+const getMyRole = async token => {
+  if (!token) return '';
+  const res = await fetch('/api/auth/my-role', {
+    method: 'GET',
+    headers: {
+      'Authorization': 'Bearer ' + token,
+      'Accept': 'application/json'
+    }
+  });
+  if (!res.ok) return '';
+  const data = await res.json().catch(() => null);
+  if (data?.status === 'success' && data?.role) {
+    return String(data.role).trim().toLowerCase();
+  }
+  return '';
+};
+
 const apiBase = '/api/assignments';
 const defaultHeaders = {
   'Authorization': TOKEN ? ('Bearer ' + TOKEN) : '',
@@ -1818,13 +1837,9 @@ function showAlert(message, type='error') { showAlertInModal(message, type); }
 
 // Robust role getter — reads storage and normalizes variants
 function getCurrentRole() {
-  const raw =
-    (typeof role !== 'undefined' && role) ||
-    sessionStorage.getItem('role') ||
-    localStorage.getItem('role') ||
-    '';
-  return String(raw).toLowerCase().trim();
+  return role;
 }
+
 
 /* ---------- fetch student-status and render ---------- */
 async function fetchStudentStatus(){
@@ -2371,7 +2386,9 @@ async function loadStudentDocuments(student){
                      (gradeRaw !== null && typeof gradeRaw !== 'undefined' && gradeRaw !== '') ||
                      (noteRaw !== null && typeof noteRaw !== 'undefined' && noteRaw !== '');
 
-    const viewLabel = graderRoles.includes(role) ? 'Given Marks' : 'View Marks';
+const viewLabel = graderRoles.includes(getCurrentRole())
+  ? 'Given Marks'
+  : 'View Marks';
 
     const viewMarksBtnHtml = hasMarks ? `
       <button class="view-marks-btn"
@@ -2827,14 +2844,31 @@ function openViewer(url, name){
 
 /* ---------- initial load ---------- */
 (async ()=>{
-  if (looksLikeUuid(window.__ASSIGNMENT_KEY__)) currentAssignment.uuid = window.__ASSIGNMENT_KEY__;
+  try {
+    role = await getMyRole(TOKEN);
+    console.log('[Resolved role]', role);
+  } catch (e) {
+    console.warn('Failed to fetch role', e);
+    role = '';
+  }
+
+  if (looksLikeUuid(window.__ASSIGNMENT_KEY__)) {
+    currentAssignment.uuid = window.__ASSIGNMENT_KEY__;
+  }
+
   await fetchStudentStatus();
+
   try {
     await fetchAssignmentDetails(currentAssignment.uuid || window.__ASSIGNMENT_KEY__);
-  } catch (e) { console.warn('fetchAssignmentDetails failed', e); }
+  } catch (e) {
+    console.warn('fetchAssignmentDetails failed', e);
+  }
+
+  // IMPORTANT: update role-based UI AFTER role is known
+  updateGiveMarksButton();
 
   if (!currentAssignment.uuid && studentsData.length) {
-    try { await loadStudentDocuments(studentsData[0]); } catch(e){ /* ignore */ }
+    try { await loadStudentDocuments(studentsData[0]); } catch(e){}
   }
 })();
 

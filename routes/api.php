@@ -72,8 +72,7 @@ Route::middleware(['checkRole:admin,super_admin'])->group(function () {
 });
  
  
- 
- 
+
 Route::middleware('checkRole:admin,super_admin,student,instructor')->group(function () {
     // Courses
     Route::get('/courses/cards', [CourseController::class, 'listCourseBatchCards']);
@@ -85,7 +84,8 @@ Route::middleware('checkRole:admin,super_admin,student,instructor')->group(funct
     Route::get('/courses/by-batch/{batch}/view', [CourseController::class, 'viewCourseByBatch']);
        Route::get ('/batches/{batch}/messages',  [BatchMessageController::class, 'index']);
 Route::post('/batches/{batch}/messages',  [BatchMessageController::class, 'store']);
- 
+    Route::get('/courses/my', [CourseController::class, 'myCourses']);
+
     // Featured media
     Route::get   ('/courses/{course}/media',           [CourseController::class, 'mediaIndex']);
     Route::post  ('/courses/{course}/media',           [CourseController::class, 'mediaUpload']);   // multipart OR JSON {url}
@@ -118,9 +118,12 @@ Route::middleware('checkRole:admin,super_admin')->group(function () {
     Route::put(   '/mailer/{id}/default',[MailerController::class, 'setDefault']);
     Route::delete('/mailer/{id}',        [MailerController::class, 'destroy']);
 });
- 
+Route::middleware('checkRole:admin,super_admin,student,instructor')->group(function () {
+ Route::get('/course-modules/my', [CourseModuleController::class, 'myModules']);
+});
 Route::middleware(['checkRole:admin,super_admin'])->group(function () {
     Route::get   ('/course-modules',                      [CourseModuleController::class, 'index']);
+    
     Route::get   ('/course-modules/bin',                  [CourseModuleController::class, 'bin']);              // NEW
     Route::get   ('/course-modules/{idOrUuid}',           [CourseModuleController::class, 'show']);
     Route::post  ('/course-modules',                      [CourseModuleController::class, 'store']);
@@ -149,7 +152,8 @@ Route::middleware('checkRole:admin,super_admin,instructor, student')->group(func
     Route::delete('/batches/{idOrUuid}',         [BatchController::class, 'destroy']);
     Route::post  ('/batches/{idOrUuid}/restore', [BatchController::class, 'restore']);
     Route::patch ('/batches/{idOrUuid}/archive', [BatchController::class, 'archive']);
- 
+    Route::get('/batches/my', [BatchController::class, 'myBatches']);
+
  
     /* ---------------------------
      *   STUDENT ROUTES
@@ -368,6 +372,7 @@ Route::middleware(['checkRole:student,admin'])->prefix('exam')->group(function (
  
 });
  Route::post('/exam/attempts/{attempt}/bulk-answer', [ExamController::class, 'bulkAnswer']);
+ Route::get('/test/quizz/{quiz}/questions', [ExamController::class, 'testQuizzQuestions']);
 // printable answer sheet (usually admin/instructor; expose as needed)
 Route::middleware(['checkRole:admin,instructor,super_admin'])->get(
     '/exam/results/{id}/answer-sheet',
@@ -682,3 +687,4 @@ Route::get(
   [CodingResultController::class, 'AllStudentResults']
 );
  Route::get('/coding/results/{resultUuid}/export',[CodingResultController::class, 'export']);
+

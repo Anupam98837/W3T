@@ -590,6 +590,11 @@ document.addEventListener('click', (e) => {
             <li><button class="dropdown-item" data-act="questions" data-key="${key}" data-name="${esc(r.quiz_name||'')}">
               <i class="fa fa-list-check"></i> View Questions
             </button></li>
+            <li>
+              <button class="dropdown-item" data-act="testrun" data-key="${key}" data-name="${esc(r.quiz_name||'')}">
+                <i class="fa-solid fa-vial"></i> Test Run
+              </button>
+            </li>
             <li><button class="dropdown-item" data-act="notes" data-key="${key}" data-name="${esc(r.quiz_name||'')}">
               <i class="fa fa-note-sticky"></i> Notes
             </button></li>
@@ -821,6 +826,13 @@ document.addEventListener('click', (e) => {
       openNotes(key, name);
       return;
     }
+    if (act === 'testrun') {
+      const url = `/test-exam/${encodeURIComponent(key)}`;
+      window.location.href = url;
+      return;
+    }
+
+
     if (act==='randomize'){
       openRandomModal(key, name);
       return;

@@ -59,6 +59,10 @@ Route::get('/exam/{quiz}', function (\Illuminate\Http\Request $r, $quiz) {
     // Pass the quiz key (uuid or id) to the view
     return view('modules.exam.exam', ['quizKey' => $quiz]);
 })->name('exam.take');
+Route::get('/test-exam/{quiz}', function (\Illuminate\Http\Request $r, $quiz) {
+    // Pass the quiz key (uuid or id) to the test exam view
+    return view('modules.exam.testExam', ['quizKey' => $quiz]);
+})->name('exam.test');
 // Super Admin Routes
 
 Route::get('super_admin/dashboard', function () {

@@ -252,10 +252,13 @@ class AssignmentController extends Controller
 
     return response()->json(['data' => $row]);
 }
-    /* STORE */
-    public function store(Request $r, $course = null)
+   /* STORE */
+public function store(Request $r, $course = null)
 {
-    if ($res = $this->requireRole($r, ['admin','super_admin','instructor'])) return $res;
+    if ($res = $this->requireRole($r, ['admin','super_admin','instructor'])) {
+        return $res;
+    }
+
     $actor = $this->actor($r);
 
     // If route passes course in URL, force that
@@ -263,19 +266,30 @@ class AssignmentController extends Controller
         $r->merge(['course_id' => (int)$course]);
     }
 
+    /* =========================
+       Validation
+       ========================= */
     $v = Validator::make($r->all(), [
         'course_id'         => 'required|integer|exists:courses,id',
         'course_module_id'  => 'required|integer|exists:course_modules,id',
         'batch_id'          => 'required|integer|exists:batches,id',
         'title'             => 'required|string|max:255',
-        // new: description instead of instruction (we map description -> instruction)
+
+        // description instead of instruction
         'description'       => 'nullable|string',
         'view_policy'       => 'nullable|in:inline_only,downloadable',
-        // Attachments (file uploads) — optional, multiple
+
+        // attachments
         'attachments.*'     => 'nullable|file|max:51200', // 50MB each
-        // Optional assignment-specific fields if you send them
+
+        // assignment options
         'status'            => 'nullable|in:draft,published,closed',
         'submission_type'   => 'nullable|in:file,link,text,code,mixed',
+
+        // ✅ IMPORTANT
+        'allowed_submission_types'   => 'nullable|array',
+        'allowed_submission_types.*' => 'string',
+
         'attempts_allowed'  => 'nullable|integer|min:0',
         'total_marks'       => 'nullable|numeric|min:0',
         'pass_marks'        => 'nullable|numeric|min:0',
@@ -297,11 +311,29 @@ class AssignmentController extends Controller
     $slug   = Str::slug($data['title']) ?: $uuid;
     $policy = $r->input('view_policy', 'inline_only');
 
-    // Build attachments using helper (handles uploaded files + library_urls, if any)
-    $stored = $this->appendFilesAndLibraryUrls($r, (int)$data['batch_id'], []);
+    /* =========================
+       ✅ Normalize allowed_submission_types
+       ========================= */
+    $allowedTypes = $r->input('allowed_submission_types');
+
+    $allowedTypes = (is_array($allowedTypes) && count($allowedTypes))
+        ? json_encode(array_values($allowedTypes), JSON_UNESCAPED_UNICODE)
+        : null;
+
+    /* =========================
+       Attachments
+       ========================= */
+    $stored = $this->appendFilesAndLibraryUrls(
+        $r,
+        (int)$data['batch_id'],
+        []
+    );
 
     $now = now();
 
+    /* =========================
+       Insert payload
+       ========================= */
     $insert = [
         'uuid'                  => $uuid,
         'course_id'             => (int)$data['course_id'],
@@ -309,11 +341,13 @@ class AssignmentController extends Controller
         'batch_id'              => (int)$data['batch_id'],
         'title'                 => $data['title'],
         'slug'                  => $slug,
-        // description -> instruction
         'instruction'           => $data['description'] ?? null,
         'status'                => $data['status'] ?? 'draft',
         'submission_type'       => $data['submission_type'] ?? 'file',
-        'allowed_submission_types' => null,
+
+        // ✅ FIXED (no more null override)
+        'allowed_submission_types' => $allowedTypes,
+
         'attempts_allowed'      => (int)($data['attempts_allowed'] ?? 1),
         'total_marks'           => isset($data['total_marks']) ? (float)$data['total_marks'] : 100.00,
         'pass_marks'            => isset($data['pass_marks']) ? (float)$data['pass_marks'] : null,
@@ -322,28 +356,31 @@ class AssignmentController extends Controller
         'end_at'                => $data['end_at'] ?? null,
         'allow_late'            => !empty($data['allow_late']) ? 1 : 0,
         'late_penalty_percent'  => isset($data['late_penalty_percent']) ? (float)$data['late_penalty_percent'] : null,
-        'attachments_json'      => $stored ? json_encode($stored, JSON_UNESCAPED_UNICODE) : json_encode([], JSON_UNESCAPED_UNICODE),
+        'attachments_json'      => $stored
+            ? json_encode($stored, JSON_UNESCAPED_UNICODE)
+            : json_encode([], JSON_UNESCAPED_UNICODE),
         'created_by'            => $actor['id'] ?: 0,
         'created_at'            => $now,
         'created_at_ip'         => $r->ip(),
         'updated_at'            => $now,
         'deleted_at'            => null,
-        // store view_policy inside metadata so you don’t need new DB column
-        'metadata'              => json_encode(['view_policy' => $policy], JSON_UNESCAPED_UNICODE),
+        'metadata'              => json_encode(
+            ['view_policy' => $policy],
+            JSON_UNESCAPED_UNICODE
+        ),
     ];
 
     $id = DB::table('assignments')->insertGetId($insert);
 
     return response()->json([
-        'status'      => 'success',
-        'message'     => 'Assignment created',
-        'data'        => array_merge($insert, [
-            'id'           => $id,
-            'attachments'  => $stored,
+        'status'  => 'success',
+        'message' => 'Assignment created',
+        'data'    => array_merge($insert, [
+            'id'          => $id,
+            'attachments' => $stored,
         ]),
     ], 201);
 }
-
 
    /* UPDATE */
 /**
@@ -819,12 +856,16 @@ public function viewAssignmentByBatch(Request $r, string $batchKey)
 public function storeByBatch(Request $r, string $batchKey)
 {
     if ($res = $this->requireRole($r, ['admin','super_admin','instructor'])) return $res;
+
     $actor = $this->actor($r);
     $role  = $actor['role'];
     $uid   = $actor['id'];
 
-    // resolve batch (id | uuid | slug)
+    /* =========================
+       Resolve batch
+       ========================= */
     $bq = DB::table('batches')->whereNull('deleted_at');
+
     if (ctype_digit($batchKey)) {
         $bq->where('id', (int)$batchKey);
     } elseif (\Illuminate\Support\Str::isUuid($batchKey)) {
@@ -834,87 +875,120 @@ public function storeByBatch(Request $r, string $batchKey)
     } else {
         return response()->json(['error' => 'Batch not found'], 404);
     }
-    $batch = $bq->first();
-    if (!$batch) return response()->json(['error' => 'Batch not found'], 404);
 
-    // If instructor, must be assigned to this batch
+    $batch = $bq->first();
+    if (!$batch) {
+        return response()->json(['error' => 'Batch not found'], 404);
+    }
+
+    /* =========================
+       Instructor access check
+       ========================= */
     if ($role === 'instructor') {
         $biUserCol = \Illuminate\Support\Facades\Schema::hasColumn('batch_instructors','user_id')
             ? 'user_id'
-            : (\Illuminate\Support\Facades\Schema::hasColumn('batch_instructors','instructor_id') ? 'instructor_id' : null);
+            : (\Illuminate\Support\Facades\Schema::hasColumn('batch_instructors','instructor_id')
+                ? 'instructor_id'
+                : null);
+
         if (!$biUserCol) {
-            return response()->json(['error'=>'Schema issue: batch_instructors needs user_id OR instructor_id'], 500);
+            return response()->json([
+                'error' => 'Schema issue: batch_instructors needs user_id OR instructor_id'
+            ], 500);
         }
+
         $assigned = DB::table('batch_instructors')
             ->where('batch_id', $batch->id)
             ->whereNull('deleted_at')
             ->where($biUserCol, $uid)
             ->exists();
-        if (!$assigned) return response()->json(['error' => 'Forbidden'], 403);
+
+        if (!$assigned) {
+            return response()->json(['error' => 'Forbidden'], 403);
+        }
     }
 
-    // infer course_id from batch (safer)
+    /* =========================
+       Infer course_id
+       ========================= */
     $courseId = (int) ($batch->course_id ?? 0);
 
-    // Resolve course_module_id:
+    /* =========================
+       Resolve course_module_id
+       ========================= */
     $moduleId = null;
+
     if ($r->filled('course_module_id')) {
         $module = DB::table('course_modules')
             ->where('id', (int)$r->input('course_module_id'))
             ->whereNull('deleted_at')
             ->first();
 
-        if ($module && (int)$module->course_id === $courseId) {
-            $moduleId = (int)$module->id;
-        } else {
+        if (!$module || (int)$module->course_id !== $courseId) {
             return response()->json([
                 'errors' => [
-                    'course_module_id' => ['Course module not found or does not belong to this batch\'s course']
+                    'course_module_id' => [
+                        'Course module not found or does not belong to this batch\'s course'
+                    ]
                 ]
             ], 422);
         }
+
+        $moduleId = (int)$module->id;
     } else {
-        // Try to infer module from the course associated with the batch
-        $modsQuery = DB::table('course_modules')
+        $modules = DB::table('course_modules')
             ->where('course_id', $courseId)
             ->whereNull('deleted_at')
             ->orderBy('order_no')
-            ->orderBy('id');
-
-        $modules = $modsQuery->get();
+            ->orderBy('id')
+            ->get();
 
         if ($modules->count() === 1) {
             $moduleId = (int)$modules->first()->id;
         } else {
-            // prefer a published module if any
             $published = $modules->firstWhere('status', 'published');
             if ($published) {
                 $moduleId = (int)$published->id;
+            } elseif ($modules->count() > 0) {
+                $moduleId = (int)$modules->first()->id;
             } else {
-                // fallback: pick first module if available
-                if ($modules->count() > 0) {
-                    $moduleId = (int)$modules->first()->id;
-                } else {
-                    // no module to infer — require explicit module from client
-                    return response()->json([
-                        'errors' => [
-                            'course_module_id' => ['Unable to infer course_module_id from batch — please provide course_module_id']
+                return response()->json([
+                    'errors' => [
+                        'course_module_id' => [
+                            'Unable to infer course_module_id from batch — please provide course_module_id'
                         ]
-                    ], 422);
-                }
+                    ]
+                ], 422);
             }
         }
     }
 
-    // merge batch/course/module into request so existing store() logic works
+    /* =========================
+       🔴 PRESERVE allowed_submission_types
+       ========================= */
+    $allowedTypes = $r->input('allowed_submission_types');
+
+    if (is_array($allowedTypes)) {
+        $allowedTypes = array_values(
+            array_filter($allowedTypes, fn ($v) => is_string($v) && $v !== '')
+        );
+    } else {
+        $allowedTypes = null;
+    }
+
+    /* =========================
+       Merge everything for store()
+       ========================= */
     $r->merge([
-        'batch_id'        => (int)$batch->id,
-        'course_id'       => $courseId,
-        'course_module_id'=> $moduleId,
+        'batch_id'                  => (int)$batch->id,
+        'course_id'                 => $courseId,
+        'course_module_id'          => $moduleId,
+        'allowed_submission_types'  => $allowedTypes,
     ]);
 
     return $this->store($r, $courseId);
 }
+
 
 /**
  * Bin (deleted items) by batch — admin/instructor (instructor must be assigned)

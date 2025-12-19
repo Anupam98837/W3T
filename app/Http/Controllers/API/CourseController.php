@@ -22,13 +22,15 @@ class CourseController extends Controller
      *  Auth/Role helpers (same style)
      * ========================= */
     private function actor(Request $request): array
-    {
-        return [
-            'role' => $request->attributes->get('auth_role'),
-            'type' => $request->attributes->get('auth_tokenable_type'),
-            'id'   => (int) ($request->attributes->get('auth_tokenable_id') ?? 0),
-        ];
-    }
+{
+    $id = $request->attributes->get('auth_tokenable_id');
+    
+    return [
+        'role' => $request->attributes->get('auth_role'),
+        'type' => $request->attributes->get('auth_tokenable_type'),
+        'id'   => $id !== null ? (int) $id : null,
+    ];
+}
 
     private function requireRole(Request $r, array $allowed)
     {
@@ -1565,5 +1567,187 @@ public function forceDestroy(Request $request, string $course)
 
     return response()->json(['status'=>'success','message'=>'Course permanently deleted']);
 }
+/**
+ * GET /api/courses/my
+ * Returns courses where the authenticated user
+ * is assigned to one or more batches
+ */
+public function myCourses(Request $r)
+{
+    // ---- Get actor details using the helper method for consistency
+    $a = $this->actor($r);
+    
+    $this->logWithActor('[Courses.myCourses] begin', $r);
+    
+    // ---- Validate actor has proper credentials
+    if (!$a['id'] || !$a['role']) {
+        Log::warning('[Courses.myCourses] Invalid actor credentials', [
+            'actor' => $a,
+            'ip' => $r->ip(),
+        ]);
+        return response()->json(['error' => 'Authentication required'], 401);
+    }
+    
+    $role = $a['role'];
+    $uid  = $a['id'];
+    $type = $a['type'];
 
+    // ---- Determine pivot table + user column
+    $pivotTable = null;
+    $userCol = null;
+    
+    if ($role === 'student') {
+        $pivotTable = 'batch_students';
+        $userCol    = Schema::hasColumn('batch_students','user_id')
+                        ? 'user_id'
+                        : 'student_id';
+    } elseif ($role === 'instructor') {
+        $pivotTable = 'batch_instructors';
+        $userCol    = Schema::hasColumn('batch_instructors','user_id')
+                        ? 'user_id'
+                        : 'instructor_id';
+    } elseif (in_array($role, ['admin', 'superadmin'], true)) {
+        // admin / superadmin → all batches (no pivot restriction)
+        $pivotTable = null;
+        $userCol = null;
+    } else {
+        // Unknown role
+        Log::warning('[Courses.myCourses] Unauthorized role', [
+            'role' => $role,
+            'user_id' => $uid,
+        ]);
+        return response()->json(['error' => 'Unauthorized Access'], 403);
+    }
+
+    // ---- Base query
+    $q = DB::table('batches as b')
+        ->join('courses as c', 'c.id', '=', 'b.course_id')
+        ->whereNull('b.deleted_at')
+        ->whereNull('c.deleted_at');
+
+    // ---- Role restriction (only for students/instructors)
+    if ($pivotTable && $userCol) {
+        $q->join("$pivotTable as p", 'p.batch_id', '=', 'b.id')
+          ->whereNull('p.deleted_at')
+          ->where("p.$userCol", $uid);
+          
+        Log::debug('[Courses.myCourses] Applied role restriction', [
+            'pivot_table' => $pivotTable,
+            'user_col' => $userCol,
+            'user_id' => $uid,
+        ]);
+    }
+
+    // ---- Students see only published courses
+    if ($role === 'student') {
+        $q->where('c.status', 'published');
+    }
+
+    // ---- Fetch rows with distinct to avoid duplicates
+    try {
+        $rows = $q->select(
+                'c.id as course_id',
+                'c.uuid as course_uuid',
+                'c.slug as course_slug',
+                'c.title as course_title',
+                'c.status as course_status',
+                'c.course_type',
+                'c.level',
+                'c.language',
+                'c.short_description',
+
+                'b.id as batch_id',
+                'b.uuid as batch_uuid',
+                'b.badge_title as batch_name',
+                'b.starts_at',
+                'b.ends_at',
+                'b.status as batch_status'
+            )
+            ->orderBy('c.created_at', 'desc')
+            ->orderBy('b.starts_at', 'desc')
+            ->get();
+            
+        Log::info('[Courses.myCourses] Query executed successfully', [
+            'actor_id' => $uid,
+            'actor_role' => $role,
+            'rows_found' => $rows->count(),
+        ]);
+    } catch (\Throwable $e) {
+        Log::error('[Courses.myCourses] Query failed', [
+            'error' => $e->getMessage(),
+            'actor_id' => $uid,
+            'actor_role' => $role,
+        ]);
+        return response()->json(['error' => 'Failed to fetch courses'], 500);
+    }
+
+    // ---- Fetch cover images for all courses in one query
+    $courseIds = $rows->pluck('course_id')->unique()->values();
+    $covers = collect();
+    
+    if ($courseIds->count() > 0) {
+        try {
+            $covers = DB::table('course_featured_media')
+                ->whereIn('course_id', $courseIds)
+                ->whereNull('deleted_at')
+                ->where('status', 'active')
+                ->where('featured_type', 'image')
+                ->orderBy('order_no')
+                ->orderBy('id')
+                ->get()
+                ->groupBy('course_id')
+                ->map(fn($grp) => optional($grp->first())->featured_url);
+        } catch (\Throwable $e) {
+            Log::warning('[Courses.myCourses] Failed to fetch covers', [
+                'error' => $e->getMessage(),
+            ]);
+            // Continue without covers
+        }
+    }
+
+    // ---- Group batches under courses
+    $courses = collect($rows)->groupBy('course_id')->map(function ($items) use ($covers) {
+        $first = $items->first();
+
+        return [
+            'id'                => (int)$first->course_id,
+            'uuid'              => $first->course_uuid,
+            'slug'              => $first->course_slug,
+            'title'             => $first->course_title,
+            'short_description' => $first->short_description,
+            'status'            => $first->course_status,
+            'type'              => $first->course_type,
+            'level'             => $first->level,
+            'language'          => $first->language,
+            'cover_url'         => $covers->get($first->course_id),
+
+            'batches'  => $items->map(fn($b) => [
+                'id'         => (int)$b->batch_id,
+                'uuid'       => $b->batch_uuid,
+                'name'       => $b->batch_name,
+                'starts_at'  => $b->starts_at,
+                'ends_at'    => $b->ends_at,
+                'status'     => $b->batch_status,
+            ])->values(),
+        ];
+    })->values();
+
+    // ---- Log the successful response
+    $this->logWithActor('[Courses.myCourses] success', $r, [
+        'courses_count' => $courses->count(),
+        'total_batches' => $rows->count(),
+    ]);
+
+    return response()->json([
+        'status' => 'success',
+        'user' => [
+            'id'   => $uid,
+            'role' => $role,
+            'type' => $type,
+        ],
+        'total_courses' => $courses->count(),
+        'total_batches' => $rows->count(),
+        'data' => $courses,
+    ]);
+}
 }

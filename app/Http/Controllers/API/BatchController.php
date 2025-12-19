@@ -1671,5 +1671,101 @@ public function getNotVerifiedStudents(Request $request, $idOrUuid)
         ], 500);
     }
 }
+/**
+ * GET /api/batches/my
+ * Returns batches where the authenticated user is enrolled
+ */
+public function myBatches(Request $request)
+{
+    // 🔐 Get user from token
+    $userId = $this->authUserIdFromToken($request);
+    if (!$userId) {
+        return response()->json([
+            'success' => false,
+            'message' => 'Unauthorized'
+        ], 401);
+    }
 
+    try {
+        // ---- Base query: batch_students → batches → courses
+        $rows = DB::table('batch_students as bs')
+            ->join('batches as b', 'b.id', '=', 'bs.batch_id')
+            ->join('courses as c', 'c.id', '=', 'b.course_id')
+            ->where('bs.user_id', $userId)
+            ->whereNull('bs.deleted_at')
+            ->whereNull('b.deleted_at')
+            ->whereNull('c.deleted_at')
+            ->select(
+                // batch
+                'b.id as batch_id',
+                'b.uuid as batch_uuid',
+                'b.badge_title as batch_name',
+                'b.status as batch_status',
+                'b.starts_at',
+                'b.ends_at',
+
+                // enrollment
+                'bs.enrollment_status',
+                'bs.enrolled_at',
+                'bs.completed_at',
+
+                // course
+                'c.id as course_id',
+                'c.uuid as course_uuid',
+                'c.slug as course_slug',
+                'c.title as course_title',
+                'c.course_type',
+                'c.status as course_status'
+            )
+            ->orderBy('b.starts_at', 'desc')
+            ->get();
+
+        // ---- Shape response
+        $data = $rows->map(function ($r) {
+            return [
+                'batch' => [
+                    'id'            => (int)$r->batch_id,
+                    'uuid'          => $r->batch_uuid,
+                    'name'          => $r->batch_name,
+                    'status'        => $r->batch_status,
+                    'starts_at'     => $r->starts_at,
+                    'ends_at'       => $r->ends_at,
+                    'duration_days'=> $this->daysDuration($r->starts_at, $r->ends_at),
+                ],
+                'course' => [
+                    'id'     => (int)$r->course_id,
+                    'uuid'   => $r->course_uuid,
+                    'slug'   => $r->course_slug,
+                    'title'  => $r->course_title,
+                    'type'   => $r->course_type,
+                    'status' => $r->course_status,
+                ],
+                'enrollment' => [
+                    'status'       => $r->enrollment_status,
+                    'enrolled_at'  => $r->enrolled_at,
+                    'completed_at' => $r->completed_at,
+                ],
+            ];
+        });
+
+        return response()->json([
+            'success'       => true,
+            'user_id'       => $userId,
+            'total_batches' => $data->count(),
+            'data'          => $data,
+        ]);
+
+    } catch (\Throwable $e) {
+        Log::error('[myBatches] failed', [
+            'user_id' => $userId,
+            'error'   => $e->getMessage(),
+        ]);
+
+        return response()->json([
+            'success' => false,
+            'message' => 'Failed to fetch batches'
+        ], 500);
+    }
+}
+ 
 }

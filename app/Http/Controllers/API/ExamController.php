@@ -732,6 +732,93 @@ public function questions(Request $request, string $attemptUuid)
 }
 
 
+/* ============================================
+ | GET /api/test/quizz/{quiz}/questions
+ | TEST API: quiz questions + correct answers
+ | NO auth, NO validation, NO shuffle
+ |============================================ */
+ public function testQuizzQuestions(Request $request, string $quizKey)
+ {
+     // Resolve quiz (uuid or id)
+     $quiz = $this->quizByKey($quizKey);
+ 
+     if (!$quiz) {
+         return response()->json([
+             'success' => false,
+             'message' => 'Quiz not found',
+             'quiz' => null,
+             'questions' => [],
+         ], 404);
+     }
+ 
+     // Questions + answers (STRICT ORDER, NO SHUFFLE)
+     $rows = DB::table('quizz_questions as q')
+         ->leftJoin('quizz_question_answers as a', 'a.belongs_question_id', '=', 'q.id')
+         ->where('q.quiz_id', (int)$quiz->id)
+         ->orderBy('q.question_order')
+         ->orderBy('a.answer_order')
+         ->select([
+             'q.id as question_id',
+             'q.question_title',
+             'q.question_description',
+             'q.answer_explanation',
+             'q.question_type',
+             'q.question_mark',
+             'q.question_order',
+ 
+             'a.id as answer_id',
+             'a.answer_title',
+             'a.answer_order',
+             'a.is_correct',
+         ])
+         ->get();
+ 
+     $questions = [];
+ 
+     foreach ($rows as $r) {
+         $qid = (int)$r->question_id;
+ 
+         if (!isset($questions[$qid])) {
+             $questions[$qid] = [
+                 'question_id' => $qid,
+                 'order'       => (int)$r->question_order,
+                 'title'       => $r->question_title,
+                 'description' => $r->question_description,
+                 'explanation' => $r->answer_explanation, // optional (remove if you don’t want)
+                 'type'        => $r->question_type,
+                 'mark'        => (int)$r->question_mark,
+                 'answers'     => [],
+                 'correct_answer_ids' => [],
+             ];
+         }
+ 
+         if ($r->answer_id !== null) {
+             $questions[$qid]['answers'][] = [
+                 'answer_id'  => (int)$r->answer_id,
+                 'title'      => $r->answer_title,
+                 'order'      => (int)$r->answer_order,
+                 'is_correct' => (int)$r->is_correct, // ✅ includes correct answer
+             ];
+ 
+             if ((int)$r->is_correct === 1) {
+                 $questions[$qid]['correct_answer_ids'][] = (int)$r->answer_id;
+             }
+         }
+     }
+ 
+     return response()->json([
+         'success' => true,
+         'quiz' => [
+             'id'   => (int)$quiz->id,
+             'uuid' => (string)$quiz->uuid,
+             'name' => (string)($quiz->quiz_name ?? 'Quiz'),
+         ],
+         'questions' => array_values($questions),
+     ], 200);
+ }
+ 
+
+
     /* ============================================
  | POST /api/exam/attempts/{attempt}/focus
  | body: { question_id:int }
