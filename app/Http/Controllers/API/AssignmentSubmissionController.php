@@ -317,366 +317,632 @@ class AssignmentSubmissionController extends Controller
             ], 500);
         }
     }
+/**
+ * Upload by assignment key (id|uuid|slug) with allowed_submission_types enforcement.
+ * Works like uploadByAssignment in your original but stores files in public/
+ */
+public function uploadByAssignment(Request $r, string $assignmentKey)
+{
+    Log::info('uploadByAssignment started', [
+        'assignment_key' => $assignmentKey,
+        'ip' => $r->ip(),
+        'user_agent' => $r->userAgent(),
+    ]);
 
-    /**
-     * Upload by assignment key (id|uuid|slug) with allowed_submission_types enforcement.
-     * Works like uploadByAssignment in your original but stores files in public/
-     */
-    public function uploadByAssignment(Request $r, string $assignmentKey)
-    {
-        // allowed roles: student (typical), plus admins/instructors may submit on behalf
-        if ($res = $this->requireRole($r, ['student','admin','superadmin','instructor'])) return $res;
-        $actor = $this->actor($r);
-        $actorRole = $actor['role'];
-        $actorId = $actor['id'];
+    // allowed roles: student (typical), plus admins/instructors may submit on behalf
+    $actor = $this->actor($r);
+    $actorRole = $actor['role'];
+    $actorId = $actor['id'];
 
-        // Resolve assignment (id | uuid | slug)
-        $aq = DB::table('assignments')->whereNull('deleted_at');
-        if (ctype_digit($assignmentKey)) {
-            $aq->where('id', (int)$assignmentKey);
-        } elseif (Str::isUuid($assignmentKey)) {
-            $aq->where('uuid', $assignmentKey);
-        } elseif (\Illuminate\Support\Facades\Schema::hasColumn('assignments', 'slug')) {
-            $aq->where('slug', $assignmentKey);
-        } else {
-            return response()->json(['error' => 'Assignment not found'], 404);
-        }
-        $assignment = $aq->first();
-        if (!$assignment) return response()->json(['error' => 'Assignment not found'], 404);
+    Log::info('Actor identified', [
+        'actor_id' => $actorId,
+        'actor_role' => $actorRole,
+        'assignment_key' => $assignmentKey,
+    ]);
 
-        // Extract allowed_submission_types
-        $allowedRaw = $assignment->allowed_submission_types ?? $r->input('allowed_submission_types');
-        $allowed = [];
-        if ($allowedRaw !== null) {
-            if (is_array($allowedRaw)) {
-                $allowed = $allowedRaw;
-            } elseif (is_string($allowedRaw)) {
-                $decoded = json_decode($allowedRaw, true);
-                if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
-                    $allowed = $decoded;
-                } else {
-                    $allowed = array_filter(array_map('trim', explode(',', $allowedRaw)));
-                }
+    // Resolve assignment (id | uuid | slug)
+    $aq = DB::table('assignments')->whereNull('deleted_at');
+    if (ctype_digit($assignmentKey)) {
+        $aq->where('id', (int)$assignmentKey);
+        Log::debug('Assignment lookup by ID', ['id' => $assignmentKey]);
+    } elseif (Str::isUuid($assignmentKey)) {
+        $aq->where('uuid', $assignmentKey);
+        Log::debug('Assignment lookup by UUID', ['uuid' => $assignmentKey]);
+    } elseif (\Illuminate\Support\Facades\Schema::hasColumn('assignments', 'slug')) {
+        $aq->where('slug', $assignmentKey);
+        Log::debug('Assignment lookup by slug', ['slug' => $assignmentKey]);
+    } else {
+        Log::warning('Assignment not found - invalid key format', ['assignment_key' => $assignmentKey]);
+        return response()->json(['error' => 'Assignment not found'], 404);
+    }
+    
+    $assignment = $aq->first();
+    if (!$assignment) {
+        Log::warning('Assignment not found in database', ['assignment_key' => $assignmentKey]);
+        return response()->json(['error' => 'Assignment not found'], 404);
+    }
+
+    Log::info('Assignment found', [
+        'assignment_id' => $assignment->id,
+        'assignment_key' => $assignmentKey,
+        'course_id' => $assignment->course_id ?? null,
+    ]);
+
+    // Extract allowed_submission_types
+    $allowedRaw = $assignment->allowed_submission_types ?? $r->input('allowed_submission_types');
+    $allowed = [];
+    if ($allowedRaw !== null) {
+        if (is_array($allowedRaw)) {
+            $allowed = $allowedRaw;
+        } elseif (is_string($allowedRaw)) {
+            $decoded = json_decode($allowedRaw, true);
+            if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
+                $allowed = $decoded;
+            } else {
+                $allowed = array_filter(array_map('trim', explode(',', $allowedRaw)));
             }
         }
-        $allowed = array_map('strtolower', $allowed);
-        $allowed = array_values(array_unique($allowed));
+    }
+    $allowed = array_map('strtolower', $allowed);
+    $allowed = array_values(array_unique($allowed));
 
-        if (empty($allowed)) {
-            return response()->json(['error' => 'Assignment has no allowed_submission_types configured'], 422);
+    Log::info('Allowed submission types parsed', [
+        'assignment_id' => $assignment->id,
+        'allowed_types' => $allowed,
+        'raw_value' => $allowedRaw,
+    ]);
+
+    if (empty($allowed)) {
+        Log::error('No allowed submission types configured', ['assignment_id' => $assignment->id]);
+        return response()->json(['error' => 'Assignment has no allowed_submission_types configured'], 422);
+    }
+
+    // Determine student id
+    $studentId = null;
+    if ($actorRole === 'student') {
+        $studentId = $actorId;
+        Log::debug('Student submitting own work', ['student_id' => $studentId, 'assignment_id' => $assignment->id]);
+    } else {
+        if (! $r->filled('student_id')) {
+            Log::warning('Missing student_id for behalf submission', [
+                'actor_id' => $actorId,
+                'actor_role' => $actorRole,
+                'assignment_id' => $assignment->id,
+            ]);
+            return response()->json(['error' => 'student_id is required when submitting on behalf'], 422);
         }
+        $studentId = (int) $r->input('student_id');
+        Log::info('Submission on behalf of student', [
+            'actor_id' => $actorId,
+            'actor_role' => $actorRole,
+            'student_id' => $studentId,
+            'assignment_id' => $assignment->id,
+        ]);
+    }
 
-        // Determine student id
-        $studentId = null;
-        if ($actorRole === 'student') {
-            $studentId = $actorId;
-        } else {
-            if (! $r->filled('student_id')) {
-                return response()->json(['error' => 'student_id is required when submitting on behalf'], 422);
-            }
-            $studentId = (int) $r->input('student_id');
-        }
+    // Attempt handling
+    $providedAttempt = $r->filled('attempt_no') ? (int) $r->input('attempt_no') : null;
+    $attemptsAllowed = null;
+    if (isset($assignment->attempts_allowed)) $attemptsAllowed = (int) $assignment->attempts_allowed;
+    elseif (isset($assignment->max_attempts)) $attemptsAllowed = (int) $assignment->max_attempts;
 
-        // Attempt handling
-        $providedAttempt = $r->filled('attempt_no') ? (int) $r->input('attempt_no') : null;
-        $attemptsAllowed = null;
-        if (isset($assignment->attempts_allowed)) $attemptsAllowed = (int) $assignment->attempts_allowed;
-        elseif (isset($assignment->max_attempts)) $attemptsAllowed = (int) $assignment->max_attempts;
+    Log::debug('Attempt configuration', [
+        'provided_attempt' => $providedAttempt,
+        'attempts_allowed' => $attemptsAllowed,
+        'assignment_id' => $assignment->id,
+        'student_id' => $studentId,
+    ]);
 
-        if ($providedAttempt === null) {
-            $last = DB::table('assignment_submissions')
-                ->where('assignment_id', $assignment->id)
-                ->where('student_id', $studentId)
-                ->whereNull('deleted_at')
-                ->selectRaw('COALESCE(MAX(attempt_no), 0) as last_attempt')
-                ->first();
-            $nextAttempt = (int) ($last->last_attempt ?? 0) + 1;
-            $attemptNo = $nextAttempt;
-        } else {
-            $attemptNo = $providedAttempt;
-        }
-
-        if ($attemptsAllowed !== null && $attemptsAllowed > 0 && $attemptNo > $attemptsAllowed) {
-            return response()->json([
-                'error' => 'Attempt number exceeds allowed attempts for this assignment',
-                'allowed' => $attemptsAllowed,
-                'attempt_no' => $attemptNo
-            ], 422);
-        }
-
-        // prevent duplicate submission row for same assignment+student+attempt_no
-        $exists = DB::table('assignment_submissions')
+    if ($providedAttempt === null) {
+        $last = DB::table('assignment_submissions')
             ->where('assignment_id', $assignment->id)
             ->where('student_id', $studentId)
-            ->where('attempt_no', $attemptNo)
             ->whereNull('deleted_at')
-            ->exists();
-
-        if ($exists) {
-            return response()->json([
-                'error' => 'Submission for this attempt already exists'
-            ], 409);
-        }
-
-        // Validation rules assembled dynamically (same as your original)
-        $rules = [
-            'attempt_no' => 'sometimes|integer|min:1',
-            'status' => 'sometimes|string|max:20',
-            'is_late' => 'sometimes|boolean',
-            'late_minutes' => 'sometimes|integer|min:0',
-            'version_no' => 'sometimes|integer|min:1',
-        ];
-
-        $allowedExtensions = [];
-        foreach ($allowed as $token) {
-            if (!in_array($token, ['file','link','repo','text','html'], true)) {
-                if (preg_match('/^[a-z0-9]{1,5}$/i', $token)) $allowedExtensions[] = strtolower($token);
-            }
-        }
-        $hasFileToken = in_array('file', $allowed, true) || !empty($allowedExtensions);
-
-        if ($hasFileToken) {
-            $rules['attachments'] = 'sometimes|array';
-            $rules['attachments.*'] = "nullable|file|max:51200";
-        } else {
-            if ($r->hasFile('attachments')) {
-                return response()->json(['error' => 'File attachments are not allowed for this assignment'], 422);
-            }
-        }
-
-        if (in_array('link', $allowed, true)) {
-            $rules['link_url'] = 'nullable|url|max:1024';
-        } else {
-            if ($r->filled('link_url')) {
-                return response()->json(['error' => 'Link submission is not allowed for this assignment'], 422);
-            }
-        }
-
-        if (in_array('repo', $allowed, true)) {
-            $rules['repo_url'] = 'nullable|url|max:1024';
-        } else {
-            if ($r->filled('repo_url')) {
-                return response()->json(['error' => 'Repository URL submission is not allowed for this assignment'], 422);
-            }
-        }
-
-        if (in_array('text', $allowed, true)) {
-            $rules['content_text'] = 'nullable|string';
-        } else {
-            if ($r->filled('content_text')) {
-                return response()->json(['error' => 'Plain text submission is not allowed for this assignment'], 422);
-            }
-        }
-
-        if (in_array('html', $allowed, true)) {
-            $rules['content_html'] = 'nullable|string';
-        } else {
-            if ($r->filled('content_html')) {
-                return response()->json(['error' => 'HTML content submission is not allowed for this assignment'], 422);
-            }
-        }
-
-        $validator = Validator::make($r->all(), $rules, [
-            'attachments.*.max' => 'Each attachment must be <= 50 MB.',
+            ->selectRaw('COALESCE(MAX(attempt_no), 0) as last_attempt')
+            ->first();
+        $nextAttempt = (int) ($last->last_attempt ?? 0) + 1;
+        $attemptNo = $nextAttempt;
+        
+        Log::info('Auto-calculated attempt number', [
+            'assignment_id' => $assignment->id,
+            'student_id' => $studentId,
+            'last_attempt' => $last->last_attempt ?? 0,
+            'new_attempt' => $attemptNo,
         ]);
-        if ($validator->fails()) {
-            return response()->json(['message' => 'Validation failed', 'errors' => $validator->errors()], 422);
-        }
+    } else {
+        $attemptNo = $providedAttempt;
+        Log::info('Using provided attempt number', [
+            'assignment_id' => $assignment->id,
+            'student_id' => $studentId,
+            'attempt_no' => $attemptNo,
+        ]);
+    }
 
-        // Ensure at least one allowed submission field is present
-        $present = false;
-        foreach ($allowed as $t) {
-            switch ($t) {
-                case 'file':
-                    if ($r->hasFile('attachments')) $present = true;
-                    break;
-                case 'link':
-                    if ($r->filled('link_url')) $present = true;
-                    break;
-                case 'repo':
-                    if ($r->filled('repo_url')) $present = true;
-                    break;
-                case 'text':
-                    if ($r->filled('content_text')) $present = true;
-                    break;
-                case 'html':
-                    if ($r->filled('content_html')) $present = true;
-                    break;
-                default:
-                    if (in_array($t, $allowedExtensions, true) && $r->hasFile('attachments')) {
-                        $present = true;
-                    }
-                    break;
-            }
-            if ($present) break;
-        }
-        if (! $present) {
-            return response()->json(['error' => 'No allowed submission content provided. Allowed types: '.implode(',', $allowed)], 422);
-        }
-
-        // Build payload fields
-        $uuid = $this->getUuid();
-        $assignmentId = (int) $assignment->id;
-        $courseId = (int) ($assignment->course_id ?? $r->input('course_id', 0));
-        $courseModuleId = (int) ($assignment->course_module_id ?? $r->input('course_module_id', 0));
-        $batchId = (int) ($assignment->batch_id ?? $r->input('batch_id', 0));
-        $status = $r->input('status', 'submitted');
-        $submittedAt = Carbon::now();
-        $isLate = filter_var($r->input('is_late', false), FILTER_VALIDATE_BOOLEAN);
-        $lateMinutes = (int) $r->input('late_minutes', 0);
-        $versionNo = (int) $r->input('version_no', 1);
-
-        $contentText = $r->input('content_text');
-        $contentHtml = $r->input('content_html');
-        $linkUrl = $r->input('link_url');
-        $repoUrl = $r->input('repo_url');
-
-        // Handle file attachments (store directly under public/)
-        $attachments = [];
-        $destBase = $this->mediaBasePublicPath() . DIRECTORY_SEPARATOR . self::MEDIA_SUBDIR . DIRECTORY_SEPARATOR . $uuid;
-        if ($hasFileToken && $r->hasFile('attachments')) {
-            File::ensureDirectoryExists($destBase, 0755, true);
-            $files = is_array($r->file('attachments')) ? $r->file('attachments') : [$r->file('attachments')];
-            $allowedCheckList = !empty($allowedExtensions) ? $allowedExtensions : $this->MASTER_EXTENSIONS;
-
-            foreach ($files as $file) {
-    if (! $file || ! $file->isValid()) continue;
-
-    // capture client metadata BEFORE moving (avoids stat on tmp after it's gone)
-    $originalName = $file->getClientOriginalName();
-    $clientExt    = strtolower($file->getClientOriginalExtension() ?: '');
-    $clientMime   = $file->getClientMimeType() ?: $file->getMimeType();
-
-    // extension whitelist check (assignment-specific allowedCheckList)
-    $ext = $clientExt;
-    if ($ext === '' || ! in_array($ext, $allowedCheckList, true)) {
+    if ($attemptsAllowed !== null && $attemptsAllowed > 0 && $attemptNo > $attemptsAllowed) {
+        Log::warning('Attempt limit exceeded', [
+            'assignment_id' => $assignment->id,
+            'student_id' => $studentId,
+            'attempt_no' => $attemptNo,
+            'attempts_allowed' => $attemptsAllowed,
+        ]);
         return response()->json([
-            'message' => 'Validation failed',
-            'errors' => ['attachments' => ["File type .{$ext} is not allowed for submissions."]],
+            'error' => 'Attempt number exceeds allowed attempts for this assignment',
+            'allowed' => $attemptsAllowed,
+            'attempt_no' => $attemptNo
         ], 422);
     }
 
-    // attempt to read size from tmp safely (may fail on Windows/XAMPP)
-    $origSize = null;
-    try {
-        $origSize = $file->getSize();
-    } catch (\Throwable $e) {
-        Log::warning('Could not stat tmp upload file before move (uploadByAssignment): '.$e->getMessage(), [
-            'tmp' => $file->getPathname() ?? null,
-            'client_name' => $originalName,
-            'assignment_id' => $assignment->id ?? null,
-        ]);
-        $origSize = null;
-    }
+    // prevent duplicate submission row for same assignment+student+attempt_no
+    $exists = DB::table('assignment_submissions')
+        ->where('assignment_id', $assignment->id)
+        ->where('student_id', $studentId)
+        ->where('attempt_no', $attemptNo)
+        ->whereNull('deleted_at')
+        ->exists();
 
-    // ensure destination exists & move
-    $fname = 'submission-' . $uuid . '-' . (string) Str::uuid() . ($ext ? ('.'.$ext) : '');
-    $targetPath = $destBase . DIRECTORY_SEPARATOR . $fname;
-
-    try {
-        File::ensureDirectoryExists($destBase, 0755, true);
-        $file->move($destBase, $fname);
-    } catch (\Throwable $e) {
-        Log::error('Failed move uploaded file (uploadByAssignment): '.$e->getMessage(), [
-            'destBase' => $destBase,
-            'targetPath' => $targetPath,
-            'tmp' => $file->getPathname() ?? null,
-            'client_name' => $originalName,
-            'assignment_id' => $assignment->id ?? null,
-        ]);
-        try { if (!empty($targetPath) && is_file($targetPath)) @unlink($targetPath); } catch (\Throwable $_) {}
-        return response()->json(['message'=>'Failed to store uploaded file','error'=>$e->getMessage()], 500);
-    }
-
-    // if we couldn't stat tmp, stat the moved file
-    if (empty($origSize)) {
-        if (is_file($targetPath)) {
-            $origSize = @filesize($targetPath);
-        } else {
-            Log::error('File moved but target not found for size check (uploadByAssignment)', ['target' => $targetPath, 'assignment_id' => $assignment->id ?? null]);
-            $origSize = null;
-        }
-    }
-
-    $relativePath = self::MEDIA_SUBDIR . '/' . $uuid . '/' . $fname;
-    $url = $this->toPublicUrl($relativePath);
-    $attachments[] = [
-        'name' => $originalName,
-        'mime' => $clientMime,
-        'size' => $origSize,
-        'path' => $relativePath,
-        'url'  => $url,
-    ];
-}
-        }
-
-        // Build DB payload
-        $payload = [
-            'uuid' => $uuid,
-            'assignment_id' => $assignmentId,
-            'course_id' => $courseId,
-            'course_module_id' => $courseModuleId ?: null,
-            'batch_id' => $batchId ?: null,
+    if ($exists) {
+        Log::warning('Duplicate submission attempt detected', [
+            'assignment_id' => $assignment->id,
             'student_id' => $studentId,
             'attempt_no' => $attemptNo,
-            'status' => $status,
-            'submitted_at' => $submittedAt->toDateTimeString(),
-            'is_late' => $isLate ? 1 : 0,
-            'late_minutes' => $lateMinutes,
-            'submitted_ip' => $r->ip(),
-            'content_text' => $contentText,
-            'content_html' => $contentHtml,
-            'link_url' => $linkUrl,
-            'repo_url' => $repoUrl,
-            'attachments_json' => $attachments ? json_encode($attachments) : null,
-            'total_marks' => null,
-            'grade_letter' => null,
-            'graded_at' => null,
-            'graded_by' => null,
-            'grader_note' => null,
-            'feedback_html' => null,
-            'feedback_visible' => 1,
-            'resubmission_of_id' => $r->input('resubmission_of_id'),
-            'version_no' => $versionNo,
-            'flags_json' => json_encode((array)$r->input('flags_json', [])),
-            'metadata' => json_encode((array)$r->input('metadata', [])),
-            'created_at' => $submittedAt->toDateTimeString(),
-            'updated_at' => $submittedAt->toDateTimeString(),
-        ];
+        ]);
+        return response()->json([
+            'error' => 'Submission for this attempt already exists'
+        ], 409);
+    }
 
-        // Insert using transaction and handle duplicate attempts
-        try {
-            $id = DB::transaction(function () use ($payload) {
-                return DB::table('assignment_submissions')->insertGetId($payload);
-            });
+    // Validation rules assembled dynamically (same as your original)
+    $rules = [
+        'attempt_no' => 'sometimes|integer|min:1',
+        'status' => 'sometimes|string|max:20',
+        'is_late' => 'sometimes|boolean',
+        'late_minutes' => 'sometimes|integer|min:0',
+        'version_no' => 'sometimes|integer|min:1',
+    ];
 
-            return response()->json([
-                'message' => 'Submission uploaded successfully',
-                'data' => [
-                    'id' => $id,
-                    'uuid' => $uuid,
-                    'attachments' => $attachments,
-                ],
-            ], 201);
-        } catch (\Illuminate\Database\QueryException $qe) {
-            // Unique constraint violation (duplicate attempt) -> 409
-            if ($qe->getCode() === '23000') {
-                return response()->json(['error' => 'Submission for this attempt already exists (constraint)'], 409);
-            }
-            Log::error('assignment submission uploadByAssignment DB error: '.$qe->getMessage(), ['exception'=>$qe,'payload'=>$payload]);
-            // cleanup directory on error
-            if (! empty($attachments) && isset($destBase)) {
-                try { File::deleteDirectory($destBase); } catch (\Throwable $ex) {}
-            }
-            return response()->json(['message' => 'Failed to upload submission', 'error' => $qe->getMessage()], 500);
-        } catch (\Throwable $e) {
-            Log::error('assignment submission uploadByAssignment error: '.$e->getMessage(), ['exception'=>$e,'payload'=>$payload]);
-            if (! empty($attachments) && isset($destBase)) {
-                try { File::deleteDirectory($destBase); } catch (\Throwable $ex) {}
-            }
-            return response()->json(['message' => 'Failed to upload submission', 'error' => $e->getMessage()], 500);
+    $allowedExtensions = [];
+    foreach ($allowed as $token) {
+        if (!in_array($token, ['file','link','repo','text','html'], true)) {
+            if (preg_match('/^[a-z0-9]{1,5}$/i', $token)) $allowedExtensions[] = strtolower($token);
         }
     }
+    $hasFileToken = in_array('file', $allowed, true) || !empty($allowedExtensions);
+
+    Log::debug('Validation rules setup', [
+        'assignment_id' => $assignment->id,
+        'has_file_token' => $hasFileToken,
+        'allowed_extensions' => $allowedExtensions,
+        'allowed_types' => $allowed,
+    ]);
+
+    if ($hasFileToken) {
+        $rules['attachments'] = 'sometimes|array';
+        $rules['attachments.*'] = "nullable|file|max:51200";
+    } else {
+        if ($r->hasFile('attachments')) {
+            Log::warning('File attachment rejected - not allowed', [
+                'assignment_id' => $assignment->id,
+                'student_id' => $studentId,
+                'allowed_types' => $allowed,
+            ]);
+            return response()->json(['error' => 'File attachments are not allowed for this assignment'], 422);
+        }
+    }
+
+    if (in_array('link', $allowed, true)) {
+        $rules['link_url'] = 'nullable|url|max:1024';
+    } else {
+        if ($r->filled('link_url')) {
+            Log::warning('Link submission rejected - not allowed', [
+                'assignment_id' => $assignment->id,
+                'student_id' => $studentId,
+            ]);
+            return response()->json(['error' => 'Link submission is not allowed for this assignment'], 422);
+        }
+    }
+
+    if (in_array('repo', $allowed, true)) {
+        $rules['repo_url'] = 'nullable|url|max:1024';
+    } else {
+        if ($r->filled('repo_url')) {
+            Log::warning('Repo URL rejected - not allowed', [
+                'assignment_id' => $assignment->id,
+                'student_id' => $studentId,
+            ]);
+            return response()->json(['error' => 'Repository URL submission is not allowed for this assignment'], 422);
+        }
+    }
+
+    if (in_array('text', $allowed, true)) {
+        $rules['content_text'] = 'nullable|string';
+    } else {
+        if ($r->filled('content_text')) {
+            Log::warning('Text submission rejected - not allowed', [
+                'assignment_id' => $assignment->id,
+                'student_id' => $studentId,
+            ]);
+            return response()->json(['error' => 'Plain text submission is not allowed for this assignment'], 422);
+        }
+    }
+
+    if (in_array('html', $allowed, true)) {
+        $rules['content_html'] = 'nullable|string';
+    } else {
+        if ($r->filled('content_html')) {
+            Log::warning('HTML submission rejected - not allowed', [
+                'assignment_id' => $assignment->id,
+                'student_id' => $studentId,
+            ]);
+            return response()->json(['error' => 'HTML content submission is not allowed for this assignment'], 422);
+        }
+    }
+
+    $validator = Validator::make($r->all(), $rules, [
+        'attachments.*.max' => 'Each attachment must be <= 50 MB.',
+    ]);
+    
+    if ($validator->fails()) {
+        Log::warning('Validation failed', [
+            'assignment_id' => $assignment->id,
+            'student_id' => $studentId,
+            'errors' => $validator->errors()->toArray(),
+        ]);
+        return response()->json(['message' => 'Validation failed', 'errors' => $validator->errors()], 422);
+    }
+
+    Log::debug('Validation passed', ['assignment_id' => $assignment->id, 'student_id' => $studentId]);
+
+    // Ensure at least one allowed submission field is present
+    $present = false;
+    foreach ($allowed as $t) {
+        switch ($t) {
+            case 'file':
+                if ($r->hasFile('attachments')) $present = true;
+                break;
+            case 'link':
+                if ($r->filled('link_url')) $present = true;
+                break;
+            case 'repo':
+                if ($r->filled('repo_url')) $present = true;
+                break;
+            case 'text':
+                if ($r->filled('content_text')) $present = true;
+                break;
+            case 'html':
+                if ($r->filled('content_html')) $present = true;
+                break;
+            default:
+                if (in_array($t, $allowedExtensions, true) && $r->hasFile('attachments')) {
+                    $present = true;
+                }
+                break;
+        }
+        if ($present) break;
+    }
+    
+    if (! $present) {
+        Log::warning('No valid submission content provided', [
+            'assignment_id' => $assignment->id,
+            'student_id' => $studentId,
+            'allowed_types' => $allowed,
+            'has_files' => $r->hasFile('attachments'),
+            'has_link' => $r->filled('link_url'),
+            'has_repo' => $r->filled('repo_url'),
+            'has_text' => $r->filled('content_text'),
+            'has_html' => $r->filled('content_html'),
+        ]);
+        return response()->json(['error' => 'No allowed submission content provided. Allowed types: '.implode(',', $allowed)], 422);
+    }
+
+    Log::info('Valid submission content detected', [
+        'assignment_id' => $assignment->id,
+        'student_id' => $studentId,
+    ]);
+
+    // Build payload fields
+    $uuid = $this->getUuid();
+    $assignmentId = (int) $assignment->id;
+    $courseId = (int) ($assignment->course_id ?? $r->input('course_id', 0));
+    $courseModuleId = (int) ($assignment->course_module_id ?? $r->input('course_module_id', 0));
+    $batchId = (int) ($assignment->batch_id ?? $r->input('batch_id', 0));
+    $status = $r->input('status', 'submitted');
+    $submittedAt = Carbon::now();
+    $isLate = filter_var($r->input('is_late', false), FILTER_VALIDATE_BOOLEAN);
+    $lateMinutes = (int) $r->input('late_minutes', 0);
+    $versionNo = (int) $r->input('version_no', 1);
+
+    $contentText = $r->input('content_text');
+    $contentHtml = $r->input('content_html');
+    $linkUrl = $r->input('link_url');
+    $repoUrl = $r->input('repo_url');
+
+    Log::info('Submission payload prepared', [
+        'uuid' => $uuid,
+        'assignment_id' => $assignmentId,
+        'student_id' => $studentId,
+        'attempt_no' => $attemptNo,
+        'status' => $status,
+        'is_late' => $isLate,
+        'version_no' => $versionNo,
+    ]);
+
+    // Handle file attachments (store directly under public/)
+    $attachments = [];
+    $destBase = $this->mediaBasePublicPath() . DIRECTORY_SEPARATOR . self::MEDIA_SUBDIR . DIRECTORY_SEPARATOR . $uuid;
+    
+    if ($hasFileToken && $r->hasFile('attachments')) {
+        Log::info('Processing file attachments', [
+            'assignment_id' => $assignmentId,
+            'student_id' => $studentId,
+            'dest_base' => $destBase,
+        ]);
+
+        File::ensureDirectoryExists($destBase, 0755, true);
+        $files = is_array($r->file('attachments')) ? $r->file('attachments') : [$r->file('attachments')];
+        $allowedCheckList = !empty($allowedExtensions) ? $allowedExtensions : $this->MASTER_EXTENSIONS;
+
+        Log::debug('File upload configuration', [
+            'file_count' => count($files),
+            'allowed_extensions' => $allowedCheckList,
+            'assignment_id' => $assignmentId,
+        ]);
+
+        foreach ($files as $index => $file) {
+            if (! $file || ! $file->isValid()) {
+                Log::warning('Invalid file upload detected', [
+                    'file_index' => $index,
+                    'assignment_id' => $assignmentId,
+                    'student_id' => $studentId,
+                ]);
+                continue;
+            }
+
+            // capture client metadata BEFORE moving (avoids stat on tmp after it's gone)
+            $originalName = $file->getClientOriginalName();
+            $clientExt    = strtolower($file->getClientOriginalExtension() ?: '');
+            $clientMime   = $file->getClientMimeType() ?: $file->getMimeType();
+
+            Log::debug('Processing file', [
+                'file_index' => $index,
+                'original_name' => $originalName,
+                'extension' => $clientExt,
+                'mime_type' => $clientMime,
+                'assignment_id' => $assignmentId,
+                'student_id' => $studentId,
+            ]);
+
+            // extension whitelist check (assignment-specific allowedCheckList)
+            $ext = $clientExt;
+            if ($ext === '' || ! in_array($ext, $allowedCheckList, true)) {
+                Log::error('File extension not allowed', [
+                    'extension' => $ext,
+                    'original_name' => $originalName,
+                    'allowed_extensions' => $allowedCheckList,
+                    'assignment_id' => $assignmentId,
+                    'student_id' => $studentId,
+                ]);
+                return response()->json([
+                    'message' => 'Validation failed',
+                    'errors' => ['attachments' => ["File type .{$ext} is not allowed for submissions."]],
+                ], 422);
+            }
+
+            // attempt to read size from tmp safely (may fail on Windows/XAMPP)
+            $origSize = null;
+            try {
+                $origSize = $file->getSize();
+                Log::debug('File size captured from tmp', [
+                    'size' => $origSize,
+                    'original_name' => $originalName,
+                    'assignment_id' => $assignmentId,
+                ]);
+            } catch (\Throwable $e) {
+                Log::warning('Could not stat tmp upload file before move (uploadByAssignment): '.$e->getMessage(), [
+                    'tmp' => $file->getPathname() ?? null,
+                    'client_name' => $originalName,
+                    'assignment_id' => $assignment->id ?? null,
+                    'student_id' => $studentId,
+                ]);
+                $origSize = null;
+            }
+
+            // ensure destination exists & move
+            $fname = 'submission-' . $uuid . '-' . (string) Str::uuid() . ($ext ? ('.'.$ext) : '');
+            $targetPath = $destBase . DIRECTORY_SEPARATOR . $fname;
+
+            Log::info('Moving uploaded file', [
+                'original_name' => $originalName,
+                'target_filename' => $fname,
+                'target_path' => $targetPath,
+                'assignment_id' => $assignmentId,
+                'student_id' => $studentId,
+            ]);
+
+            try {
+                File::ensureDirectoryExists($destBase, 0755, true);
+                $file->move($destBase, $fname);
+                
+                Log::info('File moved successfully', [
+                    'original_name' => $originalName,
+                    'target_path' => $targetPath,
+                    'assignment_id' => $assignmentId,
+                    'student_id' => $studentId,
+                ]);
+            } catch (\Throwable $e) {
+                Log::error('Failed move uploaded file (uploadByAssignment): '.$e->getMessage(), [
+                    'destBase' => $destBase,
+                    'targetPath' => $targetPath,
+                    'tmp' => $file->getPathname() ?? null,
+                    'client_name' => $originalName,
+                    'assignment_id' => $assignment->id ?? null,
+                    'student_id' => $studentId,
+                    'exception' => $e,
+                ]);
+                try { if (!empty($targetPath) && is_file($targetPath)) @unlink($targetPath); } catch (\Throwable $_) {}
+                return response()->json(['message'=>'Failed to store uploaded file','error'=>$e->getMessage()], 500);
+            }
+
+            // if we couldn't stat tmp, stat the moved file
+            if (empty($origSize)) {
+                if (is_file($targetPath)) {
+                    $origSize = @filesize($targetPath);
+                    Log::debug('File size captured after move', [
+                        'size' => $origSize,
+                        'target_path' => $targetPath,
+                        'assignment_id' => $assignmentId,
+                    ]);
+                } else {
+                    Log::error('File moved but target not found for size check (uploadByAssignment)', [
+                        'target' => $targetPath,
+                        'assignment_id' => $assignment->id ?? null,
+                        'student_id' => $studentId,
+                    ]);
+                    $origSize = null;
+                }
+            }
+
+            $relativePath = self::MEDIA_SUBDIR . '/' . $uuid . '/' . $fname;
+            $url = $this->toPublicUrl($relativePath);
+            $attachments[] = [
+                'name' => $originalName,
+                'mime' => $clientMime,
+                'size' => $origSize,
+                'path' => $relativePath,
+                'url'  => $url,
+            ];
+
+            Log::info('Attachment added to submission', [
+                'name' => $originalName,
+                'size' => $origSize,
+                'url' => $url,
+                'assignment_id' => $assignmentId,
+                'student_id' => $studentId,
+            ]);
+        }
+
+        Log::info('All files processed', [
+            'total_attachments' => count($attachments),
+            'assignment_id' => $assignmentId,
+            'student_id' => $studentId,
+        ]);
+    }
+
+    // Build DB payload
+    $payload = [
+        'uuid' => $uuid,
+        'assignment_id' => $assignmentId,
+        'course_id' => $courseId,
+        'course_module_id' => $courseModuleId ?: null,
+        'batch_id' => $batchId ?: null,
+        'student_id' => $studentId,
+        'attempt_no' => $attemptNo,
+        'status' => $status,
+        'submitted_at' => $submittedAt->toDateTimeString(),
+        'is_late' => $isLate ? 1 : 0,
+        'late_minutes' => $lateMinutes,
+        'submitted_ip' => $r->ip(),
+        'content_text' => $contentText,
+        'content_html' => $contentHtml,
+        'link_url' => $linkUrl,
+        'repo_url' => $repoUrl,
+        'attachments_json' => $attachments ? json_encode($attachments) : null,
+        'total_marks' => null,
+        'grade_letter' => null,
+        'graded_at' => null,
+        'graded_by' => null,
+        'grader_note' => null,
+        'feedback_html' => null,
+        'feedback_visible' => 1,
+        'resubmission_of_id' => $r->input('resubmission_of_id'),
+        'version_no' => $versionNo,
+        'flags_json' => json_encode((array)$r->input('flags_json', [])),
+        'metadata' => json_encode((array)$r->input('metadata', [])),
+        'created_at' => $submittedAt->toDateTimeString(),
+        'updated_at' => $submittedAt->toDateTimeString(),
+    ];
+
+    Log::info('Attempting database insert', [
+        'assignment_id' => $assignmentId,
+        'student_id' => $studentId,
+        'attempt_no' => $attemptNo,
+        'uuid' => $uuid,
+        'attachment_count' => count($attachments),
+    ]);
+
+    // Insert using transaction and handle duplicate attempts
+    try {
+        $id = DB::transaction(function () use ($payload) {
+            return DB::table('assignment_submissions')->insertGetId($payload);
+        });
+
+        Log::info('Submission uploaded successfully', [
+            'submission_id' => $id,
+            'uuid' => $uuid,
+            'assignment_id' => $assignmentId,
+            'student_id' => $studentId,
+            'attempt_no' => $attemptNo,
+            'attachment_count' => count($attachments),
+        ]);
+
+        return response()->json([
+            'message' => 'Submission uploaded successfully',
+            'data' => [
+                'id' => $id,
+                'uuid' => $uuid,
+                'attachments' => $attachments,
+            ],
+        ], 201);
+    } catch (\Illuminate\Database\QueryException $qe) {
+        // Unique constraint violation (duplicate attempt) -> 409
+        if ($qe->getCode() === '23000') {
+            Log::error('Duplicate submission constraint violation', [
+                'assignment_id' => $assignmentId,
+                'student_id' => $studentId,
+                'attempt_no' => $attemptNo,
+                'error_code' => $qe->getCode(),
+            ]);
+            return response()->json(['error' => 'Submission for this attempt already exists (constraint)'], 409);
+        }
+        
+        Log::error('assignment submission uploadByAssignment DB error: '.$qe->getMessage(), [
+            'exception' => $qe,
+            'payload' => $payload,
+            'assignment_id' => $assignmentId,
+            'student_id' => $studentId,
+            'error_code' => $qe->getCode(),
+        ]);
+        
+        // cleanup directory on error
+        if (! empty($attachments) && isset($destBase)) {
+            Log::info('Cleaning up files after DB error', ['dest_base' => $destBase]);
+            try { File::deleteDirectory($destBase); } catch (\Throwable $ex) {
+                Log::warning('Failed to cleanup directory after error', [
+                    'dest_base' => $destBase,
+                    'error' => $ex->getMessage(),
+                ]);
+            }
+        }
+        return response()->json(['message' => 'Failed to upload submission', 'error' => $qe->getMessage()], 500);
+    } catch (\Throwable $e) {
+        Log::error('assignment submission uploadByAssignment error: '.$e->getMessage(), [
+            'exception' => $e,
+            'payload' => $payload,
+            'assignment_id' => $assignmentId,
+            'student_id' => $studentId,
+        ]);
+        
+        if (! empty($attachments) && isset($destBase)) {
+            Log::info('Cleaning up files after general error', ['dest_base' => $destBase]);
+            try { File::deleteDirectory($destBase); } catch (\Throwable $ex) {
+                Log::warning('Failed to cleanup directory after error', [
+                    'dest_base' => $destBase,
+                    'error' => $ex->getMessage(),
+                ]);
+            }
+        }
+        return response()->json(['message' => 'Failed to upload submission', 'error' => $e->getMessage()], 500);
+    }
+}
 
     /* -----------------------------------------------------
      * Soft delete / restore / force delete helpers
