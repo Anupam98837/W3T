@@ -357,10 +357,53 @@ html.theme-dark .vc-chat-footer{
     </div>
   </div>
 </div>
-
 <script>
-document.addEventListener('DOMContentLoaded', function () {
+/**
+ * Chat tab script (corrected)
+ * ✅ Works with your dynamic tab loader (NOT dependent on DOMContentLoaded)
+ * ✅ Pulls role from in-memory cache + waits for auth:role-ready (no storage-based role)
+ * ✅ Prevents double-init when switching tabs
+ */
+(function () {
+  // --- Guards: this tab partial can be injected multiple times via your pane caching
+  // Make sure we only initialize once per page lifecycle.
+  if (window.__VC_CHAT_INITED__) return;
+  window.__VC_CHAT_INITED__ = true;
+
   const TOKEN = sessionStorage.getItem('token') || localStorage.getItem('token') || '';
+
+  // ===== In-memory role (global cache, async-safe) =====
+  let USER_ROLE = '';
+
+  const getRoleNow = () => {
+    const r = (window.__AUTH_CACHE__ && typeof window.__AUTH_CACHE__.role === 'string')
+      ? window.__AUTH_CACHE__.role
+      : '';
+    return String(r || '').trim().toLowerCase();
+  };
+
+  // Case 1: role already resolved
+  USER_ROLE = getRoleNow();
+  if (USER_ROLE) {
+    console.log('Role (immediate):', USER_ROLE);
+  }
+
+  // Case 2: wait for role to resolve (if not ready yet)
+  if (!USER_ROLE) {
+    document.addEventListener(
+      'auth:role-ready',
+      (e) => {
+        USER_ROLE = String(e?.detail?.role || '').trim().toLowerCase();
+        console.log('Role (async):', USER_ROLE);
+
+        // If actor exists already, keep it in sync
+        try {
+          if (window.__VC_CHAT_ACTOR__) window.__VC_CHAT_ACTOR__.role = USER_ROLE;
+        } catch (err) {}
+      },
+      { once: true }
+    );
+  }
 
   function deriveBatchKey() {
     const parts = window.location.pathname.split('/').filter(Boolean);
@@ -373,415 +416,448 @@ document.addEventListener('DOMContentLoaded', function () {
   }
 
   const batchKey = deriveBatchKey();
-  const shell = document.getElementById('batchChatShell');
-  if (!shell) return;
 
-  const els = {
-    body: document.getElementById('chatBody'),
-    messagesWrap: document.getElementById('chatMessages'),
-    loadMoreWrap: document.getElementById('chatLoadMoreWrap'),
-    loadMoreBtn: document.getElementById('chatLoadMoreBtn'),
-    loading: document.getElementById('chatLoading'),
-    empty: document.getElementById('chatEmpty'),
-    error: document.getElementById('chatError'),
-    msgInput: document.getElementById('chatMessageInput'),
-    fileInput: document.getElementById('chatFileInput'),
-    filesChips: document.getElementById('chatFilesChips'),
-    sendBtn: document.getElementById('chatSendBtn'),
-    attachBtn: document.getElementById('chatAttachBtn'),
-  };
+  // ---------- Init function (can be triggered on vc:tab-changed) ----------
+  function initChatIfPresent() {
+    const shell = document.getElementById('batchChatShell');
+    if (!shell) return;
 
-  const API_BASE = '/api/batches/' + encodeURIComponent(batchKey);
+    // Prevent re-binding handlers if tab is re-shown
+    if (shell.dataset.chatBound === '1') return;
+    shell.dataset.chatBound = '1';
 
-  let messages = [];
-  let hasMoreBefore = false;
-  let isLoadingInitial = false;
-  let isLoadingMore = false;
-  let isSending = false;
-  let actor = { id: null, role: null };
-  let selectedFiles = [];
+    const els = {
+      body: document.getElementById('chatBody'),
+      messagesWrap: document.getElementById('chatMessages'),
+      loadMoreWrap: document.getElementById('chatLoadMoreWrap'),
+      loadMoreBtn: document.getElementById('chatLoadMoreBtn'),
+      loading: document.getElementById('chatLoading'),
+      empty: document.getElementById('chatEmpty'),
+      error: document.getElementById('chatError'),
+      msgInput: document.getElementById('chatMessageInput'),
+      fileInput: document.getElementById('chatFileInput'),
+      filesChips: document.getElementById('chatFilesChips'),
+      sendBtn: document.getElementById('chatSendBtn'),
+      attachBtn: document.getElementById('chatAttachBtn'),
+    };
 
-  function setSendLoading(on) {
-    isSending = on;
-    els.sendBtn.disabled = on;
-    if (on) els.sendBtn.classList.add('btn-loading');
-    else els.sendBtn.classList.remove('btn-loading');
-  }
+    const API_BASE = '/api/batches/' + encodeURIComponent(batchKey);
 
-  function showState({ loading = null, empty = null, error = null }) {
-    if (loading !== null) els.loading.style.display = loading ? 'block' : 'none';
-    if (empty !== null) els.empty.style.display = empty ? 'block' : 'none';
-    if (error !== null) els.error.style.display = error ? 'block' : 'none';
-  }
+    let messages = [];
+    let hasMoreBefore = false;
+    let isLoadingInitial = false;
+    let isLoadingMore = false;
+    let isSending = false;
 
-  function renderFilesChips() {
-    els.filesChips.innerHTML = '';
-    if (!selectedFiles.length) return;
+    // actor must exist BEFORE we attach role-ready listeners that use it
+    let actor = { id: null, role: null };
+    window.__VC_CHAT_ACTOR__ = actor;
 
-    selectedFiles.forEach((file, idx) => {
-      const chip = document.createElement('div');
-      chip.className = 'chat-file-chip';
+    let selectedFiles = [];
 
-      const sizeKB = Math.round(file.size / 1024);
-      chip.innerHTML = `
-        <span><i class="fa fa-paperclip"></i> ${file.name}</span>
-        <span class="text-muted">${sizeKB} KB</span>
-        <button type="button" data-idx="${idx}" aria-label="Remove file">
-          <i class="fa fa-times"></i>
-        </button>
-      `;
-
-      chip.querySelector('button').addEventListener('click', (e) => {
-        const i = parseInt(e.currentTarget.dataset.idx, 10);
-        selectedFiles.splice(i, 1);
-        renderFilesChips();
-      });
-
-      els.filesChips.appendChild(chip);
-    });
-  }
-
-  function buildMessageHTML(msg) {
-    const row = document.createElement('div');
-    row.className = 'msg-row ' + (msg.is_mine ? 'mine' : 'other');
-
-    const senderLabel = msg.is_mine ? 'You' : (msg.sender_name || msg.sender_role || 'User');
-    const timeLabel = msg.created_at_time || '';
-
-    const meta = document.createElement('div');
-    meta.className = 'msg-meta';
-    meta.textContent = senderLabel + (timeLabel ? ' • ' + timeLabel : '');
-    row.appendChild(meta);
-
-    const bubble = document.createElement('div');
-    bubble.className = 'msg-bubble';
-
-    if (msg.message_text) {
-      const text = document.createElement('div');
-      text.className = 'msg-text';
-      text.textContent = msg.message_text;
-      bubble.appendChild(text);
+    function setSendLoading(on) {
+      isSending = on;
+      els.sendBtn.disabled = on;
+      if (on) els.sendBtn.classList.add('btn-loading');
+      else els.sendBtn.classList.remove('btn-loading');
     }
 
-    if (Array.isArray(msg.attachments) && msg.attachments.length) {
-      const ul = document.createElement('ul');
-      ul.className = 'msg-attachments';
+    function showState({ loading = null, empty = null, error = null }) {
+      if (loading !== null) els.loading.style.display = loading ? 'block' : 'none';
+      if (empty !== null) els.empty.style.display = empty ? 'block' : 'none';
+      if (error !== null) els.error.style.display = error ? 'block' : 'none';
+    }
 
-      msg.attachments.forEach(att => {
-        const li = document.createElement('li');
-        const a = document.createElement('a');
-        a.href = att.url || '#';
-        a.target = '_blank';
+    function renderFilesChips() {
+      els.filesChips.innerHTML = '';
+      if (!selectedFiles.length) return;
 
-        const ext = (att.ext || '').toLowerCase();
+      selectedFiles.forEach((file, idx) => {
+        const chip = document.createElement('div');
+        chip.className = 'chat-file-chip';
+
+        const sizeKB = Math.round(file.size / 1024);
+        chip.innerHTML = `
+          <span><i class="fa fa-paperclip"></i> ${file.name}</span>
+          <span class="text-muted">${sizeKB} KB</span>
+          <button type="button" data-idx="${idx}" aria-label="Remove file">
+            <i class="fa fa-times"></i>
+          </button>
+        `;
+
+        chip.querySelector('button').addEventListener('click', (e) => {
+          const i = parseInt(e.currentTarget.dataset.idx, 10);
+          selectedFiles.splice(i, 1);
+          renderFilesChips();
+        });
+
+        els.filesChips.appendChild(chip);
+      });
+    }
+
+    function buildMessageHTML(msg) {
+      const row = document.createElement('div');
+      row.className = 'msg-row ' + (msg.is_mine ? 'mine' : 'other');
+
+      const senderLabel = msg.is_mine ? 'You' : (msg.sender_name || msg.sender_role || 'User');
+      const timeLabel = msg.created_at_time || '';
+
+      const meta = document.createElement('div');
+      meta.className = 'msg-meta';
+      meta.textContent = senderLabel + (timeLabel ? ' • ' + timeLabel : '');
+      row.appendChild(meta);
+
+      const bubble = document.createElement('div');
+      bubble.className = 'msg-bubble';
+
+      if (msg.message_text) {
+        const text = document.createElement('div');
+        text.className = 'msg-text';
+        text.textContent = msg.message_text;
+        bubble.appendChild(text);
+      }
+
+      if (Array.isArray(msg.attachments) && msg.attachments.length) {
+        const ul = document.createElement('ul');
+        ul.className = 'msg-attachments';
+
+        msg.attachments.forEach(att => {
+          const li = document.createElement('li');
+          const a = document.createElement('a');
+          a.href = att.url || '#';
+          a.target = '_blank';
+
+          const ext = (att.ext || '').toLowerCase();
+          const icon = document.createElement('i');
+
+          if (['jpg','jpeg','png','gif','webp','svg'].includes(ext)) {
+            icon.className = 'fa fa-image';
+          } else if (ext === 'pdf') {
+            icon.className = 'fa fa-file-pdf';
+          } else if (['doc','docx'].includes(ext)) {
+            icon.className = 'fa fa-file-word';
+          } else if (['xls','xlsx','csv'].includes(ext)) {
+            icon.className = 'fa fa-file-excel';
+          } else {
+            icon.className = 'fa fa-paperclip';
+          }
+
+          a.appendChild(icon);
+          const span = document.createElement('span');
+          span.textContent = att.name || 'Attachment';
+          a.appendChild(span);
+
+          li.appendChild(a);
+          ul.appendChild(li);
+        });
+
+        bubble.appendChild(ul);
+      }
+
+      const footer = document.createElement('div');
+      footer.className = 'msg-footer';
+
+      const time = document.createElement('span');
+      time.className = 'msg-time';
+      time.textContent = msg.created_at_time || '';
+      footer.appendChild(time);
+
+      // Seen indicator only for own messages
+      if (msg.is_mine && typeof msg.seen_by_total === 'number') {
+        const seen = document.createElement('span');
+        seen.className = 'msg-seen';
+
         const icon = document.createElement('i');
+        icon.className = msg.seen_by_total > 1 ? 'fa fa-check-double' : 'fa fa-check';
+        seen.appendChild(icon);
 
-        if (['jpg','jpeg','png','gif','webp','svg'].includes(ext)) {
-          icon.className = 'fa fa-image';
-        } else if (ext === 'pdf') {
-          icon.className = 'fa fa-file-pdf';
-        } else if (['doc','docx'].includes(ext)) {
-          icon.className = 'fa fa-file-word';
-        } else if (['xls','xlsx','csv'].includes(ext)) {
-          icon.className = 'fa fa-file-excel';
+        const txt = document.createElement('span');
+        if (msg.seen_by_total > 1) {
+          txt.textContent = 'Seen by ' + msg.seen_by_total;
         } else {
-          icon.className = 'fa fa-paperclip';
+          txt.textContent = msg.is_seen_by_me ? 'Sent' : '';
         }
+        seen.appendChild(txt);
 
-        a.appendChild(icon);
-        const span = document.createElement('span');
-        span.textContent = att.name || 'Attachment';
-        a.appendChild(span);
+        footer.appendChild(seen);
+      }
 
-        li.appendChild(a);
-        ul.appendChild(li);
+      bubble.appendChild(footer);
+      row.appendChild(bubble);
+      return row;
+    }
+
+    function renderAllMessages() {
+      els.messagesWrap.innerHTML = '';
+
+      if (!messages.length) {
+        els.empty.style.display = hasMoreBefore ? 'none' : 'block';
+        return;
+      }
+
+      els.empty.style.display = 'none';
+
+      const frag = document.createDocumentFragment();
+      messages.forEach(msg => {
+        frag.appendChild(buildMessageHTML(msg));
       });
-
-      bubble.appendChild(ul);
+      els.messagesWrap.appendChild(frag);
     }
 
-    const footer = document.createElement('div');
-    footer.className = 'msg-footer';
-
-    const time = document.createElement('span');
-    time.className = 'msg-time';
-    time.textContent = msg.created_at_time || '';
-    footer.appendChild(time);
-
-    // Seen indicator only for own messages
-    if (msg.is_mine && typeof msg.seen_by_total === 'number') {
-      const seen = document.createElement('span');
-      seen.className = 'msg-seen';
-
-      const icon = document.createElement('i');
-      icon.className = msg.seen_by_total > 1 ? 'fa fa-check-double' : 'fa fa-check';
-      seen.appendChild(icon);
-
-      const txt = document.createElement('span');
-      if (msg.seen_by_total > 1) {
-        txt.textContent = 'Seen by ' + msg.seen_by_total;
-      } else {
-        txt.textContent = msg.is_seen_by_me ? 'Sent' : '';
-      }
-      seen.appendChild(txt);
-
-      footer.appendChild(seen);
+    function scrollToBottom() {
+      requestAnimationFrame(() => {
+        els.body.scrollTop = els.body.scrollHeight + 50;
+      });
     }
 
-    bubble.appendChild(footer);
-    row.appendChild(bubble);
-    return row;
-  }
+    async function fetchMessages(params = {}) {
+      const qs = new URLSearchParams();
+      if (params.limit) qs.set('limit', params.limit);
+      if (params.beforeId) qs.set('before_id', params.beforeId);
+      if (params.afterId) qs.set('after_id', params.afterId);
 
-  function renderAllMessages() {
-    els.messagesWrap.innerHTML = '';
-
-    if (!messages.length) {
-      els.empty.style.display = hasMoreBefore ? 'none' : 'block';
-      return;
-    }
-
-    els.empty.style.display = 'none';
-
-    const frag = document.createDocumentFragment();
-    messages.forEach(msg => {
-      frag.appendChild(buildMessageHTML(msg));
-    });
-    els.messagesWrap.appendChild(frag);
-  }
-
-  function scrollToBottom() {
-    requestAnimationFrame(() => {
-      els.body.scrollTop = els.body.scrollHeight + 50;
-    });
-  }
-
-  async function fetchMessages(params = {}) {
-    const qs = new URLSearchParams();
-    if (params.limit) qs.set('limit', params.limit);
-    if (params.beforeId) qs.set('before_id', params.beforeId);
-    if (params.afterId) qs.set('after_id', params.afterId);
-
-    const url = API_BASE + '/messages' + (qs.toString() ? ('?' + qs.toString()) : '');
-    const res = await fetch(url, {
-      headers: {
-        'Accept': 'application/json',
-        'Authorization': TOKEN ? 'Bearer ' + TOKEN : '',
-        'X-Requested-With': 'XMLHttpRequest',
-      }
-    });
-
-    if (!res.ok) {
-      let msg = 'Failed to load messages (HTTP ' + res.status + ')';
-      try {
-        const data = await res.json();
-        if (data && data.error) msg = data.error;
-      } catch (e) {}
-      throw new Error(msg);
-    }
-
-    const json = await res.json();
-    return json.data || json;
-  }
-
-  async function markReadUpTo(id) {
-    if (!id) return;
-    try {
-      await fetch(API_BASE + '/messages/read', {
-        method: 'POST',
+      const url = API_BASE + '/messages' + (qs.toString() ? ('?' + qs.toString()) : '');
+      const res = await fetch(url, {
         headers: {
           'Accept': 'application/json',
           'Authorization': TOKEN ? 'Bearer ' + TOKEN : '',
           'X-Requested-With': 'XMLHttpRequest',
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ up_to_id: id }),
-      });
-    } catch (err) {
-      console.warn('chat.markReadUpTo', err);
-    }
-  }
-
-  async function loadInitial() {
-    if (isLoadingInitial) return;
-    isLoadingInitial = true;
-    showState({ loading: true, error: false });
-
-    try {
-      const data = await fetchMessages({ limit: 50 });
-      actor = data.actor || actor;
-      messages = Array.isArray(data.messages) ? data.messages : [];
-      hasMoreBefore = !!(data.meta && data.meta.has_more_before);
-
-      renderAllMessages();
-      els.loadMoreWrap.style.display = hasMoreBefore ? 'block' : 'none';
-
-      showState({ loading: false, empty: messages.length === 0 && !hasMoreBefore });
-
-      if (messages.length) {
-        scrollToBottom();
-        const newestId = messages[messages.length - 1].id;
-        markReadUpTo(newestId);
-      }
-    } catch (err) {
-      console.error('chat.initial', err);
-      showState({ loading: false, error: true });
-      els.error.textContent = err.message || 'Failed to load messages.';
-    } finally {
-      isLoadingInitial = false;
-    }
-  }
-
-  async function loadOlder() {
-    if (isLoadingMore || !hasMoreBefore || !messages.length) return;
-
-    isLoadingMore = true;
-    els.loadMoreBtn.disabled = true;
-    els.loadMoreBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Loading…';
-
-    const prevScrollHeight = els.body.scrollHeight;
-    const prevScrollTop = els.body.scrollTop;
-
-    try {
-      const oldestId = messages[0].id;
-      const data = await fetchMessages({ beforeId: oldestId, limit: 50 });
-      const newMsgs = Array.isArray(data.messages) ? data.messages : [];
-      hasMoreBefore = !!(data.meta && data.meta.has_more_before);
-
-      messages = newMsgs.concat(messages);
-      renderAllMessages();
-      els.loadMoreWrap.style.display = hasMoreBefore ? 'block' : 'none';
-
-      const newScrollHeight = els.body.scrollHeight;
-      const diff = newScrollHeight - prevScrollHeight;
-      els.body.scrollTop = prevScrollTop + diff;
-    } catch (err) {
-      console.error('chat.loadOlder', err);
-    } finally {
-      isLoadingMore = false;
-      els.loadMoreBtn.disabled = false;
-      els.loadMoreBtn.textContent = 'Load previous messages';
-    }
-  }
-
-  async function pollNewMessages() {
-    if (!messages.length) return;
-    try {
-      const lastId = messages[messages.length - 1].id;
-      const data = await fetchMessages({ afterId: lastId, limit: 50 });
-      const newMsgs = Array.isArray(data.messages) ? data.messages : [];
-      if (!newMsgs.length) return;
-
-      messages = messages.concat(newMsgs);
-      renderAllMessages();
-      scrollToBottom();
-      markReadUpTo(messages[messages.length - 1].id);
-    } catch (err) {
-      console.warn('chat.poll', err.message || err);
-    }
-  }
-
-  async function sendMessage() {
-    if (isSending) return;
-    const text = (els.msgInput.value || '').trim();
-    if (!text && !selectedFiles.length) {
-      els.msgInput.focus();
-      return;
-    }
-
-    const fd = new FormData();
-    if (text) fd.append('message', text);
-    selectedFiles.forEach(f => fd.append('attachments[]', f));
-
-    setSendLoading(true);
-
-    try {
-      const res = await fetch(API_BASE + '/messages', {
-        method: 'POST',
-        headers: {
-          'Accept': 'application/json',
-          'Authorization': TOKEN ? 'Bearer ' + TOKEN : '',
-          'X-Requested-With': 'XMLHttpRequest',
-        },
-        body: fd,
+        }
       });
 
       if (!res.ok) {
-        if (res.status === 422) {
+        let msg = 'Failed to load messages (HTTP ' + res.status + ')';
+        try {
           const data = await res.json();
-          const msg = (data.errors && data.errors.message && data.errors.message[0]) || 'Validation failed.';
-          throw new Error(msg);
-        }
-        throw new Error('Failed to send message (HTTP ' + res.status + ')');
+          if (data && data.error) msg = data.error;
+        } catch (e) {}
+        throw new Error(msg);
       }
 
       const json = await res.json();
-      const msg = json.data && json.data.message ? json.data.message : null;
-      if (msg) {
-        messages.push(msg);
+      return json.data || json;
+    }
+
+    async function markReadUpTo(id) {
+      if (!id) return;
+      try {
+        await fetch(API_BASE + '/messages/read', {
+          method: 'POST',
+          headers: {
+            'Accept': 'application/json',
+            'Authorization': TOKEN ? 'Bearer ' + TOKEN : '',
+            'X-Requested-With': 'XMLHttpRequest',
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ up_to_id: id }),
+        });
+      } catch (err) {
+        console.warn('chat.markReadUpTo', err);
+      }
+    }
+
+    async function loadInitial() {
+      if (isLoadingInitial) return;
+      isLoadingInitial = true;
+      showState({ loading: true, error: false });
+
+      try {
+        const data = await fetchMessages({ limit: 50 });
+
+        actor = data.actor || actor;
+
+        // ✅ ensure role comes from in-memory role cache
+        const roleNow = getRoleNow();
+        actor.role = actor.role || roleNow || USER_ROLE || null;
+        window.__VC_CHAT_ACTOR__ = actor;
+
+        messages = Array.isArray(data.messages) ? data.messages : [];
+        hasMoreBefore = !!(data.meta && data.meta.has_more_before);
+
+        renderAllMessages();
+        els.loadMoreWrap.style.display = hasMoreBefore ? 'block' : 'none';
+
+        showState({ loading: false, empty: messages.length === 0 && !hasMoreBefore });
+
+        if (messages.length) {
+          scrollToBottom();
+          const newestId = messages[messages.length - 1].id;
+          markReadUpTo(newestId);
+        }
+      } catch (err) {
+        console.error('chat.initial', err);
+        showState({ loading: false, error: true });
+        els.error.textContent = err.message || 'Failed to load messages.';
+      } finally {
+        isLoadingInitial = false;
+      }
+    }
+
+    async function loadOlder() {
+      if (isLoadingMore || !hasMoreBefore || !messages.length) return;
+
+      isLoadingMore = true;
+      els.loadMoreBtn.disabled = true;
+      els.loadMoreBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Loading…';
+
+      const prevScrollHeight = els.body.scrollHeight;
+      const prevScrollTop = els.body.scrollTop;
+
+      try {
+        const oldestId = messages[0].id;
+        const data = await fetchMessages({ beforeId: oldestId, limit: 50 });
+        const newMsgs = Array.isArray(data.messages) ? data.messages : [];
+        hasMoreBefore = !!(data.meta && data.meta.has_more_before);
+
+        messages = newMsgs.concat(messages);
+        renderAllMessages();
+        els.loadMoreWrap.style.display = hasMoreBefore ? 'block' : 'none';
+
+        const newScrollHeight = els.body.scrollHeight;
+        const diff = newScrollHeight - prevScrollHeight;
+        els.body.scrollTop = prevScrollTop + diff;
+      } catch (err) {
+        console.error('chat.loadOlder', err);
+      } finally {
+        isLoadingMore = false;
+        els.loadMoreBtn.disabled = false;
+        els.loadMoreBtn.textContent = 'Load previous messages';
+      }
+    }
+
+    async function pollNewMessages() {
+      if (!messages.length) return;
+      try {
+        const lastId = messages[messages.length - 1].id;
+        const data = await fetchMessages({ afterId: lastId, limit: 50 });
+        const newMsgs = Array.isArray(data.messages) ? data.messages : [];
+        if (!newMsgs.length) return;
+
+        messages = messages.concat(newMsgs);
         renderAllMessages();
         scrollToBottom();
-        markReadUpTo(msg.id);
+        markReadUpTo(messages[messages.length - 1].id);
+      } catch (err) {
+        console.warn('chat.poll', err.message || err);
+      }
+    }
+
+    async function sendMessage() {
+      if (isSending) return;
+      const text = (els.msgInput.value || '').trim();
+      if (!text && !selectedFiles.length) {
+        els.msgInput.focus();
+        return;
       }
 
-      els.msgInput.value = '';
-      selectedFiles = [];
-      renderFilesChips();
-    } catch (err) {
-      console.error('chat.send', err);
-      alert(err.message || 'Failed to send message.');
-    } finally {
-      setSendLoading(false);
+      const fd = new FormData();
+      if (text) fd.append('message', text);
+      selectedFiles.forEach(f => fd.append('attachments[]', f));
+
+      setSendLoading(true);
+
+      try {
+        const res = await fetch(API_BASE + '/messages', {
+          method: 'POST',
+          headers: {
+            'Accept': 'application/json',
+            'Authorization': TOKEN ? 'Bearer ' + TOKEN : '',
+            'X-Requested-With': 'XMLHttpRequest',
+          },
+          body: fd,
+        });
+
+        if (!res.ok) {
+          if (res.status === 422) {
+            const data = await res.json();
+            const msg = (data.errors && data.errors.message && data.errors.message[0]) || 'Validation failed.';
+            throw new Error(msg);
+          }
+          throw new Error('Failed to send message (HTTP ' + res.status + ')');
+        }
+
+        const json = await res.json();
+        const msg = (json.data && json.data.message) ? json.data.message : null;
+        if (msg) {
+          messages.push(msg);
+          renderAllMessages();
+          scrollToBottom();
+          markReadUpTo(msg.id);
+        }
+
+        els.msgInput.value = '';
+        selectedFiles = [];
+        renderFilesChips();
+      } catch (err) {
+        console.error('chat.send', err);
+        alert(err.message || 'Failed to send message.');
+      } finally {
+        setSendLoading(false);
+      }
     }
-  }
 
-  // ===== Wire events =====
-  els.loadMoreBtn.addEventListener('click', () => loadOlder());
+    // ===== Wire events =====
+    els.loadMoreBtn.addEventListener('click', () => loadOlder());
 
-  els.fileInput.addEventListener('change', (e) => {
-    const files = Array.from(e.target.files || []);
-    if (files.length) {
-      selectedFiles = selectedFiles.concat(files);
-      renderFilesChips();
-    }
-    e.target.value = '';
-  });
+    els.fileInput.addEventListener('change', (e) => {
+      const files = Array.from(e.target.files || []);
+      if (files.length) {
+        selectedFiles = selectedFiles.concat(files);
+        renderFilesChips();
+      }
+      e.target.value = '';
+    });
 
-  els.attachBtn.addEventListener('click', () => {
-    els.fileInput.click();
-  });
+    els.attachBtn.addEventListener('click', () => {
+      els.fileInput.click();
+    });
 
-  els.sendBtn.addEventListener('click', (e) => {
-    e.preventDefault();
-    sendMessage();
-  });
-
-  els.msgInput.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
+    els.sendBtn.addEventListener('click', (e) => {
       e.preventDefault();
       sendMessage();
+    });
+
+    els.msgInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        sendMessage();
+      }
+    });
+
+    // mark read when user is near bottom
+    let readThrottle = null;
+    els.body.addEventListener('scroll', () => {
+      if (!messages.length) return;
+      const nearBottom = (els.body.scrollHeight - els.body.scrollTop - els.body.clientHeight) < 40;
+      if (nearBottom) {
+        if (readThrottle) return;
+        readThrottle = setTimeout(() => {
+          const lastId = messages[messages.length - 1].id;
+          markReadUpTo(lastId);
+          readThrottle = null;
+        }, 800);
+      }
+    });
+
+    // light polling every 15s (single interval per page)
+    if (!window.__VC_CHAT_POLL__) {
+      window.__VC_CHAT_POLL__ = setInterval(pollNewMessages, 15000);
     }
+
+    // initial load
+    loadInitial();
+  }
+
+  // Run once now (works if chat is initial tab)
+  initChatIfPresent();
+
+  // Also run when your tab system switches to chat (works when loaded dynamically)
+  document.addEventListener('vc:tab-changed', (e) => {
+    try {
+      if (e && e.detail && e.detail.tab === 'chat') {
+        initChatIfPresent();
+      }
+    } catch (err) {}
   });
-
-  // mark read when user is near bottom
-  let readThrottle = null;
-  els.body.addEventListener('scroll', () => {
-    if (!messages.length) return;
-    const nearBottom = els.body.scrollHeight - els.body.scrollTop - els.body.clientHeight < 40;
-    if (nearBottom) {
-      if (readThrottle) return;
-      readThrottle = setTimeout(() => {
-        const lastId = messages[messages.length - 1].id;
-        markReadUpTo(lastId);
-        readThrottle = null;
-      }, 800);
-    }
-  });
-
-  // light polling every 15s
-  setInterval(pollNewMessages, 15000);
-
-  // initial load
-  loadInitial();
-});
+})();
 </script>

@@ -174,29 +174,30 @@ pre{
       <div class="sub" id="quizSub">Loading…</div>
       <div id="verdictBadge"></div>
     </div>
-    <div style="display:flex;flex-direction:column;align-items:center;gap:10px;">
-  <div class="ring" id="scoreRing">
-    <div class="inner" id="ringPct">0%</div>
-  </div>
 
-  <button id="exportPdfBtn"
-    style="
-      padding:8px 14px;
-      border-radius:10px;
-      border:1px solid #4f46e5;
-      background:#4f46e5;
-      color:#fff;
-      font-weight:700;
-      font-size:13px;
-      cursor:pointer;
-      display:flex;
-      align-items:center;
-      gap:6px;
-    ">
-    <i class="fa-solid fa-file-pdf"></i>
-    Export PDF
-  </button>
-</div>
+    <div style="display:flex;flex-direction:column;align-items:center;gap:10px;">
+      <div class="ring" id="scoreRing">
+        <div class="inner" id="ringPct">0%</div>
+      </div>
+
+      <button id="exportPdfBtn"
+        style="
+          padding:8px 14px;
+          border-radius:10px;
+          border:1px solid #4f46e5;
+          background:#4f46e5;
+          color:#fff;
+          font-weight:700;
+          font-size:13px;
+          cursor:pointer;
+          display:flex;
+          align-items:center;
+          gap:6px;
+        ">
+        <i class="fa-solid fa-file-pdf"></i>
+        Export PDF
+      </button>
+    </div>
 
   </div>
 
@@ -243,113 +244,187 @@ pre{
 <script>
 (() => {
   const api = `/api`;
-  const token = localStorage.getItem('token') || sessionStorage.getItem('token');
+
+  // token comes from storage (same as your assignments page)
+  const TOKEN = localStorage.getItem('token') || sessionStorage.getItem('token') || '';
+
+  // role is resolved from backend using token (NOT decoded on frontend)
+  let role = '';
+
+  const getMyRole = async (token) => {
+    if (!token) return '';
+    try {
+      const res = await fetch('/api/auth/my-role', {
+        method: 'GET',
+        headers: {
+          'Authorization': 'Bearer ' + token,
+          'Accept': 'application/json'
+        }
+      });
+      if (!res.ok) return '';
+      const data = await res.json().catch(() => null);
+      if (data?.status === 'success' && data?.role) {
+        return String(data.role).trim().toLowerCase();
+      }
+      return '';
+    } catch (e) {
+      return '';
+    }
+  };
+
+  const getCurrentRole = () => role;
 
   const pathParts = window.location.pathname.split('/').filter(Boolean);
-  const resultUuid = pathParts[pathParts.length - 2];
+  // You used: last-2. Keeping same, but guarded.
+  const resultUuid = pathParts.length >= 2 ? pathParts[pathParts.length - 2] : '';
 
   const el = id => document.getElementById(id);
-  const fmtMs = ms => ms < 1000 ? `${ms} ms` : `${(ms/1000).toFixed(2)} s`;
-// Export PDF
-document.getElementById('exportPdfBtn')?.addEventListener('click', () => {
-  if (!resultUuid) {
-    alert('Result not found');
-    return;
+
+  const fmtMs = ms => {
+    const n = Number(ms);
+    if (isNaN(n) || n < 0) return '—';
+    return n < 1000 ? `${n} ms` : `${(n/1000).toFixed(2)} s`;
+  };
+
+  // Role-based Export PDF visibility (same idea as "Give Marks" logic)
+  function updateExportPdfButton() {
+    const btn = document.getElementById('exportPdfBtn');
+    if (!btn) return;
+
+    const r = getCurrentRole();
+    const allowed = ['admin', 'instructor', 'super_admin', 'superadmin'];
+
+    // Hide for students and unknown roles (safe default)
+    if (!allowed.includes(r)) {
+      btn.style.setProperty('display', 'none', 'important');
+      btn.setAttribute('aria-hidden', 'true');
+      btn.setAttribute('disabled', 'true');
+      btn.tabIndex = -1;
+      return;
+    }
+
+    // show for allowed roles
+    btn.style.removeProperty('display');
+    btn.removeAttribute('aria-hidden');
+    btn.removeAttribute('disabled');
+    btn.tabIndex = 0;
   }
 
-  const url = `/api/coding/results/${resultUuid}/export?format=pdf`;
+  // Export PDF (kept same behavior, but uses TOKEN when opening in new tab via query is not possible)
+  // If your backend checks Authorization header, window.open cannot send headers.
+  // So this export endpoint MUST authenticate via session/cookie OR signed URL.
+  // If it needs Bearer token, you must do fetch->blob instead.
+  document.getElementById('exportPdfBtn')?.addEventListener('click', async () => {
+    if (!resultUuid) { alert('Result not found'); return; }
 
-  // open in new tab so print dialog doesn't block UI
-  window.open(url, '_blank');
-});
+    const url = `/api/coding/results/${encodeURIComponent(resultUuid)}/export?format=pdf`;
+
+    // If your export route works without headers (cookie auth / public / signed), keep open:
+    window.open(url, '_blank');
+
+    // NOTE:
+    // If your export requires Bearer token, tell me — I’ll switch this to:
+    // fetch(url, {headers:{Authorization:`Bearer ${TOKEN}`}}) -> blob -> download.
+  });
 
   async function load(){
+    if (!resultUuid) {
+      console.error('Missing resultUuid from URL');
+      return;
+    }
+
     console.log('Fetching from:', `${api}/coding/results/${resultUuid}/details`);
-    
-    const res = await fetch(`${api}/coding/results/${resultUuid}/details`, {
-      headers:{ Authorization:`Bearer ${token}` }
+
+    const res = await fetch(`${api}/coding/results/${encodeURIComponent(resultUuid)}/details`, {
+      headers: {
+        'Authorization': TOKEN ? (`Bearer ${TOKEN}`) : '',
+        'Accept': 'application/json'
+      }
     });
 
-    const data = await res.json();
+    const data = await res.json().catch(() => null);
     console.log('Full API Response:', data);
-    
-    if(!data.success) {
+
+    if(!data || !data.success) {
       console.error('API Error:', data);
       return;
     }
 
     const {question, submission, result, timing, testcases, student} = data;
 
-    el('quizTitle').textContent = question.title;
-    el('quizSub').textContent = `Language: ${submission.language}`;
+    el('quizTitle').textContent = question?.title || 'Coding Result';
+    el('quizSub').textContent = `Language: ${submission?.language || '—'}`;
 
-    el('scoreRing').style.setProperty('--p', result.percentage);
-    el('ringPct').textContent = result.percentage.toFixed(2)+'%';
+    const pct = Number(result?.percentage ?? 0) || 0;
+    el('scoreRing').style.setProperty('--p', pct);
+    el('ringPct').textContent = pct.toFixed(2)+'%';
 
-    el('kScore').textContent = `${result.marks_obtained}/${result.marks_total}`;
-    el('kAcc').textContent = result.percentage.toFixed(2)+'%';
-    el('kPass').textContent = `${result.passed_tests}/${result.total_tests}`;
-    el('kTime').textContent = fmtMs(timing.total_time_ms);
+    el('kScore').textContent = `${result?.marks_obtained ?? '—'}/${result?.marks_total ?? '—'}`;
+    el('kAcc').textContent = pct.toFixed(2)+'%';
+    el('kPass').textContent = `${result?.passed_tests ?? '—'}/${result?.total_tests ?? '—'}`;
+    el('kTime').textContent = fmtMs(timing?.total_time_ms);
 
-    el('submittedCode').textContent = submission.submitted_code;
+    el('submittedCode').textContent = submission?.submitted_code || '';
 
+    const allPass = !!result?.all_pass;
     el('verdictBadge').innerHTML =
-      `<div class="verdict ${result.all_pass?'pass':'fail'}">
-        <i class="fa-solid ${result.all_pass?'fa-check':'fa-xmark'}"></i>
-        ${result.all_pass?'Accepted':'Failed'}
+      `<div class="verdict ${allPass?'pass':'fail'}">
+        <i class="fa-solid ${allPass?'fa-check':'fa-xmark'}"></i>
+        ${allPass?'Accepted':'Failed'}
       </div>`;
 
-    el('sStatus').textContent = result.all_pass ? 'PASSED' : 'FAILED';
-    el('sStart').textContent = timing.started_at;
-    el('sFinish').textContent = timing.finished_at;
-    el('sQ').textContent = result.total_tests;
-    el('sC').textContent = result.passed_tests;
-    el('sW').textContent = result.failed_tests;
-    el('sT').textContent = fmtMs(timing.total_time_ms);
+    el('sStatus').textContent = allPass ? 'PASSED' : 'FAILED';
+    el('sStart').textContent = timing?.started_at || '—';
+    el('sFinish').textContent = timing?.finished_at || '—';
+    el('sQ').textContent = result?.total_tests ?? '—';
+    el('sC').textContent = result?.passed_tests ?? '—';
+    el('sW').textContent = result?.failed_tests ?? '—';
+    el('sT').textContent = fmtMs(timing?.total_time_ms);
 
     if(student){
       el('studentName').textContent = student.name || '—';
       el('studentEmail').textContent = student.email || '';
     }
 
-    el('testcaseList').innerHTML = testcases.map(tc => {
-      console.log('Test Case:', tc); // Debug log
-      
-      const isPassed = tc.status === 'passed';
-      const isSample = tc.visibility === 'sample';
-      
+    const list = Array.isArray(testcases) ? testcases : [];
+    el('testcaseList').innerHTML = list.map(tc => {
+      console.log('Test Case:', tc);
+
+      const isPassed = String(tc?.status || '').toLowerCase() === 'passed';
+      const isSample = String(tc?.visibility || '').toLowerCase() === 'sample';
+
       return `
         <div class="testcase ${isPassed ? 'pass':'fail'}">
           <div class="tc-head">
             <div class="tc-left">
               <i class="fa-solid ${isPassed ? 'fa-check':'fa-xmark'}"></i>
-              Test Case #${tc.test_id} - ${tc.status}
+              Test Case #${tc?.test_id ?? '—'} - ${tc?.status ?? '—'}
             </div>
-            <div class="tc-time">${fmtMs(tc.time_ms)}</div>
+            <div class="tc-time">${fmtMs(tc?.time_ms)}</div>
           </div>
 
-          ${!isPassed && tc.failure_reason ? `
+          ${!isPassed && tc?.failure_reason ? `
             <div class="tc-block">
               <div class="tc-label">Error</div>
               <div style="color:#991b1b;font-weight:600;font-size:13px;">${tc.failure_reason}</div>
             </div>
           ` : ''}
 
-          ${isSample && tc.input ? `
+          ${isSample && tc?.input ? `
             <div class="tc-block">
               <div class="tc-label">Input</div>
               <pre class="tc-code">${tc.input}</pre>
             </div>
           ` : ''}
 
-          ${isSample && tc.expected ? `
+          ${isSample && tc?.expected ? `
             <div class="tc-block">
               <div class="tc-label">Expected Output</div>
               <pre class="tc-code">${tc.expected}</pre>
             </div>
           ` : ''}
 
-          ${isSample && tc.output !== null && tc.output !== undefined ? `
+          ${isSample && (tc?.output !== null && tc?.output !== undefined) ? `
             <div class="tc-block">
               <div class="tc-label">Your Output</div>
               <pre class="tc-code">${tc.output || '(empty)'}</pre>
@@ -366,7 +441,22 @@ document.getElementById('exportPdfBtn')?.addEventListener('click', () => {
     }).join('');
   }
 
-  load();
+  // init (same idea as your other page)
+  (async () => {
+    try {
+      role = await getMyRole(TOKEN);
+      console.log('[Resolved role]', role);
+    } catch (e) {
+      role = '';
+    }
+
+    // IMPORTANT: apply role-based UI after role resolves
+    updateExportPdfButton();
+
+    // load data
+    await load();
+  })();
+
 })();
 </script>
 

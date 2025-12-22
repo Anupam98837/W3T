@@ -287,7 +287,7 @@ document.addEventListener('DOMContentLoaded', function() {
       if (error.message.includes('Access denied')) {
         emptyState.innerHTML = `
           <i class="fas fa-lock" style="font-size: 64px; color: var(--danger-color); opacity: 0.3; margin-bottom: 16px;"></i>
-          <h3 style="color: var(--danger-color); font-weight: 600;">Access Restricted</h3>
+          <h3 style="color: var(--danger-color); font-weight: 600;">Token Expired. </br> Please Login Again!!</h3>
           <p style="color: var(--muted-color); margin-top: 8px;">You don't have permission to view courses. Please contact your administrator.</p>
         `;
       } else {

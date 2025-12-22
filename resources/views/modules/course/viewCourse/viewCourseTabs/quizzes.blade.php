@@ -339,42 +339,86 @@
     </div>
   </div>
 </div>
-
 <script>
-(function(){
-  // ----------------------------
-  // Shared context + helpers
-  // ----------------------------
-  // ---- normalize role (replace the original role read block) ----
-  const rawRole = (sessionStorage.getItem('role') || localStorage.getItem('role') || '');
-  // normalize to a canonical lower_snake_case form: Super-Admin | superadmin | super_admin -> super_admin
-  const role = String(rawRole || '').toLowerCase()
-                    .replace(/[-\s]+/g, '_')       // replace '-' or spaces with underscore
-                    .replace(/_+/g, '_')           // collapse multiple underscores
-                    .replace(/^_+|_+$/g, '');      // trim leading/trailing underscores
+(async function(){
+   function normalizeRole(raw){
+    return String(raw || '')
+      .toLowerCase()
+      .replace(/[-\s]+/g, '_')
+      .replace(/_+/g, '_')
+      .replace(/^_+|_+$/g, '');
+  }
+
+  // numeric helper (handles "2" too)
+  function toNum(v){
+    if (v === null || v === undefined || v === '') return null;
+    const n = Number(v);
+    return Number.isFinite(n) ? n : null;
+  }
 
   window.TOKEN = localStorage.getItem('token') || sessionStorage.getItem('token') || '';
   if (!window.TOKEN) {
-    Swal.fire({ icon:'warning', title:'Login required', text:'Please sign in to continue.', allowOutsideClick:false, allowEscapeKey:false }).then(()=>{ window.location.href = '/'; });
+    Swal.fire({
+      icon:'warning',
+      title:'Login required',
+      text:'Please sign in to continue.',
+      allowOutsideClick:false,
+      allowEscapeKey:false
+    }).then(()=>{ window.location.href = '/'; });
     return;
   }
+
+  // ✅ role from API (single source of truth)
+  const getMyRole = async (token) => {
+    if (!token) return '';
+    try {
+      const res = await fetch('/api/auth/my-role', {
+        method: 'GET',
+        headers: {
+          'Authorization': 'Bearer ' + token,
+          'Accept': 'application/json'
+        }
+      });
+
+      // handle expired token same way as apiFetch
+      if (res.status === 401) {
+        try { await Swal.fire({ icon:'warning', title:'Session expired', text:'Please login again.' }); } catch(e){}
+        location.href = '/';
+        return '';
+      }
+
+      if (!res.ok) return '';
+
+      const data = await res.json().catch(() => null);
+      if (data?.status === 'success' && data?.role) {
+        return String(data.role).trim();
+      }
+    } catch (e) {}
+    return '';
+  };
+
+  // ✅ Use API role (fallback only to window.role if you set it from Blade)
+  const role = normalizeRole((await getMyRole(window.TOKEN)) || window.role || '');
 
   // role helpers (use canonical checks)
   const isAdmin      = role === 'super_admin' || role === 'superadmin' || role === 'admin' || role.includes('_admin');
   const isInstructor = role.includes('instructor');
-  const isStudent = role === 'student' ;
+  const isStudent    = role === 'student';
 
-  const canCreate = isAdmin || isInstructor;
-  const canEdit = isAdmin || isInstructor;
-  const canDelete = isAdmin || isInstructor;
+  const canCreate  = isAdmin || isInstructor;
+  const canEdit    = isAdmin || isInstructor;
+  const canDelete  = isAdmin || isInstructor;
   const canViewBin = isAdmin;
+
 
   const apiBase = '/api';
   const defaultHeaders = { 'Accept': 'application/json' };
   if (window.TOKEN) defaultHeaders['Authorization'] = 'Bearer ' + window.TOKEN;
-  
+
   function escapeHtml(str){
-    return String(str || '').replace(/[&<>"'`=\/]/g, s => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;","/":"&#x2F;","`":"&#x60","=":"&#x3D;"}[s]));
+    return String(str || '').replace(/[&<>"'`=\/]/g, s => (
+      {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;","/":"&#x2F;","`":"&#x60","=":"&#x3D;"}[s]
+    ));
   }
 
   function showOk(msg){
@@ -395,48 +439,59 @@
     return res;
   }
 
+  // ----------------------------
   // DOM refs (main)
-  const $loader = document.getElementById('qz-loader');
-  const $empty  = document.getElementById('qz-empty');
-  const $items  = document.getElementById('qz-items');
-  const $search = document.getElementById('qz-search');
-  const $sort   = document.getElementById('qz-sort');
+  // ----------------------------
+  const $loader  = document.getElementById('qz-loader');
+  const $empty   = document.getElementById('qz-empty');
+  const $items   = document.getElementById('qz-items');
+  const $search  = document.getElementById('qz-search');
+  const $sort    = document.getElementById('qz-sort');
   const $refresh = document.getElementById('qz-refresh');
-  const $btnBin = document.getElementById('qz-bin');
+  const $btnBin  = document.getElementById('qz-bin');
   const $assignBtn = document.getElementById('qz-assign-btn');
 
-  const detailsModal = document.getElementById('qz-details-modal');
-  const detailsBody = document.getElementById('qz-details-body');
-  const detailsClose = document.getElementById('qz-details-close');
+  const detailsModal  = document.getElementById('qz-details-modal');
+  const detailsBody   = document.getElementById('qz-details-body');
+  const detailsClose  = document.getElementById('qz-details-close');
   const detailsFooter = document.getElementById('qz-details-footer');
-  // Attempts / Results modal elems
-const attemptsModalEl   = document.getElementById('quizAttemptsModal');
-const attemptsHeaderEl  = document.getElementById('qa_attempts_header');
-const attemptsRowsEl    = document.getElementById('qa_attempt_rows');
 
+  // Attempts / Results modal elems
+  const attemptsModalEl  = document.getElementById('quizAttemptsModal');
+  const attemptsHeaderEl = document.getElementById('qa_attempts_header');
+  const attemptsRowsEl   = document.getElementById('qa_attempt_rows');
 
   // NEW EDIT MODAL ELEMENTS
-  const editModalEl = document.getElementById('editQuizModal');
-  const editQuizIdInput = document.getElementById('edit_quiz_id');
-  const editQuizName = document.getElementById('edit_quiz_name');
-  const editIsPublic = document.getElementById('edit_is_public');
-  const editTotalAttempts = document.getElementById('edit_total_attempts');
-  const editResultSetup = document.getElementById('edit_result_set_up_type');
-  const editQuizForm = document.getElementById('editQuizForm');
-  const editQuizSubmit = document.getElementById('editQuizSubmit');
-  const editQuizAlert = document.getElementById('editQuizAlert');
+  const editModalEl         = document.getElementById('editQuizModal');
+  const editQuizIdInput     = document.getElementById('edit_quiz_id');
+  const editQuizName        = document.getElementById('edit_quiz_name');
+  const editIsPublic        = document.getElementById('edit_is_public');
+  const editTotalAttempts   = document.getElementById('edit_total_attempts');
+  const editResultSetup     = document.getElementById('edit_result_set_up_type');
+  const editQuizForm        = document.getElementById('editQuizForm');
+  const editQuizSubmit      = document.getElementById('editQuizSubmit');
+  const editQuizAlert       = document.getElementById('editQuizAlert');
 
-  // assign modal elements (will be used by assign modal functions)
-  const qz_q = document.getElementById('qz_q'),
-        qz_per = document.getElementById('qz_per'),
-        qz_apply = document.getElementById('qz_apply'),
+  // assign modal elements
+  const qz_q        = document.getElementById('qz_q'),
+        qz_per      = document.getElementById('qz_per'),
+        qz_apply    = document.getElementById('qz_apply'),
         qz_assigned = document.getElementById('qz_assigned'),
-        qz_rows = document.getElementById('qz_rows'),
-        qz_loader = document.getElementById('qz_loader'),
-        qz_meta = document.getElementById('qz_meta'),
-        qz_pager = document.getElementById('qz_pager');
+        qz_rows     = document.getElementById('qz_rows'),
+        qz_loader   = document.getElementById('qz_loader'),
+        qz_meta     = document.getElementById('qz_meta'),
+        qz_pager    = document.getElementById('qz_pager');
 
-  // context helpers
+  // Force hide the Assign Quiz button for students (clean)
+  if (isStudent && $assignBtn) {
+    $assignBtn.style.display = 'none';
+    $assignBtn.style.visibility = 'hidden';
+    $assignBtn.disabled = true;
+  }
+
+  // ----------------------------
+  // Context helpers
+  // ----------------------------
   const deriveCourseKey = () => {
     const parts = location.pathname.split('/').filter(Boolean);
     const idx = parts.findIndex(p => p === 'batches' || p === 'batch');
@@ -445,22 +500,6 @@ const attemptsRowsEl    = document.getElementById('qa_attempt_rows');
     if (last === 'view') return parts.at(-2);
     return last;
   };
-  // Force hide the Assign Quiz button for students
-if (role === 'student') {
-    if ($assignBtn) {
-        $assignBtn.style.display = 'none';
-        $assignBtn.style.visibility = 'hidden';
-        $assignBtn.disabled = true;
-    }
-}
-
-  function getQueryParam(name) {
-    try {
-      return (new URL(window.location.href)).searchParams.get(name);
-    } catch(e) {
-      return null;
-    }
-  }
 
   (function ensureBatchInDomFromUrl() {
     const host = document.querySelector('.crs-wrap');
@@ -488,8 +527,8 @@ if (role === 'student') {
 
   // UI helpers
   function showLoader(v){ if ($loader) $loader.style.display = v ? 'flex' : 'none'; }
-  function showEmpty(v){ if ($empty) $empty.style.display = v ? 'block' : 'none'; }
-  function showItems(v){ if ($items) $items.style.display = v ? 'block' : 'none'; }
+  function showEmpty(v){ if ($empty) $empty.style.display  = v ? 'block' : 'none'; }
+  function showItems(v){ if ($items) $items.style.display  = v ? 'block' : 'none'; }
 
   // ---------- Dropdown utilities ----------
   function closeAllDropdowns(){
@@ -505,6 +544,7 @@ if (role === 'student') {
   // ---------- Normalize server response ----------
   function normalizeServerResponse(json) {
     if (!json) return { items: [], pagination: { total:0, per_page:20, current_page:1, last_page:1 } };
+
     let items = [];
     if (Array.isArray(json.data)) items = json.data;
     else if (json.data && (Array.isArray(json.data.items) || Array.isArray(json.data.quizzes))) items = json.data.items || json.data.quizzes;
@@ -523,7 +563,11 @@ if (role === 'student') {
 
       if (!it.quiz) {
         const q = {};
-        ['id','uuid','quiz_name','title','quiz_description','excerpt','total_questions','total_time','is_public','quiz_img','instructions','note','status','total_attempts','result_set_up_type'].forEach(k => {
+        [
+          'id','uuid','quiz_name','title','quiz_description','excerpt',
+          'total_questions','total_time','is_public','quiz_img','instructions',
+          'note','status','total_attempts','result_set_up_type'
+        ].forEach(k => {
           if (it[k] !== undefined) q[k] = it[k];
           if (k === 'quiz_name' && it['title'] !== undefined && !q['quiz_name']) q['quiz_name'] = it['title'];
         });
@@ -535,16 +579,52 @@ if (role === 'student') {
       return it;
     });
 
-    const pagination = (json.pagination || (json.data && json.data.pagination) || { total: items.length, per_page:20, current_page:1, last_page:1 });
+    const pagination = (json.pagination || (json.data && json.data.pagination) || {
+      total: items.length, per_page:20, current_page:1, last_page:1
+    });
 
     return { items, pagination };
   }
 
-  // ---------- Build quiz row (main list) ----------
+  // ----------------------------
+  // MAIN LIST (My quizzes)
+  // ----------------------------
+  let _assignedCache = [];
+
+  function applyFiltersAndRender(){
+    let list = (_assignedCache || []).slice();
+
+    // search (client-side)
+    const q = ($search?.value || '').trim().toLowerCase();
+    if (q) {
+      list = list.filter(it => {
+        const t = String(it.title || it.quiz?.title || it.quiz?.quiz_name || '').toLowerCase();
+        const d = String(it.excerpt || it.quiz?.excerpt || it.quiz?.quiz_description || '').toLowerCase();
+        return t.includes(q) || d.includes(q);
+      });
+    }
+
+    // sort
+    const sortValRaw = $sort ? $sort.value : '';
+    const sortVal = sortValRaw || 'display_asc';
+
+    if (sortVal === 'display_asc') {
+      list.sort((a,b)=> (Number(a.display_order||0) - Number(b.display_order||0)));
+    } else if (sortVal === 'created_desc') {
+      list.sort((a,b)=> new Date(b.assigned_at || b.created_at || 0) - new Date(a.assigned_at || a.created_at || 0));
+    } else if (sortVal === 'created_asc') {
+      list.sort((a,b)=> new Date(a.assigned_at || a.created_at || 0) - new Date(b.assigned_at || b.created_at || 0));
+    } else if (sortVal === 'title_asc') {
+      list.sort((a,b)=> String(a.title||'').localeCompare(String(b.title||'')));
+    }
+
+    renderList(list);
+  }
+
+  // ---------- Build quiz row ----------
   function createQuizRow(row) {
     const wrapper = document.createElement('div');
     wrapper.className = 'qz-item';
-    // Ensure we always have a quiz id available for handlers
     wrapper.dataset.quizId = String(
       row.id ||
       row.quiz?.id ||
@@ -577,7 +657,9 @@ if (role === 'student') {
     const sub = document.createElement('div');
     sub.className = 'sub';
     const excerpt = row.excerpt || row.quiz?.excerpt || row.quiz?.quiz_description || '';
-    sub.innerHTML = escapeHtml(excerpt).slice(0,200) || (row.quiz?.total_questions ? `${row.quiz.total_questions} Qs • ${row.quiz.total_time || '—'} mins` : '—');
+    sub.innerHTML =
+      escapeHtml(excerpt).slice(0,200) ||
+      (row.quiz?.total_questions ? `${row.quiz.total_questions} Qs • ${row.quiz.total_time || '—'} mins` : '—');
 
     const creatorInfo = document.createElement('div');
     creatorInfo.className = 'creator-info';
@@ -588,8 +670,8 @@ if (role === 'student') {
     creatorInfo.style.alignItems = 'center';
     creatorInfo.style.gap = '6px';
     creatorInfo.innerHTML = `
-        <i class="fa fa-user" style="font-size:10px;"></i>
-        <span>${escapeHtml(row.created_by_name || row.quiz?.created_by_name || 'Unknown')}</span>
+      <i class="fa fa-user" style="font-size:10px;"></i>
+      <span>${escapeHtml(row.created_by_name || row.quiz?.created_by_name || 'Unknown')}</span>
     `;
 
     meta.appendChild(title);
@@ -610,63 +692,85 @@ if (role === 'student') {
     datePill.textContent = row.assigned_at ? new Date(row.assigned_at).toLocaleDateString() : '';
     right.appendChild(datePill);
 
-    // --- NEW: attempts pill (used/allowed) ---
-let attemptsAllowed = null;
-let attemptsUsed = null;
+    // ✅ attempts (supports numeric strings too)
+    const attemptsAllowed = toNum(
+      row.attempt_allowed ??
+      row.attempts_allowed ??
+      row.quiz?.total_attempts ??
+      row.quiz?.total_attempts_allowed ??
+      null
+    );
 
-if (typeof row.attempt_allowed === 'number' || typeof row.attempt_used === 'number') {
-  attemptsAllowed = Number(row.attempt_allowed ?? 0);
-  attemptsUsed    = Number(row.attempt_used ?? 0);
-}
+    const attemptsUsed = toNum(
+      row.attempt_used ??
+      row.attempts_used ??
+      row.used_attempts ??
+      null
+    );
 
-let canAttemptMore = true;
+    // rules:
+    // null => unknown => allow start
+    // 0    => unlimited => allow start
+    // >0   => allow if used < allowed
+    let canAttemptMore = true;
 
-if (attemptsAllowed && attemptsAllowed > 0) {
-  const attemptsPill = document.createElement('div');
-  attemptsPill.className = 'duration-pill';
-  attemptsPill.textContent = `${attemptsUsed || 0}/${attemptsAllowed}`;
-  attemptsPill.title = 'Attempts used / allowed';
-  right.appendChild(attemptsPill);
+    if (attemptsAllowed !== null && attemptsAllowed > 0) {
+      const attemptsPill = document.createElement('div');
+      attemptsPill.className = 'duration-pill';
+      attemptsPill.textContent = `${attemptsUsed ?? 0}/${attemptsAllowed}`;
+      attemptsPill.title = 'Attempts used / allowed';
+      right.appendChild(attemptsPill);
 
-  canAttemptMore = (attemptsUsed || 0) < attemptsAllowed;
-}
+      canAttemptMore = (attemptsUsed ?? 0) < attemptsAllowed;
+    } else if (attemptsAllowed === 0) {
+      if (attemptsUsed !== null) {
+        const attemptsPill = document.createElement('div');
+        attemptsPill.className = 'duration-pill';
+        attemptsPill.textContent = `${attemptsUsed}/∞`;
+        attemptsPill.title = 'Attempts used / unlimited';
+        right.appendChild(attemptsPill);
+      }
+    }
 
-
-// START QUIZ button – only if attempts remain OR no data
-const shouldShowStart =
-  (attemptsAllowed === null || attemptsAllowed === 0) || canAttemptMore;
-
-if (shouldShowStart) {
-  const startBtn = document.createElement('button');
-  startBtn.className = 'btn btn-primary';
-  startBtn.style.minWidth = '80px';
-  startBtn.textContent = 'Start Quiz';
-  startBtn.title = 'Start this quiz';
-  startBtn.addEventListener('click', ()=> startQuiz(row));
-  right.appendChild(startBtn);
-}
-
+    // ✅ Start Quiz: ONLY for students + attempts remaining (or unlimited/unknown)
+    if (isStudent && canAttemptMore) {
+      const startBtn = document.createElement('button');
+      startBtn.className = 'btn btn-primary';
+      startBtn.style.minWidth = '80px';
+      startBtn.textContent = 'Start Quiz';
+      startBtn.title = 'Start this quiz';
+      startBtn.addEventListener('click', ()=> startQuiz(row));
+      right.appendChild(startBtn);
+    } else if (isStudent && !canAttemptMore) {
+      const overBtn = document.createElement('button');
+      overBtn.className = 'btn btn-light';
+      overBtn.disabled = true;
+      overBtn.textContent = 'Attempts Over';
+      overBtn.title = 'No attempts remaining';
+      right.appendChild(overBtn);
+    }
 
     const moreWrap = document.createElement('div');
     moreWrap.className='qz-more';
-    // treat non-admin roles as "students" for showing Results
-const canSeeResults = !isAdmin && !isInstructor;
 
-moreWrap.innerHTML = `
-  <button class="qz-dd-btn" aria-haspopup="true" aria-expanded="false" title="More">⋮</button>
-  <div class="qz-dd" role="menu" aria-hidden="true">
-    <a href="#" data-action="view"><i class="fa fa-eye"></i><span>View</span></a>
-    ${canSeeResults ? `<a href="#" data-action="results"><i class="fa fa-clipboard-check"></i><span>Result</span></a>` : ''}
-    ${canEdit ? `<a href="#" data-action="edit"><i class="fa fa-pen"></i><span>Edit</span></a>` : ''}
-    ${canDelete ? `<div class="divider"></div><a href="#" data-action="delete" class="text-danger"><i class="fa fa-trash"></i><span>Move to Bin</span></a>` : ''}
-  </div>
-`;
+    // ✅ Result should be only for students
+    const canSeeResults = isStudent;
+
+    moreWrap.innerHTML = `
+      <button class="qz-dd-btn" aria-haspopup="true" aria-expanded="false" title="More">⋮</button>
+      <div class="qz-dd" role="menu" aria-hidden="true">
+        <a href="#" data-action="view"><i class="fa fa-eye"></i><span>View</span></a>
+        ${canSeeResults ? `<a href="#" data-action="results"><i class="fa fa-clipboard-check"></i><span>Result</span></a>` : ''}
+        ${canEdit ? `<a href="#" data-action="edit"><i class="fa fa-pen"></i><span>Edit</span></a>` : ''}
+        ${canDelete ? `<div class="divider"></div><a href="#" data-action="delete" class="text-danger"><i class="fa fa-trash"></i><span>Move to Bin</span></a>` : ''}
+      </div>
+    `;
 
     right.appendChild(moreWrap);
 
     // dropdown wiring
-    const ddBtn = moreWrap.querySelector('.qz-dd-btn'),
-          dd = moreWrap.querySelector('.qz-dd');
+    const ddBtn = moreWrap.querySelector('.qz-dd-btn');
+    const dd    = moreWrap.querySelector('.qz-dd');
 
     if (ddBtn && dd) {
       ddBtn.addEventListener('click', (ev) => {
@@ -686,17 +790,16 @@ moreWrap.innerHTML = `
 
     const editBtn = moreWrap.querySelector('[data-action="edit"]');
     if (editBtn) editBtn.addEventListener('click', (ev)=>{ ev.preventDefault(); enterQzEditMode(row); closeAllDropdowns(); });
-    
-    const resultBtn = moreWrap.querySelector('[data-action="results"]');
-if (resultBtn) {
-  resultBtn.addEventListener('click', (ev) => {
-    ev.preventDefault();
-    ev.stopPropagation();
-    closeAllDropdowns();
-    openQuizResults(row);
-  });
-}
 
+    const resultBtn = moreWrap.querySelector('[data-action="results"]');
+    if (resultBtn) {
+      resultBtn.addEventListener('click', (ev) => {
+        ev.preventDefault();
+        ev.stopPropagation();
+        closeAllDropdowns();
+        openQuizResults(row);
+      });
+    }
 
     const delBtn = moreWrap.querySelector('[data-action="delete"]');
     if (delBtn) {
@@ -716,12 +819,12 @@ if (resultBtn) {
         if (!confirm.isConfirmed) { closeAllDropdowns(); return; }
 
         try {
-          // prefer id from DOM dataset (guaranteed by createQuizRow)
           let quizId = wrapper?.dataset?.quizId || '';
           if (!quizId) {
             quizId = String(row.id || row.quiz?.id || row.uuid || row.quiz_id || '');
           }
           quizId = String(quizId || '').trim();
+
           if (!quizId || quizId === 'undefined' || quizId === 'null') {
             console.error('Delete failed: missing quiz id on row', row);
             showErr('Cannot delete: missing quiz ID');
@@ -729,13 +832,11 @@ if (resultBtn) {
             return;
           }
 
-          // If this quiz is assigned to the current batch (batch_quiz_id present OR batch context)
           const ctx = readContext();
           const inBatchContext = !!(ctx && ctx.batch_id);
           const hasBatchRelation = row.batch_quiz_id || (typeof row.assign_status_flag !== 'undefined');
 
           if (hasBatchRelation && inBatchContext) {
-            // try to unassign from batch first (preferred)
             try {
               const payload = new FormData();
               if (row.batch_quiz_id) payload.append('batch_quiz_id', row.batch_quiz_id);
@@ -749,7 +850,6 @@ if (resultBtn) {
               const res = await apiFetch(endpoint, { method:'PATCH', body: payload });
 
               if (!res.ok) {
-                // try to parse message for better error
                 const errBody = await res.text().catch(()=>null);
                 throw new Error(errBody || `Unassign failed (HTTP ${res.status})`);
               }
@@ -758,18 +858,14 @@ if (resultBtn) {
               await loadQuizzes();
               return;
             } catch (batchErr) {
-              // If batch unassign fails, we will fallback to canonical quiz soft-delete below.
               console.warn('Batch unassign failed, falling back to quiz delete:', batchErr);
-              // continue to fallback delete
             }
           }
 
-          // canonical soft-delete (quizz prefix)
           const url = `${apiBase}/quizz/${encodeURIComponent(quizId)}`;
           const res = await apiFetch(url, { method: 'DELETE' });
 
           if (!res.ok) {
-            // try to get JSON message but tolerate non-JSON
             let j = null;
             try { j = await res.json(); } catch(e) { j = null; }
             throw new Error((j && (j.message || j.error)) || ('HTTP ' + res.status + ' - ' + url));
@@ -791,54 +887,56 @@ if (resultBtn) {
     return wrapper;
   }
 
-  // ---------- Start Quiz (new) ----------
+  // ---------- Start Quiz ----------
   function startQuiz(row) {
-  try {
-    // quiz uuid (correct)
-    const quizUuid =
-      row.uuid ||
-      row.quiz?.uuid ||
-      row.quiz?.id ||
-      row.id;
+    try {
+      const quizUuid =
+        row.uuid ||
+        row.quiz?.uuid ||
+        row.quiz?.id ||
+        row.id;
 
-    if (!quizUuid) {
-      showErr("Missing quiz UUID");
-      return;
+      if (!quizUuid) {
+        showErr("Missing quiz UUID");
+        return;
+      }
+
+      const batchQuizUuid =
+        row.batch_quizzes_uuid ||
+        row.batch_quiz_uuid ||
+        row.batch_quiz?.uuid ||
+        null;
+
+      if (!batchQuizUuid) {
+        showErr("Missing batch quiz UUID");
+        console.warn("Row data:", row);
+        return;
+      }
+
+      const finalUrl =
+        `/exam/${encodeURIComponent(quizUuid)}?batch=${encodeURIComponent(batchQuizUuid)}`;
+
+      window.location.href = finalUrl;
+    } catch (e) {
+      console.error("startQuiz error", e);
+      showErr("Failed to start quiz");
     }
-
-    // -- FIX STARTS HERE --
-    // Always pick UUID for the batch-wise assignment, never ID
-    const batchQuizUuid =
-      row.batch_quizzes_uuid ||   // preferred
-      row.batch_quiz_uuid ||      // alternate
-      row.batch_quiz?.uuid ||     // nested
-      null;
-
-    if (!batchQuizUuid) {
-      showErr("Missing batch quiz UUID");
-      console.warn("Row data:", row);
-      return;
-    }
-
-    // Build correct URL
-    const finalUrl =
-      `/exam/${encodeURIComponent(quizUuid)}?batch=${encodeURIComponent(batchQuizUuid)}`;
-
-    window.location.href = finalUrl;
-  } catch (e) {
-    console.error("startQuiz error", e);
-    showErr("Failed to start quiz");
   }
-}
 
   // ---------- Rendering ----------
   function renderList(items){
     if (!$items) return;
     $items.innerHTML = '';
 
-    if (!items || items.length === 0){ showItems(false); showEmpty(true); return; }
+    if (!items || items.length === 0){
+      showItems(false);
+      showEmpty(true);
+      return;
+    }
 
-    showEmpty(false); showItems(true);
+    showEmpty(false);
+    showItems(true);
+
     const frag = document.createDocumentFragment();
     items.forEach(it => frag.appendChild(createQuizRow(it)));
     $items.appendChild(frag);
@@ -847,6 +945,7 @@ if (resultBtn) {
   // ---------- Details Modal ----------
   function openQzDetails(row) {
     if (!detailsModal) return;
+
     detailsModal.style.display = 'block';
     detailsModal.classList.add('show');
     detailsModal.setAttribute('aria-hidden','false');
@@ -875,6 +974,7 @@ if (resultBtn) {
 
     if (detailsFooter) {
       detailsFooter.innerHTML = '';
+
       const close = document.createElement('button');
       close.className='btn btn-light';
       close.textContent='Close';
@@ -903,187 +1003,162 @@ if (resultBtn) {
   }
   detailsClose?.addEventListener('click', closeQzDetails);
 
+  // ---------- Results (student) ----------
   async function openQuizResults(row) {
-  try {
-    // Resolve quiz key (uuid or id)
-    const quizKey =
-      row.uuid ||
-      row.quiz?.uuid ||
-      row.quiz_id ||
-      row.quiz?.id ||
-      row.id;
+    try {
+      const quizKey =
+        row.uuid ||
+        row.quiz?.uuid ||
+        row.quiz_id ||
+        row.quiz?.id ||
+        row.id;
 
-    if (!quizKey) {
-      showErr('Missing quiz reference for results.');
-      console.warn('openQuizResults: row has no quiz key', row);
-      return;
-    }
+      if (!quizKey) {
+        showErr('Missing quiz reference for results.');
+        console.warn('openQuizResults: row has no quiz key', row);
+        return;
+      }
 
-    // Resolve batch_quiz UUID (same logic we used in startQuiz)
-    const batchQuizUuid =
-      row.batch_quizzes_uuid ||
-      row.batch_quiz_uuid ||
-      row.batch_quiz?.uuid ||
-      null;
+      const batchQuizUuid =
+        row.batch_quizzes_uuid ||
+        row.batch_quiz_uuid ||
+        row.batch_quiz?.uuid ||
+        null;
 
-    if (!batchQuizUuid) {
-      // we can still show attempts if your endpoint supports non-batch quizzes;
-      // if you want to make it mandatory, uncomment the error below.
-      // showErr('Missing batch quiz UUID for results.');
-      // return;
-    }
+      let url = `/api/exam/quizzes/${encodeURIComponent(quizKey)}/my-attempts`;
+      if (batchQuizUuid) url += `?batch_quiz=${encodeURIComponent(batchQuizUuid)}`;
 
-    // Build endpoint URL
-    let url = `/api/exam/quizzes/${encodeURIComponent(quizKey)}/my-attempts`;
-    if (batchQuizUuid) {
-      url += `?batch_quiz=${encodeURIComponent(batchQuizUuid)}`;
-    }
+      const res = await apiFetch(url);
+      const json = await res.json().catch(() => ({}));
 
-    const res = await apiFetch(url);
-    const json = await res.json().catch(() => ({}));
+      if (!res.ok || json.success === false) {
+        showErr(json.message || 'Failed to load results.');
+        console.error('openQuizResults error', res.status, json);
+        return;
+      }
 
-    if (!res.ok || json.success === false) {
-      showErr(json.message || 'Failed to load results.');
-      console.error('openQuizResults error', res.status, json);
-      return;
-    }
+      const attempts = Array.isArray(json.attempts) ? json.attempts : [];
 
-    const attempts = Array.isArray(json.attempts) ? json.attempts : [];
-
-    // No attempts => just show info message
-    if (!attempts.length) {
-      Swal.fire({
-        icon: 'info',
-        title: 'No result available',
-        text: 'You have not attempted this quiz yet.'
-      });
-      return;
-    }
-
-    // Fill header (quiz info summary)
-    if (attemptsHeaderEl) {
-      const q = json.quiz || {};
-      const totalMarks =
-        q.total_marks ??
-        (attempts[0]?.result?.total_marks ?? null);
-
-      const title =
-        q.name ||
-        row.title ||
-        row.quiz?.quiz_name ||
-        row.quiz?.title ||
-        'Quiz';
-
-      attemptsHeaderEl.innerHTML = `
-        <div class="fw-semibold">${escapeHtml(title)}</div>
-        <div class="small text-muted mt-1">
-          Attempts allowed: ${q.total_attempts_allowed ?? '—'}
-          ${totalMarks ? ` • Total marks: ${totalMarks}` : ''}
-        </div>
-      `;
-    }
-
-    // Build table rows
-    if (attemptsRowsEl) {
-      attemptsRowsEl.innerHTML = '';
-
-      attempts.forEach((a, index) => {
-        const tr = document.createElement('tr');
-
-        const r = a.result || null;
-        const canView = !!(r && r.can_view_detail && r.result_id);
-
-        const attemptNo = r?.attempt_number || (index + 1);
-
-        const dt =
-          a.started_at ||
-          a.created_at ||
-          a.finished_at ||
-          null;
-
-        const dtText = dt ? new Date(dt).toLocaleString() : '—';
-
-        let statusClass = 'other';
-        const status = String(a.status || '').toLowerCase();
-        if (status === 'in_progress') statusClass = 'in-progress';
-        else if (status === 'submitted') statusClass = 'submitted';
-        else if (status === 'auto_submitted') statusClass = 'auto_submitted';
-
-        const scoreText = r
-          ? `${r.marks_obtained}/${r.total_marks} (${Number(r.percentage || 0).toFixed(2)}%)`
-          : '—';
-
-        tr.innerHTML = `
-          <td>${attemptNo}</td>
-          <td>${escapeHtml(dtText)}</td>
-          <td>
-            <span class="qa-status-pill ${statusClass}">
-              ${escapeHtml(a.status || '—')}
-            </span>
-          </td>
-          <td>${scoreText}</td>
-          <td class="text-end">
-            ${
-              canView
-                ? `<button type="button" class="btn btn-sm btn-outline-primary qa-view-result" data-result-id="${r.result_id}">
-                      <i class="fa fa-eye me-1"></i>View Result
-                   </button>`
-                : `<span class="text-muted small">Not published</span>`
-            }
-          </td>
-        `;
-
-        attemptsRowsEl.appendChild(tr);
-      });
-
-      // Attach click events for "View Result"
-      attemptsRowsEl.querySelectorAll('.qa-view-result').forEach(btn => {
-        btn.addEventListener('click', (ev) => {
-          ev.preventDefault();
-          ev.stopPropagation();
-          const resultId = btn.getAttribute('data-result-id');
-          if (!resultId) return;
-
-            // Send token ONCE via ?t= and the result id via ?result=
-    // The page will store it to storage and strip it from the URL.
-    const next = new URL('/exam/results/view', location.origin);
-    next.searchParams.set('result', resultId);
-    if (window.TOKEN) next.searchParams.set('t', window.TOKEN);
-
-          // Redirect to result page; you will create this route + view.
-          // Example front-end route: GET /exam/results/{id}
-          window.location.href = `/exam/results/${encodeURIComponent(resultId)}/view`;
+      if (!attempts.length) {
+        Swal.fire({
+          icon: 'info',
+          title: 'No result available',
+          text: 'You have not attempted this quiz yet.'
         });
-      });
-    }
+        return;
+      }
 
-    // Show modal
-    if (attemptsModalEl) {
-      try {
-        if (window.bootstrap && typeof bootstrap.Modal === 'function') {
-          bootstrap.Modal.getOrCreateInstance(attemptsModalEl).show();
-        } else {
+      if (attemptsHeaderEl) {
+        const q = json.quiz || {};
+        const totalMarks = q.total_marks ?? (attempts[0]?.result?.total_marks ?? null);
+
+        const title =
+          q.name ||
+          row.title ||
+          row.quiz?.quiz_name ||
+          row.quiz?.title ||
+          'Quiz';
+
+        attemptsHeaderEl.innerHTML = `
+          <div class="fw-semibold">${escapeHtml(title)}</div>
+          <div class="small text-muted mt-1">
+            Attempts allowed: ${q.total_attempts_allowed ?? '—'}
+            ${totalMarks ? ` • Total marks: ${totalMarks}` : ''}
+          </div>
+        `;
+      }
+
+      if (attemptsRowsEl) {
+        attemptsRowsEl.innerHTML = '';
+
+        attempts.forEach((a, index) => {
+          const tr = document.createElement('tr');
+
+          const r = a.result || null;
+          const canView = !!(r && r.can_view_detail && r.result_id);
+
+          const attemptNo = r?.attempt_number || (index + 1);
+
+          const dt =
+            a.started_at ||
+            a.created_at ||
+            a.finished_at ||
+            null;
+
+          const dtText = dt ? new Date(dt).toLocaleString() : '—';
+
+          let statusClass = 'other';
+          const status = String(a.status || '').toLowerCase();
+          if (status === 'in_progress') statusClass = 'in-progress';
+          else if (status === 'submitted') statusClass = 'submitted';
+          else if (status === 'auto_submitted') statusClass = 'auto_submitted';
+
+          const scoreText = r
+            ? `${r.marks_obtained}/${r.total_marks} (${Number(r.percentage || 0).toFixed(2)}%)`
+            : '—';
+
+          tr.innerHTML = `
+            <td>${attemptNo}</td>
+            <td>${escapeHtml(dtText)}</td>
+            <td>
+              <span class="qa-status-pill ${statusClass}">
+                ${escapeHtml(a.status || '—')}
+              </span>
+            </td>
+            <td>${scoreText}</td>
+            <td class="text-end">
+              ${
+                canView
+                  ? `<button type="button" class="btn btn-sm btn-outline-primary qa-view-result" data-result-id="${r.result_id}">
+                        <i class="fa fa-eye me-1"></i>View Result
+                     </button>`
+                  : `<span class="text-muted small">Not published</span>`
+              }
+            </td>
+          `;
+
+          attemptsRowsEl.appendChild(tr);
+        });
+
+        // ✅ FIX: redirect properly, no unused `next`, no token in URL
+        attemptsRowsEl.querySelectorAll('.qa-view-result').forEach(btn => {
+          btn.addEventListener('click', (ev) => {
+            ev.preventDefault();
+            ev.stopPropagation();
+
+            const resultId = btn.getAttribute('data-result-id');
+            if (!resultId) return;
+
+            window.location.href = `/exam/results/${encodeURIComponent(resultId)}/view`;
+          });
+        });
+      }
+
+      // Show modal
+      if (attemptsModalEl) {
+        try {
+          if (window.bootstrap && typeof bootstrap.Modal === 'function') {
+            bootstrap.Modal.getOrCreateInstance(attemptsModalEl).show();
+          } else {
+            attemptsModalEl.classList.add('show');
+            attemptsModalEl.style.display = 'block';
+          }
+        } catch (e) {
           attemptsModalEl.classList.add('show');
           attemptsModalEl.style.display = 'block';
         }
-      } catch (e) {
-        attemptsModalEl.classList.add('show');
-        attemptsModalEl.style.display = 'block';
       }
+
+    } catch (e) {
+      console.error('openQuizResults exception', e);
+      showErr('Failed to load results.');
     }
-
-  } catch (e) {
-    console.error('openQuizResults exception', e);
-    showErr('Failed to load results.');
   }
-}
 
-
-  // ---------- NEW EDIT MODAL (from manageQuizz.blade.php) ----------
+  // ---------- Edit modal ----------
   function enterQzEditMode(row){
     if (!editQuizForm) return;
 
-    // Populate form with quiz data
     editQuizIdInput.value = row.id || row.quiz?.id || '';
     editQuizName.value = row.quiz?.quiz_name || row.title || '';
     editIsPublic.value = row.quiz?.is_public || 'no';
@@ -1091,7 +1166,6 @@ if (resultBtn) {
     editResultSetup.value = row.quiz?.result_set_up_type || 'Immediately';
     if (editQuizAlert) editQuizAlert.style.display='none';
 
-    // Store the row data for later use
     editModalEl._editingRow = row;
 
     try {
@@ -1104,10 +1178,10 @@ if (resultBtn) {
     }
   }
 
-  // Edit form submission
   editQuizForm?.addEventListener('submit', async (ev)=> {
     ev.preventDefault();
     ev.stopPropagation();
+
     editQuizForm.classList.add('was-validated');
     if (!editQuizForm.checkValidity()) return;
 
@@ -1139,7 +1213,6 @@ if (resultBtn) {
         throw new Error('Quiz update failed');
       }
 
-      // Close modal
       try {
         if (window.bootstrap && typeof bootstrap.Modal === 'function') {
           bootstrap.Modal.getOrCreateInstance(editModalEl).hide();
@@ -1150,13 +1223,12 @@ if (resultBtn) {
       }
 
       showOk('Quiz updated successfully');
-      await loadQuizzes(); // Reload the list
+      await loadQuizzes();
 
     } catch(e){
       console.error('Quiz save failed', e);
       showErr('Save failed: ' + (e.message || ''));
-    }
-    finally {
+    } finally {
       editQuizSubmit.disabled = false;
     }
   });
@@ -1170,7 +1242,6 @@ if (resultBtn) {
       if (ctx && ctx.batch_id) {
         candidates.push(`${apiBase}/quizz/bin/batch/${encodeURIComponent(ctx.batch_id)}`);
       }
-
       candidates.push(`${apiBase}/quizz/deleted`);
       candidates.push(`${apiBase}/quizz?deleted=1`);
 
@@ -1211,7 +1282,10 @@ if (resultBtn) {
     const heading = document.createElement('div');
     heading.className='d-flex align-items-center justify-content-between mb-2';
     heading.innerHTML = `<div class="fw-semibold" style="font-size:15px">Deleted Quizzes</div>
-      <div class="d-flex gap-2"><button id="qz-bin-refresh" class="btn btn-sm btn-primary"><i class="fa fa-rotate-right me-1"></i></button><button id="qz-bin-back" class="btn btn-sm btn-outline-primary"><i class="fa fa-arrow-left me-1"></i> Back</button></div>`;
+      <div class="d-flex gap-2">
+        <button id="qz-bin-refresh" class="btn btn-sm btn-primary"><i class="fa fa-rotate-right me-1"></i></button>
+        <button id="qz-bin-back" class="btn btn-sm btn-outline-primary"><i class="fa fa-arrow-left me-1"></i> Back</button>
+      </div>`;
     wrap.appendChild(heading);
 
     const resp = document.createElement('div'); resp.className='table-responsive';
@@ -1226,7 +1300,8 @@ if (resultBtn) {
         const tr = document.createElement('tr'); tr.style.borderTop='1px solid var(--line-soft)';
 
         const titleTd = document.createElement('td');
-        titleTd.innerHTML = `<div class="fw-semibold">${escapeHtml(it.title || it.quiz?.title || 'Untitled')}</div><div class="small text-muted mt-1">${escapeHtml(it.excerpt || '')}</div>`;
+        titleTd.innerHTML = `<div class="fw-semibold">${escapeHtml(it.title || it.quiz?.title || 'Untitled')}</div>
+                             <div class="small text-muted mt-1">${escapeHtml(it.excerpt || '')}</div>`;
 
         const deletedTd = document.createElement('td');
         deletedTd.textContent = it.deleted_at ? new Date(it.deleted_at).toLocaleString() : '-';
@@ -1241,11 +1316,14 @@ if (resultBtn) {
             <li><button class="dropdown-item text-danger force-action" type="button"><i class="fa fa-skull-crossbones me-2"></i> Delete permanently</button></li>
           </ul>`;
 
-        actionsTd.appendChild(dd); tr.appendChild(titleTd); tr.appendChild(deletedTd); tr.appendChild(actionsTd); tbody.appendChild(tr);
+        actionsTd.appendChild(dd);
+        tr.appendChild(titleTd);
+        tr.appendChild(deletedTd);
+        tr.appendChild(actionsTd);
+        tbody.appendChild(tr);
 
         dd.querySelector('.restore-action').addEventListener('click', async ()=> {
           try {
-            // route expects PATCH /{key}/restore per your routes
             const res = await apiFetch(`/api/quizz/${encodeURIComponent(it.id)}/restore`, { method:'PATCH' });
             if (!res.ok) {
               const j = await res.json().catch(()=>({}));
@@ -1267,6 +1345,7 @@ if (resultBtn) {
               icon:'warning', showCancelButton:true, confirmButtonText:'Yes, delete'
             });
             if (!confirm.isConfirmed) return;
+
             const res = await apiFetch(`/api/quizz/${encodeURIComponent(it.id)}/force`, { method:'DELETE' });
             if (!res.ok) {
               const j = await res.json().catch(()=>({}));
@@ -1274,14 +1353,21 @@ if (resultBtn) {
             }
             showOk('Deleted');
             openBin();
-          } catch(e){ console.error(e); showErr('Delete failed: ' + (e.message || 'Unknown error')); }
+          } catch(e){
+            console.error(e);
+            showErr('Delete failed: ' + (e.message || 'Unknown error'));
+          }
         });
       });
     }
 
-    resp.appendChild(table); wrap.appendChild(resp);
+    resp.appendChild(table);
+    wrap.appendChild(resp);
 
-    setTimeout(()=> { wrap.querySelector('#qz-bin-refresh')?.addEventListener('click', openBin); wrap.querySelector('#qz-bin-back')?.addEventListener('click', ()=> loadQuizzes()); }, 0);
+    setTimeout(()=> {
+      wrap.querySelector('#qz-bin-refresh')?.addEventListener('click', openBin);
+      wrap.querySelector('#qz-bin-back')?.addEventListener('click', ()=> loadQuizzes());
+    }, 0);
 
     return wrap;
   }
@@ -1297,8 +1383,14 @@ if (resultBtn) {
       const items = await fetchDeletedQuizzes(ctx && ctx.batch_id ? `batch_uuid=${encodeURIComponent(ctx.batch_id)}` : '');
       const dom = buildBinTable(items || []);
       if ($items) { $items.innerHTML = ''; $items.appendChild(dom); showItems(true); }
-    } catch(e){ console.error(e); if ($items) $items.innerHTML = '<div class="qz-empty p-3">Unable to load bin.</div>'; showItems(true); showErr('Failed to load bin'); }
-    finally { showLoader(false); }
+    } catch(e){
+      console.error(e);
+      if ($items) $items.innerHTML = '<div class="qz-empty p-3">Unable to load bin.</div>';
+      showItems(true);
+      showErr('Failed to load bin');
+    } finally {
+      showLoader(false);
+    }
   }
 
   $btnBin?.addEventListener('click', (e)=> { e.preventDefault(); if (!canViewBin) return; openBin(); });
@@ -1310,34 +1402,43 @@ if (resultBtn) {
     try {
       const ctx = readContext();
       if (!ctx || !ctx.batch_id) throw new Error('Batch context required');
+
       const url = `${apiBase}/batch/${encodeURIComponent(ctx.batch_id)}/quizzes`;
       const res = await apiFetch(url);
       if (!res.ok) throw new Error('HTTP ' + res.status);
-      const json = await res.json().catch(()=>null);
-      const { items, pagination } = normalizeServerResponse(json);
 
-      const filtered = items.filter(it => {
+      const json = await res.json().catch(()=>null);
+      const { items } = normalizeServerResponse(json);
+
+      // keep only assigned
+      _assignedCache = (items || []).filter(it => {
         const assigned = (it.assigned === true) || (it.assign_status_flag == 1) || (it.batch_quiz_id != null);
         return !!assigned;
       });
 
-      const sortVal = $sort ? $sort.value : 'display_asc';
-      if (sortVal === 'display_asc') filtered.sort((a,b)=>( (a.display_order||0) - (b.display_order||0) ));
-      else if (sortVal === 'created_desc') filtered.sort((a,b)=> new Date(b.assigned_at || b.created_at || 0) - new Date(a.assigned_at || a.created_at || 0));
-      else if (sortVal === 'title_asc') filtered.sort((a,b)=> (String(a.title||'').localeCompare(String(b.title||''))) );
-
-      renderList(filtered);
-    } catch(e){ console.error('Load quizzes error', e); if ($items) $items.innerHTML = '<div class="qz-empty">Unable to load quizzes — please refresh.</div>'; showItems(true); showErr('Failed to load quizzes: ' + (e.message || 'Unknown error')); }
-    finally { showLoader(false); }
+      applyFiltersAndRender();
+    } catch(e){
+      console.error('Load quizzes error', e);
+      if ($items) $items.innerHTML = '<div class="qz-empty">Unable to load quizzes — please refresh.</div>';
+      showItems(true);
+      showErr('Failed to load quizzes: ' + (e.message || 'Unknown error'));
+    } finally {
+      showLoader(false);
+    }
   }
 
-  // initial load & bindings
+  // bindings
   let searchTimer;
-  $search?.addEventListener('input', (e) => { clearTimeout(searchTimer); searchTimer = setTimeout(()=> loadQuizzes(), 300); });
-  $sort?.addEventListener('change', loadQuizzes);
+  $search?.addEventListener('input', () => {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(()=> applyFiltersAndRender(), 250);
+  });
+
+  $sort?.addEventListener('change', applyFiltersAndRender);
+
   $refresh?.addEventListener('click', loadQuizzes);
 
-  // Assign Quiz button event listener
+  // Assign Quiz button event listener (only if not student)
   $assignBtn?.addEventListener('click', () => {
     const ctx = readContext();
     if (!ctx || !ctx.batch_id) { showErr('Batch context required to assign quizzes'); return; }
@@ -1345,15 +1446,7 @@ if (resultBtn) {
   });
 
   // Bin button visibility
-  if ($btnBin) { if (canViewBin) $btnBin.style.display = 'inline-block'; else $btnBin.style.display = 'none'; }
-
-  // restore previous list if we came from bin
-  function restorePreviousList() {
-    if ($items) {
-      if (_prevListHtml !== null) { $items.innerHTML = _prevListHtml; _prevListHtml = null; }
-      else loadQuizzes();
-    }
-  }
+  if ($btnBin) $btnBin.style.display = canViewBin ? 'inline-block' : 'none';
 
   // run initial
   loadQuizzes();
@@ -1377,11 +1470,14 @@ if (resultBtn) {
     try {
       quizzesModal = quizzesModal || new bootstrap.Modal(document.getElementById('quizzesModal'));
     } catch(e) {
-      // fallback: ensure element exists
       const el = document.getElementById('quizzesModal');
       if (el) { quizzesModal = { show: ()=> el.classList.add('show'), hide: ()=> el.classList.remove('show') }; }
     }
-    qz_uuid = uuid; qz_page = 1; if(qz_assigned) qz_assigned.value = 'all'; if (quizzesModal && typeof quizzesModal.show === 'function') quizzesModal.show(); loadAssignQuizzes();
+    qz_uuid = uuid;
+    qz_page = 1;
+    if(qz_assigned) qz_assigned.value = 'all';
+    if (quizzesModal && typeof quizzesModal.show === 'function') quizzesModal.show();
+    loadAssignQuizzes();
   }
 
   qz_apply?.addEventListener('click', ()=>{ qz_page=1; loadAssignQuizzes(); });
@@ -1420,23 +1516,23 @@ if (resultBtn) {
           <td class="fw-semibold">${escapeHtml(title)}</td>
 
           <td>
-              <input class="form-control form-control-sm qz-order"
-                     type="number"
-                     min="0"
-                     value="${escapeHtml(attemptsVal)}"
-                     style="width:110px">
+            <input class="form-control form-control-sm qz-order"
+                   type="number"
+                   min="0"
+                   value="${escapeHtml(attemptsVal)}"
+                   style="width:110px">
           </td>
 
           <td class="text-center">
-              <div class="form-check form-switch d-inline-block">
-                  <input class="form-check-input qz-pub" type="checkbox" ${publish ? 'checked' : ''}>
-              </div>
+            <div class="form-check form-switch d-inline-block">
+              <input class="form-check-input qz-pub" type="checkbox" ${publish ? 'checked' : ''}>
+            </div>
           </td>
 
           <td class="text-center">
-              <div class="form-check form-switch d-inline-block">
-                  <input class="form-check-input qz-tg" type="checkbox" data-id="${u.id}" ${assigned?'checked':''}>
-              </div>
+            <div class="form-check form-switch d-inline-block">
+              <input class="form-check-input qz-tg" type="checkbox" data-id="${u.id}" ${assigned?'checked':''}>
+            </div>
           </td>
         `;
         frag.appendChild(tr);
@@ -1459,9 +1555,7 @@ if (resultBtn) {
             publish_to_students: pubEl?.checked ?? false,
           };
 
-          if(attemptEl && attemptEl.value !== '') {
-            payload.attempt_allowed = Number(attemptEl.value);
-          }
+          if(attemptEl && attemptEl.value !== '') payload.attempt_allowed = Number(attemptEl.value);
 
           try{
             await toggleQuiz(qz_uuid, payload, ch);
@@ -1489,9 +1583,7 @@ if (resultBtn) {
             publish_to_students: !!pb.checked
           };
 
-          if(attemptEl && attemptEl.value !== '') {
-            payload.attempt_allowed = Number(attemptEl.value);
-          }
+          if(attemptEl && attemptEl.value !== '') payload.attempt_allowed = Number(attemptEl.value);
 
           try{ await toggleQuiz(qz_uuid, payload, null, true); }catch(_){}
         });
@@ -1520,7 +1612,9 @@ if (resultBtn) {
       });
 
       /* ================= PAGINATION ================= */
-      const total = Number(pag.total||items.length), per = Number(pag.per_page||20), cur = Number(pag.current_page||1);
+      const total = Number(pag.total||items.length),
+            per   = Number(pag.per_page||20),
+            cur   = Number(pag.current_page||1);
       const pages = Math.max(1, Math.ceil(total/per));
 
       function li(dis,act,label,t){
@@ -1529,9 +1623,10 @@ if (resultBtn) {
                 </li>`;
       }
 
-      let html=''; html+=li(cur<=1,false,'Prev',cur-1);
+      let html='';
+      html+=li(cur<=1,false,'Prev',cur-1);
 
-      const w=2,s=Math.max(1,cur-w),e=Math.min(pages,cur+w);
+      const w=2, s=Math.max(1,cur-w), e=Math.min(pages,cur+w);
       for(let i=s;i<=e;i++) html+=li(false,i===cur,i,i);
 
       html+=li(cur>=pages,false,'Next',cur+1);
@@ -1542,30 +1637,42 @@ if (resultBtn) {
         a.addEventListener('click', ()=>{
           const t = Number(a.dataset.page);
           if(!t || t===qz_page) return;
-          qz_page = t; loadAssignQuizzes();
+          qz_page = t;
+          loadAssignQuizzes();
         });
       });
 
       qz_meta.textContent = `Page ${cur} of ${pages} — ${total} quizzes`;
 
-    }catch(e){ console.error('Quiz load error:', e); }
-    finally{ if (qz_loader) qz_loader.style.display='none'; }
+    }catch(e){
+      console.error('Quiz load error:', e);
+    } finally {
+      if (qz_loader) qz_loader.style.display='none';
+    }
   }
 
-  // toggles quiz assign/publish
   async function toggleQuiz(uuid, payload, checkboxEl=null, quiet=false){
     try{
       if(typeof payload.assigned === 'undefined') payload.assigned = true;
+
       const res = await apiFetch(`/api/batches/${encodeURIComponent(uuid)}/quizzes/toggle`,{
         method: 'POST',
         headers: { 'Content-Type':'application/json' },
         body: JSON.stringify(payload)
       });
+
       const j = await res.json().catch(()=>({}));
       if(!res.ok) throw new Error(j?.message || 'Quiz toggle failed');
+
       if(!quiet) {
-        Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: payload.assigned ? 'Quiz assigned to batch' : 'Quiz unassigned from batch', showConfirmButton: false, timer: 2000 });
+        Swal.fire({
+          toast: true, position: 'top-end',
+          icon: 'success',
+          title: payload.assigned ? 'Quiz assigned to batch' : 'Quiz unassigned from batch',
+          showConfirmButton: false, timer: 2000
+        });
       }
+
       return j;
     }catch(e){
       if(checkboxEl) checkboxEl.checked = !checkboxEl.checked;

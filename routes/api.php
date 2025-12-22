@@ -82,8 +82,9 @@ Route::middleware('checkRole:admin,super_admin,student,instructor')->group(funct
  
     Route::delete('/courses/{course}',     [CourseController::class, 'destroy']);
     Route::get('/courses/by-batch/{batch}/view', [CourseController::class, 'viewCourseByBatch']);
-       Route::get ('/batches/{batch}/messages',  [BatchMessageController::class, 'index']);
-Route::post('/batches/{batch}/messages',  [BatchMessageController::class, 'store']);
+    Route::get ('/batches/{batch}/messages',  [BatchMessageController::class, 'index']);
+    Route::post('/batches/{batch}/messages',  [BatchMessageController::class, 'store']);
+     Route::post('/batches/{batch}/messages/read', [BatchMessageController::class, 'markRead']) ->name('batches.messages.read');
     Route::get('/courses/my', [CourseController::class, 'myCourses']);
 
     // Featured media

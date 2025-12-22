@@ -405,7 +405,7 @@ body.role-privileged #submitAssignSend {
 
             <!-- allowed submission types -->
             <div class="col-12">
-              <button type="button" id="assignAllowedBtn" class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#assignAllowedTypesModal">
+              <button type="button" id="assignAllowedBtn" class="btn btn-outline-secondary" data-bs-target="#assignAllowedTypesModal">
                 <i class="fa fa-list-check me-1"></i> Allowed submission types
               </button>
               <div id="assignSelectedTypeWrap" class="selected-types mt-2"></div>
@@ -421,9 +421,9 @@ body.role-privileged #submitAssignSend {
                 <div class="drop-actions mt-2">
                   <label class="btn btn-outline-primary mb-0" for="assign_attachments">Choose Files</label>
                   <input id="assign_attachments" name="attachments[]" type="file" multiple hidden>
-                  <button type="button" class="btn btn-outline-secondary" id="chooseFromLibraryBtn" data-bs-toggle="modal" data-bs-target="#libraryModal">
+                  <!-- <button type="button" class="btn btn-outline-secondary" id="chooseFromLibraryBtn" data-bs-toggle="modal" data-bs-target="#libraryModal">
 <i class="fa fa-folder-open me-1" aria-hidden="true"></i> Choose from library
-</button>
+</button> -->
                   <button type="button" id="assign_btnClearFiles" class="btn btn-light">Clear</button>
                 </div>
               </div>
@@ -662,10 +662,105 @@ body.role-privileged #submitAssignSend {
   </div>
 </div>
 <script>
-(function(){
-  const role=(sessionStorage.getItem('role')||localStorage.getItem('role')||'').toLowerCase();
+(async function(){
+  // const role=(sessionStorage.getItem('role')||localStorage.getItem('role')||'').toLowerCase();
   const TOKEN=localStorage.getItem('token')||sessionStorage.getItem('token')||'';
   if(!TOKEN){ Swal.fire({icon:'warning',title:'Login required',text:'Please sign in to continue.',allowOutsideClick:false,allowEscapeKey:false}).then(()=>{window.location.href='/';}); return; }
+  // ----------------------------
+  // Role resolver (cache -> storage -> API)
+  // ----------------------------
+  const normalizeRole = (r) => String(r || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[-\s]+/g, '_');
+
+  function resolveRoleFromCache(){
+    const r1 = window?.__AUTH_CACHE__?.role;
+    if (typeof r1 === 'string' && r1.trim()) return normalizeRole(r1);
+
+    // optional fallback if you set window.role from Blade
+    const r2 = window?.role;
+    if (typeof r2 === 'string' && r2.trim()) return normalizeRole(r2);
+
+    return '';
+  }
+
+  function resolveRoleFromStorage(){
+    const r = sessionStorage.getItem('role') || localStorage.getItem('role') || '';
+    return r ? normalizeRole(r) : '';
+  }
+
+  function waitForRoleReady(timeoutMs = 1200){
+    return new Promise((resolve) => {
+      const start = Date.now();
+      const tick = () => {
+        const r = resolveRoleFromCache();
+        if (r) return resolve(r);
+        if (Date.now() - start > timeoutMs) return resolve('');
+        setTimeout(tick, 50);
+      };
+      tick();
+    });
+  }
+
+  async function getMyRole(){
+    // 1) cache (instant)
+    let r = resolveRoleFromCache();
+    if (r) return r;
+
+    // 2) short wait for cache to appear
+    r = await waitForRoleReady(1200);
+    if (r) return r;
+
+    // 3) storage
+    r = resolveRoleFromStorage();
+    if (r) return r;
+
+    // 4) API fallback (try common endpoints)
+    const candidates = [
+      '/api/me',
+      '/api/auth/me',
+      '/api/user/me',
+      '/api/profile',
+      '/api/my/profile'
+    ];
+
+    for (const url of candidates){
+      try{
+        const resp = await fetch(url, {
+          method: 'GET',
+          headers: {
+            'Accept': 'application/json',
+            'Authorization': 'Bearer ' + TOKEN
+          }
+        });
+
+        if (resp.status === 401) return ''; // will be handled by your apiFetch later
+        if (!resp.ok) continue;
+
+        const json = await resp.json().catch(()=>null);
+        const payload = json?.data ?? json ?? {};
+
+        const roleGuess =
+          payload.role ||
+          payload.user?.role ||
+          payload.auth_role ||
+          payload.tokenable?.role ||
+          payload.tokenable_role ||
+          '';
+
+        if (roleGuess) return normalizeRole(roleGuess);
+      } catch(e){
+        // ignore and try next
+      }
+    }
+
+    return '';
+  }
+
+  // ✅ final role used across this whole page
+  const role = await getMyRole();
+  window.__ROLE__ = role; // make it reusable for nested IIFEs
 
   const isAdmin=role.includes('admin')||role.includes('super_admin')||role.includes('superadmin');
   const isSuperAdmin=role.includes('super_admin')||role.includes('superadmin');
@@ -1511,8 +1606,8 @@ wrap.addEventListener('contextmenu', (e) => {
   if(window.bootstrap && typeof bootstrap.Modal === 'function') bsModal = bootstrap.Modal.getOrCreateInstance(modalEl,{backdrop:'static'});
 
   // Role detection (from local/session storage) - used to branch UI
-  const _rawRole = (sessionStorage.getItem('role')||localStorage.getItem('role')||'').toLowerCase();
-  const role = String(_rawRole || '').toLowerCase();
+  // const _rawRole = (sessionStorage.getItem('role')||localStorage.getItem('role')||'').toLowerCase();
+const role = String(window.__ROLE__ || '').toLowerCase();
   const isAdmin = role.includes('admin') || role.includes('super_admin') || role.includes('superadmin');
   const isInstructor = role.includes('instructor');
   const isPrivileged = isAdmin || isInstructor; // admin / instructor

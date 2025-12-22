@@ -408,12 +408,22 @@ html.theme-dark .rte-ph {
 
 <script>
 (function(){
-  const role = (sessionStorage.getItem('role') || localStorage.getItem('role') || '').toLowerCase();
   const TOKEN = localStorage.getItem('token') || sessionStorage.getItem('token') || '';
-  if (!TOKEN) {
-    Swal.fire({ icon: 'warning', title: 'Login required', text: 'Please sign in to continue.', allowOutsideClick: false }).then(()=>{ window.location.href = '/'; });
-    return;
+if (!TOKEN) {
+  Swal.fire({ icon: 'warning', title: 'Login required', text: 'Please sign in to continue.', allowOutsideClick: false })
+    .then(()=>{ window.location.href = '/'; });
+  return;
+}
+
+// ===== In-memory role (cache + async event), SAME as chat =====
+let role = '';
+const getRoleNow = () => {
+  if (window.__AUTH_CACHE__ && typeof window.__AUTH_CACHE__.role === 'string') {
+    return window.__AUTH_CACHE__.role;
   }
+  return '';
+};
+role = String(getRoleNow() || '').trim().toLowerCase();
 
   const isAdmin      = role.includes('admin')|| role.includes('superadmin');
   const isSuperAdmin = role.includes('super_admin') || role.includes('superadmin');

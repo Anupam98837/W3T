@@ -642,7 +642,7 @@ public function uploadByAssignment(Request $r, string $assignmentKey)
     // Build payload fields
     $uuid = $this->getUuid();
     $assignmentId = (int) $assignment->id;
-    $courseId = (int) ($assignment->course_id ?? $r->input('course_id', 0));
+    $courseId = (int) ($assignment->course_id ?? $r->input('course_id')) ?: null;
     $courseModuleId = (int) ($assignment->course_module_id ?? $r->input('course_module_id', 0));
     $batchId = (int) ($assignment->batch_id ?? $r->input('batch_id', 0));
     $status = $r->input('status', 'submitted');
@@ -893,6 +893,18 @@ public function uploadByAssignment(Request $r, string $assignmentKey)
             ],
         ], 201);
     } catch (\Illuminate\Database\QueryException $qe) {
+         // Log EVERYTHING about the error
+    Log::error('Database QueryException Details', [
+        'error_code' => $qe->getCode(),
+        'error_message' => $qe->getMessage(),
+        'sql' => $qe->getSql() ?? 'N/A',
+        'bindings' => $qe->getBindings() ?? [],
+        'assignment_id' => $assignmentId,
+        'student_id' => $studentId,
+        'attempt_no' => $attemptNo,
+        'payload' => $payload,
+    ]);
+    
         // Unique constraint violation (duplicate attempt) -> 409
         if ($qe->getCode() === '23000') {
             Log::error('Duplicate submission constraint violation', [

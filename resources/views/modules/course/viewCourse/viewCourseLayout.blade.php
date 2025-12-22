@@ -682,10 +682,10 @@
     </div>
   </main>
 
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 
-  <script>
-document.addEventListener('DOMContentLoaded', () => {
+<script>
+document.addEventListener('DOMContentLoaded', async () => {
   const qs  = (sel) => document.querySelector(sel);
 
   // Use global overlay helpers from partials.overlay
@@ -732,9 +732,94 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const isMobile = () => window.matchMedia('(max-width: 992px)').matches;
 
-  // Token & role
-  const tok = sessionStorage.getItem('token') || localStorage.getItem('token') || '';
+  // ===== Token & role (GLOBAL IN-MEMORY CACHE) =====
+  let tok = '';
+  try {
+    tok = sessionStorage.getItem('token') || localStorage.getItem('token') || '';
+  } catch (e) {
+    tok = '';
+  }
   const auth = tok ? { 'Authorization': 'Bearer ' + tok } : {};
+
+  // Global auth cache (in-memory only)
+  window.__AUTH_CACHE__ = window.__AUTH_CACHE__ || {
+    role: null,
+    rolePromise: null
+  };
+
+  const normalizeRole = (r) => String(r || '').trim().toLowerCase();
+
+  // Cached role fetcher
+  const getMyRoleCached = async (token) => {
+    if (!token) return '';
+
+    const cache = window.__AUTH_CACHE__;
+
+    // ✅ Already resolved
+    if (cache.role !== null) return cache.role;
+
+    // ⏳ Fetch already in progress
+    if (cache.rolePromise) return cache.rolePromise;
+
+    // 🚀 First-time fetch
+    cache.rolePromise = fetch('/api/auth/my-role', {
+      method: 'GET',
+      headers: {
+        'Authorization': 'Bearer ' + token,
+        'Accept': 'application/json'
+      }
+    })
+      .then(res => res.ok ? res.json() : null)
+      .then(data => {
+        // Accept multiple common response shapes (no session/local role usage)
+        const ok =
+          data?.status === 'success' ||
+          data?.success === true ||
+          data?.ok === true ||
+          data?.status === true;
+
+        const roleVal =
+          data?.role ??
+          data?.data?.role ??
+          data?.data?.user?.role ??
+          data?.user?.role ??
+          data?.auth?.role ??
+          '';
+
+        cache.role = normalizeRole(ok ? roleVal : roleVal);
+
+        // 🔔 Notify other scripts
+        document.dispatchEvent(
+          new CustomEvent('auth:role-ready', {
+            detail: { role: cache.role }
+          })
+        );
+
+        return cache.role;
+      })
+      .catch(err => {
+        console.error('getMyRoleCached failed', err);
+        cache.role = '';
+        return '';
+      })
+      .finally(() => {
+        cache.rolePromise = null;
+      });
+
+    return cache.rolePromise;
+  };
+  window.getMyRoleCached = getMyRoleCached;
+
+  // Convenience getter (always reads current cached role)
+  window.getCurrentRole = () => normalizeRole(window.__AUTH_CACHE__?.role || '');
+
+  // Fetch role once on page load
+  if (tok) {
+    await getMyRoleCached(tok);
+  }
+
+  // Local alias (optional, but keeps your existing logic intact)
+  const USER_ROLE = window.__AUTH_CACHE__.role || '';
 
   // Module param
   const qsObj = new URLSearchParams(location.search);
@@ -768,20 +853,25 @@ document.addEventListener('DOMContentLoaded', () => {
   syncTabLinks(selectedModuleUuid);
 
   // Role-aware back button
-  const USER_ROLE = (sessionStorage.getItem('role') || localStorage.getItem('role') || '').toLowerCase();
-  const derivedRole = (USER_ROLE && ['student','admin','instructor'].includes(USER_ROLE)) ? USER_ROLE : (USER_ROLE || '');
+  const roleCoursesUrl = (r) => {
+    r = normalizeRole(r);
+    if (r === 'student') return "/student/courses";
+    if (r === 'instructor') return "/instructor/courses";
+    if (r === 'admin' || r.includes('admin')) return "/admin/courses";
+    return "/courses";
+  };
 
   (function setupBackToCourses() {
-    const roleCourses = {
-      student: "/student/courses",
-      admin: "/admin/courses",
-      instructor: "/instructor/courses"
-    };
     const go = (url) => { try { window.location.href = url; } catch(e){} };
 
-    const handler = (e) => {
+    const handler = async (e) => {
       if (e && typeof e.preventDefault === 'function') e.preventDefault();
-      go(roleCourses[derivedRole] || '/courses');
+
+      // Ensure role is available (but still safe if it fails)
+      try { if (tok) await window.getMyRoleCached(tok); } catch(_e){}
+
+      const roleNow = window.getCurrentRole() || USER_ROLE || '';
+      go(roleCoursesUrl(roleNow));
       return false;
     };
 
@@ -1165,6 +1255,6 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!isMobile()) document.body.classList.remove('mobile-sidebar-open');
   });
 });
-  </script>
+</script>
 </body>
 </html>

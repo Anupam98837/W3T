@@ -234,413 +234,476 @@
       <div class="row"><div class="key">Allotted</div><div class="val" id="sumAllotted">—</div></div>
     </div>
   </div>
+<script>
+(function () {
+  const apiBase = `${location.origin}/api`;
+  const token = sessionStorage.getItem('token') || localStorage.getItem('token') || '';
 
-  <script>
-  (function () {
-    const apiBase = `${location.origin}/api`;
-    const token = sessionStorage.getItem('token') || localStorage.getItem('token') || '';
+  /* =========================
+     Overlay helpers (global)
+     ========================= */
+  const overlayEl = () => document.getElementById('pageOverlay');
 
-    /* ===== Helpers ===== */
-    function getResultId() {
-      const url = new URL(location.href);
-      const qId = url.searchParams.get('resultId') || url.searchParams.get('result');
-      if (qId && /^\d+$/.test(qId)) return qId;
-      const parts = location.pathname.split('/').filter(Boolean);
-      const ix = parts.findIndex(p => p === 'results' || p === 'result');
-      if (ix >= 0 && parts[ix+1] && /^\d+$/.test(parts[ix+1])) return parts[ix+1];
-      for (const p of parts) if (/^\d+$/.test(p)) return p;
-      return null;
-    }
-    function fmtDate(dt) {
-      if (!dt) return '—';
-      try { return new Date((dt+'').replace(' ','T')).toLocaleString(); } catch(e){ return dt; }
-    }
-    function fmtDur(sec) {
-      sec = Math.max(0, parseInt(sec||0,10));
-      const h = Math.floor(sec/3600), m = Math.floor((sec%3600)/60), s = sec%60;
-      const hh = h>0 ? (h+':') : '';
-      return hh + String(m).padStart(2,'0') + ':' + String(s).padStart(2,'0');
+  window.showPageOverlay = function showPageOverlay(message) {
+    const el = overlayEl();
+    if (!el) return;
+
+    if (message) {
+      const p = el.querySelector('.w3-loader-text p');
+      if (p) p.textContent = message;
     }
 
-    // ✅ Safe HTML setter (DOMPurify sanitize, then innerHTML)
-    function setHtml(el, html) {
-      const s = String(html ?? '');
-      if (window.DOMPurify) {
-        el.innerHTML = window.DOMPurify.sanitize(s, {
-          // allow common formatting + images + tables
-          ALLOWED_TAGS: [
-            'b','strong','i','em','u','s','br','hr','span','div','p',
-            'ul','ol','li',
-            'h1','h2','h3','h4','h5','h6',
-            'table','thead','tbody','tr','th','td',
-            'img','a','code','sup','sub','small'
-          ],
-          ALLOWED_ATTR: ['href','target','rel','src','alt','title','style','class']
-        });
-        return;
-      }
-      // fallback: trusted HTML only
-      el.innerHTML = s;
-    }
+    el.style.display = 'flex';
+    el.setAttribute('aria-hidden', 'false');
+  };
 
-    // ✅ MathJax re-typeset after dynamic DOM injection
-    function typesetMath() {
-      try {
-        if (window.MathJax && typeof window.MathJax.typesetPromise === 'function') {
-          window.MathJax.typesetClear && window.MathJax.typesetClear();
-          return window.MathJax.typesetPromise();
+  window.hidePageOverlay = function hidePageOverlay() {
+    const el = overlayEl();
+    if (!el) return;
+
+    el.style.display = 'none';
+    el.setAttribute('aria-hidden', 'true');
+  };
+
+  /* =========================
+     getMyRole from token
+     (NOT decoded from JWT)
+     - we call API /api/auth/my-role
+     ========================= */
+  async function getMyRole(bearerToken) {
+    if (!bearerToken) return '';
+    try {
+      const res = await fetch('/api/auth/my-role', {
+        method: 'GET',
+        headers: {
+          'Authorization': 'Bearer ' + bearerToken,
+          'Accept': 'application/json'
         }
-      } catch(e){}
-      return Promise.resolve();
-    }
-
-    const PASS_THRESHOLD = 60;
-
-    /* ===== Refs ===== */
-    const els = {
-      quizTitle: document.getElementById('quizTitle'),
-      quizSub: document.getElementById('quizSub'),
-      scoreRing: document.getElementById('scoreRing'),
-      ringPct: document.getElementById('ringPct'),
-      scoreBig: document.getElementById('scoreBig'),
-      scoreMeta: document.getElementById('scoreMeta'),
-      passBadge: document.getElementById('passBadge'),
-      kKpiScore: document.querySelector('#kpiScore .value'),
-      kKpiAccuracy: document.querySelector('#kpiAccuracy .value'),
-      kKpiCorrect: document.querySelector('#kpiCorrect .value'),
-      kKpiTime: document.querySelector('#kpiTime .value'),
-      kpiAccuracyBox: document.getElementById('kpiAccuracy'),
-      loading: document.getElementById('stateLoading'),
-      error: document.getElementById('stateError'),
-      empty: document.getElementById('stateEmpty'),
-      qwrap: document.getElementById('questionsWrap'),
-      btnToggle: document.getElementById('btnToggleAnswers'),
-      btnPrint: document.getElementById('btnPrint'),
-      btnDocx: document.getElementById('btnDocx'),
-      btnHtml: document.getElementById('btnHtml'),
-      search: document.getElementById('searchBox'),
-      countBadge: document.getElementById('countBadge'),
-      sAttemptNo: document.getElementById('sumAttemptNo'),
-      sStatus: document.getElementById('sumStatus'),
-      sStart: document.getElementById('sumStart'),
-      sFinish: document.getElementById('sumFinish'),
-      sQ: document.getElementById('sumQ'),
-      sC: document.getElementById('sumC'),
-      sW: document.getElementById('sumW'),
-      sS: document.getElementById('sumS'),
-      sT: document.getElementById('sumT'),
-      sQuiz: document.getElementById('sumQuiz'),
-      sAllotted: document.getElementById('sumAllotted'),
-    };
-
-    let answersVisible = true;
-    let current = null;
-    let resultId = getResultId();
-    let filterMode = 'all';
-    let searchTerm = '';
-
-    function show(el){ el.classList.remove('hide'); }
-    function hide(el){ el.classList.add('hide'); }
-
-    function setRing(pct){
-      pct = Math.max(0, Math.min(100, Number(pct||0)));
-      els.scoreRing.style.setProperty('--p', pct);
-      els.ringPct.textContent = pct.toFixed(2) + '%';
-    }
-
-    function setHeader(data){
-      const r = data.result, a = data.attempt, q = data.quiz;
-      const scoreText = `${r.marks_obtained} / ${r.total_marks}`;
-      const pct = Number(r.percentage || 0);
-      const timeUsed = a.time_used_sec ?? 0;
-      const totalSec = a.total_time_sec ?? (q.total_time ? q.total_time*60 : 0);
-
-      els.quizTitle.textContent = q.name || 'Exam Result';
-      els.quizSub.textContent = `Attempt #${r.attempt_number ?? 1} • ${String(a.status||'').toUpperCase()} • Started ${fmtDate(a.started_at)} • Finished ${fmtDate(a.finished_at)}`;
-
-      setRing(pct);
-      els.scoreBig.textContent = scoreText;
-      els.scoreMeta.textContent = `Accuracy ${pct.toFixed(2)}%  |  Time ${ totalSec ? (fmtDur(timeUsed)+' / '+fmtDur(totalSec)) : fmtDur(timeUsed) }`;
-
-      els.passBadge.innerHTML = '';
-      const pass = pct >= PASS_THRESHOLD;
-      const div = document.createElement('div');
-      div.className = 'badge ' + (pass ? 'pass' : 'fail');
-      div.innerHTML = `<i class="fa-solid ${pass ? 'fa-check' : 'fa-xmark'}"></i> <b>${pass ? 'PASS' : 'FAIL'}</b>`;
-      els.passBadge.appendChild(div);
-
-      els.kKpiScore.textContent = scoreText;
-      els.kKpiAccuracy.textContent = pct.toFixed(2) + '%';
-      els.kKpiCorrect.textContent = `${r.total_correct} / ${r.total_questions}`;
-      els.kKpiTime.textContent = totalSec ? `${fmtDur(timeUsed)} / ${fmtDur(totalSec)}` : fmtDur(timeUsed);
-
-      els.kpiAccuracyBox.classList.toggle('pass', pass);
-      els.kpiAccuracyBox.classList.toggle('fail', !pass);
-
-      els.sAttemptNo.textContent = (r.attempt_number ?? 1);
-      els.sStatus.textContent = String(a.status || '').toUpperCase();
-      els.sStart.textContent = fmtDate(a.started_at);
-      els.sFinish.textContent = fmtDate(a.finished_at);
-      els.sQ.textContent = r.total_questions;
-      els.sC.textContent = r.total_correct;
-      els.sW.textContent = r.total_incorrect;
-      els.sS.textContent = r.total_skipped;
-      els.sT.textContent = totalSec ? `${fmtDur(timeUsed)} / ${fmtDur(totalSec)}` : fmtDur(timeUsed);
-      els.sQuiz.textContent = q.name || '—';
-      els.sAllotted.textContent = q.total_time ? `${q.total_time} min` : '—';
-
-      document.title = `${q.name || 'Exam Result'} • ${scoreText}`;
-    }
-
-    function statusOf(q){
-      const sel = q.selected_answer_ids;
-      const isCorrect = (q.is_correct ?? 0) === 1;
-      const skipped =
-        (sel === null || (Array.isArray(sel) && sel.length === 0)) &&
-        !(q.selected_text && String(q.selected_text).trim() !== '');
-      if (skipped) return 'skipped';
-      return isCorrect ? 'correct' : 'wrong';
-    }
-
-    async function renderQuestions(data){
-      const list = Array.isArray(data.questions) ? data.questions.slice() : [];
-      els.qwrap.innerHTML = '';
-
-      const filtered = list.filter(q => {
-        const st = statusOf(q);
-        const hitFilter = (filterMode === 'all') ? true : (st === filterMode);
-        if (!hitFilter) return false;
-        if (!searchTerm) return true;
-        const hay = `${q.title||''} ${q.description||''}`.toLowerCase();
-        return hay.includes(searchTerm);
       });
-
-      els.countBadge.innerHTML = `<i class="fa-regular fa-square-check"></i> ${filtered.length} shown`;
-
-      if (!filtered.length){
-        hide(els.loading); show(els.empty);
-        await typesetMath();
-        return;
+      if (!res.ok) return '';
+      const data = await res.json().catch(() => null);
+      if (data?.status === 'success' && data?.role) {
+        return String(data.role).trim().toLowerCase();
       }
-      hide(els.loading); hide(els.empty);
+      return '';
+    } catch (e) {
+      return '';
+    }
+  }
 
-      filtered.forEach(q => {
-        const card = document.createElement('div');
-        card.className = 'q';
+  /* ===== Helpers ===== */
+  function getResultId() {
+    const url = new URL(location.href);
+    const qId = url.searchParams.get('resultId') || url.searchParams.get('result');
+    if (qId && /^\d+$/.test(qId)) return qId;
+    const parts = location.pathname.split('/').filter(Boolean);
+    const ix = parts.findIndex(p => p === 'results' || p === 'result');
+    if (ix >= 0 && parts[ix+1] && /^\d+$/.test(parts[ix+1])) return parts[ix+1];
+    for (const p of parts) if (/^\d+$/.test(p)) return p;
+    return null;
+  }
+  function fmtDate(dt) {
+    if (!dt) return '—';
+    try { return new Date((dt+'').replace(' ','T')).toLocaleString(); } catch(e){ return dt; }
+  }
+  function fmtDur(sec) {
+    sec = Math.max(0, parseInt(sec||0,10));
+    const h = Math.floor(sec/3600), m = Math.floor((sec%3600)/60), s = sec%60;
+    const hh = h>0 ? (h+':') : '';
+    return hh + String(m).padStart(2,'0') + ':' + String(s).padStart(2,'0');
+  }
 
-        const correct = (q.is_correct ?? 0) === 1;
-        const markStr = `${q.awarded_mark ?? 0} / ${q.mark ?? 0}`;
-        const timeStr = fmtDur(q.time_spent_sec ?? 0);
+  // ✅ Safe HTML setter (DOMPurify sanitize, then innerHTML)
+  function setHtml(el, html) {
+    const s = String(html ?? '');
+    if (window.DOMPurify) {
+      el.innerHTML = window.DOMPurify.sanitize(s, {
+        ALLOWED_TAGS: [
+          'b','strong','i','em','u','s','br','hr','span','div','p',
+          'ul','ol','li',
+          'h1','h2','h3','h4','h5','h6',
+          'table','thead','tbody','tr','th','td',
+          'img','a','code','sup','sub','small'
+        ],
+        ALLOWED_ATTR: ['href','target','rel','src','alt','title','style','class']
+      });
+      return;
+    }
+    el.innerHTML = s;
+  }
 
-        const head = document.createElement('div');
-        head.className = 'qhead';
+  function typesetMath() {
+    try {
+      if (window.MathJax && typeof window.MathJax.typesetPromise === 'function') {
+        window.MathJax.typesetClear && window.MathJax.typesetClear();
+        return window.MathJax.typesetPromise();
+      }
+    } catch(e){}
+    return Promise.resolve();
+  }
 
-        const leftBlock = document.createElement('div');
+  const PASS_THRESHOLD = 60;
 
-        const title = document.createElement('div');
-        title.className = 'qtitle';
-        // ✅ HTML render (question title may contain HTML + LaTeX)
-        setHtml(title, `Q${q.order}. ${q.title ?? ''}`);
-        leftBlock.appendChild(title);
+  /* ===== Refs ===== */
+  const els = {
+    quizTitle: document.getElementById('quizTitle'),
+    quizSub: document.getElementById('quizSub'),
+    scoreRing: document.getElementById('scoreRing'),
+    ringPct: document.getElementById('ringPct'),
+    scoreBig: document.getElementById('scoreBig'),
+    scoreMeta: document.getElementById('scoreMeta'),
+    passBadge: document.getElementById('passBadge'),
+    kKpiScore: document.querySelector('#kpiScore .value'),
+    kKpiAccuracy: document.querySelector('#kpiAccuracy .value'),
+    kKpiCorrect: document.querySelector('#kpiCorrect .value'),
+    kKpiTime: document.querySelector('#kpiTime .value'),
+    kpiAccuracyBox: document.getElementById('kpiAccuracy'),
+    loading: document.getElementById('stateLoading'),
+    error: document.getElementById('stateError'),
+    empty: document.getElementById('stateEmpty'),
+    qwrap: document.getElementById('questionsWrap'),
+    btnToggle: document.getElementById('btnToggleAnswers'),
+    btnPrint: document.getElementById('btnPrint'),
+    btnDocx: document.getElementById('btnDocx'),
+    btnHtml: document.getElementById('btnHtml'),
+    search: document.getElementById('searchBox'),
+    countBadge: document.getElementById('countBadge'),
+    sAttemptNo: document.getElementById('sumAttemptNo'),
+    sStatus: document.getElementById('sumStatus'),
+    sStart: document.getElementById('sumStart'),
+    sFinish: document.getElementById('sumFinish'),
+    sQ: document.getElementById('sumQ'),
+    sC: document.getElementById('sumC'),
+    sW: document.getElementById('sumW'),
+    sS: document.getElementById('sumS'),
+    sT: document.getElementById('sumT'),
+    sQuiz: document.getElementById('sumQuiz'),
+    sAllotted: document.getElementById('sumAllotted'),
+  };
 
-        const descText = (q.description ?? '').toString().trim();
-        if (descText) {
-          const desc = document.createElement('div');
-          desc.className = 'qdesc';
-          // ✅ HTML render (description may contain HTML + LaTeX)
-          setHtml(desc, descText);
-          leftBlock.appendChild(desc);
-        }
+  let answersVisible = true;
+  let current = null;
+  let resultId = getResultId();
+  let filterMode = 'all';
+  let searchTerm = '';
+  let role = '';
 
-        const meta = document.createElement('div');
-        meta.className = 'qmeta';
-        meta.innerHTML = `
-          <span>Type: ${(q.type || '—')}</span>
-          <span>Marks: ${markStr}</span>
-          <span>Time: ${timeStr}</span>
-        `;
-        leftBlock.appendChild(meta);
+  function show(el){ el.classList.remove('hide'); }
+  function hide(el){ el.classList.add('hide'); }
 
-        const rightBlock = document.createElement('div');
-        const pill = document.createElement('span');
-        pill.className = 'pill ' + (correct ? '' : 'muted');
-        pill.innerHTML = correct
-          ? `<i class="fa-solid fa-check"></i> Correct`
-          : `<i class="fa-solid fa-xmark"></i> Incorrect`;
-        rightBlock.appendChild(pill);
+  function setRing(pct){
+    pct = Math.max(0, Math.min(100, Number(pct||0)));
+    els.scoreRing.style.setProperty('--p', pct);
+    els.ringPct.textContent = pct.toFixed(2) + '%';
+  }
 
-        head.appendChild(leftBlock);
-        head.appendChild(rightBlock);
+  function setHeader(data){
+    const r = data.result, a = data.attempt, q = data.quiz;
+    const scoreText = `${r.marks_obtained} / ${r.total_marks}`;
+    const pct = Number(r.percentage || 0);
+    const timeUsed = a.time_used_sec ?? 0;
+    const totalSec = a.total_time_sec ?? (q.total_time ? q.total_time*60 : 0);
 
-        const ansWrap = document.createElement('div');
-        ansWrap.className = 'answers ' + (answersVisible ? '' : 'hide');
+    els.quizTitle.textContent = q.name || 'Exam Result';
+    els.quizSub.textContent = `Attempt #${r.attempt_number ?? 1} • ${String(a.status||'').toUpperCase()} • Started ${fmtDate(a.started_at)} • Finished ${fmtDate(a.finished_at)}`;
 
-        const chosenIds = (q.selected_answer_ids && Array.isArray(q.selected_answer_ids)) ? q.selected_answer_ids.map(Number) : [];
+    setRing(pct);
+    els.scoreBig.textContent = scoreText;
+    els.scoreMeta.textContent = `Accuracy ${pct.toFixed(2)}%  |  Time ${ totalSec ? (fmtDur(timeUsed)+' / '+fmtDur(totalSec)) : fmtDur(timeUsed) }`;
 
-        if (q.type === 'fill_in_the_blank') {
-          const a = document.createElement('div');
-          a.className = 'ans chosen ' + (correct ? 'correct' : '');
-          a.innerHTML = `
-            <div class="left">
-              <span class="tick">${correct?'<i class="fa-solid fa-check"></i>':'<i class="fa-solid fa-xmark"></i>'}</span>
-              <div>
-                <div><b>Your answer:</b> <span class="fibText"></span></div>
-                <div class="muted" style="font-size:12px">FIB</div>
-              </div>
+    els.passBadge.innerHTML = '';
+    const pass = pct >= PASS_THRESHOLD;
+    const div = document.createElement('div');
+    div.className = 'badge ' + (pass ? 'pass' : 'fail');
+    div.innerHTML = `<i class="fa-solid ${pass ? 'fa-check' : 'fa-xmark'}"></i> <b>${pass ? 'PASS' : 'FAIL'}</b>`;
+    els.passBadge.appendChild(div);
+
+    els.kKpiScore.textContent = scoreText;
+    els.kKpiAccuracy.textContent = pct.toFixed(2) + '%';
+    els.kKpiCorrect.textContent = `${r.total_correct} / ${r.total_questions}`;
+    els.kKpiTime.textContent = totalSec ? `${fmtDur(timeUsed)} / ${fmtDur(totalSec)}` : fmtDur(timeUsed);
+
+    els.kpiAccuracyBox.classList.toggle('pass', pass);
+    els.kpiAccuracyBox.classList.toggle('fail', !pass);
+
+    els.sAttemptNo.textContent = (r.attempt_number ?? 1);
+    els.sStatus.textContent = String(a.status || '').toUpperCase();
+    els.sStart.textContent = fmtDate(a.started_at);
+    els.sFinish.textContent = fmtDate(a.finished_at);
+    els.sQ.textContent = r.total_questions;
+    els.sC.textContent = r.total_correct;
+    els.sW.textContent = r.total_incorrect;
+    els.sS.textContent = r.total_skipped;
+    els.sT.textContent = totalSec ? `${fmtDur(timeUsed)} / ${fmtDur(totalSec)}` : fmtDur(timeUsed);
+    els.sQuiz.textContent = q.name || '—';
+    els.sAllotted.textContent = q.total_time ? `${q.total_time} min` : '—';
+
+    document.title = `${q.name || 'Exam Result'} • ${scoreText}`;
+  }
+
+  function statusOf(q){
+    const sel = q.selected_answer_ids;
+    const isCorrect = (q.is_correct ?? 0) === 1;
+    const skipped =
+      (sel === null || (Array.isArray(sel) && sel.length === 0)) &&
+      !(q.selected_text && String(q.selected_text).trim() !== '');
+    if (skipped) return 'skipped';
+    return isCorrect ? 'correct' : 'wrong';
+  }
+
+  async function renderQuestions(data){
+    const list = Array.isArray(data.questions) ? data.questions.slice() : [];
+    els.qwrap.innerHTML = '';
+
+    const filtered = list.filter(q => {
+      const st = statusOf(q);
+      const hitFilter = (filterMode === 'all') ? true : (st === filterMode);
+      if (!hitFilter) return false;
+      if (!searchTerm) return true;
+      const hay = `${q.title||''} ${q.description||''}`.toLowerCase();
+      return hay.includes(searchTerm);
+    });
+
+    els.countBadge.innerHTML = `<i class="fa-regular fa-square-check"></i> ${filtered.length} shown`;
+
+    if (!filtered.length){
+      hide(els.loading); show(els.empty);
+      await typesetMath();
+      return;
+    }
+    hide(els.loading); hide(els.empty);
+
+    filtered.forEach(q => {
+      const card = document.createElement('div');
+      card.className = 'q';
+
+      const correct = (q.is_correct ?? 0) === 1;
+      const markStr = `${q.awarded_mark ?? 0} / ${q.mark ?? 0}`;
+      const timeStr = fmtDur(q.time_spent_sec ?? 0);
+
+      const head = document.createElement('div');
+      head.className = 'qhead';
+
+      const leftBlock = document.createElement('div');
+
+      const title = document.createElement('div');
+      title.className = 'qtitle';
+      setHtml(title, `Q${q.order}. ${q.title ?? ''}`);
+      leftBlock.appendChild(title);
+
+      const descText = (q.description ?? '').toString().trim();
+      if (descText) {
+        const desc = document.createElement('div');
+        desc.className = 'qdesc';
+        setHtml(desc, descText);
+        leftBlock.appendChild(desc);
+      }
+
+      const meta = document.createElement('div');
+      meta.className = 'qmeta';
+      meta.innerHTML = `
+        <span>Type: ${(q.type || '—')}</span>
+        <span>Marks: ${markStr}</span>
+        <span>Time: ${timeStr}</span>
+      `;
+      leftBlock.appendChild(meta);
+
+      const rightBlock = document.createElement('div');
+      const pill = document.createElement('span');
+      pill.className = 'pill ' + (correct ? '' : 'muted');
+      pill.innerHTML = correct
+        ? `<i class="fa-solid fa-check"></i> Correct`
+        : `<i class="fa-solid fa-xmark"></i> Incorrect`;
+      rightBlock.appendChild(pill);
+
+      head.appendChild(leftBlock);
+      head.appendChild(rightBlock);
+
+      const ansWrap = document.createElement('div');
+      ansWrap.className = 'answers ' + (answersVisible ? '' : 'hide');
+
+      const chosenIds = (q.selected_answer_ids && Array.isArray(q.selected_answer_ids)) ? q.selected_answer_ids.map(Number) : [];
+
+      if (q.type === 'fill_in_the_blank') {
+        const a = document.createElement('div');
+        a.className = 'ans chosen ' + (correct ? 'correct' : '');
+        a.innerHTML = `
+          <div class="left">
+            <span class="tick">${correct?'<i class="fa-solid fa-check"></i>':'<i class="fa-solid fa-xmark"></i>'}</span>
+            <div>
+              <div><b>Your answer:</b> <span class="fibText"></span></div>
+              <div class="muted" style="font-size:12px">FIB</div>
             </div>
-          `;
-          // ✅ if typed answer includes HTML/LaTeX
-          setHtml(a.querySelector('.fibText'), q.selected_text ? String(q.selected_text) : '—');
-          ansWrap.appendChild(a);
-        } else {
-          const options = Array.isArray(q.answers) ? q.answers : [];
-          options.forEach(opt => {
-            const isCorrect = (opt.is_correct ?? 0) === 1;
-            const isChosen  = chosenIds.includes(Number(opt.answer_id));
+          </div>
+        `;
+        setHtml(a.querySelector('.fibText'), q.selected_text ? String(q.selected_text) : '—');
+        ansWrap.appendChild(a);
+      } else {
+        const options = Array.isArray(q.answers) ? q.answers : [];
+        options.forEach(opt => {
+          const isCorrect = (opt.is_correct ?? 0) === 1;
+          const isChosen  = chosenIds.includes(Number(opt.answer_id));
 
-            const row = document.createElement('div');
-            row.className = 'ans' + (isCorrect ? ' correct' : '') + (isChosen ? ' chosen' : '');
+          const row = document.createElement('div');
+          row.className = 'ans' + (isCorrect ? ' correct' : '') + (isChosen ? ' chosen' : '');
 
-            const left = document.createElement('div');
-            left.className = 'left';
+          const left = document.createElement('div');
+          left.className = 'left';
 
-            const tick = document.createElement('span');
-            tick.className = 'tick';
-            tick.innerHTML = isChosen ? '<i class="fa-solid fa-check-double"></i>' : '';
+          const tick = document.createElement('span');
+          tick.className = 'tick';
+          tick.innerHTML = isChosen ? '<i class="fa-solid fa-check-double"></i>' : '';
 
-            const text = document.createElement('div');
-            // ✅ HTML render (option title may contain HTML + LaTeX)
-            setHtml(text, (opt.title ?? '').toString());
+          const text = document.createElement('div');
+          setHtml(text, (opt.title ?? '').toString());
 
-            left.appendChild(tick);
-            left.appendChild(text);
+          left.appendChild(tick);
+          left.appendChild(text);
 
-            const right = document.createElement('div');
-            right.className = 'right';
-            if (isCorrect) {
-              const p = document.createElement('span');
-              p.className = 'pill';
-              p.innerHTML = '<i class="fa-solid fa-check"></i> Correct';
-              right.appendChild(p);
-            }
-
-            row.appendChild(left);
-            row.appendChild(right);
-            ansWrap.appendChild(row);
-          });
-
-          if (!options.length) {
-            const none = document.createElement('div');
-            none.className = 'muted';
-            none.textContent = 'No options provided for this question.';
-            ansWrap.appendChild(none);
+          const right = document.createElement('div');
+          right.className = 'right';
+          if (isCorrect) {
+            const p = document.createElement('span');
+            p.className = 'pill';
+            p.innerHTML = '<i class="fa-solid fa-check"></i> Correct';
+            right.appendChild(p);
           }
-        }
 
-        card.appendChild(head);
-        card.appendChild(ansWrap);
-        els.qwrap.appendChild(card);
-      });
-
-      // ✅ IMPORTANT: typeset AFTER DOM injection
-      await typesetMath();
-    }
-
-    async function fetchResult() {
-      if (!token) { hide(els.loading); els.error.textContent='Missing token. Please log in again.'; show(els.error); return; }
-      if (!resultId){ hide(els.loading); els.error.textContent='Missing result id in URL.'; show(els.error); return; }
-
-      try {
-        const res = await fetch(`${apiBase}/exam/results/${resultId}`, {
-          headers: { 'Authorization': `Bearer ${token}` }
+          row.appendChild(left);
+          row.appendChild(right);
+          ansWrap.appendChild(row);
         });
 
-        if (!res.ok) {
-          hide(els.loading);
-          let msg = `Failed (${res.status})`;
-          try { const j = await res.json(); if (j && j.message) msg = j.message; } catch(e){}
-          if (res.status === 401) msg = 'Unauthorized. Please log in again.';
-          if (res.status === 403) msg = msg || 'Result is not yet published for students.';
-          els.error.textContent = msg; show(els.error); return;
+        if (!options.length) {
+          const none = document.createElement('div');
+          none.className = 'muted';
+          none.textContent = 'No options provided for this question.';
+          ansWrap.appendChild(none);
         }
+      }
 
-        const data = await res.json();
-        if (!data || !data.success) {
-          hide(els.loading);
-          els.error.textContent = (data && data.message) || 'Unknown error.';
-          show(els.error); return;
-        }
+      card.appendChild(head);
+      card.appendChild(ansWrap);
+      els.qwrap.appendChild(card);
+    });
 
-        current = data;
-        setHeader(data);
-        await renderQuestions(data);
-      } catch (e) {
+    await typesetMath();
+  }
+
+  async function fetchResult() {
+    if (!token) { hide(els.loading); els.error.textContent='Missing token. Please log in again.'; show(els.error); return; }
+    if (!resultId){ hide(els.loading); els.error.textContent='Missing result id in URL.'; show(els.error); return; }
+
+    window.showPageOverlay('Loading result…');
+
+    try {
+      const res = await fetch(`${apiBase}/exam/results/${resultId}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+
+      if (!res.ok) {
         hide(els.loading);
-        els.error.textContent = 'Network error. Please try again.';
-        show(els.error);
+        let msg = `Failed (${res.status})`;
+        try { const j = await res.json(); if (j && j.message) msg = j.message; } catch(e){}
+        if (res.status === 401) msg = 'Unauthorized. Please log in again.';
+        if (res.status === 403) msg = msg || 'Result is not yet published for students.';
+        els.error.textContent = msg; show(els.error); return;
       }
-    }
 
-    async function downloadExport(format){
-      if (!current) return;
-      const btn = (format === 'docx') ? els.btnDocx : els.btnHtml;
-      btn.disabled = true;
-      const old = btn.innerHTML;
-      btn.innerHTML = `<span class="spinner"></span> Preparing…`;
-      try {
-        const url = `${apiBase}/exam/results/${current.result.result_id}/export?format=${encodeURIComponent(format)}`;
-        const res = await fetch(url, { headers: { 'Authorization': `Bearer ${token}` } });
-        if (!res.ok) {
-          let msg = `Download failed (${res.status})`;
-          try { const j = await res.json(); if (j && j.message) msg = j.message; } catch(e){}
-          alert(msg);
-        } else {
-          const blob = await res.blob();
-          const a = document.createElement('a');
-          const ext = (format === 'docx') ? 'docx' : 'html';
-          const name = `exam_result_${current.result.result_id}.${ext}`;
-          a.href = URL.createObjectURL(blob);
-          a.download = name;
-          document.body.appendChild(a);
-          a.click();
-          a.remove();
-          URL.revokeObjectURL(a.href);
-        }
-      } catch(e){
-        alert('Network error while downloading.');
-      } finally {
-        btn.disabled = false;
-        btn.innerHTML = old;
+      const data = await res.json();
+      if (!data || !data.success) {
+        hide(els.loading);
+        els.error.textContent = (data && data.message) || 'Unknown error.';
+        show(els.error); return;
       }
+
+      current = data;
+      setHeader(data);
+      await renderQuestions(data);
+    } catch (e) {
+      hide(els.loading);
+      els.error.textContent = 'Network error. Please try again.';
+      show(els.error);
+    } finally {
+      window.hidePageOverlay();
     }
+  }
 
-    /* ===== Events ===== */
-    els.btnToggle.addEventListener('click', async () => {
-      answersVisible = !answersVisible;
-      els.btnToggle.querySelector('span').textContent = answersVisible ? 'Hide answers' : 'Show answers';
-      document.querySelectorAll('.answers').forEach(el => el.classList.toggle('hide', !answersVisible));
-      await typesetMath();
-    });
+  async function downloadExport(format){
+    if (!current) return;
+    const btn = (format === 'docx') ? els.btnDocx : els.btnHtml;
+    btn.disabled = true;
+    const old = btn.innerHTML;
+    btn.innerHTML = `<span class="spinner"></span> Preparing…`;
 
-    els.btnPrint.addEventListener('click', () => window.print());
-    els.btnDocx.addEventListener('click', () => downloadExport('docx'));
-    els.btnHtml.addEventListener('click', () => downloadExport('html'));
+    window.showPageOverlay('Preparing export…');
 
-    document.querySelectorAll('.seg button').forEach(b => b.addEventListener('click', async (e) => {
-      document.querySelectorAll('.seg button').forEach(x => x.classList.remove('active'));
-      e.currentTarget.classList.add('active');
-      filterMode = e.currentTarget.dataset.filter || 'all';
-      if (current) await renderQuestions(current);
-    }));
+    try {
+      const url = `${apiBase}/exam/results/${current.result.result_id}/export?format=${encodeURIComponent(format)}`;
+      const res = await fetch(url, { headers: { 'Authorization': `Bearer ${token}` } });
+      if (!res.ok) {
+        let msg = `Download failed (${res.status})`;
+        try { const j = await res.json(); if (j && j.message) msg = j.message; } catch(e){}
+        alert(msg);
+      } else {
+        const blob = await res.blob();
+        const a = document.createElement('a');
+        const ext = (format === 'docx') ? 'docx' : 'html';
+        const name = `exam_result_${current.result.result_id}.${ext}`;
+        a.href = URL.createObjectURL(blob);
+        a.download = name;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(a.href);
+      }
+    } catch(e){
+      alert('Network error while downloading.');
+    } finally {
+      window.hidePageOverlay();
+      btn.disabled = false;
+      btn.innerHTML = old;
+    }
+  }
 
-    els.search.addEventListener('input', async (e) => {
-      searchTerm = String(e.target.value || '').toLowerCase().trim();
-      if (current) await renderQuestions(current);
-    });
+  /* ===== Events ===== */
+  els.btnToggle.addEventListener('click', async () => {
+    answersVisible = !answersVisible;
+    els.btnToggle.querySelector('span').textContent = answersVisible ? 'Hide answers' : 'Show answers';
+    document.querySelectorAll('.answers').forEach(el => el.classList.toggle('hide', !answersVisible));
+    await typesetMath();
+  });
 
-    /* ===== Start ===== */
+  els.btnPrint.addEventListener('click', () => window.print());
+  els.btnDocx.addEventListener('click', () => downloadExport('docx'));
+  els.btnHtml.addEventListener('click', () => downloadExport('html'));
+
+  document.querySelectorAll('.seg button').forEach(b => b.addEventListener('click', async (e) => {
+    document.querySelectorAll('.seg button').forEach(x => x.classList.remove('active'));
+    e.currentTarget.classList.add('active');
+    filterMode = e.currentTarget.dataset.filter || 'all';
+    if (current) await renderQuestions(current);
+  }));
+
+  els.search.addEventListener('input', async (e) => {
+    searchTerm = String(e.target.value || '').toLowerCase().trim();
+    if (current) await renderQuestions(current);
+  });
+
+  /* ===== Start ===== */
+  (async function boot(){
+    // role is derived by API (not by decoding token client-side)
+    window.showPageOverlay('Checking session…');
+    role = await getMyRole(token);
+    window.hidePageOverlay();
+
+    // Example usage if you need it later:
+    // console.log('[role]', role);
+
     fetchResult();
   })();
-  </script>
+})();
+</script>
+
 </body>
 </html>
