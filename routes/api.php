@@ -147,13 +147,14 @@ Route::middleware('checkRole:admin,super_admin,instructor, student')->group(func
  
     // Batches
     Route::get   ('/batches',                    [BatchController::class, 'index']);
+        Route::get('/batches/my', [BatchController::class, 'myBatches']);
+
     Route::get   ('/batches/{idOrUuid}',         [BatchController::class, 'show']);
     Route::post  ('/batches',                    [BatchController::class, 'store']);
     Route::match(['put','patch'], '/batches/{idOrUuid}', [BatchController::class, 'update']);
     Route::delete('/batches/{idOrUuid}',         [BatchController::class, 'destroy']);
     Route::post  ('/batches/{idOrUuid}/restore', [BatchController::class, 'restore']);
     Route::patch ('/batches/{idOrUuid}/archive', [BatchController::class, 'archive']);
-    Route::get('/batches/my', [BatchController::class, 'myBatches']);
 
  
     /* ---------------------------

@@ -297,7 +297,7 @@
   async function loadCourses(){
     if(!courseSel) return;
     try{
-      const res = await fetch('/api/courses?status=published&per_page=1000',{headers:{Authorization:'Bearer '+TOKEN,Accept:'application/json'}});
+      const res = await fetch('/api/courses/my?status=published',{headers:{Authorization:'Bearer '+TOKEN,Accept:'application/json'}});
       const j = await res.json();
       if(!res.ok) throw new Error(j?.message||'Failed to load courses');
       const items = j?.data||[];
@@ -323,7 +323,7 @@
     if(!batchSel) return;
     try{
       const qs = new URLSearchParams({course_id:courseId, per_page:'200'});
-      const res = await fetch('/api/batches?'+qs.toString(),{headers:{Authorization:'Bearer '+TOKEN,Accept:'application/json'}});
+      const res = await fetch('/api/batches/my?'+qs.toString(),{headers:{Authorization:'Bearer '+TOKEN,Accept:'application/json'}});
       const j = await res.json();
       if(!res.ok) throw new Error(j?.message||'Failed to load batches');
       const items = j?.data||[];

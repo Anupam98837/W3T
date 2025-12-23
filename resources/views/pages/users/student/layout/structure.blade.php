@@ -238,7 +238,7 @@ html.theme-dark .w3-sidebar-scroll::-webkit-scrollbar-thumb {
     <nav class="w3-menu" aria-label="My Learning">
       <a href="/student/courses" class="w3-link"><i class="fa-solid fa-book-open"></i><span>My Courses</span></a>
       
-      <!-- <div class="w3-group">
+      <div class="w3-group">
         <a href="#" class="w3-link w3-toggle" data-target="sm-quizzes" aria-expanded="false">
           <i class="fa-solid fa-pen-to-square"></i><span>Quizzes</span>
           <i class="fa fa-chevron-down w3-chev"></i>
@@ -256,13 +256,13 @@ html.theme-dark .w3-sidebar-scroll::-webkit-scrollbar-thumb {
         </a>
         <div id="sm-assignments" class="w3-submenu" role="group" aria-label="Assignments submenu">
           <a href="/student/assignments" class="w3-link">My Assignments</a>
-          <a href="/student/submissions" class="w3-link">Submissions</a>
+          <!-- <a href="/student/submissions" class="w3-link">Submissions</a> -->
         </div>
       </div>
 
       <a href="/student/study-materials" class="w3-link"><i class="fa-solid fa-book"></i><span>Study Materials</span></a>
     </nav>
-  -->
+ 
     <!-- Schedule -->
     <!-- <div class="w3-nav-section">
       <div class="w3-section-title"><i class="fa-solid fa-calendar-days"></i> SCHEDULE</div>

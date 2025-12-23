@@ -1672,100 +1672,174 @@ public function getNotVerifiedStudents(Request $request, $idOrUuid)
     }
 }
 /**
- * GET /api/batches/my
- * Returns batches where the authenticated user is enrolled
+ * GET /api/batches?course_id=...&status=&q=&sort=-created_at&include_deleted=0&only_deleted=0
+ * No pagination.
+ *
+ * Role rules:
+ * - admin/super_admin: all batches (within course_id filter)
+ * - student: only assigned via batch_students
+ * - instructor: only assigned via instructor mapping table
  */
 public function myBatches(Request $request)
 {
-    // 🔐 Get user from token
-    $userId = $this->authUserIdFromToken($request);
-    if (!$userId) {
-        return response()->json([
-            'success' => false,
-            'message' => 'Unauthorized'
-        ], 401);
+    // 🔐 Viewer from token
+    $viewerId = $this->authUserIdFromToken($request);
+    if (!$viewerId) {
+        return response()->json(['success' => false, 'message' => 'Unauthorized'], 401);
     }
 
-    try {
-        // ---- Base query: batch_students → batches → courses
-        $rows = DB::table('batch_students as bs')
-            ->join('batches as b', 'b.id', '=', 'bs.batch_id')
-            ->join('courses as c', 'c.id', '=', 'b.course_id')
-            ->where('bs.user_id', $userId)
-            ->whereNull('bs.deleted_at')
-            ->whereNull('b.deleted_at')
-            ->whereNull('c.deleted_at')
-            ->select(
-                // batch
-                'b.id as batch_id',
-                'b.uuid as batch_uuid',
-                'b.badge_title as batch_name',
-                'b.status as batch_status',
-                'b.starts_at',
-                'b.ends_at',
+    // ✅ Role from middleware/token attrs
+    $role = strtolower((string) $request->attributes->get('auth_role', ''));
 
-                // enrollment
-                'bs.enrollment_status',
-                'bs.enrolled_at',
-                'bs.completed_at',
+    $isAdmin      = in_array($role, ['admin', 'super_admin', 'superadmin'], true);
+    $isStudent    = str_contains($role, 'student');
+    $isInstructor = str_contains($role, 'instructor');
 
-                // course
-                'c.id as course_id',
-                'c.uuid as course_uuid',
-                'c.slug as course_slug',
-                'c.title as course_title',
-                'c.course_type',
-                'c.status as course_status'
-            )
-            ->orderBy('b.starts_at', 'desc')
-            ->get();
+    // ✅ same validation style
+    $v = Validator::make($request->all(), [
+        'course_id'       => 'required|integer|exists:courses,id',
+        'status'          => 'nullable|string|in:active,inactive,archived',
+        'q'               => 'nullable|string|max:255',
+        'sort'            => 'nullable|string|max:64',     // e.g., -created_at, badge_title
+        'include_deleted' => 'nullable|boolean',
+        'only_deleted'    => 'nullable|boolean',
+    ]);
 
-        // ---- Shape response
-        $data = $rows->map(function ($r) {
-            return [
-                'batch' => [
-                    'id'            => (int)$r->batch_id,
-                    'uuid'          => $r->batch_uuid,
-                    'name'          => $r->batch_name,
-                    'status'        => $r->batch_status,
-                    'starts_at'     => $r->starts_at,
-                    'ends_at'       => $r->ends_at,
-                    'duration_days'=> $this->daysDuration($r->starts_at, $r->ends_at),
-                ],
-                'course' => [
-                    'id'     => (int)$r->course_id,
-                    'uuid'   => $r->course_uuid,
-                    'slug'   => $r->course_slug,
-                    'title'  => $r->course_title,
-                    'type'   => $r->course_type,
-                    'status' => $r->course_status,
-                ],
-                'enrollment' => [
-                    'status'       => $r->enrollment_status,
-                    'enrolled_at'  => $r->enrolled_at,
-                    'completed_at' => $r->completed_at,
-                ],
-            ];
+    if ($v->fails()) {
+        return response()->json(['success' => false, 'errors' => $v->errors()], 422);
+    }
+
+    // ✅ sorting same way (but qualified with alias b.)
+    $sort = (string) $request->input('sort', '-created_at');
+    $allowedSorts = ['id','badge_title','created_at','starts_at','status','mode'];
+
+    $dir = 'asc';
+    $col = ltrim($sort, '-');
+    if (!in_array($col, $allowedSorts, true)) $col = 'created_at';
+    if (str_starts_with($sort, '-')) $dir = 'desc';
+
+    $onlyDeleted    = $request->boolean('only_deleted');
+    $includeDeleted = $request->boolean('include_deleted');
+
+    // ---------------------------------------------------------
+    // Base query: batches (alias b)
+    // ---------------------------------------------------------
+    $q = DB::table('batches as b')
+        ->where('b.course_id', (int) $request->course_id);
+
+    // deleted filters (same logic)
+    if ($onlyDeleted) {
+        $q->whereNotNull('b.deleted_at');
+    } else {
+        if (!$includeDeleted) $q->whereNull('b.deleted_at');
+    }
+
+    // status filter
+    if ($request->filled('status')) {
+        $q->where('b.status', $request->status);
+    }
+
+    // search filter
+    if ($request->filled('q')) {
+        $like = '%' . str_replace('%', '\\%', $request->q) . '%';
+        $q->where(function ($qq) use ($like) {
+            $qq->where('b.badge_title', 'like', $like)
+               ->orWhere('b.tagline', 'like', $like);
         });
-
-        return response()->json([
-            'success'       => true,
-            'user_id'       => $userId,
-            'total_batches' => $data->count(),
-            'data'          => $data,
-        ]);
-
-    } catch (\Throwable $e) {
-        Log::error('[myBatches] failed', [
-            'user_id' => $userId,
-            'error'   => $e->getMessage(),
-        ]);
-
-        return response()->json([
-            'success' => false,
-            'message' => 'Failed to fetch batches'
-        ], 500);
     }
+
+    // ---------------------------------------------------------
+    // Role scoping
+    // ---------------------------------------------------------
+    if (!$isAdmin) {
+
+        // join users (as requested)
+        $q->join('users as u', 'u.id', '=', DB::raw((int)$viewerId))
+          ->whereNull('u.deleted_at');
+
+        if ($isStudent) {
+            // ✅ only assigned students
+            $q->join('batch_students as bs', 'bs.batch_id', '=', 'b.id')
+              ->where('bs.user_id', $viewerId)
+              ->whereNull('bs.deleted_at');
+
+        } elseif ($isInstructor) {
+            // ✅ only assigned instructors
+            // Auto-detect your instructor mapping table.
+            // Add your real table name here if different.
+            $candidates = [
+                // table => [possible user cols...]
+                'batch_instructors' => ['user_id', 'instructor_id'],
+                'batch_faculties'   => ['user_id', 'faculty_id'],
+                'batch_teachers'    => ['user_id', 'teacher_id'],
+                'batch_trainers'    => ['user_id', 'trainer_id'],
+            ];
+
+            $foundTable   = null;
+            $foundUserCol = null;
+
+            foreach ($candidates as $table => $userCols) {
+                if (!\Schema::hasTable($table)) continue;
+                if (!\Schema::hasColumn($table, 'batch_id')) continue;
+
+                foreach ($userCols as $uc) {
+                    if (\Schema::hasColumn($table, $uc)) {
+                        $foundTable   = $table;
+                        $foundUserCol = $uc;
+                        break 2;
+                    }
+                }
+            }
+
+            if (!$foundTable) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Instructor mapping table not found (configure candidates in controller).'
+                ], 500);
+            }
+
+            $q->join($foundTable . ' as bi', 'bi.batch_id', '=', 'b.id')
+              ->where('bi.' . $foundUserCol, $viewerId);
+
+            // optional soft-delete on mapping
+            if (\Schema::hasColumn($foundTable, 'deleted_at')) {
+                $q->whereNull('bi.deleted_at');
+            }
+
+        } else {
+            // anything else: no access
+            return response()->json([
+                'success' => false,
+                'message' => 'Unauthorized Access'
+            ], 403);
+        }
+    }
+
+    // ---------------------------------------------------------
+    // Fetch (no pagination) + same response shaping
+    // ---------------------------------------------------------
+    $rows = $q->select('b.*')
+        ->distinct()
+        ->orderBy('b.' . $col, $dir)
+        ->get();
+
+    $data = $rows->map(function ($r) {
+        $r->group_links = $r->group_links ? json_decode($r->group_links, true) : null;
+        $r->metadata    = $r->metadata ? json_decode($r->metadata, true) : null;
+
+        $r->duration_human = $this->humanDuration($r->starts_at ?? null, $r->ends_at ?? null);
+        $r->duration_days  = $this->daysDuration($r->starts_at ?? null, $r->ends_at ?? null);
+
+        $r->tagline            = $r->tagline ?? null;
+        $r->badge_description  = $r->badge_description ?? null;
+
+        return $r;
+    });
+
+    return response()->json([
+        'success' => true,
+        'data'    => $data,
+    ]);
 }
- 
+
 }

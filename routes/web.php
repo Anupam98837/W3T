@@ -295,7 +295,9 @@ Route::get('/coding/results/{resultUuid}/view', function ($resultUuid) {
         'resultUuid' => $resultUuid
     ]);
 });
-
+Route::get('/student/assignments', function () {
+    return view('pages.users.student.pages.assignments.manageAssignment');
+});
 
 // Instructor Routes
 Route::get('/instructor/dashboard', function () {

@@ -1567,187 +1567,173 @@ public function forceDestroy(Request $request, string $course)
 
     return response()->json(['status'=>'success','message'=>'Course permanently deleted']);
 }
-/**
- * GET /api/courses/my
- * Returns courses where the authenticated user
- * is assigned to one or more batches
- */
 public function myCourses(Request $r)
 {
-    // ---- Get actor details using the helper method for consistency
     $a = $this->actor($r);
-    
-    $this->logWithActor('[Courses.myCourses] begin', $r);
-    
-    // ---- Validate actor has proper credentials
     if (!$a['id'] || !$a['role']) {
-        Log::warning('[Courses.myCourses] Invalid actor credentials', [
-            'actor' => $a,
-            'ip' => $r->ip(),
-        ]);
         return response()->json(['error' => 'Authentication required'], 401);
     }
-    
-    $role = $a['role'];
-    $uid  = $a['id'];
-    $type = $a['type'];
 
-    // ---- Determine pivot table + user column
-    $pivotTable = null;
-    $userCol = null;
-    
-    if ($role === 'student') {
-        $pivotTable = 'batch_students';
-        $userCol    = Schema::hasColumn('batch_students','user_id')
-                        ? 'user_id'
-                        : 'student_id';
-    } elseif ($role === 'instructor') {
-        $pivotTable = 'batch_instructors';
-        $userCol    = Schema::hasColumn('batch_instructors','user_id')
-                        ? 'user_id'
-                        : 'instructor_id';
-    } elseif (in_array($role, ['admin', 'superadmin'], true)) {
-        // admin / superadmin → all batches (no pivot restriction)
-        $pivotTable = null;
-        $userCol = null;
-    } else {
-        // Unknown role
-        Log::warning('[Courses.myCourses] Unauthorized role', [
-            'role' => $role,
-            'user_id' => $uid,
-        ]);
+    $role = strtolower((string)$a['role']);
+    $uid  = (int)$a['id'];
+
+    $isAdmin      = in_array($role, ['admin', 'super_admin', 'superadmin'], true);
+    $isStudent    = ($role === 'student');
+    $isInstructor = ($role === 'instructor');
+
+    if (!$isAdmin && !$isStudent && !$isInstructor) {
         return response()->json(['error' => 'Unauthorized Access'], 403);
     }
 
-    // ---- Base query
-    $q = DB::table('batches as b')
-        ->join('courses as c', 'c.id', '=', 'b.course_id')
-        ->whereNull('b.deleted_at')
-        ->whereNull('c.deleted_at');
+    // same query params as index (no pagination)
+    $qText       = trim((string)$r->query('q', ''));
+    $status      = $r->query('status');                  // draft|published|archived (admin only)
+    $type        = $r->query('course_type');             // paid|free
+    $sort        = (string)$r->query('sort', '-created_at');
+    $onlyDeleted = (string)$r->query('only_deleted', '') === '1';
 
-    // ---- Role restriction (only for students/instructors)
-    if ($pivotTable && $userCol) {
-        $q->join("$pivotTable as p", 'p.batch_id', '=', 'b.id')
-          ->whereNull('p.deleted_at')
-          ->where("p.$userCol", $uid);
-          
-        Log::debug('[Courses.myCourses] Applied role restriction', [
-            'pivot_table' => $pivotTable,
-            'user_col' => $userCol,
-            'user_id' => $uid,
-        ]);
-    }
+    $categoryToken    = trim((string)$r->query('category', ''));
+    $categoryFilterId = null;
 
-    // ---- Students see only published courses
-    if ($role === 'student') {
-        $q->where('c.status', 'published');
-    }
-
-    // ---- Fetch rows with distinct to avoid duplicates
-    try {
-        $rows = $q->select(
-                'c.id as course_id',
-                'c.uuid as course_uuid',
-                'c.slug as course_slug',
-                'c.title as course_title',
-                'c.status as course_status',
-                'c.course_type',
-                'c.level',
-                'c.language',
-                'c.short_description',
-
-                'b.id as batch_id',
-                'b.uuid as batch_uuid',
-                'b.badge_title as batch_name',
-                'b.starts_at',
-                'b.ends_at',
-                'b.status as batch_status'
-            )
-            ->orderBy('c.created_at', 'desc')
-            ->orderBy('b.starts_at', 'desc')
-            ->get();
-            
-        Log::info('[Courses.myCourses] Query executed successfully', [
-            'actor_id' => $uid,
-            'actor_role' => $role,
-            'rows_found' => $rows->count(),
-        ]);
-    } catch (\Throwable $e) {
-        Log::error('[Courses.myCourses] Query failed', [
-            'error' => $e->getMessage(),
-            'actor_id' => $uid,
-            'actor_role' => $role,
-        ]);
-        return response()->json(['error' => 'Failed to fetch courses'], 500);
-    }
-
-    // ---- Fetch cover images for all courses in one query
-    $courseIds = $rows->pluck('course_id')->unique()->values();
-    $covers = collect();
-    
-    if ($courseIds->count() > 0) {
+    // Resolve course_categories.uuid -> id (same as index)
+    if ($categoryToken !== '') {
         try {
-            $covers = DB::table('course_featured_media')
-                ->whereIn('course_id', $courseIds)
-                ->whereNull('deleted_at')
-                ->where('status', 'active')
-                ->where('featured_type', 'image')
-                ->orderBy('order_no')
-                ->orderBy('id')
-                ->get()
-                ->groupBy('course_id')
-                ->map(fn($grp) => optional($grp->first())->featured_url);
-        } catch (\Throwable $e) {
-            Log::warning('[Courses.myCourses] Failed to fetch covers', [
-                'error' => $e->getMessage(),
+            if (\Schema::hasTable('course_categories')) {
+                $token = $categoryToken;
+
+                $cat = DB::table('course_categories')->select('id','uuid')
+                    ->where('uuid', $token)->first();
+
+                if (!$cat && ctype_digit($token)) {
+                    $cat = DB::table('course_categories')->select('id','uuid')
+                        ->where('id', (int)$token)->first();
+                }
+
+                if (!$cat) {
+                    $maybeHex = preg_replace('/[^a-fA-F0-9]/', '', $token);
+                    if (strlen($maybeHex) === 32) {
+                        $cat = DB::table('course_categories')->select('id','uuid')
+                            ->whereRaw("LOWER(REPLACE(`uuid`, '-', '')) = ?", [mb_strtolower($maybeHex)])
+                            ->first();
+                    }
+                }
+
+                if ($cat) $categoryFilterId = (int)$cat->id;
+            }
+        } catch (\Throwable $ex) {
+            \Log::error('[Courses.myCourses] category resolve failed', [
+                'token' => $categoryToken,
+                'error' => $ex->getMessage(),
             ]);
-            // Continue without covers
+            $categoryFilterId = null;
         }
     }
 
-    // ---- Group batches under courses
-    $courses = collect($rows)->groupBy('course_id')->map(function ($items) use ($covers) {
-        $first = $items->first();
+    // One featured image per course (same as index)
+    $mediaSub = DB::table('course_featured_media as cfm2')
+        ->select('cfm2.course_id', DB::raw('MIN(cfm2.featured_url) as featured_url'))
+        ->groupBy('cfm2.course_id');
 
-        return [
-            'id'                => (int)$first->course_id,
-            'uuid'              => $first->course_uuid,
-            'slug'              => $first->course_slug,
-            'title'             => $first->course_title,
-            'short_description' => $first->short_description,
-            'status'            => $first->course_status,
-            'type'              => $first->course_type,
-            'level'             => $first->level,
-            'language'          => $first->language,
-            'cover_url'         => $covers->get($first->course_id),
+    $q = DB::table('courses as c')
+        ->leftJoinSub($mediaSub, 'cfm', function ($join) {
+            $join->on('cfm.course_id', '=', 'c.id');
+        })
+        ->leftJoin('course_categories as cc', function ($join) {
+            $join->on('cc.id', '=', 'c.category_id')
+                 ->whereNull('cc.deleted_at');
+        })
+        ->select(
+            'c.*',
+            DB::raw('cfm.featured_url as thumbnail_url'),
+            'cc.id as category_id',
+            'cc.uuid as category_uuid',
+            'cc.title as category_title'
+        );
 
-            'batches'  => $items->map(fn($b) => [
-                'id'         => (int)$b->batch_id,
-                'uuid'       => $b->batch_uuid,
-                'name'       => $b->batch_name,
-                'starts_at'  => $b->starts_at,
-                'ends_at'    => $b->ends_at,
-                'status'     => $b->batch_status,
-            ])->values(),
-        ];
-    })->values();
+    // soft delete (same as index)
+    if ($onlyDeleted) $q->whereNotNull('c.deleted_at');
+    else $q->whereNull('c.deleted_at');
 
-    // ---- Log the successful response
-    $this->logWithActor('[Courses.myCourses] success', $r, [
-        'courses_count' => $courses->count(),
-        'total_batches' => $rows->count(),
-    ]);
+    // search (same as index)
+    if ($qText !== '') {
+        $q->where(function ($w) use ($qText) {
+            $w->where('c.title', 'like', "%{$qText}%")
+              ->orWhere('c.slug', 'like', "%{$qText}%");
+        });
+    }
 
-    return response()->json([
-        'status' => 'success',
-        'user' => [
-            'id'   => $uid,
-            'role' => $role,
-            'type' => $type,
-        ],
-        'total_courses' => $courses->count(),
-        'total_batches' => $rows->count(),
-        'data' => $courses,
-    ]);
+    // paid/free (same as index)
+    if ($type) {
+        $q->where('c.course_type', $type);
+    }
+
+    // category (same as index)
+    if (!empty($categoryFilterId)) {
+        $q->where('c.category_id', $categoryFilterId);
+    }
+
+    // ✅ role scoping
+    if ($isAdmin) {
+        // admin: optional status filter
+        if ($status && !$onlyDeleted) {
+            $q->where('c.status', $status);
+        }
+    } else {
+        // student/instructor: FORCE published (so your frontend status=published is consistent)
+        $q->where('c.status', 'published');
+
+        if ($isStudent) {
+            $userCol = \Schema::hasColumn('batch_students', 'user_id') ? 'user_id' : 'student_id';
+
+            $q->whereExists(function ($sub) use ($uid, $userCol) {
+                $sub->select(DB::raw(1))
+                    ->from('batches as b')
+                    ->join('batch_students as bs', 'bs.batch_id', '=', 'b.id')
+                    ->whereNull('b.deleted_at')
+                    ->whereNull('bs.deleted_at')
+                    ->where("bs.$userCol", $uid)
+                    ->whereColumn('b.course_id', 'c.id');
+            });
+
+        } else { // instructor
+            $userCol = \Schema::hasColumn('batch_instructors', 'user_id') ? 'user_id' : 'instructor_id';
+
+            $q->whereExists(function ($sub) use ($uid, $userCol) {
+                $sub->select(DB::raw(1))
+                    ->from('batches as b')
+                    ->join('batch_instructors as bi', 'bi.batch_id', '=', 'b.id')
+                    ->whereNull('b.deleted_at')
+                    ->whereNull('bi.deleted_at')
+                    ->where("bi.$userCol", $uid)
+                    ->whereColumn('b.course_id', 'c.id');
+            });
+        }
+    }
+
+    // sorting (same as index)
+    $dir = 'asc';
+    $col = $sort;
+    if (str_starts_with($sort, '-')) {
+        $dir = 'desc';
+        $col = ltrim($sort, '-');
+    }
+
+    if (!in_array($col, ['created_at','title','status','course_type','order_no','deleted_at'], true)) {
+        $col = 'created_at';
+        $dir = 'desc';
+    }
+
+    $rows = $q->orderBy('c.'.$col, $dir)->get();
+
+    foreach ($rows as $row) {
+        $row->final_price_ui = $this->computeFinalPrice(
+            (float)$row->price_amount,
+            $row->discount_amount !== null ? (float)$row->discount_amount : null,
+            $row->discount_percent !== null ? (float)$row->discount_percent : null
+        );
+    }
+
+    return response()->json(['data' => $rows]);
 }
+
 }
