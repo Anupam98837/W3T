@@ -170,7 +170,7 @@
     }).then(()=> { location.href='/'; });
     return;
   }
-
+  
   // ===== API endpoints — aligned with your Laravel routes =====
   const API = {
     index: (qs)=> '/api/assignments?' + qs.toString(),

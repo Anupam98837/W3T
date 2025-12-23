@@ -29,7 +29,7 @@ class CourseModuleController extends Controller
      |=========================================================*/
     public function index(Request $r)
     {
-        if ($resp = $this->requireRole($r, ['admin','super_admin','superadmin'])) return $resp;
+        // if ($resp = $this->requireRole($r, ['admin','super_admin','superadmin'])) return $resp;
 
         $q         = trim((string)$r->query('q', ''));
         $status    = $r->query('status'); // if null => exclude archived
