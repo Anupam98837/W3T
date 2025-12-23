@@ -205,7 +205,6 @@ class StudyMaterialController extends Controller
      * ========================================================= */
     public function index(Request $r)
     {
-        if ($res = $this->requireRole($r, ['admin','superadmin'])) return $res;
 
         $q  = DB::table('study_materials')->whereNull('deleted_at');
         

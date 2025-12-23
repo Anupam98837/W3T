@@ -174,7 +174,7 @@ class AssignmentController extends Controller
     /* INDEX */
     public function index(Request $r, $course = null)
     {
-        if ($resp = $this->requireRole($r, ['admin','super_admin','instructor'])) return $resp;
+        // if ($resp = $this->requireRole($r, ['admin','super_admin','instructor'])) return $resp;
 
         $page     = max(1, (int)$r->query('page', 1));
         $perPage  = max(1, min(100, (int)$r->query('per_page', 20)));

@@ -307,7 +307,19 @@ Route::get('/instructor/dashboard', function () {
 Route::get('/instructor/courses', function () {
     return view('pages.users.instructor.pages.course.courses');
 });
+Route::get('/instructor/assignments/manage', function () {
+    return view('pages.users.instructor.pages.assignments.manageAssignment');
+});
+Route::get('/instructor/assignments/create', function () {
+    return view('pages.users.instructor.pages.assignments.createAssignment');
+});
 
+Route::get('/instructor/studymaterials/manage', function () {
+    return view('pages.users.instructor.pages.studyMaterial.manageStudyMaterial');
+});
+Route::get('/instructor/studymaterials/create', function () {
+    return view('pages.users.instructor.pages.studyMaterial.createStudyMaterial');
+});
 // Route::get('/admin/viewdocuments', function () {
 //     return view('modules.course.viewCourse.viewCourseTabs.assignmentSubmissionView');
 // })->name('admin.viewdocuments');

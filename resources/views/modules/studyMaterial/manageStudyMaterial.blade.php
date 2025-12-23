@@ -487,6 +487,66 @@ if (!TOKEN){
   Swal.fire('Login needed','Your session expired. Please login again.','warning')
     .then(()=> location.href='/');
 }
+async function getMyRole(token){
+  if(!token) return '';
+  try{
+    const res = await fetch('/api/auth/my-role', {
+      method: 'GET',
+      headers: { Authorization: 'Bearer ' + token, Accept: 'application/json', 'Cache-Control':'no-cache' }
+    });
+    if(!res.ok) return '';
+    const data = await res.json().catch(()=>null);
+
+    // accept {status:'success', role:'x'} or {success:true, role:'x'} or {role:'x'}
+    const role = data?.role;
+    return role ? String(role).trim().toLowerCase() : '';
+  }catch(_){
+    return '';
+  }
+}
+
+let ROLE = '';
+let PERM = {
+  canSeeBin: false,
+  canCreate: false,
+  canEdit: false,
+  canDelete: false
+};
+
+async function initRoleAndPermissions(){
+  ROLE = (await getMyRole(TOKEN)) || '';
+  const r = String(ROLE).toLowerCase();
+
+  const isAdmin = r.includes('admin') || r.includes('super_admin') || r.includes('superadmin');
+  const isInstructor = r.includes('instructor');
+  const isStudent = r.includes('student') || (!isAdmin && !isInstructor); // safe fallback
+
+  // ✅ your rules
+  PERM = {
+    canSeeBin: isAdmin,              // student/instructor: no bin
+    canCreate: !isStudent,           // student: no create
+    canEdit: isAdmin,                // instructor: edit hidden
+    canDelete: isAdmin || isInstructor // student: delete hidden
+  };
+
+  applyRoleUI();
+}
+
+function applyRoleUI(){
+  // Bin tab
+  if (smTabBin && !PERM.canSeeBin) smTabBin.style.display = 'none';
+
+  // Create button
+  if(btnCreate){
+    if(!PERM.canCreate){
+      btnCreate.style.display = 'none';
+      btnCreate.disabled = true;
+    } else {
+      btnCreate.style.display = '';
+      btnCreate.disabled = !batchSel?.value || scope === 'bin';
+    }
+  }
+}
 
 const okToast  = new bootstrap.Toast(document.getElementById('okToast'));
 const errToast = new bootstrap.Toast(document.getElementById('errToast'));
@@ -751,7 +811,7 @@ function wire(){
 
 async function loadCourses(){
   try{
-    const res=await fetch('/api/courses?status=published&per_page=1000',{
+    const res=await fetch('/api/courses/my?status=published&per_page=1000',{
       headers:{Authorization:'Bearer '+TOKEN,Accept:'application/json'}
     });
     const j=await res.json();
@@ -779,7 +839,7 @@ async function loadModules(courseId){
 async function loadBatches(courseId){
   try{
     const qs = new URLSearchParams({course_id:courseId, per_page:'200'});
-    const res=await fetch('/api/batches?'+qs.toString(),{
+    const res=await fetch('/api/batches/my?'+qs.toString(),{
       headers:{Authorization:'Bearer '+TOKEN,Accept:'application/json'}
     });
     const j=await res.json();

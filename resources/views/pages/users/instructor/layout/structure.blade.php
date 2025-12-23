@@ -245,7 +245,7 @@ html.theme-dark .w3-sidebar-scroll::-webkit-scrollbar-thumb {
     <nav class="w3-menu" aria-label="Teaching">
       <a href="/instructor/courses" class="w3-link"><i class="fa-solid fa-book-open"></i><span>My Courses</span></a>
       
-      <!-- <div class="w3-group">
+      <div class="w3-group">
         <a href="#" class="w3-link w3-toggle" data-target="sm-assignments" aria-expanded="false">
           <i class="fa-solid fa-file-lines"></i><span>Assignments</span>
           <i class="fa fa-chevron-down w3-chev"></i>
@@ -262,9 +262,9 @@ html.theme-dark .w3-sidebar-scroll::-webkit-scrollbar-thumb {
           <i class="fa fa-chevron-down w3-chev"></i>
         </a>
         <div id="sm-study-materials" class="w3-submenu" role="group" aria-label="Study Materials submenu">
-          <a href="/instructor/study-materials/manage" class="w3-link">My Materials</a>
-          <a href="/instructor/study-materials/create" class="w3-link">Create Material</a>
-        </div> -->
+          <a href="/instructor/studymaterials/manage" class="w3-link">My Materials</a>
+          <a href="/instructor/studymaterials/create" class="w3-link">Create Material</a>
+        </div>
       </div>
     </nav>
 

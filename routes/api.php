@@ -120,10 +120,11 @@ Route::middleware('checkRole:admin,super_admin')->group(function () {
     Route::delete('/mailer/{id}',        [MailerController::class, 'destroy']);
 });
 Route::middleware('checkRole:admin,super_admin,student,instructor')->group(function () {
+        Route::get   ('/course-modules',                      [CourseModuleController::class, 'index']);
+
  Route::get('/course-modules/my', [CourseModuleController::class, 'myModules']);
 });
 Route::middleware(['checkRole:admin,super_admin'])->group(function () {
-    Route::get   ('/course-modules',                      [CourseModuleController::class, 'index']);
     
     Route::get   ('/course-modules/bin',                  [CourseModuleController::class, 'bin']);              // NEW
     Route::get   ('/course-modules/{idOrUuid}',           [CourseModuleController::class, 'show']);

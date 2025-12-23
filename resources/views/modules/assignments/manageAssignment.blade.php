@@ -138,10 +138,34 @@
 @push('scripts')
 <!-- SweetAlert2 (swal) CDN -->
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+
 <script>
-(function(){
+/* ✅ ALWAYS fetch role from API (NO localStorage/sessionStorage for role) */
+async function getMyRole(token){
+  if (!token) return '';
+  try{
+    const res = await fetch('/api/auth/my-role', {
+      method: 'GET',
+      headers: {
+        'Authorization': 'Bearer ' + token,
+        'Accept': 'application/json',
+        'Cache-Control': 'no-cache'
+      }
+    });
+    if (!res.ok) return '';
+    const data = await res.json().catch(() => null);
+
+    // accept {status:'success', role:'...'} OR {success:true, role:'...'} OR {role:'...'}
+    const ok = (data?.status === 'success') || (data?.success === true);
+    const role = ok ? data?.role : data?.role;
+    return role ? String(role).trim().toLowerCase() : '';
+  }catch(_){
+    return '';
+  }
+}
+
+(async function(){
   // small runtime CSS patch (avoid editing CSS files; safe to run once)
   (function injectRuntimeStyles(){
     const id = 'as-manage-runtime-styles';
@@ -160,7 +184,6 @@
 
   const TOKEN = localStorage.getItem('token') || sessionStorage.getItem('token') || '';
   if(!TOKEN){
-    // use swal and then redirect
     Swal.fire({
       icon: 'warning',
       title: 'Login required',
@@ -170,7 +193,7 @@
     }).then(()=> { location.href='/'; });
     return;
   }
-  
+
   // ===== API endpoints — aligned with your Laravel routes =====
   const API = {
     index: (qs)=> '/api/assignments?' + qs.toString(),
@@ -182,7 +205,6 @@
     file: (id)=> `/api/assignments/file/${encodeURIComponent(id)}`,
     binIndex: (qs)=> '/api/assignments/bin?' + (qs ? qs.toString() : '')
   };
-
 
   const H = {
     esc: (s)=>{ const m={'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":"&#039;","`":"&#96;"}; return (s==null?'':String(s)).replace(/[&<>"'`]/g,ch=>m[ch]); },
@@ -216,6 +238,34 @@
   const asViewTitle = document.getElementById('asViewTitle');
   const asViewMeta  = document.getElementById('asViewMeta');
 
+  /* ===================== ROLE / PERMISSIONS (NO STORAGE) ===================== */
+  let role = (await getMyRole(TOKEN)) || '';
+  role = String(role).trim().toLowerCase();
+
+  const isAdmin      = role.includes('admin') || role.includes('super_admin') || role.includes('superadmin');
+  const isInstructor = role.includes('instructor');
+  const isStudent    = role.includes('student') || (!isAdmin && !isInstructor); // ✅ safest fallback
+
+  // ✅ your rules
+  const PERM = {
+    canSeeBin: isAdmin,                       // only admin sees Bin
+    canCreate: !isStudent,                    // student: hide +new
+    canEdit: isAdmin,                         // instructor: edit hidden
+    canDelete: isAdmin || isInstructor         // student: delete hidden
+  };
+
+  // ✅ Apply role-based UI immediately
+  (function applyRoleUI(){
+    if(smTabBin && !PERM.canSeeBin){
+      smTabBin.style.display = 'none';
+    }
+    if(btnCreate && !PERM.canCreate){
+      btnCreate.style.display = 'none';
+      btnCreate.disabled = true;
+    }
+  })();
+
+  /* ================= state ================= */
   let sort = '-created_at', page = 1, perPage = 20, scope = 'active', binMode=false, statusFilter='';
   let modulesForTable = [];
   const moduleAssignmentsCache = new Map();
@@ -226,7 +276,6 @@
     if(!root) return;
     root.querySelectorAll('[data-bs-toggle="dropdown"], .dd-toggle').forEach(btn=>{
       try{
-        // Only create one instance
         bootstrap.Dropdown.getOrCreateInstance(btn, {
           autoClose: 'outside',
           boundary: 'viewport',
@@ -236,7 +285,7 @@
     });
   }
 
-  // delegated click for custom .dd-toggle buttons (keeps consistent behaviour)
+  // delegated click for custom .dd-toggle buttons
   document.addEventListener('click', (e) => {
     const btn = e.target.closest('.dd-toggle');
     if(!btn) return;
@@ -254,6 +303,9 @@
 
   /* ================= scope handling ================= */
   function setScope(newScope){
+    // ✅ guard: if user can't see Bin, force Active
+    if(newScope === 'bin' && !PERM.canSeeBin) newScope = 'active';
+
     scope = newScope;
     binMode = (scope === 'bin');
 
@@ -272,7 +324,16 @@
     } else {
       listToolbar && listToolbar.classList.remove('opacity-75');
       if(q) q.disabled = !(batchSel && Array.from(batchSel.options).some(o=>o.value));
-      if(btnCreate) btnCreate.disabled = !(batchSel && batchSel.value);
+
+      if(btnCreate){
+        if(!PERM.canCreate){
+          btnCreate.style.display = 'none';
+          btnCreate.disabled = true;
+        }else{
+          btnCreate.style.display = '';
+          btnCreate.disabled = !(batchSel && batchSel.value);
+        }
+      }
     }
 
     page = 1;
@@ -280,7 +341,6 @@
 
     if(batchSel && batchSel.value) renderModuleTable();
     else {
-      // clear rows safely
       rowsEl && rowsEl.querySelectorAll && rowsEl.querySelectorAll('tr:not(#loaderRow):not(#ask)').forEach(n=>n.remove());
       if(emptyEl) emptyEl.style.display = 'none';
       if(askEl) askEl.style.display = '';
@@ -356,7 +416,6 @@
       modulesForTable = [];
       moduleAssignmentsCache.clear();
 
-      // clear rows / reset UI
       rowsEl && rowsEl.querySelectorAll && rowsEl.querySelectorAll('tr:not(#loaderRow):not(#ask)').forEach(n=>n.remove());
       if(emptyEl) emptyEl.style.display='none';
       if(askEl) askEl.style.display='';
@@ -364,7 +423,16 @@
       if(metaTxt) metaTxt.textContent='—';
 
       if (q) q.disabled = true;
-      if (btnCreate) btnCreate.disabled = true;
+
+      if(btnCreate){
+        if(!PERM.canCreate){
+          btnCreate.style.display = 'none';
+          btnCreate.disabled = true;
+        }else{
+          btnCreate.style.display = '';
+          btnCreate.disabled = true;
+        }
+      }
 
       if(batchSel){
         batchSel.innerHTML  = '<option value="">Select a batch…</option>';
@@ -378,7 +446,10 @@
 
       const hasBatchOptions = batchSel && Array.from(batchSel.options).some(opt => opt.value !== '');
       if (q) q.disabled = !hasBatchOptions;
-      if (btnCreate) btnCreate.disabled = !(batchSel && batchSel.value);
+
+      if(btnCreate && PERM.canCreate){
+        btnCreate.disabled = !(batchSel && batchSel.value);
+      }
     });
 
     // batch change -> render module table
@@ -392,6 +463,7 @@
         if(pager) pager.innerHTML='';
         if(metaTxt) metaTxt.textContent='—';
       }
+      if(btnCreate && PERM.canCreate) btnCreate.disabled = !(batchSel && batchSel.value);
     });
 
     // per page
@@ -404,7 +476,7 @@
       });
     }
 
-    // search (debounced) — only attach if q exists
+    // search (debounced)
     if(q){
       let t;
       q.addEventListener('input', ()=>{
@@ -417,9 +489,15 @@
     }
 
     // tabs
-    if(smTabActive && smTabBin){
+    if(smTabActive){
       smTabActive.addEventListener('click', (e)=>{ e.preventDefault(); if(scope!=='active') setScope('active'); });
-      smTabBin.addEventListener('click', (e)=>{ e.preventDefault(); if(scope!=='bin') setScope('bin'); });
+    }
+    if(smTabBin){
+      smTabBin.addEventListener('click', (e)=>{
+        e.preventDefault();
+        if(!PERM.canSeeBin) return;     // ✅ student/instructor: ignore
+        if(scope!=='bin') setScope('bin');
+      });
     }
 
     // filters modal apply
@@ -433,24 +511,31 @@
       if (m) m.hide();
     });
 
-    // global handler for dropdown-item actions (works for rows & nested rows)
+    // global handler for dropdown-item actions
     document.addEventListener('click', (e)=>{
       const item = e.target.closest('.dropdown-item[data-act]');
       if(!item) return;
       e.preventDefault();
 
       const act = item.dataset.act, id = item.dataset.id, uuid = item.dataset.uuid;
-      if(act==='view') openView(uuid);
-      else if(act==='edit') {
-        // prefer uuid if available (dropdown items should include data-uuid)
-        const key = uuid || id;
-        location.href = `/admin/assignments/create?edit=${encodeURIComponent(key)}`;
-      }
-      else if(act==='delete') deleteItem(id);
-      else if(act==='purge') purgeItem(id);
-      else if(act==='restore') restoreItem(id);
 
-      // hide dropdown if present
+      if(act==='view') openView(uuid);
+
+      else if(act==='delete'){
+        if(!PERM.canDelete) return;
+        deleteItem(id);
+      }
+
+      else if(act==='restore'){
+        if(!PERM.canSeeBin) return;
+        restoreItem(id);
+      }
+
+      else if(act==='purge'){
+        if(!PERM.canSeeBin) return;
+        purgeItem(id);
+      }
+
       const toggle = item.closest('.dropdown')?.querySelector('.dd-toggle');
       if(toggle) try{ bootstrap.Dropdown.getOrCreateInstance(toggle).hide(); }catch(_){}
     });
@@ -485,6 +570,13 @@
       const modTitle = m.title || '(untitled module)';
       const modDesc  = m.description || '';
 
+      // const addBtn = PERM.canCreate ? `
+      //   <a class="btn btn-sm btn-primary"
+      //      href="/admin/assignments/create?course_id=${encodeURIComponent(courseSel?.value||'')}&course_module_id=${encodeURIComponent(modId)}&batch_id=${encodeURIComponent(batchSel?.value||'')}">
+      //     <i class="fa fa-plus"></i> Add assignment
+      //   </a>
+      // ` : '';
+
       const tr = document.createElement('tr');
       tr.className = 'module-row';
       tr.dataset.moduleId = modId;
@@ -498,11 +590,7 @@
         </td>
         <td colspan="3" class="text-muted small">Module under "${H.esc(courseSel?.options[courseSel?.selectedIndex]?.text||'')}"</td>
         <td>-</td>
-        <td class="text-end">
-          <a class="btn btn-sm btn-primary" style="display:none;" href="/admin/assignments/create?course_id=${encodeURIComponent(courseSel?.value||'')}&course_module_id=${encodeURIComponent(modId)}&batch_id=${encodeURIComponent(batchSel?.value||'')}">
-            <i class="fa fa-plus"></i> Add assignment
-          </a>
-        </td>
+        <td class="text-end"></td>
       `;
 
       const trDetails = document.createElement('tr');
@@ -606,7 +694,18 @@
   }
 
   function rowActions(r){
+    // ✅ Bin (admin only)
     if(scope==='bin'){
+      if(!PERM.canSeeBin){
+        return `
+          <div class="dropdown text-end" data-bs-display="static">
+            <button type="button" class="btn btn-primary btn-sm dd-toggle" data-bs-toggle="dropdown" title="Actions"><i class="fa fa-ellipsis-vertical"></i></button>
+            <ul class="dropdown-menu dropdown-menu-end">
+              <li><button class="dropdown-item" data-act="view" data-uuid="${H.esc(r.uuid)}"><i class="fa fa-eye"></i> View</button></li>
+            </ul>
+          </div>
+        `;
+      }
       return `
         <div class="dropdown text-end" data-bs-display="static">
           <button type="button" class="btn btn-primary btn-sm dd-toggle" data-bs-toggle="dropdown" title="Actions"><i class="fa fa-ellipsis-vertical"></i></button>
@@ -620,18 +719,40 @@
       `;
     }
 
+    // ✅ Active scope
+    // Student -> view only
+    if(isStudent){
+      return `
+        <div class="dropdown text-end" data-bs-display="static">
+          <button type="button" class="btn btn-primary btn-sm dd-toggle" data-bs-toggle="dropdown" title="Actions"><i class="fa fa-ellipsis-vertical"></i></button>
+          <ul class="dropdown-menu dropdown-menu-end">
+            <li><button class="dropdown-item" data-act="view" data-uuid="${H.esc(r.uuid)}"><i class="fa fa-eye"></i> View</button></li>
+          </ul>
+        </div>
+      `;
+    }
+
+    // Instructor/Admin
+    const editHtml = PERM.canEdit ? `
+      <li>
+        <a class="dropdown-item" href="/admin/assignments/create?edit=${encodeURIComponent(r.uuid || r.id)}">
+          <i class="fa fa-pen-to-square"></i> Edit
+        </a>
+      </li>
+    ` : '';
+
+    const delHtml = PERM.canDelete ? `
+      <li><hr class="dropdown-divider"></li>
+      <li><button class="dropdown-item text-danger" data-act="delete" data-id="${r.id}"><i class="fa fa-trash"></i> Delete</button></li>
+    ` : '';
+
     return `
       <div class="dropdown text-end" data-bs-display="static">
         <button type="button" class="btn btn-primary btn-sm dd-toggle" data-bs-toggle="dropdown" title="Actions"><i class="fa fa-ellipsis-vertical"></i></button>
         <ul class="dropdown-menu dropdown-menu-end">
           <li><button class="dropdown-item" data-act="view" data-uuid="${H.esc(r.uuid)}"><i class="fa fa-eye"></i> View</button></li>
-<li>
-  <a class="dropdown-item" href="/admin/assignments/create?edit=${encodeURIComponent(r.uuid || r.id)}">
-    <i class="fa fa-pen-to-square"></i> Edit
-  </a>
-</li>
-          <li><hr class="dropdown-divider"></li>
-          <li><button class="dropdown-item text-danger" data-act="delete" data-id="${r.id}"><i class="fa fa-trash"></i> Delete</button></li>
+          ${editHtml}
+          ${delHtml}
         </ul>
       </div>
     `;
@@ -661,8 +782,6 @@
     `).join('');
 
     wrap.innerHTML = `<div class="table-responsive"><table class="table table-sm align-middle mb-0"><tbody>${rows}</tbody></table></div>`;
-
-    // initialize dropdowns we just injected inside this wrap
     initDropdowns(wrap);
   }
 
@@ -691,7 +810,6 @@
       items.forEach(r=> frag.appendChild(rowHTML(r)));
       rowsEl && rowsEl.appendChild(frag);
 
-      // initialize dropdowns injected in these rows
       initDropdowns(rowsEl);
 
       const meta = j?.meta || j?.pagination || {page:1, per_page:perPage, total:items.length};
@@ -895,7 +1013,16 @@
     if(perPageSel) perPageSel.value = String(perPage);
     const hasBatchOptions = batchSel && Array.from(batchSel.options).some(opt => opt.value !== '');
     if(q) q.disabled = !hasBatchOptions;
-    if(btnCreate) btnCreate.disabled = !(batchSel && batchSel.value);
+
+    if(btnCreate){
+      if(!PERM.canCreate){
+        btnCreate.style.display = 'none';
+        btnCreate.disabled = true;
+      }else{
+        btnCreate.style.display = '';
+        btnCreate.disabled = !(batchSel && batchSel.value);
+      }
+    }
   }
   initControls();
 
