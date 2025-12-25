@@ -54,6 +54,10 @@ Route::get('/about-us', function () {
 Route::get('/contact-us', function () {
     return view('pages.landing.pages.contactUs');
 });
+Route::get('/blog/view/{slug}', function ($slug) {
+    return view('pages.landing.pages.viewBlog');
+});
+
 
 Route::get('/exam/{quiz}', function (\Illuminate\Http\Request $r, $quiz) {
     // Pass the quiz key (uuid or id) to the view
@@ -272,6 +276,15 @@ Route::get('/admin/landing-page/about-us/manage', function () {
 Route::get('/admin/landing-page/enquiry/manage', function () {
     return view('pages.users.admin.pages.landingPages.manageEnquiry');
 });
+//blog 
+
+Route::get('/blog/create', function () {
+    return view('modules.blog.createBlog');
+});
+
+Route::get('/blog/manage', function () {
+    return view('pages.users.admin.pages.blog.manageBlog');
+});
 
 // Student Routes
 Route::get('/student/dashboard', function () {
@@ -360,3 +373,5 @@ Route::get('/instructor/profile', function () {
 Route::get('/super-admin/profile', function () {
     return view('pages.users.super_admin.pages.common.profile');
 });
+
+

@@ -34,8 +34,9 @@ use App\Http\Controllers\API\RefundPolicyController;
 use App\Http\Controllers\API\AboutUsController;
 use App\Http\Controllers\API\ContactUsController;
 use App\Http\Controllers\API\CodingResultController;
+use App\Http\Controllers\API\BlogController;
 
- 
+
 // Auth Routes
  
 Route::post('/auth/login',  [UserController::class, 'login']);
@@ -691,3 +692,54 @@ Route::get(
 );
  Route::get('/coding/results/{resultUuid}/export',[CodingResultController::class, 'export']);
 
+
+
+ /*
+|--------------------------------------------------------------------------
+| Blog Routes
+|--------------------------------------------------------------------------
+*/
+
+// Read-only (authenticated)
+Route::middleware('checkRole:admin,super_admin,author,instructor')->group(function () {
+
+    // List + filters (status, category, search, etc.)
+    Route::get('/blogs', [BlogController::class, 'index']);
+
+    // Show single (id|uuid|slug)
+    Route::get('/blogs/{identifier}', [BlogController::class, 'show']);
+
+    // Optional: department-wise blogs (if you want parity like achievements)
+    // Route::get('/departments/{department}/blogs', [BlogController::class, 'indexByDepartment']);
+    // Route::get('/departments/{department}/blogs/{identifier}', [BlogController::class, 'showByDepartment']);
+
+    // Trash / Bin list (soft deleted)
+    Route::get('/blogs/deleted', [BlogController::class, 'indexDeleted']); // or ->trash()
+});
+
+
+// Modify (authenticated role-based)
+Route::middleware('checkRole:admin,super_admin,author,instructor')->group(function () {
+
+    // Create
+    Route::post('/blogs', [BlogController::class, 'store']);
+
+    // Update
+    Route::match(['put','patch'], '/blogs/{identifier}', [BlogController::class, 'update']);
+
+    // Soft delete (move to bin)
+    Route::delete('/blogs/{identifier}', [BlogController::class, 'destroy']);
+
+    // Restore (from bin)
+    Route::post('/blogs/{identifier}/restore', [BlogController::class, 'restore']);
+
+    // Archive toggle
+    Route::post('/blogs/{identifier}/archive', [BlogController::class, 'archive']);
+    Route::post('/blogs/{identifier}/unarchive', [BlogController::class, 'unarchive']);
+
+    // Permanent delete
+    Route::delete('/blogs/{identifier}/force', [BlogController::class, 'forceDelete']);
+});
+
+// Public blog view API (no auth)
+Route::get('/blogs/view/{identifier}', [BlogController::class, 'publicView']);

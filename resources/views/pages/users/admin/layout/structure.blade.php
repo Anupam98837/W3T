@@ -476,7 +476,7 @@ html.theme-dark .w3-sidebar-scroll::-webkit-scrollbar-thumb {
     <div class="w3-nav-section">
       <div class="w3-section-title">
         <i class="fa-solid fa-earth-asia"></i>
-        <span class="ms-1">LANDING PAGE SETTING</span>
+        <span class="ms-1">LANDING PAGE</span>
       </div>
       <div class="w3-section-rule"></div>
     </div>
@@ -509,6 +509,20 @@ html.theme-dark .w3-sidebar-scroll::-webkit-scrollbar-thumb {
       <a href="/admin/landing-page/about-us/manage" class="w3-link">About Us</a>
     </div>
   </div>
+
+  <!-- Blog Group Menu -->
+  <div class="w3-group">
+    <a href="#" class="w3-link w3-toggle" data-target="sm-blog" aria-expanded="false">
+      <i class="fa-solid fa-pen-to-square"></i><span>Blog</span>
+      <i class="fa fa-chevron-down w3-chev"></i>
+    </a>
+
+    <div id="sm-blog" class="w3-submenu" role="group" aria-label="Blog submenu">
+      <a href="/blog/manage" class="w3-link">All Blogs</a>
+      <a href="/blog/create" class="w3-link">Create Blog</a>
+    </div>
+  </div>
+
 
   <!-- ===== LEGAL ===== -->
   <div class="w3-group">
