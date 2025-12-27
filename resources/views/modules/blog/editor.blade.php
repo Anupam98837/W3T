@@ -142,10 +142,7 @@ body{margin:0;background:var(--ce-bg);color:var(--ce-text);}
   width:100%;height:100%;border:1px solid var(--ce-border);border-radius:6px;padding:12px;font-family:monospace;font-size:13px;resize:none;
   background:var(--ce-white);color:#374151;
 }
-#ceCanvasEdit a {
-  pointer-events: none;
-  cursor: default;
-}
+#ceCanvasEdit a { pointer-events:none; cursor:default; }
 .ce-code-actions{padding:10px 16px;background:var(--ce-white);border-top:1px solid var(--ce-border);text-align:right;}
 
 /* MODAL */
@@ -160,19 +157,13 @@ body{margin:0;background:var(--ce-bg);color:var(--ce-text);}
 
 /* Device Preview */
 .ce-device-preview {
-  display: flex; justify-content: center; gap: 12px; padding: 12px; 
-  border-bottom: 1px solid var(--ce-border); background: var(--ce-white);
-  position: sticky;
-  top: 0;
-  z-index: 10;
+  display:flex;justify-content:center;gap:12px;padding:12px;border-bottom:1px solid var(--ce-border);
+  background:var(--ce-white);position:sticky;top:0;z-index:10;
 }
 .ce-device-btn {
-  border: none; background: none; padding: 6px 12px; border-radius: 4px;
-  cursor: pointer; font-size: 13px; display: flex; align-items: center; gap: 4px;
+  border:none;background:none;padding:6px 12px;border-radius:4px;cursor:pointer;font-size:13px;display:flex;align-items:center;gap:4px;
 }
-.ce-device-btn.active {
-  background: var(--ce-accent-light); color: var(--ce-accent);
-}
+.ce-device-btn.active { background: var(--ce-accent-light); color: var(--ce-accent); }
 .ce-device-btn i { font-size: 16px; }
 
 /* Responsive canvas sizes */
@@ -180,72 +171,18 @@ body{margin:0;background:var(--ce-bg);color:var(--ce-text);}
 .ce-canvas.tablet { max-width: 768px; }
 .ce-canvas.mobile { max-width: 375px; }
 
-.ce-section-slot-wrapper {
-  display: flex;
-  flex-wrap: wrap;
-  /* flex-direction: column !important; */
-}
-.ce-canvas.mobile .ce-section-slot-wrapper{
-    display: flex;
-  flex-wrap: wrap;
-  flex-direction: column !important;
-}
-/* add this to your <style> */
-    .ce-text-toolbar {
-  margin-bottom: 6px;
-}
-.ce-text-toolbar button,
-.ce-text-toolbar select,
-.ce-text-toolbar input[type="color"] {
-  margin-right: 4px;
-  padding: 2px 6px;
-  font-size: 14px;
-  border: 1px solid var(--ce-border);
-  background: #fff;
-  border-radius: 4px;
-  cursor: pointer;
-}
-.ce-text-area {
-  min-height: 80px;
-  border: 1px solid var(--ce-border);
-  border-radius: 4px;
-  padding: 8px;
-  outline: none;
-}
+.ce-section-slot-wrapper { display:flex; flex-wrap:wrap; }
+.ce-canvas.mobile .ce-section-slot-wrapper{ flex-direction:column !important; }
 
-/* add this to your stylesheet */
-.ce-text-toolbar {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5em;
-  align-items: center;
+/* Rich text mini editor */
+.ce-text-toolbar{display:flex;flex-wrap:wrap;gap:.5em;align-items:center;margin-bottom:6px;}
+.ce-text-toolbar button,.ce-text-toolbar select,.ce-text-toolbar input[type="color"]{
+  margin-right:4px;padding:2px 6px;font-size:14px;border:1px solid var(--ce-border);background:#fff;border-radius:4px;cursor:pointer;
 }
-.ce-text-toolbar .ce-font-controls {
-  display: flex;
-  gap: 0.25em;
-}
-.ce-text-toolbar select {
-  padding: 0.2em 0.4em;
-}
-.ce-text-toolbar input[type="color"] {
-  width: 1.5em;
-  height: 1.5em;
-  padding: 0;
-  border: none;
-  border-radius: 0;
-}
-.ce-text-area {
-  border: 1px solid var(--ce-border);
-  padding: 6px;
-  min-height: 200px;
-  margin-top: 0.5em;
-  border-radius: 4px;
-  outline: none;
-}
-
-
-
-
+.ce-text-toolbar .ce-font-controls{display:flex;gap:.25em;}
+.ce-text-toolbar select{padding:.2em .4em;}
+.ce-text-toolbar input[type="color"]{width:1.5em;height:1.5em;padding:0;border:none;border-radius:0;}
+.ce-text-area{border:1px solid var(--ce-border);padding:6px;min-height:200px;margin-top:.5em;border-radius:4px;outline:none;}
 </style>
 </head>
 <body>
@@ -283,7 +220,6 @@ body{margin:0;background:var(--ce-bg);color:var(--ce-text);}
       <!-- CLEAN EXPORT MIRROR -->
       <div id="ceCanvasExport" class="ce-canvas"></div>
       <textarea id="ceDraftExport" style="display:none;"></textarea>
-
     </main>
 
     <aside class="ce-components-panel">
@@ -295,26 +231,155 @@ body{margin:0;background:var(--ce-bg);color:var(--ce-text);}
       </div>
 
       <div class="ce-components-list ce-active" id="list-elements">
-        <div class="ce-component" draggable="true" data-key="ce-personalized-greeting" data-html="<p style='margin:0 0 12px 0; line-height:1.5; font-size:1rem;'>Hi %%first_name%%,</p>"><i class="fa-solid fa-hand-wave"></i> Personalized Greeting</div>
-        <div class="ce-component" draggable="true" data-key="ce-heading"   data-html="<h2 style='margin:0 0 12px 0;'>Your Heading</h2>"><i class="fa-solid fa-heading"></i> Heading</div>
-        <div class="ce-component" draggable="true" data-key="ce-paragraph" data-html="<p style='margin:0 0 12px 0;line-height:1.5;'>Your paragraph text goes here…</p>"><i class="fa-solid fa-font"></i> Paragraph</div>
-        <div class="ce-component" draggable="true" data-key="ce-ul"        data-html="<ul style='margin:0 0 12px 18px;padding:0;'><li>List item 1</li><li>List item 2</li></ul>"><i class="fa-solid fa-list-ul"></i> Unordered List</div>
-        <div class="ce-component" draggable="true" data-key="ce-ol"        data-html="<ol style='margin:0 0 12px 18px;padding:0;'><li>List item 1</li><li>List item 2</li></ol>"><i class="fa-solid fa-list-ol"></i> Ordered List</div>
-        <div class="ce-component" draggable="true" data-key="ce-image"     data-html="<img src='https://placehold.co/600x200' alt='image' style='max-width:100%;height:auto;display:inline-block;margin:0 0 12px 0;'/>"><i class="fa-solid fa-image"></i> Image</div>
-        <div class="ce-component" draggable="true" data-key="ce-button"    data-html="<a href='#' style='display:inline-block;padding:10px 18px;background:#6366f1;color:#fff;border:1px solid #6366f1;border-radius:4px;text-decoration:none;margin:0 0 12px 0;'>Click me</a>"><i class="fa-solid fa-link"></i> Button</div>
-        <div class="ce-component" draggable="true" data-key="ce-divider"   data-html="<hr style='border:0;border-top:2px solid #e5e7eb;margin:16px 0;'/>"><i class="fa-solid fa-minus"></i> Divider</div>
-        <div class="ce-component" draggable="true" data-key="ce-html"      data-html="<div style='margin:0 0 12px 0;'>Custom HTML here</div>"><i class="fa-solid fa-code"></i> Custom HTML</div>
-        <div class="ce-component" draggable="true" data-key="ce-social-links" data-html="<div class='cs-social-links' style='text-align:center;margin:12px 0;'><a href='https://facebook.com/' target='_blank' style='display:inline-block;margin:0 6px;'><svg width='22' height='22' viewBox='0 0 24 24' fill='#1877F2' xmlns='http://www.w3.org/2000/svg'><path d='M22 12.07C22 6.49 17.52 2 12 2S2 6.49 2 12.07c0 5.01 3.66 9.16 8.44 9.93v-7.03H7.9V12h2.54V9.8c0-2.5 1.49-3.88 3.77-3.88 1.09 0 2.24.2 2.24.2v2.46h-1.26c-1.24 0-1.63.77-1.63 1.56V12h2.78l-.44 2.97h-2.34V22c4.78-.77 8.44-4.92 8.44-9.93z'/></svg></a><a href='https://twitter.com/' target='_blank' style='display:inline-block;margin:0 6px;'><svg width='22' height='22' viewBox='0 0 24 24' fill='#1DA1F2' xmlns='http://www.w3.org/2000/svg'><path d='M7.55 3h3.02l3.64 5.18L17.96 3h2.99l-5.2 7.3L21 21h-3.02l-4.1-5.83L9.5 21H6.5l5.5-7.71L7.55 3z'/></svg></a><a href='https://instagram.com/' target='_blank' style='display:inline-block;margin:0 6px;'><svg width='22' height='22' viewBox='0 0 24 24' fill='#E1306C' xmlns='http://www.w3.org/2000/svg'><path d='M7 2h10a5 5 0 0 1 5 5v10a5 5 0 0 1-5 5H7a5 5 0 0 1-5-5V7a5 5 0 0 1 5-5zm0 2a3 3 0 0 0-3 3v10a3 3 0 0 0 3 3h10a3 3 0 0 0 3-3V7a3 3 0 0 0-3-3H7zm5 3.5a5.5 5.5 0 1 1 0 11 5.5 5.5 0 0 1 0-11zm0 2a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7zM18 6.5a1 1 0 1 1 0 2 1 1 0 0 1 0-2z'/></svg></a><a href='https://linkedin.com/' target='_blank' style='display:inline-block;margin:0 6px;'><svg width='22' height='22' viewBox='0 0 24 24' fill='#0A66C2' xmlns='http://www.w3.org/2000/svg'><path d='M4.98 3.5C4.98 4.6 4.1 5.5 3 5.5S1 4.6 1 3.5 1.9 1.5 3 1.5s1.98.9 1.98 2zm.02 4H1v15h4V7.5zM8 7.5h3.8v2h.05c.53-1 1.84-2.05 3.78-2.05 4.05 0 4.8 2.5 4.8 5.8V22h-4v-6.6c0-1.57-.03-3.6-2.2-3.6-2.2 0-2.54 1.72-2.54 3.5V22H8V7.5z'/></svg></a><a href='https://youtube.com/' target='_blank' style='display:inline-block;margin:0 6px;'><svg width='22' height='22' viewBox='0 0 24 24' fill='#FF0000' xmlns='http://www.w3.org/2000/svg'><path d='M23.5 6.2a2.83 2.83 0 0 0-1.98-2c-1.75-.47-8.77-.47-8.77-.47s-7.02 0-8.77.47A2.83 2.83 0 0 0 2 6.2 29.8 29.8 0 0 0 1.53 12 29.8 29.8 0 0 0 2 17.8a2.83 2.83 0 0 0 1.98 2c1.75.47 8.77.47 8.77.47s7.02 0 8.77-.47a2.83 2.83 0 0 0 1.98-2A29.8 29.8 0 0 0 24 12a29.8 29.8 0 0 0-.5-5.8zM9.75 15.02V8.98l5.5 3.02-5.5 3.02z'/></svg></a><a href='https://pinterest.com/' target='_blank' style='display:inline-block;margin:0 6px;'><svg width='22' height='22' viewBox='0 0 24 24' fill='#BD081C' xmlns='http://www.w3.org/2000/svg'><path d='M12.04 2a10 10 0 0 0-3.59 19.34c-.05-.82-.1-2.07.02-2.97.11-.78.72-4.97.72-4.97s-.18-.36-.18-.89c0-.84.49-1.46 1.09-1.46.52 0 .77.39.77.86 0 .53-.34 1.31-.52 2.04-.15.65.32 1.18.94 1.18 1.13 0 2-1.19 2-2.91 0-1.52-1.1-2.59-2.68-2.59-1.82 0-2.89 1.36-2.89 2.76 0 .55.21 1.14.48 1.46.05.06.05.1.04.15-.05.17-.17.53-.2.61-.03.1-.1.13-.23.08-.85-.39-1.38-1.6-1.38-2.58 0-2.1 1.53-4.03 4.41-4.03 2.31 0 4.11 1.65 4.11 3.86 0 2.29-1.44 4.14-3.43 4.14-.67 0-1.29-.35-1.51-.77l-.41 1.54c-.15.57-.56 1.29-.83 1.73A10 10 0 1 0 12.04 2z'/></svg></a><a href='https://wa.me/' target='_blank' style='display:inline-block;margin:0 6px;'><svg width='22' height='22' viewBox='0 0 24 24' fill='#25D366' xmlns='http://www.w3.org/2000/svg'><path d='M12.04 2A9.94 9.94 0 0 0 2 12c0 1.76.46 3.43 1.27 4.87L2 22l5.27-1.24A9.94 9.94 0 0 0 12.04 22a10 10 0 0 0 0-20zm0 18c-1.58 0-3.05-.41-4.34-1.13l-.31-.18-3.13.74.66-3.05-.2-.31A8.01 8.01 0 1 1 12.04 20zm4.5-5.89c-.25-.13-1.47-.73-1.7-.82-.23-.08-.4-.12-.57.13-.17.25-.65.82-.8.99-.15.17-.3.2-.55.07-.25-.13-1.06-.39-2.02-1.25-.74-.66-1.25-1.48-1.4-1.73-.15-.25-.02-.39.11-.52.12-.12.25-.3.37-.45.12-.15.16-.25.25-.42.08-.17.04-.32-.02-.45-.06-.12-.57-1.37-.78-1.87-.21-.5-.42-.43-.57-.44h-.48c-.17 0-.45.07-.69.33-.23.25-.91.88-.91 2.15s.93 2.49 1.06 2.66c.13.17 1.83 2.78 4.45 3.89.62.27 1.1.43 1.47.55.62.2 1.18.17 1.62.1.5-.08 1.47-.6 1.68-1.18.21-.58.21-1.07.15-1.18-.06-.12-.23-.18-.48-.31z'/></svg></a><a href='https://github.com/' target='_blank' style='display:inline-block;margin:0 6px;'><svg width='22' height='22' viewBox='0 0 24 24' fill='#181717' xmlns='http://www.w3.org/2000/svg'><path d='M12 .5C5.73.5.5 5.73.5 12c0 5.08 3.29 9.38 7.86 10.9.58.1.79-.25.79-.56 0-.28-.01-1.04-.02-2.05-3.2.7-3.88-1.54-3.88-1.54-.53-1.34-1.3-1.7-1.3-1.7-1.06-.72.08-.71.08-.71 1.17.08 1.78 1.21 1.78 1.21 1.04 1.77 2.73 1.26 3.4.96.1-.75.41-1.26.74-1.55-2.55-.29-5.23-1.28-5.23-5.69 0-1.26.45-2.3 1.2-3.11-.12-.3-.52-1.5.11-3.13 0 0 .97-.31 3.18 1.19a11.1 11.1 0 0 1 5.8 0c2.2-1.5 3.17-1.19 3.17-1.19.63 1.63.23 2.83.11 3.13.75.81 1.2 1.85 1.2 3.11 0 4.42-2.69 5.4-5.25 5.69.42.36.79 1.07.79 2.16 0 1.56-.01 2.82-.01 3.2 0 .31.21.67.8.56A10.51 10.51 0 0 0 23.5 12c0-6.27-5.23-11.5-11.46-11.5z'/></svg></a></div>"><i class="fab fa-share-alt"></i> Social Links</div>
-        <div class="ce-component" draggable="true" data-key="ce-footer" data-html="<div style='padding:12px;background:#f3f4f6;font-size:12px;text-align:center;color:#666;'>&copy; 2025 Your Company · <a href='#' style='color:inherit;text-decoration:underline;'>Unsubscribe</a></div>"><i class="fa-solid fa-flag"></i> Footer</div>
-      </div>
 
-    <div class="ce-components-list" id="list-sections">
+        <!-- =========================
+             TEXT BASICS
+        ========================== -->
+        <div class="ce-component" draggable="true" data-key="ce-personalized-greeting"
+          data-html="<p style='margin:0 0 12px 0; line-height:1.5; font-size:1rem;'>Hi %%first_name%%,</p>">
+          <i class="fa-solid fa-hand-wave"></i> Personalized Greeting
+        </div>
+      
+        <div class="ce-component" draggable="true" data-key="ce-heading"
+          data-html="<h2 style='margin:0 0 12px 0;'>Your Heading</h2>">
+          <i class="fa-solid fa-heading"></i> Heading
+        </div>
+      
+        <div class="ce-component" draggable="true" data-key="ce-subtitle"
+          data-html="<h3 style='margin:0 0 12px 0;font-size:1.1rem;color:#374151;font-weight:600;'>Sub Title</h3>">
+          <i class="fa-solid fa-heading"></i> Sub Title
+        </div>
+      
+        <div class="ce-component" draggable="true" data-key="ce-paragraph"
+          data-html="<p style='margin:0 0 12px 0;line-height:1.5;'>Your paragraph text goes here…</p>">
+          <i class="fa-solid fa-font"></i> Paragraph
+        </div>
+      
+        <div class="ce-component" draggable="true" data-key="ce-divider"
+          data-html="<hr style='border:0;border-top:2px solid #e5e7eb;margin:16px 0;'/>">
+          <i class="fa-solid fa-minus"></i> Divider
+        </div>
+      
+        <!-- =========================
+             LISTS
+        ========================== -->
+        <div class="ce-component" draggable="true" data-key="ce-ul"
+          data-html="<ul style='margin:0 0 12px 18px;padding:0;'><li>List item 1</li><li>List item 2</li></ul>">
+          <i class="fa-solid fa-list-ul"></i> Unordered List
+        </div>
+      
+        <div class="ce-component" draggable="true" data-key="ce-ol"
+          data-html="<ol style='margin:0 0 12px 18px;padding:0;'><li>List item 1</li><li>List item 2</li></ol>">
+          <i class="fa-solid fa-list-ol"></i> Ordered List
+        </div>
+      
+        <!-- =========================
+             MEDIA
+        ========================== -->
+        <div class="ce-component" draggable="true" data-key="ce-image"
+          data-html="<img src='https://placehold.co/600x200' alt='image' style='max-width:100%;height:auto;display:inline-block;margin:0 0 12px 0;'/>">
+          <i class="fa-solid fa-image"></i> Image
+        </div>
+      
+        <div class="ce-component" draggable="true" data-key="ce-image-caption"
+          data-html="<figure style='margin:0 0 12px 0;text-align:center;'><img src='https://placehold.co/600x260' alt='image' style='max-width:100%;height:auto;display:inline-block;margin:0;border-radius:6px;'/><figcaption style='margin-top:6px;font-size:12px;color:#6b7280;line-height:1.4;'>Image caption goes here…</figcaption></figure>">
+          <i class="fa-regular fa-closed-captioning"></i> Image + Caption
+        </div>
+      
+        <div class="ce-component" draggable="true" data-key="ce-gallery"
+          data-html="<div class='ce-gallery' data-gallery='simple' style='display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:0 0 12px 0;'><img src='https://placehold.co/300x200' alt='Gallery image' style='width:100%;height:auto;display:block;border-radius:6px;'/><img src='https://placehold.co/300x200' alt='Gallery image' style='width:100%;height:auto;display:block;border-radius:6px;'/><img src='https://placehold.co/300x200' alt='Gallery image' style='width:100%;height:auto;display:block;border-radius:6px;'/></div>">
+          <i class="fa-regular fa-images"></i> Gallery
+        </div>
+      
+        <div class="ce-component" draggable="true" data-key="ce-gallery-caption"
+          data-html="<div class='ce-gallery ce-gallery-captions' data-gallery='captions' style='display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin:0 0 12px 0;'><figure style='margin:0;'><img src='https://placehold.co/400x260' alt='Gallery image' style='width:100%;height:auto;display:block;border-radius:6px;'/><figcaption style='margin-top:6px;font-size:12px;color:#6b7280;line-height:1.4;'>Caption 1</figcaption></figure><figure style='margin:0;'><img src='https://placehold.co/400x260' alt='Gallery image' style='width:100%;height:auto;display:block;border-radius:6px;'/><figcaption style='margin-top:6px;font-size:12px;color:#6b7280;line-height:1.4;'>Caption 2</figcaption></figure></div>">
+          <i class="fa-solid fa-images"></i> Gallery + Captions
+        </div>
+
+        <!-- VIDEO -->
+        <div class="ce-component" draggable="true" data-key="ce-video"
+        data-html="
+        <figure class='ce-video-wrap' style='margin:0 0 12px 0;text-align:center;'>
+          <div class='ce-video-title' style='font-weight:600;margin-bottom:8px;'>Video Title</div>
+          <div class='ce-video-frame' style='position:relative;padding-top:56.25%;'>
+            <iframe
+              src='https://www.youtube.com/embed/dQw4w9WgXcQ'
+              style='position:absolute;top:0;left:0;width:100%;height:100%;border:0;border-radius:6px;'
+              allow='accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture'
+              allowfullscreen>
+            </iframe>
+          </div>
+          <figcaption class='ce-video-caption' style='margin-top:8px;font-size:12px;color:#6b7280;'>
+            Video caption goes here…
+          </figcaption>
+        </figure>">
+        <i class="fa-solid fa-video"></i> Video Embed
+      </div>
+      
+
+      
+        <!-- =========================
+             CTA / LINKS
+        ========================== -->
+        <div class="ce-component" draggable="true" data-key="ce-button"
+          data-html="<a href='#' style='display:inline-block;padding:10px 18px;background:#6366f1;color:#fff;border:1px solid #6366f1;border-radius:4px;text-decoration:none;margin:0 0 12px 0;'>Click me</a>">
+          <i class="fa-solid fa-link"></i> Button
+        </div>
+      
+        <!-- =========================
+             DATA / STRUCTURED
+        ========================== -->
+        <div class="ce-component" draggable="true" data-key="ce-table"
+          data-html="<table class='ce-table' style='width:100%;border-collapse:collapse;margin:0 0 12px 0;font-size:14px;'><thead><tr><th style='border:1px solid #e5e7eb;padding:10px;text-align:left;background:#f9fafb;'>Header 1</th><th style='border:1px solid #e5e7eb;padding:10px;text-align:left;background:#f9fafb;'>Header 2</th><th style='border:1px solid #e5e7eb;padding:10px;text-align:left;background:#f9fafb;'>Header 3</th></tr></thead><tbody><tr><td style='border:1px solid #e5e7eb;padding:10px;'>Cell</td><td style='border:1px solid #e5e7eb;padding:10px;'>Cell</td><td style='border:1px solid #e5e7eb;padding:10px;'>Cell</td></tr><tr><td style='border:1px solid #e5e7eb;padding:10px;'>Cell</td><td style='border:1px solid #e5e7eb;padding:10px;'>Cell</td><td style='border:1px solid #e5e7eb;padding:10px;'>Cell</td></tr></tbody></table>">
+          <i class="fa-solid fa-table"></i> Table
+        </div>
+      
+        <div class="ce-component" draggable="true" data-key="ce-tags"
+          data-html="<div class='ce-tags' style='margin:0 0 12px 0;display:flex;flex-wrap:wrap;gap:8px;'><span class='ce-tag' style='display:inline-block;padding:6px 10px;border-radius:999px;background:#eef2ff;color:#4338ca;font-size:12px;line-height:1;'>Tag 1</span><span class='ce-tag' style='display:inline-block;padding:6px 10px;border-radius:999px;background:#eef2ff;color:#4338ca;font-size:12px;line-height:1;'>Tag 2</span><span class='ce-tag' style='display:inline-block;padding:6px 10px;border-radius:999px;background:#eef2ff;color:#4338ca;font-size:12px;line-height:1;'>Tag 3</span></div>">
+          <i class="fa-solid fa-tags"></i> Tags
+        </div>
+      
+        <!-- =========================
+             ENGAGEMENT
+        ========================== -->
+        <div class="ce-component" draggable="true" data-key="ce-faq"
+          data-html="<div class='ce-faq' style='margin:0 0 12px 0;'><div class='ce-faq-item' style='border:1px solid #e5e7eb;border-radius:6px;padding:10px;margin:0 0 10px 0;'><div class='ce-faq-q' style='font-weight:700;margin:0 0 6px 0;'>Question 1?</div><div class='ce-faq-a' style='margin:0;color:#374151;line-height:1.5;'>Answer goes here.</div></div><div class='ce-faq-item' style='border:1px solid #e5e7eb;border-radius:6px;padding:10px;margin:0;'><div class='ce-faq-q' style='font-weight:700;margin:0 0 6px 0;'>Question 2?</div><div class='ce-faq-a' style='margin:0;color:#374151;line-height:1.5;'>Answer goes here.</div></div></div>">
+          <i class="fa-solid fa-circle-question"></i> FAQ
+        </div>
+      
+        <!-- =========================
+             SOCIAL
+        ========================== -->
+        <div class="ce-component" draggable="true" data-key="ce-social"
+          data-html="<div class='cs-social-links' style='margin:0 0 12px 0;display:flex;align-items:center;gap:12px;'><a href='#' style='text-decoration:none;'><i class='fa-brands fa-facebook-f'></i></a><a href='#' style='text-decoration:none;'><i class='fa-brands fa-x-twitter'></i></a><a href='#' style='text-decoration:none;'><i class='fa-brands fa-instagram'></i></a><a href='#' style='text-decoration:none;'><i class='fa-brands fa-linkedin-in'></i></a><a href='#' style='text-decoration:none;'><i class='fa-brands fa-youtube'></i></a></div>">
+          <i class="fa-solid fa-share-nodes"></i> Social Media
+        </div>
+      
+        <!-- =========================
+             ADVANCED / CUSTOM
+        ========================== -->
+        <div class="ce-component" draggable="true" data-key="ce-html"
+          data-html="<div style='margin:0 0 12px 0;'>Custom HTML here</div>">
+          <i class="fa-solid fa-code"></i> Custom HTML
+        </div>
+      
+        <!-- =========================
+             FOOTER
+        ========================== -->
+        <div class="ce-component" draggable="true" data-key="ce-footer"
+          data-html="<div style='padding:12px;background:#f3f4f6;font-size:12px;text-align:center;color:#666;'>&copy; 2025 Your Company · <a href='#' style='color:inherit;text-decoration:underline;'>Unsubscribe</a></div>">
+          <i class="fa-solid fa-flag"></i> Footer
+        </div>
+      
+      </div>
+      
+
+      <div class="ce-components-list" id="list-sections">
         <div class="ce-component" draggable="true" data-key="ce-section-1" data-html="<section style='margin:0 auto;padding:0;'><div class='ce-section-slot-wrapper' style='width:100%!important;display:flex;justify-content:space-between;flex-wrap:wrap;'><div class='ce-section-slot' style='flex:1;min-width:100%;position:relative;display:flex;flex-direction:column;'><div class='ce-slot'></div><span class='ce-add-inside'><i class='fa-solid fa-plus'></i> Add content</span></div></div></section>"><i class="fa-solid fa-square"></i> 1 Column</div>
         <div class="ce-component" draggable="true" data-key="ce-section-2" data-html="<section style='margin:0 auto;padding:0;'><div class='ce-section-slot-wrapper' style='width:100%!important;display:flex;justify-content:space-between;flex-wrap:wrap;'><div class='ce-section-slot' style='flex:1;min-width:49%;position:relative;display:flex;flex-direction:column;'><div class='ce-slot'></div><span class='ce-add-inside'><i class='fa-solid fa-plus'></i> Add content</span></div><div class='ce-section-slot' style='flex:1;min-width:49%;position:relative;display:flex;flex-direction:column;'><div class='ce-slot'></div><span class='ce-add-inside'><i class='fa-solid fa-plus'></i> Add content</span></div></div></section>"><i class="fa-solid fa-table-columns"></i> 2 Columns</div>
         <div class="ce-component" draggable="true" data-key="ce-section-3" data-html="<section style='margin:0 auto;padding:0;'><div class='ce-section-slot-wrapper' style='width:100%!important;display:flex;justify-content:space-between;flex-wrap:wrap;'><div class='ce-section-slot' style='flex:1;min-width:32%;position:relative;display:flex;flex-direction:column;'><div class='ce-slot'></div><span class='ce-add-inside'><i class='fa-solid fa-plus'></i> Add content</span></div><div class='ce-section-slot' style='flex:1;min-width:32%;position:relative;display:flex;flex-direction:column;'><div class='ce-slot'></div><span class='ce-add-inside'><i class='fa-solid fa-plus'></i> Add content</span></div><div class='ce-section-slot' style='flex:1;min-width:32%;position:relative;display:flex;flex-direction:column;'><div class='ce-slot'></div><span class='ce-add-inside'><i class='fa-solid fa-plus'></i> Add content</span></div></div></section>"><i class="fa-solid fa-border-all"></i> 3 Columns</div>
         <div class="ce-component" draggable="true" data-key="ce-section-4" data-html="<section style='margin:0 auto;padding:0;'><div class='ce-section-slot-wrapper' style='width:100%!important;display:flex;justify-content:space-between;flex-wrap:wrap;'><div class='ce-section-slot' style='flex:1;min-width:23%;position:relative;display:flex;flex-direction:column;'><div class='ce-slot'></div><span class='ce-add-inside'><i class='fa-solid fa-plus'></i> Add content</span></div><div class='ce-section-slot' style='flex:1;min-width:23%;position:relative;display:flex;flex-direction:column;'><div class='ce-slot'></div><span class='ce-add-inside'><i class='fa-solid fa-plus'></i> Add content</span></div><div class='ce-section-slot' style='flex:1;min-width:23%;position:relative;display:flex;flex-direction:column;'><div class='ce-slot'></div><span class='ce-add-inside'><i class='fa-solid fa-plus'></i> Add content</span></div><div class='ce-section-slot' style='flex:1;min-width:23%;position:relative;display:flex;flex-direction:column;'><div class='ce-slot'></div><span class='ce-add-inside'><i class='fa-solid fa-plus'></i> Add content</span></div></div></section>"><i class="fa-solid fa-grip-lines"></i> 4 Columns</div>
       </div>
-      
     </aside>
   </div>
 </div>
@@ -353,10 +418,9 @@ body{margin:0;background:var(--ce-bg);color:var(--ce-text);}
 </div>
 
 <script>
-    // holds the original import’s doctype (e.g. <!DOCTYPE html>)
 let importedDocDoctype = '';
-// holds everything inside the original <head>…</head>
 let importedDocHead = '';
+
 (function(){
   const state = {
     editEl:null,
@@ -366,8 +430,9 @@ let importedDocHead = '';
     undoStack:[],
     redoStack:[],
     saving:false,
-    currentUnit: 'px', // 'px' or '%'
-    currentDevice: 'desktop' // 'desktop', 'tablet', 'mobile'
+    currentUnit: 'px',
+    currentDevice: 'desktop',
+    propTabByBlockId: {} /* ✅ keep active inspector tab per block */
   };
 
   /* ===== HISTORY ===== */
@@ -386,7 +451,7 @@ let importedDocHead = '';
     syncExport();
   }
   function redo(){
-    if(!state.redoStack.length) return;
+    if(!state.undoStack.length) return;
     state.undoStack.push(state.editEl.innerHTML);
     const last=state.redoStack.pop();
     state.editEl.innerHTML=last;
@@ -494,12 +559,8 @@ let importedDocHead = '';
       clone.querySelectorAll('.ce-block-handle').forEach(h=>bindHandle(h, getClosestBlock(h)));
       syncExport();
     };
-    handle.querySelector('.ce-up').onclick = e=>{
-      e.stopPropagation(); moveBlock(block,'up');
-    };
-    handle.querySelector('.ce-down').onclick = e=>{
-      e.stopPropagation(); moveBlock(block,'down');
-    };
+    handle.querySelector('.ce-up').onclick = e=>{ e.stopPropagation(); moveBlock(block,'up'); };
+    handle.querySelector('.ce-down').onclick = e=>{ e.stopPropagation(); moveBlock(block,'down'); };
   }
 
   function moveBlock(block, dir){
@@ -510,17 +571,42 @@ let importedDocHead = '';
     syncExport();
   }
 
+  /* ✅ inline table cell editing */
+  function enableCellEdit(cell){
+    if(!cell) return;
+    pushHistory();
+    cell.setAttribute('contenteditable','true');
+    cell.focus();
+    const finish = ()=>{
+      cell.removeAttribute('contenteditable');
+      cell.removeEventListener('blur', finish);
+      cell.removeEventListener('keydown', onKey);
+      syncExport();
+    };
+    const onKey = (e)=>{
+      if(e.key==='Enter' && !e.shiftKey){
+        e.preventDefault();
+        cell.blur();
+      }
+    };
+    cell.addEventListener('blur', finish);
+    cell.addEventListener('keydown', onKey);
+  }
+
   function attachBlockEvents(block) {
-  // Select / highlight
-  block.addEventListener('click', onSelectBlock);
+    block.addEventListener('click', onSelectBlock);
+    block.setAttribute('draggable', 'true');
+    block.addEventListener('dragstart', onDragStartBlock);
 
-  // Enable dragging of existing blocks (for reorder)
-  block.setAttribute('draggable', 'true');
-  block.addEventListener('dragstart', onDragStartBlock);
-
-  // NO more dragover() or drop() here!
-}
-
+    // double click to edit table cell in place
+    block.addEventListener('dblclick', (e)=>{
+      const cell = e.target.closest('td,th');
+      if(!cell || !block.contains(cell)) return;
+      e.stopPropagation();
+      e.preventDefault();
+      enableCellEdit(cell);
+    });
+  }
 
   function bindAddInside(container){
     container.querySelectorAll('.ce-add-inside').forEach(btn=>{
@@ -533,79 +619,64 @@ let importedDocHead = '';
 
   /* ===== ADD POPUP ===== */
   function openAddPopup(anchor) {
-  closePopup();
+    closePopup();
 
-  const items = Array.from(document.querySelectorAll('#list-elements .ce-component')).map(el => ({
-    key: el.dataset.key,
-    label: el.textContent.trim()
-  }));
+    const items = Array.from(document.querySelectorAll('#list-elements .ce-component')).map(el => ({
+      key: el.dataset.key,
+      label: el.textContent.trim()
+    }));
 
-  const popup = document.createElement('div');
-  popup.className = 'ce-add-popup';
-  popup.innerHTML = `<h4>Add element</h4>${items.map(i => `<button data-key="${i.key}">${i.label}</button>`).join('')}`;
-  document.body.appendChild(popup);
+    const popup = document.createElement('div');
+    popup.className = 'ce-add-popup';
+    popup.innerHTML = `<h4>Add element</h4>${items.map(i => `<button data-key="${i.key}">${i.label}</button>`).join('')}`;
+    document.body.appendChild(popup);
 
-  const rect = anchor.getBoundingClientRect();
-  const margin = 6;
+    const rect = anchor.getBoundingClientRect();
+    const margin = 6;
+    let top = rect.bottom + window.scrollY + margin;
+    let left = rect.left + window.scrollX;
 
-  // Default position: below anchor
-  let top = rect.bottom + window.scrollY + margin;
-  let left = rect.left + window.scrollX;
-
-  // Temporarily apply the position to measure height
-  popup.style.top = top + 'px';
-  popup.style.left = left + 'px';
-
-  // Measure the popup after rendering
-  const popupHeight = popup.offsetHeight;
-  const viewportBottom = window.scrollY + window.innerHeight;
-
-  // If popup would overflow at the bottom, flip to top
-  if (top + popupHeight > viewportBottom) {
-    top = rect.top + window.scrollY - popupHeight - margin;
     popup.style.top = top + 'px';
-  }
+    popup.style.left = left + 'px';
 
-  // Handle item clicks
-  popup.addEventListener('click', e => {
-    if (e.target.tagName === 'BUTTON') {
-      const key = e.target.dataset.key;
-      const data = getComponentDataByKey(key);
-      if (!data) return;
+    const popupHeight = popup.offsetHeight;
+    const viewportBottom = window.scrollY + window.innerHeight;
 
-      pushHistory();
-
-      if (key === 'ce-html') {
-        const html = prompt('Enter custom HTML:', '<div>Custom</div>');
-        if (html !== null) {
-          data.html = html;
-        } else {
-          closePopup();
-          return;
-        }
-      }
-
-      const block = createBlock(data.html, data.key);
-
-      // Slot resolution (column-safe)
-      let slot = null;
-      const sectionSlot = anchor.closest('.ce-section-slot');
-      if (sectionSlot) {
-        slot = sectionSlot.querySelector('.ce-slot');
-      }
-
-      slot = slot || anchor.previousElementSibling || anchor.parentElement.querySelector('.ce-slot') || anchor.parentElement || state.editEl;
-
-      slot.appendChild(block);
-      closePopup();
-      syncExport();
+    if (top + popupHeight > viewportBottom) {
+      top = rect.top + window.scrollY - popupHeight - margin;
+      popup.style.top = top + 'px';
     }
-  });
 
-  popup.addEventListener('click', e => e.stopPropagation());
-  document.addEventListener('click', closePopup, { once: true });
-}
+    popup.addEventListener('click', e => {
+      if (e.target.tagName === 'BUTTON') {
+        const key = e.target.dataset.key;
+        const data = getComponentDataByKey(key);
+        if (!data) return;
 
+        pushHistory();
+
+        if (key === 'ce-html') {
+          const html = prompt('Enter custom HTML:', '<div>Custom</div>');
+          if (html !== null) data.html = html;
+          else { closePopup(); return; }
+        }
+
+        const block = createBlock(data.html, data.key);
+
+        let slot = null;
+        const sectionSlot = anchor.closest('.ce-section-slot');
+        if (sectionSlot) slot = sectionSlot.querySelector('.ce-slot');
+        slot = slot || anchor.previousElementSibling || anchor.parentElement.querySelector('.ce-slot') || anchor.parentElement || state.editEl;
+
+        slot.appendChild(block);
+        closePopup();
+        syncExport();
+      }
+    });
+
+    popup.addEventListener('click', e => e.stopPropagation());
+    document.addEventListener('click', closePopup, { once: true });
+  }
 
   function closePopup(){
     const p=document.querySelector('.ce-add-popup');
@@ -627,16 +698,20 @@ let importedDocHead = '';
       return;
     }
 
+    const bId = block.dataset.blockId || 'global';
+    let activeTab = state.propTabByBlockId[bId] || 'style';
+    if(activeTab==='actions' && !block.querySelector('.ce-slot')) activeTab = 'style';
+
     const tabs=document.createElement('div');
     tabs.className='ce-prop-tabs';
     tabs.innerHTML=`
-      <button class="ce-prop-tab-btn ce-active" data-prop="style">Styling</button>
-      <button class="ce-prop-tab-btn" data-prop="content">Content</button>
-      ${block.querySelector('.ce-slot')?'<button class="ce-prop-tab-btn" data-prop="actions">Actions</button>':''}
+      <button class="ce-prop-tab-btn ${activeTab==='style'?'ce-active':''}" data-prop="style">Styling</button>
+      <button class="ce-prop-tab-btn ${activeTab==='content'?'ce-active':''}" data-prop="content">Content</button>
+      ${block.querySelector('.ce-slot')?`<button class="ce-prop-tab-btn ${activeTab==='actions'?'ce-active':''}" data-prop="actions">Actions</button>`:''}
     `;
-    const stylePane=document.createElement('div');stylePane.className='ce-prop-pane ce-active';
-    const contentPane=document.createElement('div');contentPane.className='ce-prop-pane';
-    const actionsPane=document.createElement('div');actionsPane.className='ce-prop-pane';
+    const stylePane=document.createElement('div');stylePane.className='ce-prop-pane' + (activeTab==='style'?' ce-active':'');
+    const contentPane=document.createElement('div');contentPane.className='ce-prop-pane' + (activeTab==='content'?' ce-active':'');
+    const actionsPane=document.createElement('div');actionsPane.className='ce-prop-pane' + (activeTab==='actions'?' ce-active':'');
 
     panel.appendChild(tabs);
     panel.appendChild(stylePane);
@@ -649,6 +724,7 @@ let importedDocHead = '';
       tabs.querySelectorAll('.ce-prop-tab-btn').forEach(b=>b.classList.remove('ce-active'));
       btn.classList.add('ce-active');
       const which=btn.dataset.prop;
+      state.propTabByBlockId[bId] = which; /* ✅ remember selected tab */
       stylePane.classList.toggle('ce-active', which==='style');
       contentPane.classList.toggle('ce-active', which==='content');
       actionsPane.classList.toggle('ce-active', which==='actions');
@@ -658,7 +734,6 @@ let importedDocHead = '';
     const tagNames=['H1','H2','H3','H4','H5','H6','P','A','SPAN','BUTTON','LI'];
     const textNodes=block.querySelectorAll(tagNames.join(','));
 
-    // Add unit toggle
     const unitToggle = document.createElement('div');
     unitToggle.className = 'ce-unit-toggle';
     unitToggle.innerHTML = `
@@ -666,13 +741,12 @@ let importedDocHead = '';
       <button class="${state.currentUnit === '%' ? 'active' : ''}" data-unit="%">%</button>
     `;
     stylePane.appendChild(unitToggle);
-    
+
     unitToggle.querySelectorAll('button').forEach(btn => {
       btn.addEventListener('click', () => {
         state.currentUnit = btn.dataset.unit;
         unitToggle.querySelectorAll('button').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
-        // Re-render inspector to update units
         renderInspector(block);
       });
     });
@@ -685,113 +759,34 @@ let importedDocHead = '';
     textNodes.forEach(node=>{
       if(/^H[1-6]$/.test(node.tagName)){ addHeadingLevelField(stylePane, node, block); }
     });
-    block.querySelectorAll('a,button').forEach((el,i)=>addButtonStyleField(stylePane, el, i));
-    // also let people edit the actual link & target
-    block.querySelectorAll('a').forEach((el,i)=>addButtonContentField(contentPane, el, i));
+
+// ✅ Skip social icon anchors – they are handled only by addSocialEditors()
+block.querySelectorAll('a,button').forEach((el,i)=>{
+  if(el.closest('.cs-social-links')) return;
+  addButtonStyleField(stylePane, el, i);
+});
+
+block.querySelectorAll('a').forEach((el,i)=>{
+  if(el.closest('.cs-social-links')) return;
+  addButtonContentField(contentPane, el, i);
+});
+
 
     addImageStyleEditors(stylePane, block);
 
     addTextEditors(contentPane, textNodes);
     addListEditors(contentPane, block);
     addImageContentEditors(contentPane, block);
+
+    addGalleryEditors(contentPane, stylePane, block);
+    addTableEditors(contentPane, stylePane, block);      /* ✅ row/col/header + styling */
+    addTableContentEditors(contentPane, block);          /* ✅ cell content editing grid */
+    addTagsEditors(contentPane, stylePane, block);
+    addFAQEditors(contentPane, stylePane, block);
+
+    addSocialEditors(contentPane, stylePane, block);     /* ✅ new social editor */
+    addVideoEditors(contentPane, stylePane, block);
     if(block.dataset.key==='ce-html'){ addCustomHTMLField(contentPane, block, contentHTML); }
-    if (block.dataset.key === 'ce-social-links') {
-  // wrapper for all social link controls
-  const socialWrapper = document.createElement('div');
-  socialWrapper.className = 'ce-field';
-  socialWrapper.innerHTML = `<label>Social Links Layout</label>`;
-  contentPane.appendChild(socialWrapper);
-
-  // Ensure layout container is flex for justify-content and alignment
-  const flexContainer = block.querySelector('.cs-social-links') || block;
-  flexContainer.style.display = 'flex';
-  flexContainer.style.alignItems = 'center';
-
-  // Gap control
-  const gapField = document.createElement('div');
-  gapField.className = 'ce-field';
-  const firstLink = block.querySelector('a');
-  let currentGap = 12;
-  if (firstLink) {
-    const computed = getComputedStyle(firstLink);
-    currentGap = parseInt(computed.marginRight) || currentGap;
-  }
-  gapField.innerHTML = `
-    <label>Icon Gap (px)</label>
-    <div style="display:flex;gap:8px;align-items:center;">
-      <input type="number" min="0" value="${currentGap}" style="width:70px;" id="socialGapInput" />
-      <div class="small text-muted">Space between icons</div>
-    </div>`;
-  gapField.querySelector('#socialGapInput').addEventListener('input', e => {
-    pushHistory();
-    const gap = e.target.value + 'px';
-    block.querySelectorAll('a').forEach((a, idx, arr) => {
-      a.style.marginRight = idx === arr.length - 1 ? '0' : gap;
-    });
-    syncExport();
-  });
-  contentPane.appendChild(gapField);
-
-  // Then existing per-icon URL / color / remove logic:
-  const links = ['facebook', 'twitter', 'instagram', 'linkedin'];
-  links.forEach(name => {
-    const a = block.querySelector(`a[href*="${name}.com"]`);
-    if (!a) return;
-    const i = a.querySelector('i');
-    const fld = document.createElement('div');
-    fld.className = 'ce-field';
-
-    const labelUrl = name.charAt(0).toUpperCase() + name.slice(1) + ' URL';
-    const urlInput = document.createElement('input');
-    urlInput.type = 'text';
-    urlInput.value = a.href;
-    urlInput.placeholder = `https://${name}.com/…`;
-    urlInput.addEventListener('input', e => {
-      pushHistory();
-      a.href = e.target.value;
-      syncExport();
-    });
-
-    const labelColor = 'Icon Color';
-    const colorInput = document.createElement('input');
-    colorInput.type = 'color';
-    const currentColor = window.getComputedStyle(i || a).color;
-    colorInput.value = rgb2hex(currentColor);
-    colorInput.addEventListener('input', e => {
-      pushHistory();
-      if (i) i.style.color = e.target.value;
-      else a.style.color = e.target.value;
-      syncExport();
-    });
-
-    const removeBtn = document.createElement('button');
-    removeBtn.type = 'button';
-    removeBtn.className = 'ce-btn-sm';
-    removeBtn.innerHTML = 'Remove';
-    removeBtn.addEventListener('click', () => {
-      pushHistory();
-      a.remove();
-      syncExport();
-      renderInspector(block); // re-render to reflect removal
-    });
-
-    const title = document.createElement('div');
-    title.innerHTML = `<strong>${name.charAt(0).toUpperCase() + name.slice(1)}</strong>`;
-    fld.appendChild(title);
-    fld.innerHTML += `<label>${labelUrl}</label>`;
-    fld.appendChild(urlInput);
-    fld.appendChild(document.createElement('br'));
-    fld.innerHTML += `<label>${labelColor}</label>`;
-    fld.appendChild(colorInput);
-    fld.appendChild(document.createElement('br'));
-    fld.appendChild(removeBtn);
-
-    contentPane.appendChild(fld);
-  });
-}
-
-
-
 
     if(block.querySelector('.ce-slot')){
       const f=document.createElement('div');f.className='ce-field';
@@ -803,21 +798,9 @@ let importedDocHead = '';
 
   /* === styling/content helpers === */
   function addAlignField(panel, block){
-    const isSocial = block.dataset.key === 'ce-social-links';
     let currentAlign = 'left';
 
-    if (isSocial) {
-      const flexContainer = block.querySelector('.cs-social-links') || block;
-      // ensure it's flex so justify-content will apply
-      flexContainer.style.display = 'flex';
-      flexContainer.style.alignItems = 'center';
-      const justify = getComputedStyle(flexContainer).justifyContent;
-      if (justify === 'center') currentAlign = 'center';
-      else if (justify === 'flex-end') currentAlign = 'right';
-      else currentAlign = 'left';
-    } else {
-      currentAlign = getComputedStyle(block).textAlign || 'left';
-    }
+
 
     const field = document.createElement('div');
     field.className = 'ce-field';
@@ -836,14 +819,6 @@ let importedDocHead = '';
         field.querySelectorAll('.ce-align-btn').forEach(x => x.classList.remove('active'));
         b.classList.add('active');
 
-        if (isSocial) {
-          const flexContainer = block.querySelector('.cs-social-links') || block;
-          if (align === 'center') flexContainer.style.justifyContent = 'center';
-          else if (align === 'right') flexContainer.style.justifyContent = 'flex-end';
-          else flexContainer.style.justifyContent = 'flex-start';
-        } else {
-          block.style.textAlign = align;
-        }
         syncExport();
       });
     });
@@ -851,12 +826,11 @@ let importedDocHead = '';
     panel.appendChild(field);
   }
 
-
   function addSpacingField(panel, block){
     const cs=getComputedStyle(block);
     const mt=parseInt(cs.marginTop)||0, mr=parseInt(cs.marginRight)||0, mb=parseInt(cs.marginBottom)||0, ml=parseInt(cs.marginLeft)||0;
     const pt=parseInt(cs.paddingTop)||0, pr=parseInt(cs.paddingRight)||0, pb=parseInt(cs.paddingBottom)||0, pl=parseInt(cs.paddingLeft)||0;
-    
+
     const field=document.createElement('div');field.className='ce-field';
     field.innerHTML=`<label>Margin (${state.currentUnit})</label>
       <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:6px;">
@@ -872,10 +846,10 @@ let importedDocHead = '';
         <input type="number" value="${pb}" data-prop="paddingBottom" placeholder="Bottom">
         <input type="number" value="${pl}" data-prop="paddingLeft" placeholder="Left">
       </div>`;
-    
+
     field.querySelectorAll('input').forEach(inp=>{
       inp.addEventListener('input',e=>{
-        pushHistory(); 
+        pushHistory();
         const value = e.target.value ? e.target.value + state.currentUnit : '';
         block.style[e.target.dataset.prop] = value;
         syncExport();
@@ -898,9 +872,9 @@ let importedDocHead = '';
       </div>`;
     field.querySelectorAll('input').forEach(inp=>{
       inp.addEventListener('input',e=>{
-        pushHistory(); 
+        pushHistory();
         const value = e.target.value ? e.target.value + state.currentUnit : '';
-        block.style[e.target.dataset.prop] = value; 
+        block.style[e.target.dataset.prop] = value;
         syncExport();
       });
     });
@@ -1007,7 +981,7 @@ let importedDocHead = '';
     const cs=getComputedStyle(el);
     const bg=rgb2hex(cs.backgroundColor), color=rgb2hex(cs.color), bW=parseInt(cs.borderWidth)||0, bCol=rgb2hex(cs.borderColor), bSty=cs.borderStyle||'none', bRad=parseInt(cs.borderTopLeftRadius)||0;
     const field=document.createElement('div');field.className='ce-field';
-    field.innerHTML=`<label>Button ${idx+1} Colors</label>
+    field.innerHTML=`<label>Link/Button ${idx+1} Colors</label>
       <div class="ce-color-pair" style="margin-bottom:6px;">
         <input type="color" value="${bg}" title="Background">
         <input type="color" value="${color}" title="Text">
@@ -1034,15 +1008,50 @@ let importedDocHead = '';
         pushHistory();
         const p=e.target.dataset.btnProp;
         let v=e.target.value;
-        if(p==='borderWidth'||p==='borderRadius') {
-          v = v ? v + (p === 'borderRadius' ? state.currentUnit : 'px') : '';
-        }
+        if(p==='borderWidth'||p==='borderRadius') v = v ? v + (p === 'borderRadius' ? state.currentUnit : 'px') : '';
         el.style[p]=v; syncExport();
       });
       if(inp.tagName==='SELECT'){
         inp.addEventListener('change',e=>{ pushHistory(); el.style[e.target.dataset.btnProp]=e.target.value; syncExport();});
       }
     });
+    panel.appendChild(field);
+  }
+
+  function addButtonContentField(panel, el, idx) {
+    const field = document.createElement('div');
+    field.className = 'ce-field';
+    field.innerHTML = `
+      <label>Link ${idx+1} URL</label>
+      <input type="text" class="ce-btn-link-url" placeholder="https://example.com" value="${el.getAttribute('href')||''}" />
+      <div style="margin-top:8px;">
+        <label style="display:flex;gap:8px;align-items:center;">
+          <input type="checkbox" class="ce-btn-link-target" ${el.target === '_blank' ? 'checked' : ''}/>
+          Open in new tab
+        </label>
+      </div>
+    `;
+    const urlInput = field.querySelector('.ce-btn-link-url');
+    const targetCheckbox = field.querySelector('.ce-btn-link-target');
+
+    urlInput.addEventListener('input', e => {
+      pushHistory();
+      el.setAttribute('href', e.target.value);
+      syncExport();
+    });
+
+    targetCheckbox.addEventListener('change', e => {
+      pushHistory();
+      if (e.target.checked) {
+        el.setAttribute('target', '_blank');
+        el.setAttribute('rel', 'noopener noreferrer');
+      } else {
+        el.removeAttribute('target');
+        el.removeAttribute('rel');
+      }
+      syncExport();
+    });
+
     panel.appendChild(field);
   }
 
@@ -1075,82 +1084,75 @@ let importedDocHead = '';
     });
   }
 
-  // replace your existing addTextEditors with this:
   function addTextEditors(panel, nodes) {
-  nodes.forEach((node, idx) => {
-    if (isUI(node)) return;
+    nodes.forEach((node, idx) => {
+      if (isUI(node)) return;
+      if (node.classList && node.classList.contains('ce-tag')) return;
+      if (node.closest && node.closest('.cs-social-links')) return;
 
-    const wrap = document.createElement('div');
-    wrap.className = 'ce-field';
-    wrap.innerHTML = `
-      <label>Text ${idx + 1}</label>
-      <div class="ce-text-toolbar">
-        <button type="button" data-cmd="bold"><b>B</b></button>
-        <button type="button" data-cmd="italic"><i>I</i></button>
-        <button type="button" data-cmd="underline"><u>U</u></button>
-        <button type="button" data-cmd="strikethrough"><s>S</s></button>
-        <button type="button" data-cmd="createLink">🔗</button>
-        <input type="color" data-cmd="foreColor" title="Text color">
-
-        <div class="ce-font-controls">
-          <select data-cmd="fontName">
-            <option value="Arial">Arial</option>
-            <option value="Georgia">Georgia</option>
-            <option value="Tahoma">Tahoma</option>
-            <option value="Times New Roman">Times New Roman</option>
-            <option value="Verdana">Verdana</option>
-          </select>
-          <select data-cmd="fontSize">
-            <option value="1">10px</option>
-            <option value="2">13px</option>
-            <option value="3" selected>16px</option>
-            <option value="4">18px</option>
-            <option value="5">24px</option>
-            <option value="6">32px</option>
-            <option value="7">48px</option>
-          </select>
+      const wrap = document.createElement('div');
+      wrap.className = 'ce-field';
+      wrap.innerHTML = `
+        <label>Text ${idx + 1}</label>
+        <div class="ce-text-toolbar">
+          <button type="button" data-cmd="bold"><b>B</b></button>
+          <button type="button" data-cmd="italic"><i>I</i></button>
+          <button type="button" data-cmd="underline"><u>U</u></button>
+          <button type="button" data-cmd="strikethrough"><s>S</s></button>
+          <button type="button" data-cmd="createLink">🔗</button>
+          <input type="color" data-cmd="foreColor" title="Text color">
+          <div class="ce-font-controls">
+            <select data-cmd="fontName">
+              <option value="Arial">Arial</option>
+              <option value="Georgia">Georgia</option>
+              <option value="Tahoma">Tahoma</option>
+              <option value="Times New Roman">Times New Roman</option>
+              <option value="Verdana">Verdana</option>
+            </select>
+            <select data-cmd="fontSize">
+              <option value="1">10px</option>
+              <option value="2">13px</option>
+              <option value="3" selected>16px</option>
+              <option value="4">18px</option>
+              <option value="5">24px</option>
+              <option value="6">32px</option>
+              <option value="7">48px</option>
+            </select>
+          </div>
         </div>
-      </div>
-      <div class="ce-text-area" contenteditable="true">${node.innerHTML}</div>
-    `;
+        <div class="ce-text-area" contenteditable="true">${node.innerHTML}</div>
+      `;
 
-    // toolbar buttons
-    wrap.querySelectorAll('.ce-text-toolbar button').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const cmd = btn.dataset.cmd;
-        let val = null;
-        if (cmd === 'createLink') {
-          val = prompt('Enter URL:', 'https://');
-          if (!val) return;
-        }
-        document.execCommand(cmd, false, val);
-        wrap.querySelector('.ce-text-area').focus();
+      wrap.querySelectorAll('.ce-text-toolbar button').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const cmd = btn.dataset.cmd;
+          let val = null;
+          if (cmd === 'createLink') {
+            val = prompt('Enter URL:', 'https://');
+            if (!val) return;
+          }
+          document.execCommand(cmd, false, val);
+          wrap.querySelector('.ce-text-area').focus();
+        });
       });
-    });
 
-    // selects & color picker
-    wrap.querySelectorAll('.ce-text-toolbar select, .ce-text-toolbar input[type="color"]')
-        .forEach(ctrl => {
-      ctrl.addEventListener('change', e => {
-        document.execCommand(ctrl.dataset.cmd, false, e.target.value);
-        wrap.querySelector('.ce-text-area').focus();
+      wrap.querySelectorAll('.ce-text-toolbar select, .ce-text-toolbar input[type="color"]').forEach(ctrl => {
+        ctrl.addEventListener('change', e => {
+          document.execCommand(ctrl.dataset.cmd, false, e.target.value);
+          wrap.querySelector('.ce-text-area').focus();
+        });
       });
+
+      const editable = wrap.querySelector('.ce-text-area');
+      editable.addEventListener('input', () => {
+        pushHistory();
+        node.innerHTML = editable.innerHTML;
+        syncExport();
+      });
+
+      panel.appendChild(wrap);
     });
-
-    // sync back into the real node
-    const editable = wrap.querySelector('.ce-text-area');
-    editable.addEventListener('input', () => {
-      pushHistory();
-      node.innerHTML = editable.innerHTML;
-      syncExport();
-    });
-
-    panel.appendChild(wrap);
-  });
-}
-
-
-
+  }
 
   function addListEditors(panel, block){
     const lists = block.querySelectorAll('ul,ol');
@@ -1196,6 +1198,8 @@ let importedDocHead = '';
     const imgs=block.querySelectorAll('img');
     imgs.forEach((img, idx)=>{
       if(isUI(img)) return;
+
+      // URL
       const wrap=document.createElement('div');wrap.className='ce-field';
       wrap.innerHTML=`<label>Image ${idx+1} URL</label><input type="text" value="${img.src}">`;
       wrap.querySelector('input').addEventListener('input',e=>{
@@ -1203,12 +1207,27 @@ let importedDocHead = '';
       });
       panel.appendChild(wrap);
 
+      // Caption editor if inside figure
+      const fig = img.closest('figure');
+      const cap = fig ? fig.querySelector('figcaption') : null;
+      if(cap){
+        const capWrap=document.createElement('div');capWrap.className='ce-field';
+        capWrap.innerHTML=`<label>Caption</label><textarea>${cap.innerHTML}</textarea>`;
+        capWrap.querySelector('textarea').addEventListener('input', e=>{
+          pushHistory();
+          cap.innerHTML = e.target.value;
+          syncExport();
+        });
+        panel.appendChild(capWrap);
+      }
+
+      // size + unit
       const sizeWrap=document.createElement('div'); sizeWrap.className='ce-field';
       const w=img.getAttribute('width')||''; const h=img.getAttribute('height')||'';
       sizeWrap.innerHTML=`<label>Width / Height</label>
         <div style="display:flex;gap:6px;">
-          <input type="number" min="0" placeholder="W" value="${w}" style="flex:1;">
-          <input type="number" min="0" placeholder="H" value="${h}" style="flex:1;">
+          <input type="number" min="0" placeholder="W" value="${parseInt(w)||''}" style="flex:1;">
+          <input type="number" min="0" placeholder="H" value="${parseInt(h)||''}" style="flex:1;">
         </div>
         <div class="ce-unit-toggle" style="margin-top:6px;">
           <button class="${w.toString().includes('%') ? 'active' : ''}" data-unit="%">%</button>
@@ -1216,95 +1235,37 @@ let importedDocHead = '';
         </div>`;
       const [wInp,hInp]=sizeWrap.querySelectorAll('input');
       const unitToggle = sizeWrap.querySelector('.ce-unit-toggle');
-      
-      // Set initial unit
       let currentUnit = w.toString().includes('%') ? '%' : 'px';
-      
+
       wInp.addEventListener('input',e=>{
-        pushHistory(); 
+        pushHistory();
         const value = e.target.value ? e.target.value + currentUnit : '';
-        img.setAttribute('width', value); 
+        if(value) img.setAttribute('width', value); else img.removeAttribute('width');
         syncExport();
       });
       hInp.addEventListener('input',e=>{
-        pushHistory(); 
+        pushHistory();
         const value = e.target.value ? e.target.value + currentUnit : '';
-        img.setAttribute('height', value); 
+        if(value) img.setAttribute('height', value); else img.removeAttribute('height');
         syncExport();
       });
-      
+
       unitToggle.querySelectorAll('button').forEach(btn => {
         btn.addEventListener('click', () => {
           currentUnit = btn.dataset.unit;
           unitToggle.querySelectorAll('button').forEach(b => b.classList.remove('active'));
           btn.classList.add('active');
-          
-          // Update values with new unit
           const wVal = wInp.value ? wInp.value + currentUnit : '';
           const hVal = hInp.value ? hInp.value + currentUnit : '';
-          if (wVal) img.setAttribute('width', wVal);
-          if (hVal) img.setAttribute('height', hVal);
+          if (wVal) img.setAttribute('width', wVal); else img.removeAttribute('width');
+          if (hVal) img.setAttribute('height', hVal); else img.removeAttribute('height');
           syncExport();
         });
       });
-      
+
       panel.appendChild(sizeWrap);
     });
   }
-
-  function addCustomHTMLField(panel, block, html){
-    const htmlField=document.createElement('div');htmlField.className='ce-field';
-    htmlField.innerHTML=`<label>Custom HTML</label><textarea>${html}</textarea>`;
-    htmlField.querySelector('textarea').addEventListener('change',e=>{
-      pushHistory();
-      const handle=block.querySelector('.ce-block-handle');
-      const addBtns=[...block.querySelectorAll('.ce-add-inside')];
-      block.innerHTML=e.target.value;
-      if(handle) block.appendChild(handle);
-      addBtns.forEach(a=>block.appendChild(a));
-      bindAddInside(block);
-      syncExport();
-    });
-    panel.appendChild(htmlField);
-  }
-  /**
- * In the Content pane, let the user edit the href & target of each <a>
- */
-function addButtonContentField(panel, el, idx) {
-  const field = document.createElement('div');
-  field.className = 'ce-field';
-  field.innerHTML = `
-    <label>Button ${idx+1} Link URL</label>
-    <input type="text" class="ce-btn-link-url" placeholder="https://example.com" value="${el.getAttribute('href')||''}" />
-    <div style="margin-top:8px;">
-      <label><input type="checkbox" class="ce-btn-link-target" ${el.target === '_blank' ? 'checked' : ''}/> Open in new tab</label>
-    </div>
-  `;
-
-  const urlInput = field.querySelector('.ce-btn-link-url');
-  const targetCheckbox = field.querySelector('.ce-btn-link-target');
-
-  urlInput.addEventListener('input', e => {
-    pushHistory();
-    el.setAttribute('href', e.target.value);
-    syncExport();
-  });
-
-  targetCheckbox.addEventListener('change', e => {
-    pushHistory();
-    if (e.target.checked) {
-      el.setAttribute('target', '_blank');
-      el.setAttribute('rel', 'noopener noreferrer');
-    } else {
-      el.removeAttribute('target');
-      el.removeAttribute('rel');
-    }
-    syncExport();
-  });
-
-  panel.appendChild(field);
-}
-
 
   /* ===== CLEAN & SYNC ===== */
   function getInnerHTMLWithoutUI(el){
@@ -1326,13 +1287,10 @@ function addButtonContentField(panel, el, idx) {
   }
 
   function syncExport(){
-  // 1) clean & mirror for export
-  const cleaned = cleanCloneFromEdit();
-  state.outEl.innerHTML = cleaned.innerHTML;
-
-  // 2) **raw** draft: the full editor inner HTML, handles & all
-  document.getElementById('ceDraftExport').value = state.editEl.innerHTML;
-}
+    const cleaned = cleanCloneFromEdit();
+    state.outEl.innerHTML = cleaned.innerHTML;
+    document.getElementById('ceDraftExport').value = state.editEl.innerHTML;
+  }
 
   function rebuildEditFromExport(html){
     state.editEl.innerHTML='';
@@ -1437,51 +1395,24 @@ function addButtonContentField(panel, el, idx) {
   }
 
   /* ===== EXPORT ===== */
-  // Replace your existing getExportHTML() with this:
   function getExportHTML(){
-  // 1) grab the cleaned inner HTML
-  const inner = state.outEl.innerHTML.trim();
-
-  // 2) return the full email template
-  return `<!DOCTYPE html>
+    const inner = state.outEl.innerHTML.trim();
+    return `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
   <title>Your Campaign</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" integrity="sha512-..." crossorigin="anonymous" referrerpolicy="no-referrer" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" />
   <style>
-    /* Reset */
     body, table, td { margin:0; padding:0; }
     img { border:none; display:block; max-width:100%; height:auto; }
     a { text-decoration:none; }
-
-    /* Wrapper tables */
     .wrapper { width:100% !important; background:#f3f4f6; }
-    .inner   {
-      width:100% !important;
-
-      margin:0 auto;
-      background:#ffffff;
-      box-shadow:0 1px 3px rgba(0,0,0,0.1);
-    }
-
-    /* Mobile tweaks */
-    @media only screen and (max-width:600px) {
-      .inner { box-shadow:none !important; }
-    }
-      .ce-section-slot-wrapper {
-        width:100% !important;
-
-        display: flex;
-        }
-
-        /* this must come *after* your base rule */
-        @media (max-width: 375px) {
-        .ce-section-slot-wrapper {
-            flex-direction: column !important;
-        }
-        }
+    .inner   { width:100% !important; margin:0 auto; background:#ffffff; box-shadow:0 1px 3px rgba(0,0,0,0.1); }
+    @media only screen and (max-width:600px) { .inner { box-shadow:none !important; } }
+    .ce-section-slot-wrapper { width:100% !important; display:flex; }
+    @media (max-width: 375px) { .ce-section-slot-wrapper { flex-direction: column !important; } }
   </style>
 </head>
 <body>
@@ -1500,8 +1431,7 @@ function addButtonContentField(panel, el, idx) {
   </table>
 </body>
 </html>`;
-}
-
+  }
 
   function exportHTML(){
     const html=getExportHTML();
@@ -1519,16 +1449,21 @@ function addButtonContentField(panel, el, idx) {
     const iframe=document.getElementById('ceCodePreview');
     iframe.contentDocument.open();iframe.contentDocument.write(html);iframe.contentDocument.close();
   }
+  function stripToBodyInner(html) {
+    const s = (html || '').trim();
+    if (!s) return '';
+    if (/<html[\s>]/i.test(s) || /<!doctype/i.test(s)) {
+      const doc = new DOMParser().parseFromString(s, 'text/html');
+      return (doc.body ? doc.body.innerHTML : s).trim();
+    }
+    return s;
+  }
   function applyCodeToCanvas(){
-  const txt = document.getElementById('ceCodeArea').value;
-
-  // ✅ keep preview as full document
-  refreshPreview(txt);
-
-  // ✅ but rebuild editor only from body content
-  rebuildEditFromExport(stripToBodyInner(txt));
-  syncExport();
-}
+    const txt = document.getElementById('ceCodeArea').value;
+    refreshPreview(txt);
+    rebuildEditFromExport(stripToBodyInner(txt));
+    syncExport();
+  }
 
   function rebindAll(){
     deselect();
@@ -1540,113 +1475,1300 @@ function addButtonContentField(panel, el, idx) {
     bindAddInside(state.editEl);
   }
 
-  /* ===== BOOT ===== */
-  window.addEventListener('DOMContentLoaded', () => {
-    document
-    .getElementById('ceCanvasEdit')
-    .addEventListener('click', e => {
-      // if you clicked on an <a> (or inside one), stop it
-      if (e.target.closest('a')) {
-        e.preventDefault();
+  /* ============================================================
+     ✅ Gallery editor
+     ============================================================ */
+  function addGalleryEditors(panel, stylePanel, block){
+    const gallery = block.querySelector('.ce-gallery');
+    if(!gallery || isUI(gallery)) return;
+
+    const computed = getComputedStyle(gallery);
+    let cols = 3;
+    const gtc = gallery.style.gridTemplateColumns || computed.gridTemplateColumns || '';
+    const m = gtc.match(/repeat\((\d+)/);
+    if(m) cols = parseInt(m[1],10) || cols;
+    else if(gtc) cols = gtc.split(' ').filter(Boolean).length || cols;
+
+    let gap = parseInt((gallery.style.gap || computed.gap || '0').toString(),10);
+    if (Number.isNaN(gap)) gap = 10;
+
+    const layout = document.createElement('div');
+    layout.className='ce-field';
+    layout.innerHTML = `
+      <label>Gallery Layout</label>
+      <div style="display:flex;gap:6px;align-items:center;">
+        <input type="number" min="1" max="6" value="${cols}" style="width:80px;" title="Columns">
+        <input type="number" min="0" value="${gap}" style="width:80px;" title="Gap (px)">
+        <button type="button" class="ce-btn-sm" id="ceGalAddImg" style="margin-left:auto;">
+          <i class="fa-solid fa-plus"></i> Add
+        </button>
+      </div>
+      <div class="ce-muted" style="padding:6px 0 0 0;">Columns • Gap • Add/Remove images</div>
+    `;
+    const [colInp,gapInp] = layout.querySelectorAll('input');
+
+    colInp.addEventListener('input', e=>{
+      pushHistory();
+      const v = Math.max(1, Math.min(6, parseInt(e.target.value||'1',10) || 1));
+      gallery.style.display='grid';
+      gallery.style.gridTemplateColumns = `repeat(${v}, 1fr)`;
+      syncExport();
+    });
+
+    gapInp.addEventListener('input', e=>{
+      pushHistory();
+      const v = parseInt(e.target.value||'0',10) || 0;
+      gallery.style.display='grid';
+      gallery.style.gap = v+'px';
+      syncExport();
+    });
+
+    layout.querySelector('#ceGalAddImg').addEventListener('click', ()=>{
+      const url = prompt('Image URL:', 'https://placehold.co/400x260');
+      if(!url) return;
+
+      pushHistory();
+      const withCaptions = gallery.dataset.gallery === 'captions' || gallery.classList.contains('ce-gallery-captions');
+
+      if(withCaptions){
+        const cap = prompt('Caption (optional):', '') || '';
+        const fig = document.createElement('figure');
+        fig.style.margin='0';
+        fig.innerHTML =
+          `<img src="${url}" alt="Gallery image" style="width:100%;height:auto;display:block;border-radius:6px;"/>`+
+          `<figcaption style="margin-top:6px;font-size:12px;color:#6b7280;line-height:1.4;">${cap || 'Caption'}</figcaption>`;
+        gallery.appendChild(fig);
+      } else {
+        const img = document.createElement('img');
+        img.src = url;
+        img.alt = 'Gallery image';
+        img.style.width='100%';
+        img.style.height='auto';
+        img.style.display='block';
+        img.style.borderRadius='6px';
+        gallery.appendChild(img);
       }
-    });
-    
-  state.editEl   = document.getElementById('ceCanvasEdit');
-  state.outEl    = document.getElementById('ceCanvasExport');
-  state.markerEl = document.createElement('div');
-  state.markerEl.className = 'ce-drop-marker';
 
-  // 1) Only the canvas handles dragover & drop
-  state.editEl.addEventListener('dragover', onDragOverCanvas);
-  state.editEl.addEventListener('drop',    onDropCanvas);
-
-  // 2) Close inspector/popup on canvas click
-  state.editEl.addEventListener('click', () => { deselect(); closePopup(); });
-
-  // 3) Only palette items (elements & sections) start a new drag
-  document
-    .querySelectorAll('#list-elements .ce-component, #list-sections .ce-component')
-    .forEach(el => el.addEventListener('dragstart', onDragStartComponent));
-
-  // 4) Modal close button
-  document.getElementById('ceCloseModal')
-    .addEventListener('click', () => {
-      document.getElementById('ceModal').style.display = 'none';
+      syncExport();
+      renderInspector(block);
     });
 
-  // 5) Code tab buttons
-  document.getElementById('ceCodeRefresh')
-    .addEventListener('click', loadCodeFromExport);
-  document.getElementById('ceCodeApply')
-    .addEventListener('click', applyCodeToCanvas);
+    stylePanel.appendChild(layout);
 
-  // 6) Undo / Redo
-  document.getElementById('ceUndo')
-    .addEventListener('click', undo);
-  document.getElementById('ceRedo')
-    .addEventListener('click', redo);
+    /* ✅ Content tab: Add more images + edit URLs/captions without jumping tabs */
+    const withCaptions = gallery.dataset.gallery === 'captions' || gallery.classList.contains('ce-gallery-captions');
 
-  // 7) Keyboard shortcuts
-  document.addEventListener('keydown', e => {
-    if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === 'z') {
-      e.preventDefault();
-      undo();
-    }
-    if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'z') {
-      e.preventDefault();
-      redo();
-    }
-    if (state.selectedBlock && e.altKey && e.key === 'ArrowUp') {
-      e.preventDefault();
-      moveBlock(state.selectedBlock, 'up');
-    }
-    if (state.selectedBlock && e.altKey && e.key === 'ArrowDown') {
-      e.preventDefault();
-      moveBlock(state.selectedBlock, 'down');
-    }
-  });
+    const contentField = document.createElement('div');
+    contentField.className='ce-field';
+    contentField.innerHTML = `<label>Gallery Images</label>`;
 
-  // 8) Initialize history & export
-  pushHistory();
-  syncExport();
-});
+    const addRow = document.createElement('div');
+    addRow.style.display='flex';
+    addRow.style.gap='6px';
+    addRow.style.alignItems='center';
+    addRow.style.marginBottom='8px';
+    addRow.innerHTML = `
+      <input type="text" placeholder="Image URL..." style="flex:1;">
+      <button type="button" class="ce-btn-sm ce-primary"><i class="fa-solid fa-plus"></i> Add</button>
+    `;
+    contentField.appendChild(addRow);
 
-function stripToBodyInner(html) {
-  const s = (html || '').trim();
-  if (!s) return '';
+    const list = document.createElement('div');
+    list.style.display='flex';
+    list.style.flexDirection='column';
+    list.style.gap='8px';
+    contentField.appendChild(list);
 
-  // if it's a full document, extract <body>...</body>
-  if (/<html[\s>]/i.test(s) || /<!doctype/i.test(s)) {
-    const doc = new DOMParser().parseFromString(s, 'text/html');
-    return (doc.body ? doc.body.innerHTML : s).trim();
+    const urlInp = addRow.querySelector('input');
+    const addBtn = addRow.querySelector('button');
+
+    addBtn.addEventListener('click', ()=>{
+      const url = (urlInp.value || '').trim();
+      if(!url) return;
+
+      pushHistory();
+      if(withCaptions){
+        const fig = document.createElement('figure');
+        fig.style.margin='0';
+        fig.innerHTML =
+          `<img src="${url}" alt="Gallery image" style="width:100%;height:auto;display:block;border-radius:6px;"/>`+
+          `<figcaption style="margin-top:6px;font-size:12px;color:#6b7280;line-height:1.4;">Caption</figcaption>`;
+        gallery.appendChild(fig);
+      } else {
+        const img = document.createElement('img');
+        img.src = url;
+        img.alt = 'Gallery image';
+        img.style.width='100%';
+        img.style.height='auto';
+        img.style.display='block';
+        img.style.borderRadius='6px';
+        gallery.appendChild(img);
+      }
+      urlInp.value = '';
+      syncExport();
+      renderInspector(block);
+    });
+    urlInp.addEventListener('keydown', (e)=>{
+      if(e.key==='Enter'){ e.preventDefault(); addBtn.click(); }
+    });
+
+    const items = withCaptions
+      ? Array.from(gallery.querySelectorAll('figure'))
+      : Array.from(gallery.querySelectorAll('img'));
+
+    items.forEach((item, idx)=>{
+      const card = document.createElement('div');
+      card.style.border='1px solid var(--ce-border)';
+      card.style.borderRadius='6px';
+      card.style.padding='8px';
+
+      const head = document.createElement('div');
+      head.style.display='flex';
+      head.style.alignItems='center';
+      head.style.gap='8px';
+      head.style.marginBottom='6px';
+
+      const title = document.createElement('strong');
+      title.style.fontSize='12px';
+      title.textContent = `Image ${idx+1}`;
+      head.appendChild(title);
+
+      const del = document.createElement('button');
+      del.type='button';
+      del.className='ce-btn-sm';
+      del.style.marginLeft='auto';
+      del.innerHTML = `<i class="fa-solid fa-trash"></i>`;
+      del.addEventListener('click', ()=>{
+        pushHistory();
+        item.remove();
+        syncExport();
+        renderInspector(block);
+      });
+      head.appendChild(del);
+
+      card.appendChild(head);
+
+      const imgEl = withCaptions ? item.querySelector('img') : item;
+      const capEl = withCaptions ? item.querySelector('figcaption') : null;
+
+      const uLbl = document.createElement('label');
+      uLbl.textContent = 'Image URL';
+      card.appendChild(uLbl);
+
+      const u = document.createElement('input');
+      u.type='text';
+      u.value = (imgEl && imgEl.getAttribute('src')) ? imgEl.getAttribute('src') : '';
+      u.addEventListener('input', (e)=>{
+        pushHistory();
+        if(imgEl) imgEl.setAttribute('src', e.target.value);
+        syncExport();
+      });
+      card.appendChild(u);
+
+      if(withCaptions && capEl){
+        const cLbl = document.createElement('label');
+        cLbl.style.marginTop='8px';
+        cLbl.textContent = 'Caption';
+        card.appendChild(cLbl);
+
+        const c = document.createElement('textarea');
+        c.style.minHeight='60px';
+        c.value = (capEl.textContent || '').trim();
+        c.addEventListener('input', (e)=>{
+          pushHistory();
+          capEl.textContent = e.target.value;
+          syncExport();
+        });
+        card.appendChild(c);
+      }
+
+      list.appendChild(card);
+    });
+
+    panel.appendChild(contentField);
   }
 
-  return s;
+
+  /* ================================
+   VIDEO EMBED EDITOR
+   ================================ */
+   function addVideoEditors(panel, stylePanel, block){
+  const iframe = block.querySelector('iframe');
+  if(!iframe || isUI(iframe)) return;
+
+  const frame = block.querySelector('.ce-video-frame');
+
+  /* ===== CONTENT: URL + OPTIONS ===== */
+  const c = document.createElement('div');
+  c.className = 'ce-field';
+  c.innerHTML = `
+    <label>Video URL (Embed)</label>
+    <input type="text" value="${iframe.getAttribute('src') || ''}">
+    <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;">
+      <label style="display:flex;gap:6px;align-items:center;">
+        <input type="checkbox" data-opt="autoplay"> Autoplay
+      </label>
+      <label style="display:flex;gap:6px;align-items:center;">
+        <input type="checkbox" data-opt="loop"> Loop
+      </label>
+      <label style="display:flex;gap:6px;align-items:center;">
+        <input type="checkbox" data-opt="controls" checked> Controls
+      </label>
+    </div>
+  `;
+  const urlInp = c.querySelector('input');
+  const autoplayCh = c.querySelector('[data-opt="autoplay"]');
+  const loopCh     = c.querySelector('[data-opt="loop"]');
+  const controlsCh = c.querySelector('[data-opt="controls"]');
+
+  // Try to prefill checkboxes from current iframe src params
+  (function initFromSrc(){
+    try{
+      const src = (iframe.getAttribute('src') || '').trim();
+      const qs = src.includes('?') ? src.split('?')[1] : '';
+      const p = new URLSearchParams(qs);
+      autoplayCh.checked = p.get('autoplay') === '1';
+      loopCh.checked     = p.get('loop') === '1';
+      // Default controls true unless explicitly 0
+      controlsCh.checked = p.get('controls') !== '0';
+    }catch(_){}
+  })();
+
+  function baseUrl(u){ return (u||'').trim().split('#')[0].split('?')[0]; }
+
+  function guessYoutubeId(u){
+    const s = (u||'').trim();
+    // https://www.youtube.com/embed/ID
+    let m = s.match(/youtube\.com\/embed\/([a-zA-Z0-9_-]{6,})/);
+    if(m) return m[1];
+    // https://youtu.be/ID
+    m = s.match(/youtu\.be\/([a-zA-Z0-9_-]{6,})/);
+    if(m) return m[1];
+    // https://www.youtube.com/watch?v=ID
+    m = s.match(/[?&]v=([a-zA-Z0-9_-]{6,})/);
+    if(m) return m[1];
+    return '';
+  }
+
+  function rebuildURL(){
+    const raw = (urlInp.value || '').trim();
+    if(!raw) return;
+
+    const b = baseUrl(raw);
+    const params = new URLSearchParams();
+
+    if(autoplayCh.checked) params.set('autoplay','1');
+    if(!controlsCh.checked) params.set('controls','0');
+
+    if(loopCh.checked){
+      params.set('loop','1');
+      // YouTube loop needs playlist=videoId
+      const yid = guessYoutubeId(raw) || guessYoutubeId(b) || b.split('/').pop();
+      if(yid) params.set('playlist', yid);
+    }
+
+    const finalSrc = params.toString() ? (b + '?' + params.toString()) : b;
+    iframe.setAttribute('src', finalSrc);
+  }
+
+  urlInp.addEventListener('input', ()=>{
+    pushHistory();
+    iframe.setAttribute('src', urlInp.value);
+    syncExport();
+  });
+
+  [autoplayCh, loopCh, controlsCh].forEach(ch=>{
+    ch.addEventListener('change', ()=>{
+      pushHistory();
+      rebuildURL();
+      syncExport();
+    });
+  });
+
+  panel.appendChild(c);
+
+  /* ===== CONTENT: TITLE ===== */
+  const titleEl = block.querySelector('.ce-video-title');
+  if(titleEl){
+    const t = document.createElement('div');
+    t.className = 'ce-field';
+    t.innerHTML = `
+      <label>Video Title</label>
+      <input type="text" value="${(titleEl.textContent || '').trim()}">
+    `;
+    t.querySelector('input').addEventListener('input', e=>{
+      pushHistory();
+      titleEl.textContent = e.target.value;
+      syncExport();
+    });
+    panel.appendChild(t);
+  }
+
+  /* ===== CONTENT: CAPTION ===== */
+  const capEl = block.querySelector('.ce-video-caption');
+  if(capEl){
+    const cap = document.createElement('div');
+    cap.className = 'ce-field';
+    cap.innerHTML = `
+      <label>Video Caption</label>
+      <textarea style="min-height:70px;">${(capEl.textContent || '').trim()}</textarea>
+    `;
+    cap.querySelector('textarea').addEventListener('input', e=>{
+      pushHistory();
+      capEl.textContent = e.target.value;
+      syncExport();
+    });
+    panel.appendChild(cap);
+  }
+
+  /* ===== STYLE: ASPECT RATIO ===== */
+  if(frame){
+    let currentPct = 56.25;
+    try{
+      const cs = getComputedStyle(frame);
+      const pt = (frame.style.paddingTop || cs.paddingTop || '56.25%').toString();
+      currentPct = parseFloat(pt) || 56.25;
+    }catch(_){}
+
+    const s = document.createElement('div');
+    s.className = 'ce-field';
+    s.innerHTML = `
+      <label>Aspect Ratio</label>
+      <select>
+        <option value="56.25">16:9</option>
+        <option value="75">4:3</option>
+        <option value="100">1:1</option>
+      </select>
+    `;
+    const ratioSel = s.querySelector('select');
+
+    // Set initial select value by closest match
+    (function(){
+      const v = [56.25, 75, 100].reduce((best, x)=> Math.abs(x-currentPct) < Math.abs(best-currentPct) ? x : best, 56.25);
+      ratioSel.value = String(v);
+    })();
+
+    ratioSel.addEventListener('change', ()=>{
+      pushHistory();
+      frame.style.paddingTop = ratioSel.value + '%';
+      syncExport();
+    });
+
+    stylePanel.appendChild(s);
+  }
 }
 
 
-window.CEBuilder = {
-  // ✅ store only CLEAN inner email body (what should go in DB)
-  getHTML() {
-    return (state.outEl?.innerHTML || '').trim(); // cleaned content only
-  },
 
-  // ✅ when you need full HTML document (for exporting / sending)
-  getEmailHTML: getExportHTML,
-
-  // ✅ loader accepts either inner html OR full html safely
-  setHTML(html) {
-    rebuildEditFromExport(stripToBodyInner(html || ''));
-    syncExport();
-  },
-
-  // (optional) still available if you use it somewhere
-  getDraft() {
-    return document.getElementById('ceDraftExport').value;
+  /* ============================================================
+     ✅ TABLE helpers: keep styles when adding/removing
+     ============================================================ */
+  function cloneCellStyle(src, dest){
+    if(!src || !dest) return;
+    const cs = getComputedStyle(src);
+    dest.style.borderStyle = cs.borderStyle;
+    dest.style.borderWidth = cs.borderWidth;
+    dest.style.borderColor = cs.borderColor;
+    dest.style.border = `${cs.borderWidth} ${cs.borderStyle} ${cs.borderColor}`;
+    dest.style.padding = cs.padding;
+    dest.style.textAlign = cs.textAlign;
+    dest.style.backgroundColor = cs.backgroundColor;
+    dest.style.color = cs.color;
+    dest.style.fontWeight = cs.fontWeight;
   }
-};
 
+  function makeBodyCellLike(sample){
+    const td = document.createElement('td');
+    td.textContent = 'Cell';
+    if(sample) cloneCellStyle(sample, td);
+    if(!td.style.border) td.style.border = '1px solid #e5e7eb';
+    if(!td.style.padding) td.style.padding = '10px';
+    if(!td.style.textAlign) td.style.textAlign = 'left';
+    return td;
+  }
 
+  function makeHeaderCellLike(sample){
+    const th = document.createElement('th');
+    th.textContent = 'Header';
+    if(sample) cloneCellStyle(sample, th);
+    if(!th.style.border) th.style.border = '1px solid #e5e7eb';
+    if(!th.style.padding) th.style.padding = '10px';
+    if(!th.style.textAlign) th.style.textAlign = 'left';
+    if(!th.style.backgroundColor) th.style.backgroundColor = '#f9fafb';
+    th.style.fontWeight = th.style.fontWeight || '700';
+    return th;
+  }
+
+  function ensureTbody(table){
+    let tbody = table.querySelector('tbody');
+    if(!tbody){
+      tbody = document.createElement('tbody');
+      table.appendChild(tbody);
+    }
+    return tbody;
+  }
+
+  function tableGetCols(table){
+    const r = table.querySelector('tr');
+    if(!r) return 0;
+    return Array.from(r.children).filter(c=>c.tagName==='TD' || c.tagName==='TH').length;
+  }
+
+  function toggleTableHeader(table){
+    const thead = table.querySelector('thead');
+    const tbody = ensureTbody(table);
+
+    if(thead){
+      const headRow = thead.querySelector('tr');
+      if(headRow){
+        const newRow = document.createElement('tr');
+        Array.from(headRow.children).forEach(th=>{
+          const td = document.createElement('td');
+          td.textContent = th.textContent;
+          cloneCellStyle(th, td);
+          td.style.backgroundColor = '';
+          td.style.fontWeight = '';
+          newRow.appendChild(td);
+        });
+        tbody.insertAdjacentElement('afterbegin', newRow);
+      }
+      thead.remove();
+      return;
+    }
+
+    let firstBodyRow = tbody.querySelector('tr');
+    if(!firstBodyRow){
+      firstBodyRow = document.createElement('tr');
+      const cols = Math.max(3, tableGetCols(table) || 3);
+      for(let i=0;i<cols;i++) firstBodyRow.appendChild(makeBodyCellLike(null));
+      tbody.appendChild(firstBodyRow);
+    }
+
+    const newThead = document.createElement('thead');
+    const newHeadRow = document.createElement('tr');
+    const sample = firstBodyRow.querySelector('td') || null;
+
+    Array.from(firstBodyRow.children).filter(c=>c.tagName==='TD' || c.tagName==='TH').forEach(td=>{
+      const th = document.createElement('th');
+      th.textContent = td.textContent || 'Header';
+      cloneCellStyle(td, th);
+      th.style.backgroundColor = th.style.backgroundColor || '#f9fafb';
+      th.style.fontWeight = th.style.fontWeight || '700';
+      newHeadRow.appendChild(th);
+    });
+
+    newThead.appendChild(newHeadRow);
+    table.insertAdjacentElement('afterbegin', newThead);
+    firstBodyRow.remove();
+  }
+
+  function tableAddRow(table){
+    const tbody = ensureTbody(table);
+    const cols = Math.max(1, tableGetCols(table) || 3);
+    const sample = table.querySelector('tbody td') || table.querySelector('th') || null;
+    const tr = document.createElement('tr');
+    for(let i=0;i<cols;i++) tr.appendChild(makeBodyCellLike(sample));
+    tbody.appendChild(tr);
+  }
+
+  function tableDelRow(table){
+    const tbody = table.querySelector('tbody');
+    if(!tbody) return;
+    const rows = Array.from(tbody.querySelectorAll('tr'));
+    if(!rows.length) return;
+    rows[rows.length-1].remove();
+  }
+
+  function tableAddCol(table){
+    const rows = Array.from(table.querySelectorAll('tr'));
+    const sampleTd = table.querySelector('td');
+    const sampleTh = table.querySelector('th');
+    rows.forEach(r=>{
+      const isHead = r.closest('thead');
+      if(isHead) r.appendChild(makeHeaderCellLike(sampleTh || sampleTd));
+      else r.appendChild(makeBodyCellLike(sampleTd || sampleTh));
+    });
+  }
+
+  function tableDelCol(table){
+    const rows = Array.from(table.querySelectorAll('tr'));
+    rows.forEach(r=>{
+      const cells = Array.from(r.children).filter(c=>c.tagName==='TD' || c.tagName==='TH');
+      if(cells.length>1) cells[cells.length-1].remove();
+    });
+  }
+
+  /* ✅ Table: styling + header toggle + add row/col (restored) */
+  function addTableEditors(panel, stylePanel, block){
+    const table = block.querySelector('table.ce-table, table');
+    if(!table || isUI(table)) return;
+
+    const firstCell = table.querySelector('th,td');
+    const cellCS = firstCell ? getComputedStyle(firstCell) : null;
+    const bColor = cellCS ? rgb2hex(cellCS.borderColor) : '#e5e7eb';
+    const bWidth = cellCS ? (parseInt(cellCS.borderWidth,10)||1) : 1;
+    const pad    = cellCS ? (parseInt(cellCS.paddingTop,10)||10) : 10;
+
+    const styleField = document.createElement('div');
+    styleField.className='ce-field';
+    styleField.innerHTML = `
+      <label>Table Styling</label>
+      <div style="display:flex;gap:6px;align-items:center;">
+        <input type="number" min="0" value="${bWidth}" style="width:70px;" title="Border width (px)">
+        <input type="color" value="${bColor}" title="Border color" style="width:34px;height:34px;padding:0;border:none;">
+        <input type="number" min="0" value="${pad}" style="width:90px;" title="Cell padding (px)">
+        <button type="button" class="ce-btn-sm" id="ceTblToggleHead" style="margin-left:auto;">
+          <i class="fa-solid fa-heading"></i> Header
+        </button>
+      </div>
+    `;
+    const [bwInp, bcInp, padInp] = styleField.querySelectorAll('input');
+
+    bwInp.addEventListener('input', e=>{
+      pushHistory();
+      const v = parseInt(e.target.value||'0',10) || 0;
+      table.querySelectorAll('th,td').forEach(c=>{
+        c.style.borderWidth = v+'px';
+        c.style.borderStyle = c.style.borderStyle || 'solid';
+        c.style.borderColor = c.style.borderColor || bcInp.value;
+      });
+      syncExport();
+    });
+
+    bcInp.addEventListener('input', e=>{
+      pushHistory();
+      table.querySelectorAll('th,td').forEach(c=>{
+        c.style.borderColor = e.target.value;
+        c.style.borderStyle = c.style.borderStyle || 'solid';
+        c.style.borderWidth = c.style.borderWidth || (bwInp.value+'px');
+      });
+      syncExport();
+    });
+
+    padInp.addEventListener('input', e=>{
+      pushHistory();
+      const v = parseInt(e.target.value||'0',10) || 0;
+      table.querySelectorAll('th,td').forEach(c=>c.style.padding = v+'px');
+      syncExport();
+    });
+
+    styleField.querySelector('#ceTblToggleHead').addEventListener('click', ()=>{
+      pushHistory();
+      toggleTableHeader(table);
+      syncExport();
+      renderInspector(block);
+    });
+
+    stylePanel.appendChild(styleField);
+
+    const ctrl = document.createElement('div');
+    ctrl.className='ce-field';
+    ctrl.innerHTML = `
+      <label>Table Rows / Columns</label>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;">
+        <button type="button" class="ce-btn-sm" data-act="addRow"><i class="fa-solid fa-plus"></i> Row</button>
+        <button type="button" class="ce-btn-sm" data-act="delRow"><i class="fa-solid fa-minus"></i> Row</button>
+        <button type="button" class="ce-btn-sm" data-act="addCol"><i class="fa-solid fa-plus"></i> Col</button>
+        <button type="button" class="ce-btn-sm" data-act="delCol"><i class="fa-solid fa-minus"></i> Col</button>
+      </div>
+      <div class="ce-muted" style="padding:6px 0 0 0;">Tip: double-click any cell to edit inside canvas.</div>
+    `;
+    ctrl.querySelectorAll('button[data-act]').forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        const act = btn.dataset.act;
+        pushHistory();
+        if(act==='addRow') tableAddRow(table);
+        if(act==='delRow') tableDelRow(table);
+        if(act==='addCol') tableAddCol(table);
+        if(act==='delCol') tableDelCol(table);
+        syncExport();
+        renderInspector(block);
+      });
+    });
+    panel.appendChild(ctrl);
+  }
+
+  /* ✅ Table Content Editor (fix: edit cell text + header text) */
+  function addTableContentEditors(panel, block){
+    const table = block.querySelector('table.ce-table, table');
+    if(!table || isUI(table)) return;
+
+    const headRows = Array.from(table.querySelectorAll('thead tr'));
+    const bodyRows = Array.from(table.querySelectorAll('tbody tr'));
+    const allRows  = [...headRows, ...bodyRows];
+
+    if(!allRows.length) return;
+
+    const cols = Math.max(...allRows.map(r => Array.from(r.children).filter(c=>c.tagName==='TH'||c.tagName==='TD').length), 1);
+
+    const field = document.createElement('div');
+    field.className='ce-field';
+    field.innerHTML = `<label>Table Content</label>
+      <div class="ce-muted" style="padding:6px 0 8px 0;">Edit text in header/body cells (also works with double-click in canvas).</div>`;
+    const box = document.createElement('div');
+    box.style.border = '1px solid var(--ce-border)';
+    box.style.borderRadius = '6px';
+    box.style.padding = '8px';
+    box.style.maxHeight = '320px';
+    box.style.overflow = 'auto';
+    field.appendChild(box);
+
+    allRows.forEach((row, rIdx)=>{
+      const isHead = !!row.closest('thead');
+      const rowWrap = document.createElement('div');
+      rowWrap.style.display = 'grid';
+      rowWrap.style.gridTemplateColumns = `repeat(${cols}, minmax(0, 1fr))`;
+      rowWrap.style.gap = '6px';
+      rowWrap.style.marginBottom = '6px';
+
+      const cells = Array.from(row.children).filter(c=>c.tagName==='TH'||c.tagName==='TD');
+      for(let c=0;c<cols;c++){
+        const cell = cells[c];
+        const inp = document.createElement('input');
+        inp.type = 'text';
+        inp.value = cell ? (cell.textContent || '') : '';
+        inp.placeholder = isHead ? `H${c+1}` : `R${rIdx+1}C${c+1}`;
+        if(isHead){
+          inp.style.fontWeight = '700';
+          inp.style.background = '#f9fafb';
+        }
+        let armed=false;
+        inp.addEventListener('input', ()=>{
+          if(!cell) return;
+          if(!armed){ pushHistory(); armed=true; }
+          cell.textContent = inp.value;
+          syncExport();
+        });
+        inp.addEventListener('blur', ()=>{ armed=false; });
+        rowWrap.appendChild(inp);
+      }
+
+      box.appendChild(rowWrap);
+    });
+
+    panel.appendChild(field);
+  }
+
+  /* ✅ Tags Editor */
+  function addTagsEditors(panel, stylePanel, block){
+    const wrap = block.querySelector('.ce-tags');
+    if(!wrap || isUI(wrap)) return;
+
+    const firstTag = wrap.querySelector('.ce-tag') || wrap.querySelector('span');
+    const cs = firstTag ? getComputedStyle(firstTag) : null;
+
+    const bg = cs ? rgb2hex(cs.backgroundColor) : '#eef2ff';
+    const fg = cs ? rgb2hex(cs.color) : '#4338ca';
+    const rad = cs ? (parseInt(cs.borderTopLeftRadius,10)||999) : 999;
+    const padY = cs ? (parseInt(cs.paddingTop,10)||6) : 6;
+    const padX = cs ? (parseInt(cs.paddingLeft,10)||10) : 10;
+    const gap = parseInt((wrap.style.gap || getComputedStyle(wrap).gap || '8').toString(),10) || 8;
+
+    const s = document.createElement('div');
+    s.className='ce-field';
+    s.innerHTML = `
+      <label>Tags Styling</label>
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px;">
+        <input type="color" value="${bg}" title="Tag background" style="width:34px;height:34px;padding:0;border:none;">
+        <input type="color" value="${fg}" title="Tag text color" style="width:34px;height:34px;padding:0;border:none;">
+        <input type="number" min="0" value="${rad}" title="Radius" style="width:70px;">
+        <input type="number" min="0" value="${gap}" title="Gap" style="width:70px;">
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <input type="number" min="0" value="${padY}" title="Padding Y" style="width:80px;">
+        <input type="number" min="0" value="${padX}" title="Padding X" style="width:80px;">
+      </div>
+    `;
+
+    const inputs = s.querySelectorAll('input');
+    const bgInp = inputs[0];
+    const fgInp = inputs[1];
+    const radInp = inputs[2];
+    const gapInp = inputs[3];
+    const pyInp = inputs[4];
+    const pxInp = inputs[5];
+
+    function applyTagStyles(){
+      const tags = wrap.querySelectorAll('.ce-tag');
+      tags.forEach(t=>{
+        t.style.backgroundColor = bgInp.value;
+        t.style.color = fgInp.value;
+        t.style.borderRadius = (parseInt(radInp.value||'0',10)||0) + 'px';
+        t.style.padding = (parseInt(pyInp.value||'0',10)||0) + 'px ' + (parseInt(pxInp.value||'0',10)||0) + 'px';
+      });
+      wrap.style.display = 'flex';
+      wrap.style.flexWrap = 'wrap';
+      wrap.style.gap = (parseInt(gapInp.value||'0',10)||0) + 'px';
+    }
+
+    [bgInp,fgInp,radInp,gapInp,pyInp,pxInp].forEach(inp=>{
+      inp.addEventListener('input', ()=>{
+        pushHistory();
+        applyTagStyles();
+        syncExport();
+      });
+    });
+
+    stylePanel.appendChild(s);
+
+    const listField = document.createElement('div');
+    listField.className='ce-field';
+
+    const addRow = document.createElement('div');
+    addRow.style.display='flex';
+    addRow.style.gap='6px';
+    addRow.innerHTML = `
+      <input type="text" placeholder="New tag..." style="flex:1;">
+      <button type="button" class="ce-btn-sm ce-primary"><i class="fa-solid fa-plus"></i> Add</button>
+    `;
+    const newInp = addRow.querySelector('input');
+    const addBtn = addRow.querySelector('button');
+
+    function addTag(txt){
+      const span = document.createElement('span');
+      span.className = 'ce-tag';
+      span.textContent = txt;
+      span.style.display='inline-block';
+      span.style.fontSize='12px';
+      span.style.lineHeight='1';
+      wrap.appendChild(span);
+      applyTagStyles();
+    }
+
+    addBtn.addEventListener('click', ()=>{
+      const txt = (newInp.value || '').trim();
+      if(!txt) return;
+      pushHistory();
+      addTag(txt);
+      newInp.value = '';
+      syncExport();
+      renderInspector(block);
+    });
+    newInp.addEventListener('keydown', (e)=>{
+      if(e.key==='Enter'){ e.preventDefault(); addBtn.click(); }
+    });
+
+    listField.innerHTML = `<label>Tags</label>`;
+    listField.appendChild(addRow);
+
+    const list = document.createElement('div');
+    list.style.display='flex';
+    list.style.flexDirection='column';
+    list.style.gap='6px';
+    list.style.marginTop='10px';
+    listField.appendChild(list);
+
+    Array.from(wrap.querySelectorAll('.ce-tag')).forEach((tag)=>{
+      const row = document.createElement('div');
+      row.style.display='flex';
+      row.style.gap='6px';
+      row.innerHTML = `
+        <input type="text" value="${(tag.textContent||'').trim()}" style="flex:1;">
+        <button type="button" class="ce-btn-sm"><i class="fa-solid fa-trash"></i></button>
+      `;
+      row.querySelector('input').addEventListener('input', e=>{
+        pushHistory();
+        tag.textContent = e.target.value;
+        syncExport();
+      });
+      row.querySelector('button').addEventListener('click', ()=>{
+        pushHistory();
+        tag.remove();
+        syncExport();
+        renderInspector(block);
+      });
+      list.appendChild(row);
+    });
+
+    panel.appendChild(listField);
+  }
+
+  /* ✅ FAQ Editor */
+  function addFAQEditors(panel, stylePanel, block){
+    const faq = block.querySelector('.ce-faq');
+    if(!faq || isUI(faq)) return;
+
+    const firstItem = faq.querySelector('.ce-faq-item');
+    const cs = firstItem ? getComputedStyle(firstItem) : null;
+
+    const bColor = cs ? rgb2hex(cs.borderColor) : '#e5e7eb';
+    const rad = cs ? (parseInt(cs.borderTopLeftRadius,10)||6) : 6;
+    const pad = cs ? (parseInt(cs.paddingTop,10)||10) : 10;
+
+    const s = document.createElement('div');
+    s.className='ce-field';
+    s.innerHTML = `
+      <label>FAQ Styling</label>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <input type="color" value="${bColor}" title="Border color" style="width:34px;height:34px;padding:0;border:none;">
+        <input type="number" min="0" value="${rad}" title="Radius" style="width:80px;">
+        <input type="number" min="0" value="${pad}" title="Padding" style="width:80px;">
+      </div>
+      <div class="ce-muted" style="padding:6px 0 0 0;">Border • Radius • Padding</div>
+    `;
+
+    const bInp = s.querySelector('input[type="color"]');
+    const nums = s.querySelectorAll('input[type="number"]');
+    const rInp = nums[0];
+    const pInp = nums[1];
+
+    function applyFAQStyles(){
+      faq.querySelectorAll('.ce-faq-item').forEach(item=>{
+        item.style.borderColor = bInp.value;
+        item.style.borderWidth = item.style.borderWidth || '1px';
+        item.style.borderStyle = item.style.borderStyle || 'solid';
+        item.style.borderRadius = (parseInt(rInp.value||'0',10)||0)+'px';
+        item.style.padding = (parseInt(pInp.value||'0',10)||0)+'px';
+      });
+    }
+
+    [bInp,rInp,pInp].forEach(inp=>{
+      inp.addEventListener('input', ()=>{
+        pushHistory();
+        applyFAQStyles();
+        syncExport();
+      });
+    });
+
+    stylePanel.appendChild(s);
+
+    const listField = document.createElement('div');
+    listField.className='ce-field';
+
+    const header = document.createElement('div');
+    header.style.display='flex';
+    header.style.alignItems='center';
+    header.style.justifyContent='space-between';
+    header.style.gap='8px';
+    header.innerHTML = `<label style="margin:0;">FAQ Items</label>
+      <button type="button" class="ce-btn-sm ce-primary" id="ceFaqAddList"><i class="fa-solid fa-plus"></i> Add</button>`;
+    listField.appendChild(header);
+
+    function createFAQItem(q, a){
+      const item = document.createElement('div');
+      item.className = 'ce-faq-item';
+      item.innerHTML = `
+        <div class="ce-faq-q" style="font-weight:700;margin:0 0 6px 0;"></div>
+        <div class="ce-faq-a" style="margin:0;color:#374151;line-height:1.5;"></div>
+      `;
+      item.style.border = '1px solid #e5e7eb';
+      item.style.borderRadius = '6px';
+      item.style.padding = '10px';
+      item.style.margin = '0 0 10px 0';
+      item.querySelector('.ce-faq-q').textContent = q;
+      item.querySelector('.ce-faq-a').textContent = a;
+      return item;
+    }
+
+    listField.querySelector('#ceFaqAddList').addEventListener('click', ()=>{
+      const q = prompt('Question:', 'New question?');
+      if(!q) return;
+      const a = prompt('Answer:', 'Answer goes here.') || '';
+      pushHistory();
+      const item = createFAQItem(q, a);
+      faq.appendChild(item);
+      applyFAQStyles();
+      syncExport();
+      renderInspector(block);
+    });
+
+    const list = document.createElement('div');
+    list.style.display='flex';
+    list.style.flexDirection='column';
+    list.style.gap='10px';
+    list.style.marginTop='10px';
+    listField.appendChild(list);
+
+    const items = Array.from(faq.querySelectorAll('.ce-faq-item'));
+    items.forEach((item, idx)=>{
+      const qEl = item.querySelector('.ce-faq-q');
+      const aEl = item.querySelector('.ce-faq-a');
+      if(!qEl || !aEl) return;
+
+      const card = document.createElement('div');
+      card.style.border='1px solid var(--ce-border)';
+      card.style.borderRadius='6px';
+      card.style.padding='8px';
+
+      const head = document.createElement('div');
+      head.style.display='flex';
+      head.style.alignItems='center';
+      head.style.gap='8px';
+      head.style.marginBottom='6px';
+
+      const title = document.createElement('strong');
+      title.style.fontSize='12px';
+      title.textContent = `Item ${idx+1}`;
+      head.appendChild(title);
+
+      const del = document.createElement('button');
+      del.type='button';
+      del.className='ce-btn-sm';
+      del.style.marginLeft='auto';
+      del.innerHTML = `<i class="fa-solid fa-trash"></i>`;
+      del.addEventListener('click', ()=>{
+        pushHistory();
+        item.remove();
+        syncExport();
+        renderInspector(block);
+      });
+      head.appendChild(del);
+
+      card.appendChild(head);
+
+      const qLbl = document.createElement('label');
+      qLbl.textContent = 'Question';
+      card.appendChild(qLbl);
+
+      const qInp = document.createElement('input');
+      qInp.type='text';
+      qInp.value = (qEl.textContent||'').trim();
+      qInp.addEventListener('input', e=>{
+        pushHistory();
+        qEl.textContent = e.target.value;
+        syncExport();
+      });
+      card.appendChild(qInp);
+
+      const aLbl = document.createElement('label');
+      aLbl.style.marginTop='8px';
+      aLbl.textContent = 'Answer';
+      card.appendChild(aLbl);
+
+      const aTa = document.createElement('textarea');
+      aTa.style.minHeight='70px';
+      aTa.value = (aEl.textContent||'').trim();
+      aTa.addEventListener('input', e=>{
+        pushHistory();
+        aEl.textContent = e.target.value;
+        syncExport();
+      });
+      card.appendChild(aTa);
+
+      list.appendChild(card);
+    });
+
+    panel.appendChild(listField);
+  }
+
+  /* ✅ NEW: Social Links editor (FontAwesome, add/remove, color, target, spacing, align) */
+  function addSocialEditors(panel, stylePanel, block){
+    const wrap = block.querySelector('.cs-social-links');
+    if(!wrap || isUI(wrap)) return;
+
+    wrap.style.display = 'flex';
+    wrap.style.alignItems = 'center';
+
+    const computed = getComputedStyle(wrap);
+    const gap = parseInt((wrap.style.gap || computed.gap || '12').toString(),10) || 12;
+
+    // Style controls: spacing + icon size
+    const styleField = document.createElement('div');
+    styleField.className = 'ce-field';
+    styleField.innerHTML = `
+      <label>Social Styling</label>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <input type="number" min="0" value="${gap}" style="width:90px;" title="Spacing (px)">
+        <input type="number" min="10" value="${guessIconSize(wrap) || 22}" style="width:90px;" title="Icon size (px)">
+      </div>
+      <div class="ce-muted" style="padding:6px 0 0 0;">Spacing between icons • Icon size</div>
+    `;
+    const [gapInp, sizeInp] = styleField.querySelectorAll('input');
+
+    gapInp.addEventListener('input', ()=>{
+      pushHistory();
+      wrap.style.gap = (parseInt(gapInp.value||'0',10) || 0) + 'px';
+      syncExport();
+    });
+
+    sizeInp.addEventListener('input', ()=>{
+      pushHistory();
+      const v = parseInt(sizeInp.value||'22',10) || 22;
+      wrap.querySelectorAll('i').forEach(i=>{
+        i.style.fontSize = v + 'px';
+      });
+      syncExport();
+    });
+
+    stylePanel.appendChild(styleField);
+
+    // Content controls: list of icons
+    const field = document.createElement('div');
+    field.className = 'ce-field';
+
+    const top = document.createElement('div');
+    top.style.display = 'flex';
+    top.style.alignItems = 'center';
+    top.style.justifyContent = 'space-between';
+    top.style.gap = '8px';
+    top.innerHTML = `
+      <label style="margin:0;">Social Links</label>
+      <button type="button" class="ce-btn-sm ce-primary" id="ceSocAdd"><i class="fa-solid fa-plus"></i> Add</button>
+    `;
+    field.appendChild(top);
+
+    const list = document.createElement('div');
+    list.style.display = 'flex';
+    list.style.flexDirection = 'column';
+    list.style.gap = '10px';
+    list.style.marginTop = '10px';
+    field.appendChild(list);
+
+    function rebuildList(){
+      list.innerHTML = '';
+      const links = Array.from(wrap.querySelectorAll('a'));
+
+      links.forEach((a, idx)=>{
+        const icon = a.querySelector('i') || a.appendChild(document.createElement('i'));
+        if(!icon.className) icon.className = 'fa-brands fa-linkedin-in';
+
+        const card = document.createElement('div');
+        card.style.border = '1px solid var(--ce-border)';
+        card.style.borderRadius = '6px';
+        card.style.padding = '8px';
+
+        const head = document.createElement('div');
+        head.style.display = 'flex';
+        head.style.alignItems = 'center';
+        head.style.gap = '8px';
+        head.style.marginBottom = '8px';
+
+        const title = document.createElement('strong');
+        title.style.fontSize = '12px';
+        title.textContent = `Icon ${idx+1}`;
+        head.appendChild(title);
+
+        const del = document.createElement('button');
+        del.type='button';
+        del.className='ce-btn-sm';
+        del.style.marginLeft='auto';
+        del.innerHTML = `<i class="fa-solid fa-trash"></i>`;
+        del.addEventListener('click', ()=>{
+          pushHistory();
+          a.remove();
+          syncExport();
+          rebuildList();
+        });
+        head.appendChild(del);
+
+        card.appendChild(head);
+
+        // Icon select + custom class
+        const iconLabel = document.createElement('label');
+        iconLabel.textContent = 'Icon';
+        card.appendChild(iconLabel);
+
+        const iconRow = document.createElement('div');
+        iconRow.style.display = 'flex';
+        iconRow.style.gap = '6px';
+
+        const sel = document.createElement('select');
+        const presets = [
+          ['fa-brands fa-facebook-f','Facebook'],
+          ['fa-brands fa-x-twitter','X (Twitter)'],
+          ['fa-brands fa-instagram','Instagram'],
+          ['fa-brands fa-linkedin-in','LinkedIn'],
+          ['fa-brands fa-youtube','YouTube'],
+          ['fa-brands fa-whatsapp','WhatsApp'],
+          ['fa-brands fa-telegram','Telegram'],
+          ['fa-brands fa-github','GitHub'],
+          ['fa-solid fa-globe','Website'],
+        ];
+        presets.forEach(([cls, name])=>{
+          const o = document.createElement('option');
+          o.value = cls;
+          o.textContent = name;
+          sel.appendChild(o);
+        });
+        // select best match if class equals one of preset
+        const currentCls = normalizeFA(icon.className);
+        if(presets.some(p=>normalizeFA(p[0])===currentCls)) sel.value = presets.find(p=>normalizeFA(p[0])===currentCls)[0];
+        else sel.value = presets[0][0];
+
+        const custom = document.createElement('input');
+        custom.type='text';
+        custom.placeholder = 'Custom FA class (optional)';
+        custom.value = icon.className;
+
+        sel.style.flex='1';
+        custom.style.flex='1';
+
+        iconRow.appendChild(sel);
+        iconRow.appendChild(custom);
+        card.appendChild(iconRow);
+
+        // URL
+        const urlLbl = document.createElement('label');
+        urlLbl.style.marginTop='8px';
+        urlLbl.textContent = 'URL';
+        card.appendChild(urlLbl);
+
+        const urlInp = document.createElement('input');
+        urlInp.type='text';
+        urlInp.value = a.getAttribute('href') || '';
+        card.appendChild(urlInp);
+
+        // new tab
+        const ntRow = document.createElement('div');
+        ntRow.style.display='flex';
+        ntRow.style.alignItems='center';
+        ntRow.style.gap='8px';
+        ntRow.style.marginTop='8px';
+        ntRow.innerHTML = `<input type="checkbox" ${a.getAttribute('target')==='_blank'?'checked':''}/> <span style="font-size:13px;">Open in new tab</span>`;
+        card.appendChild(ntRow);
+
+        // color
+        const colLbl = document.createElement('label');
+        colLbl.style.marginTop='8px';
+        colLbl.textContent = 'Icon Color';
+        card.appendChild(colLbl);
+
+        const colorInp = document.createElement('input');
+        colorInp.type='color';
+        colorInp.value = rgb2hex(getComputedStyle(icon).color);
+        colorInp.style.width='60px';
+        card.appendChild(colorInp);
+
+        // events
+        sel.addEventListener('change', ()=>{
+          pushHistory();
+          icon.className = sel.value;
+          custom.value = icon.className;
+          syncExport();
+        });
+
+        custom.addEventListener('input', ()=>{
+          pushHistory();
+          icon.className = custom.value;
+          syncExport();
+        });
+
+        urlInp.addEventListener('input', ()=>{
+          pushHistory();
+          a.setAttribute('href', urlInp.value);
+          syncExport();
+        });
+
+        ntRow.querySelector('input').addEventListener('change', (e)=>{
+          pushHistory();
+          if(e.target.checked){
+            a.setAttribute('target','_blank');
+            a.setAttribute('rel','noopener noreferrer');
+          } else {
+            a.removeAttribute('target');
+            a.removeAttribute('rel');
+          }
+          syncExport();
+        });
+
+        colorInp.addEventListener('input', ()=>{
+          pushHistory();
+          icon.style.color = colorInp.value;
+          syncExport();
+        });
+
+        list.appendChild(card);
+      });
+    }
+
+    field.querySelector('#ceSocAdd').addEventListener('click', ()=>{
+      const url = prompt('Link URL:', 'https://');
+      if(url === null) return;
+
+      pushHistory();
+      const a = document.createElement('a');
+      a.setAttribute('href', url || '#');
+      a.style.display='inline-flex';
+      a.style.alignItems='center';
+      a.style.justifyContent='center';
+      a.style.textDecoration='none';
+
+      const i = document.createElement('i');
+      i.className = 'fa-solid fa-globe';
+      i.style.color = '#6366f1';
+      i.style.fontSize = (guessIconSize(wrap)||22)+'px';
+      a.appendChild(i);
+
+      wrap.appendChild(a);
+      syncExport();
+      rebuildList();
+      renderInspector(block);
+    });
+
+    rebuildList();
+    panel.appendChild(field);
+
+    function normalizeFA(cls){ return (cls||'').trim().replace(/\s+/g,' '); }
+    function guessIconSize(container){
+      const i = container.querySelector('i');
+      if(!i) return 0;
+      const v = parseInt(getComputedStyle(i).fontSize||'0',10);
+      return Number.isFinite(v) ? v : 0;
+    }
+  }
+
+  function addCustomHTMLField(panel, block, html){
+    const htmlField=document.createElement('div');htmlField.className='ce-field';
+    htmlField.innerHTML=`<label>Custom HTML</label><textarea>${html}</textarea>`;
+    htmlField.querySelector('textarea').addEventListener('change',e=>{
+      pushHistory();
+      const handle=block.querySelector('.ce-block-handle');
+      const addBtns=[...block.querySelectorAll('.ce-add-inside')];
+      block.innerHTML=e.target.value;
+      if(handle) block.appendChild(handle);
+      addBtns.forEach(a=>block.appendChild(a));
+      bindAddInside(block);
+      syncExport();
+    });
+    panel.appendChild(htmlField);
+  }
+
+  /* ===== BOOT ===== */
+  window.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('ceCanvasEdit').addEventListener('click', e => {
+      if (e.target.closest('a')) e.preventDefault();
+    });
+
+    state.editEl   = document.getElementById('ceCanvasEdit');
+    state.outEl    = document.getElementById('ceCanvasExport');
+    state.markerEl = document.createElement('div');
+    state.markerEl.className = 'ce-drop-marker';
+
+    state.editEl.addEventListener('dragover', onDragOverCanvas);
+    state.editEl.addEventListener('drop',    onDropCanvas);
+
+    state.editEl.addEventListener('click', () => { deselect(); closePopup(); });
+
+    document.querySelectorAll('#list-elements .ce-component, #list-sections .ce-component')
+      .forEach(el => el.addEventListener('dragstart', onDragStartComponent));
+
+    document.getElementById('ceCloseModal').addEventListener('click', () => {
+      document.getElementById('ceModal').style.display = 'none';
+    });
+
+    document.getElementById('ceCodeRefresh').addEventListener('click', loadCodeFromExport);
+    document.getElementById('ceCodeApply').addEventListener('click', applyCodeToCanvas);
+
+    document.getElementById('ceUndo').addEventListener('click', undo);
+    document.getElementById('ceRedo').addEventListener('click', redo);
+
+    document.addEventListener('keydown', e => {
+      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === 'z') { e.preventDefault(); undo(); }
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'z') { e.preventDefault(); redo(); }
+      if (state.selectedBlock && e.altKey && e.key === 'ArrowUp') { e.preventDefault(); moveBlock(state.selectedBlock, 'up'); }
+      if (state.selectedBlock && e.altKey && e.key === 'ArrowDown') { e.preventDefault(); moveBlock(state.selectedBlock, 'down'); }
+    });
+
+    pushHistory();
+    syncExport();
+  });
+
+  window.CEBuilder = {
+    getHTML() { return (state.outEl?.innerHTML || '').trim(); },
+    getEmailHTML: getExportHTML,
+    setHTML(html) { rebuildEditFromExport(stripToBodyInner(html || '')); syncExport(); },
+    getDraft() { return document.getElementById('ceDraftExport').value; }
+  };
 
 })();
 </script>
