@@ -359,7 +359,7 @@
 <!-- Sidebar -->
 <aside id="sidebar" class="w3-sidebar" aria-label="Sidebar">
   <div class="w3-sidebar-head">
-    <a href="/dashboard" class="w3-brand">
+    <a href="/" class="w3-brand">
       <img id="logo" src="{{ asset('/assets/media/images/web/logo.png') }}" alt="W3Techiez">
       <span>W3Techiez</span>
     </a>
