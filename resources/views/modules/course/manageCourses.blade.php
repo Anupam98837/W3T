@@ -289,7 +289,7 @@ html.theme-dark .media-item{background:#0b1020;border-color:var(--line-strong)}
         </div>
 
         <div class="col-12 col-lg-auto ms-lg-auto d-flex justify-content-lg-end">
-          <a id="btnCreate" href="/admin/courses/create" class="btn btn-primary">
+          <a id="btnCreate" href="/courses/create" class="btn btn-primary">
             <i class="fa fa-plus me-1"></i>New Course
           </a>
         </div>
@@ -781,7 +781,7 @@ document.addEventListener('click', (e) => {
     return;
   }
   const btnCreateEl = document.getElementById('btnCreate');
-  if (btnCreateEl) btnCreateEl.setAttribute('href', basePanel + '/courses/create');
+  if (btnCreateEl) btnCreateEl.setAttribute('href','/courses/create');
 
   const okToast  = new bootstrap.Toast(document.getElementById('okToast'));
   const errToast = new bootstrap.Toast(document.getElementById('errToast'));
@@ -1239,7 +1239,7 @@ document.addEventListener('click', (e) => {
   }
 
   function goEdit(uuid){
-    location.href = `${basePanel}/courses/create?edit=${encodeURIComponent(uuid)}`;
+    location.href = `/courses/create?edit=${encodeURIComponent(uuid)}`;
   }
 
   // Handle dropdown actions

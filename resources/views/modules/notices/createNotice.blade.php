@@ -187,7 +187,7 @@
       <div class="err" data-for="attachments"></div>
 
       <div class="d-flex justify-content-between align-items-center mt-4">
-        <a id="cancel" class="btn btn-light" href="/admin/notice/manage">Cancel</a>
+        <a id="cancel" class="btn btn-light" href="/notice/manage">Cancel</a>
         <button id="btnSave" class="btn btn-primary" type="button">
           <span class="btn-spinner" aria-hidden="true"></span>
           <span class="btn-label"><i class="fa fa-floppy-disk me-1"></i>Create Notice</span>
@@ -1274,7 +1274,7 @@ function resolveFileUrl(u) {
       try{
         const res = await fetch(API_NOTICES, { method:'POST', headers:{ 'Authorization':'Bearer '+TOKEN, 'Accept':'application/json' }, body:fd });
         const json = await res.json().catch(()=> ({}));
-        if(res.ok){ ok('Notice created'); setTimeout(()=> location.replace('/admin/notice/manage'), 700); return; }
+        if(res.ok){ ok('Notice created'); setTimeout(()=> location.replace('/notice/manage'), 700); return; }
         if(res.status===422){
           const e = json.errors || {};
           if(e['attachments.*']) fErr('attachments', Array.isArray(e['attachments.*'])? e['attachments.*'][0] : String(e['attachments.*']));

@@ -328,7 +328,7 @@
         </div>
 
         <div class="d-flex justify-content-between align-items-center mt-3">
-          <a id="cancel1" class="btn btn-light" href="/admin/courses/manage">Cancel</a>
+          <a id="cancel1" class="btn btn-light" href="/courses/manage">Cancel</a>
           <button id="to2" class="btn btn-primary" type="button" disabled>Proceed</button>
         </div>
       </div>
@@ -432,7 +432,7 @@
         </div>
 
         <div class="d-flex justify-content-between align-items-center mt-3">
-          <a id="cancel3" class="btn btn-light" href="/super_admin/courses/manage">Cancel</a>
+          <a id="cancel3" class="btn btn-light" href="/courses/manage">Cancel</a>
           <div class="d-flex gap-2">
             <button id="btnDraft" type="button" class="btn btn-outline-primary">Save Draft</button>
             <button id="btnPublish" type="button" class="btn btn-primary">Save Course</button>
@@ -470,19 +470,9 @@
 
   // redirect base (role-aware; pulls role from sessionStorage or localStorage)
   function getBaseListForRole(roleStr){
-    if(!roleStr) return '/courses/manage';
-    const r = String(roleStr).toLowerCase().trim();
+  return '/courses/manage';
+}
 
-    // common mappings — adjust to match your backend routes
-    if(r.includes('super') || r.includes('super_admin')) return '/super_admin/courses/manage';
-    if(r.includes('admin'))   return '/admin/courses/manage';
-    if(r.includes('mentor'))  return '/mentor/courses/manage';
-    if(r.includes('instructor') || r.includes('teacher')) return '/instructor/courses/manage';
-    if(r.includes('student') || r.includes('user')) return '/courses/manage';
-
-    // fallback: build a path from raw role (replace spaces with underscore)
-    return `/${r.replace(/\s+/g,'_')}/courses/manage`;
-  }
 
   // prefer explicit session/local role values (role variable above already does this,
   // but re-check here to be extra-safe if someone changes the earlier const)

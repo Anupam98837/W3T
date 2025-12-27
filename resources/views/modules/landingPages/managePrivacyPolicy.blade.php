@@ -1,5 +1,4 @@
 {{-- resources/views/modules/privacy/manage.blade.php --}}
-@extends('pages.users.admin.layout.structure')
 
 @section('title','Manage Privacy Policy')
 

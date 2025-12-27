@@ -319,7 +319,7 @@
 
       {{-- Actions --}}
       <div class="d-flex justify-content-between align-items-center mt-4">
-        <a id="cancel" class="btn btn-light" href="/admin/assignments/manage">Cancel</a>
+        <a id="cancel" class="btn btn-light" href="/assignments/manage">Cancel</a>
         <button id="btnSave" class="btn btn-primary" type="button">
           <span class="btn-spinner" aria-hidden="true"></span>
           <span class="btn-label"><i class="fa fa-floppy-disk me-1"></i> <span id="saveBtnText">Create Assignment</span></span>
@@ -534,7 +534,7 @@
   const ok  = (m)=>{ $('okMsg').textContent  = m||'Done'; okToast.show(); };
   const err = (m)=>{ $('errMsg').textContent = m||'Something went wrong'; errToast.show(); };
 
-  const backList = '/admin/assignments/manage';
+  const backList = '/assignments/manage';
   const API_BASE = '/api/assignments';
   const COURSES_API = '/api/courses';
   const MODULES_API = '/api/course-modules';

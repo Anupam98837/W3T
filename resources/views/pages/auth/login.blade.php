@@ -376,7 +376,7 @@ input[type="password"]::-webkit-textfield-decoration-container {
     function rolePath(role){
       const r = (role || '').toString().trim().toLowerCase();
       if(!r) return '/dashboard';
-      return `/${r}/dashboard`;
+      return `/dashboard`;
     }
 
     // ---- Password eye toggle ----

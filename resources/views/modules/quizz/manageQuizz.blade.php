@@ -152,7 +152,7 @@ html.theme-dark .dropdown-menu{background:#0f172a;border-color:var(--line-strong
         </div>
 
         <div class="col-12 col-xl-auto ms-xl-auto d-flex justify-content-xl-end">
-          <a id="btnCreate" href="/admin/quizz/create" class="btn btn-primary">
+          <a id="btnCreate" href="/quizz/create" class="btn btn-primary">
             <i class="fa fa-plus me-1"></i>New Quiz
           </a>
         </div>
@@ -509,7 +509,7 @@ document.addEventListener('click', (e) => {
       .then(()=> location.href='/');
     return;
   }
-  document.getElementById('btnCreate').setAttribute('href', basePanel + '/quizz/create');
+  document.getElementById('btnCreate').setAttribute('href','/quizz/create');
 
   /* ========= Toast helpers ========= */
   const okToast  = new bootstrap.Toast(document.getElementById('okToast'));
@@ -814,12 +814,12 @@ document.addEventListener('click', (e) => {
     const name = it.dataset.name || 'this quiz';
 
     if (act==='edit'){
-      location.href = `${basePanel}/quizz/create?edit=${encodeURIComponent(key)}`;
+      location.href = `/quizz/create?edit=${encodeURIComponent(key)}`;
       return;
     }
     if (act==='questions'){
       // Redirect to manage questions page with quiz UUID
-      location.href = `${basePanel}/quizz/questions/manage?quiz=${encodeURIComponent(key)}`;
+      location.href = `/quizz/questions/manage?quiz=${encodeURIComponent(key)}`;
       return;
     }
     if (act==='notes'){

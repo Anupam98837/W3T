@@ -100,6 +100,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const showPageOverlay = () => { if (pageOverlay) pageOverlay.style.display = 'flex'; };
   const hidePageOverlay = () => { if (pageOverlay) pageOverlay.style.display = 'none'; };
 
+  hidePageOverlay();
+
   const fetchJson = async (url, opts = {}) => {
     const res = await fetch(url, { headers: { Accept: 'application/json' }, ...opts });
     if (!res.ok) {
@@ -265,50 +267,50 @@ document.addEventListener('DOMContentLoaded', () => {
     /* =========================
      Contacts bar (populate all matching containers: header + footer)
      ========================= */
-  const renderContactsBar = contacts => {
-    // find all containers that should receive the contact items
-    const containers = Array.from(document.querySelectorAll('#lpNavContact, .lp-nav-contact'));
-    if (!containers.length) {
-      console.warn('[Landing] no contact containers found (#lpNavContact or .lp-nav-contact)');
-      return;
-    }
+  // const renderContactsBar = contacts => {
+  //   // find all containers that should receive the contact items
+  //   const containers = Array.from(document.querySelectorAll('#lpNavContact, .lp-nav-contact'));
+  //   if (!containers.length) {
+  //     console.warn('[Landing] no contact containers found (#lpNavContact or .lp-nav-contact)');
+  //     return;
+  //   }
 
-    // If no contacts, hide all containers
-    if (!Array.isArray(contacts) || contacts.length === 0) {
-      containers.forEach(bar => {
-        bar.innerHTML = '';
-        bar.style.display = 'none';
-      });
-      return;
-    }
+  //   // If no contacts, hide all containers
+  //   if (!Array.isArray(contacts) || contacts.length === 0) {
+  //     containers.forEach(bar => {
+  //       bar.innerHTML = '';
+  //       bar.style.display = 'none';
+  //     });
+  //     return;
+  //   }
 
-    // For each container, render the same items
-    containers.forEach(bar => {
-      bar.innerHTML = '';           // clear previous
-      bar.style.display = '';       // show container
+  //   // For each container, render the same items
+  //   containers.forEach(bar => {
+  //     bar.innerHTML = '';           // clear previous
+  //     bar.style.display = '';       // show container
 
-      contacts.forEach(item => {
-        const span = document.createElement('span');
-        span.style.display = 'inline-flex';
-        span.style.alignItems = 'center';
-        span.style.gap = '6px';
-        span.style.marginRight = '10px'; // slight spacing between items
+  //     contacts.forEach(item => {
+  //       const span = document.createElement('span');
+  //       span.style.display = 'inline-flex';
+  //       span.style.alignItems = 'center';
+  //       span.style.gap = '6px';
+  //       span.style.marginRight = '10px'; // slight spacing between items
 
-        if (item.icon) {
-          const i = document.createElement('i');
-          i.className = item.icon;
-          i.setAttribute('aria-hidden', 'true');
-          span.appendChild(i);
-        }
+  //       if (item.icon) {
+  //         const i = document.createElement('i');
+  //         i.className = item.icon;
+  //         i.setAttribute('aria-hidden', 'true');
+  //         span.appendChild(i);
+  //       }
 
-        // allow string or html-safe content; prefer plain text
-        const textNode = document.createTextNode(item.value || '');
-        span.appendChild(textNode);
+  //       // allow string or html-safe content; prefer plain text
+  //       const textNode = document.createTextNode(item.value || '');
+  //       span.appendChild(textNode);
 
-        bar.appendChild(span);
-      });
-    });
-  };
+  //       bar.appendChild(span);
+  //     });
+  //   });
+  // };
 
   const loadLandingContacts = async () => {
     const data = await fetchJson("{{ url('api/landing/contact') }}");
@@ -316,7 +318,7 @@ document.addEventListener('DOMContentLoaded', () => {
       console.warn('[Landing] contacts payload invalid', data);
       return;
     }
-    renderContactsBar(data.data);
+    // renderContactsBar(data.data);
   };
 
   loadLandingContacts();
@@ -655,39 +657,41 @@ const renderCategoriesGrid = categories => {
   };
 
   const loginBtn = qs('#lpLoginBtn');
-  if (loginBtn) {
-    const token = sessionStorage.getItem('token') || localStorage.getItem('token');
-    let role = '';
+if (loginBtn) {
+  const token = sessionStorage.getItem('token') || localStorage.getItem('token');
+  let role = '';
 
-    const setButtonLabel = isLoggedIn => {
-      loginBtn.textContent = isLoggedIn ? 'Dashboard' : 'Log in';
-    };
-    setButtonLabel(false);
+  const setButtonLabel = isLoggedIn => {
+    loginBtn.textContent = isLoggedIn ? 'Dashboard' : 'Log in';
+  };
 
-    if (token) {
-      showPageOverlay();
-      getMyRole(token)
-        .then(r => {
-          role = r || '';
-          setButtonLabel(!!role);
-        })
-        .catch(err => {
-          console.error('[Landing] role fetch error:', err);
-          role = '';
-          setButtonLabel(false);
-        })
-        .finally(hidePageOverlay);
-    }
+  setButtonLabel(false);
 
-    loginBtn.addEventListener('click', () => {
-      const currentToken = sessionStorage.getItem('token') || localStorage.getItem('token');
-      if (currentToken && role) {
-        window.location.assign(`/${role}/dashboard`);
-      } else {
-        window.location.assign('/login');
-      }
-    });
+  // ✅ if token not present, ensure overlay is hidden
+  if (!token) {
+    hidePageOverlay();
+  } else {
+    showPageOverlay();
+    getMyRole(token)
+      .then(r => {
+        role = r || '';
+        setButtonLabel(!!role);
+      })
+      .catch(err => {
+        console.error('[Landing] role fetch error:', err);
+        role = '';
+        setButtonLabel(false);
+      })
+      .finally(hidePageOverlay);
   }
+
+  loginBtn.addEventListener('click', () => {
+    const currentToken = sessionStorage.getItem('token') || localStorage.getItem('token');
+    if (currentToken && role) window.location.assign(`/dashboard`);
+    else window.location.assign('/login');
+  });
+}
+
 
 
   /* =========================

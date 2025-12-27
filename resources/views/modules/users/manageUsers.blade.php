@@ -452,6 +452,7 @@ document.addEventListener('DOMContentLoaded', function(){
       <ul class="dropdown-menu dropdown-menu-end">
         <li><button type="button" class="dropdown-item" data-action="view"><i class="fa fa-eye"></i> View</button></li>
         ${canWrite?`<li><button type="button" class="dropdown-item" data-action="edit"><i class="fa fa-pen"></i> Edit</button></li>`:''}
+          <li><button type="button" class="dropdown-item" data-action="assign-privilege"><i class="fa fa-key"></i> Assign Privilege</button></li>
         <li><button type="button" class="dropdown-item" data-action="manage-privileges"><i class="fa fa-shield-alt"></i> Manage Privileges</button></li>
         ${canDelete?`<li><hr class="dropdown-divider"></li><li><button type="button" class="dropdown-item text-danger" data-action="delete"><i class="fa fa-trash"></i> Delete</button></li>`:''}
       </ul>
@@ -626,6 +627,16 @@ filterModalEl.addEventListener('hidden.bs.modal', () => {
     if(act==='view'){
       spin(); openEdit(id,true).finally(un);
     }
+
+    /* ---------- ASSIGN PRIVILEGE (same as previous page) ---------- */
+    else if (act === 'assign-privilege') {
+      // same-tab redirect
+      closeDropdown(btn);
+      window.location.href =
+        `/user-privileges/manage?user_uuid=${encodeURIComponent(rowUuid)}&user_id=${encodeURIComponent(id)}`;
+      return;
+    }
+
 
     /* ---------- EDIT ---------- */
     else if(act==='edit'){

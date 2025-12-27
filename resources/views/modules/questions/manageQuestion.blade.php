@@ -1511,7 +1511,7 @@ previewOverlay?.addEventListener('click', function(e){
 
 
 document.getElementById('btnBack')?.addEventListener('click', function(){
-  location.href = `/${ROLE}/quizz/manage`;
+  location.href = `/quizz/manage`;
 });
 
 document.getElementById('btnHelp')?.addEventListener('click', function(){

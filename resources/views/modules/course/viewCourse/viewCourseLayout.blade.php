@@ -510,6 +510,21 @@
       color: var(--muted-color);
       font-size: var(--fs-13);
     }
+    /* ===== View Course Page Overlay ===== */
+    #vcPageOverlay{
+      position: absolute;
+      inset: 0;
+      z-index: 50;
+      display: none; /* IMPORTANT */
+      align-items: center;
+      justify-content: center;
+      background: color-mix(in oklab, var(--bg-body) 85%, transparent);
+    }
+
+    html.theme-dark #vcPageOverlay{
+      background: rgba(2,6,23,.75);
+    }
+
     #tabContent.is-loading .vc-tab-spinner{ display:flex; }
 
     .vc-dot{
@@ -533,7 +548,10 @@
 <body class="vc-mode-full" data-initial-tab="{{ $tabKey }}">
 
   {{-- Global overlay loader (shared partial) --}}
+{{-- Page-scoped overlay (hidden by default) --}}
+<div id="vcPageOverlay" style="display:none">
   @include('partials.overlay')
+</div>
 
   <main class="vc-wrap">
     <div class="vc-grid" id="vcGrid">
@@ -541,6 +559,7 @@
       {{-- ================= LEFT: Sidebar ================= --}}
       <aside class="vc-aside" id="vcAside">
         <div class="panel shadow-1">
+
 
           <div class="d-flex justify-content-between align-items-center mb-3">
             <a href="javascript:void(0)" class="aside-back-btn" id="asideBackBtn">
@@ -689,8 +708,16 @@ document.addEventListener('DOMContentLoaded', async () => {
   const qs  = (sel) => document.querySelector(sel);
 
   // Use global overlay helpers from partials.overlay
-  const showPageOverlay = () => { if (window.showOverlay) window.showOverlay(); };
-  const hidePageOverlay = () => { if (window.hideOverlay) window.hideOverlay(); };
+  const vcOverlay = document.getElementById('vcPageOverlay');
+
+    const showPageOverlay = () => {
+      if (vcOverlay) vcOverlay.style.display = 'flex';
+    };
+
+    const hidePageOverlay = () => {
+      if (vcOverlay) vcOverlay.style.display = 'none';
+    };
+
 
   // ✅ DEFAULT is FULL mode now (no intro screen)
   document.body.classList.add('vc-mode-full');
@@ -854,11 +881,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Role-aware back button
   const roleCoursesUrl = (r) => {
-    r = normalizeRole(r);
-    if (r === 'student') return "/student/courses";
-    if (r === 'instructor') return "/instructor/courses";
-    if (r === 'admin' || r.includes('admin')) return "/admin/courses";
-    return "/courses";
+
+    return "/running-courses";
   };
 
   (function setupBackToCourses() {

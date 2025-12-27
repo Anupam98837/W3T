@@ -1,4 +1,3 @@
-@extends('pages.users.admin.layout.structure')
 
 @section('title','Manage Hero Images')
 

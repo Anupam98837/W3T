@@ -185,9 +185,9 @@ html.theme-dark .lib-overlay-check {
         {{-- Create --}}
         <a
           id="btnCreate"
-          href="/admin/course/studyMaterial/create"
+          href="/study-material/create"
           class="btn btn-primary"
-          data-create-url="/admin/course/studyMaterial/create"
+          data-create-url="/study-material/create"
           disabled
         >
           <i class="fa fa-plus me-1"></i> New Material
@@ -977,7 +977,7 @@ function renderModuleTable(){
   rowsEl.querySelectorAll('[data-act="create-under-module"]').forEach(btn=>{
     btn.addEventListener('click',()=>{
       const mId = btn.dataset.moduleId;
-      const base = btnCreate.dataset.createUrl || '/admin/course/studyMaterial/create';
+      const base = btnCreate.dataset.createUrl || '/study-material/create';
       const qs = new URLSearchParams({
         course_id: courseSel.value,
         course_module_id: mId,

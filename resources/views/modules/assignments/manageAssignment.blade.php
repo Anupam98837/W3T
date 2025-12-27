@@ -57,7 +57,7 @@
       <div class="col-12 col-xl-auto ms-xl-auto d-flex justify-content-xl-end gap-2">
         <button type="button" id="btnFilters" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#asFilterModal"><i class="fa fa-filter me-1"></i> Filters</button>
 
-        <a id="btnCreate" href="/admin/assignments/create" class="btn btn-primary" data-create-url="/admin/assignments/create" disabled>
+        <a id="btnCreate" href="/assignments/create" class="btn btn-primary" data-create-url="/assignments/create" disabled>
           <i class="fa fa-plus me-1"></i> New Assignment
         </a>
       </div>
@@ -735,7 +735,7 @@ async function getMyRole(token){
     // Instructor/Admin
     const editHtml = PERM.canEdit ? `
       <li>
-        <a class="dropdown-item" href="/admin/assignments/create?edit=${encodeURIComponent(r.uuid || r.id)}">
+        <a class="dropdown-item" href="/assignments/create?edit=${encodeURIComponent(r.uuid || r.id)}">
           <i class="fa fa-pen-to-square"></i> Edit
         </a>
       </li>

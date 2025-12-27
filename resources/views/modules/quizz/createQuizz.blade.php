@@ -245,7 +245,7 @@
 
       {{-- Actions --}}
       <div class="d-flex justify-content-between align-items-center mt-4">
-        <a id="cancel" class="btn btn-light" href="/admin/quizz/manage">Cancel</a>
+        <a id="cancel" class="btn btn-light" href="/quizz/manage">Cancel</a>
         <button id="btnSave" class="btn btn-primary" type="button">
           <span class="btn-spinner" aria-hidden="true"></span>
           <span class="btn-label"><i class="fa fa-floppy-disk me-1"></i> <span id="saveBtnText">Create Quiz</span></span>

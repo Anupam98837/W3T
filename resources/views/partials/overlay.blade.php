@@ -1,5 +1,5 @@
 {{-- resources/views/partials/overlay.blade.php --}}
-<div id="pageOverlay" class="w3-loader-overlay" style="display:none;">
+<div id="pageOverlay" class="w3-loader-overlay">
     <div class="w3-loader-backdrop"></div>
 
     <div class="w3-loader-inner">

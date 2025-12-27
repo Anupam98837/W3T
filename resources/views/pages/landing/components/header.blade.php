@@ -1701,7 +1701,6 @@
     <div class="lp-nav-inner">
       <a href="/" class="lp-brand">
         <img src="{{ asset('/assets/media/images/web/logo.png') }}" alt="W3Techiez">
-        <span>W3Techiez</span>
       </a>
   
       <div class="lp-nav-links">
@@ -1805,11 +1804,8 @@
 
       <div class="lp-nav-actions">
         <!-- Top contact info -->
-        <div class="lp-nav-contact"  id="lpNavContact">
-          <!-- <span><i class="fa-solid fa-phone"></i> +91-98765-43210</span>
-          <span><i class="fa-brands fa-whatsapp"></i> WhatsApp: +91-98765-43210</span>
-          <span><i class="fa-solid fa-envelope"></i> support@w3techiez.com</span> -->
-        </div>
+        {{-- <div class="lp-nav-contact"  id="lpNavContact">
+        </div> --}}
 
         <button class="lp-btn-primary" id="lpLoginBtn" type="button">Log in</button>
         {{-- <button class="lp-btn-primary" type="button">Sign up for free</button> --}}

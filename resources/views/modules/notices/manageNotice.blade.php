@@ -147,7 +147,7 @@ html.theme-dark .dropdown-menu{background:#0f172a;border-color:var(--line-strong
     </button>
 
     <!-- Create Button -->
-     <a id="btnCreate" href="{{ url('admin/notice/create') }}" class="btn btn-primary">
+     <a id="btnCreate" href="{{ url('/notice/create') }}" class="btn btn-primary">
 
       <i class="fa fa-plus"></i> New Notice
     </a>
