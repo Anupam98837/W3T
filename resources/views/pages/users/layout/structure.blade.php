@@ -395,8 +395,8 @@
           <div id="sm-courses" class="w3-submenu" role="group" aria-label="Courses submenu">
             <a href="/courses/manage" class="w3-link">All Courses</a>
             <a href="/courses/create" class="w3-link" style="display:none">Create Course</a>
-            <a href="/courses/categories/manage" class="w3-link">Categories</a>
-            <a href="/courses/running" class="w3-link">Running Courses</a>
+            <a href="/course-categories/manage" class="w3-link">Categories</a>
+            <a href="/running-courses" class="w3-link">Running Courses</a>
             <a href="/batches/manage" class="w3-link">Batches</a>
           </div>
         </div>
@@ -407,7 +407,7 @@
             <i class="fa fa-chevron-down w3-chev"></i>
           </a>
           <div id="sm-course-modules" class="w3-submenu" role="group" aria-label="Course Modules submenu">
-            <a href="/coursesModule/manage" class="w3-link">All Course Modules</a>
+            <a href="/courses-module/manage" class="w3-link">All Course Modules</a>
           </div>
         </div>
 

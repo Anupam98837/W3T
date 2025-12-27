@@ -22,7 +22,7 @@ class CodingQuestionController extends Controller
             abort(404, 'Topic or Module not found.');
         }
 
-        return view('pages.users.admin.pages.codingQuestions.manageCodingQuestions', [
+        return view('pages.users.pages.codingQuestions.manageCodingQuestions', [
             'topic_id'    => $topic->id,
             'topic_name'  => $topic->title ?? 'Topic',
             'module_id'   => $module->id,

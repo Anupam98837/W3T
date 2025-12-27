@@ -473,7 +473,7 @@
         row.status === 'inactive' ? '<span class="badge bg-danger badge-status">inactive</span>' :
         '<span class="badge bg-secondary badge-status">archived</span>';
 
-        const manageUrl = `/admin/topics/${topicId}/modules/${row.id}/questions`;
+        const manageUrl = `/topics/${topicId}/modules/${row.id}/questions`;
 
         return `
         <tr data-id="${row.id}" data-topic="${topicId}" draggable="true">

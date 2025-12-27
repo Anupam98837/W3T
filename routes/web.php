@@ -33,7 +33,7 @@ Route::get('/contact-us', fn () => view('pages.landing.pages.contactUs'));
 
 Route::get('/blog/view/{slug}', fn ($slug) => view('pages.landing.pages.viewBlog'));
 
-Route::get('/courses/categories/manage', fn () => view('pages.users.pages.course.manageCategories'));
+Route::get('/course-categories/manage', fn () => view('pages.users.pages.course.manageCategories'));
 
 /*
 |--------------------------------------------------------------------------
@@ -60,7 +60,7 @@ Route::get('/users/manage', fn () => view('pages.users.pages.users.manageUsers')
 /* Courses */
 Route::get('/courses/create', fn () => view('pages.users.pages.course.createCourse'));
 Route::get('/courses/manage', fn () => view('pages.users.pages.course.manageCourses'));
-Route::get('/coursesModule/manage', fn () => view('pages.users.pages.course.manageCourseModule'));
+Route::get('/courses-module/manage', fn () => view('pages.users.pages.course.manageCourseModule'));
 Route::get('/running-courses', fn () => view('pages.users.pages.course.courses')); // was /admin/courses
 
 // Module view course layout (keep)
