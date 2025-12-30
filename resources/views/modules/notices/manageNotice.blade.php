@@ -758,7 +758,7 @@ function wire(){
 /* =================== LOADERS =================== */
 async function loadCourses(){
   try{
-    const res=await fetch('/api/courses?status=published&per_page=1000',{
+    const res=await fetch('/api/courses/my?status=published&per_page=1000',{
       headers:{Authorization:'Bearer '+TOKEN,Accept:'application/json'}
     });
     const j=await res.json();

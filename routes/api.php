@@ -35,10 +35,10 @@ use App\Http\Controllers\API\AboutUsController;
 use App\Http\Controllers\API\ContactUsController;
 use App\Http\Controllers\API\CodingResultController;
 use App\Http\Controllers\API\BlogController;
+use App\Http\Controllers\API\ForgotPasswordController;
 
 
 // Auth Routes
- 
 Route::post('/auth/login',  [UserController::class, 'login']);
 Route::post('/auth/logout', [UserController::class, 'logout'])
     ->middleware('checkRole');
@@ -49,8 +49,12 @@ Route::post('/auth/register', [UserController::class, 'register']);
 Route::get('/user', function (Request $request) {
     return $request->user();
 })->middleware('auth:sanctum');
- 
- 
+
+Route::post('/auth/forgot-password/send-otp', [ForgotPasswordController::class, 'sendOtp']);
+Route::post('/auth/forgot-password/verify-otp', [ForgotPasswordController::class, 'verifyOtp']);
+Route::post('/auth/forgot-password/reset', [ForgotPasswordController::class, 'resetPassword']);
+
+
  
 // Users Routes
  

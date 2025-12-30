@@ -57,11 +57,14 @@ class UserPrivilegeController extends Controller
      * - $withTrashed=false => only active row
      */
     private function getUserPrivilegeRow(int $userId, bool $withTrashed = true): ?object
-    {
-        $q = DB::table('user_privileges')->where('user_id', $userId);
-        if (!$withTrashed) $q->whereNull('deleted_at');
-        return $q->first();
-    }
+{
+    $q = DB::table('user_privileges')->where('user_id', $userId);
+    if (!$withTrashed) $q->whereNull('deleted_at');
+
+    // ✅ Always pick the newest row (prevents random "first()" row)
+    return $q->orderByDesc('id')->first();
+}
+
 
     /** Simple guard: actor can view self or (admin/super_admin) can view others. */
     private function canViewUserModules(array $actor, int $targetUserId): bool
@@ -247,38 +250,55 @@ class UserPrivilegeController extends Controller
      * - Stores tree into `privileges` JSON column (your migration)
      */
     private function upsertUserPrivilegesRow(Request $r, int $userId, array $tree, array $actor, $now): object
-    {
-        $row = $this->getUserPrivilegeRow($userId, true);
+{
+    // ✅ Keep only ONE row per user: newest row wins
+    $rows = DB::table('user_privileges')
+        ->where('user_id', $userId)
+        ->orderByDesc('id')
+        ->get(['id','deleted_at']);
 
-        // store as JSON string (works reliably for JSON column in all drivers)
-        $payloadToStore = json_encode($tree);
+    $keep = $rows->first();
 
-        if ($row) {
-            DB::table('user_privileges')
-                ->where('id', $row->id)
-                ->update([
-                    'privileges'    => $payloadToStore,
-                    'assigned_by'   => $actor['id'] ?: null,
-                    'created_at_ip' => $r->ip(),
-                    'deleted_at'    => null, // ✅ revive if soft-deleted
-                    'updated_at'    => $now,
-                ]);
-
-            return DB::table('user_privileges')->where('id', $row->id)->first();
-        }
-
-        $id = DB::table('user_privileges')->insertGetId([
-            'uuid'          => (string) Str::uuid(),
-            'user_id'       => $userId,
-            'privileges'    => $payloadToStore,
-            'assigned_by'   => $actor['id'] ?: null,
-            'created_at_ip' => $r->ip(),
-            'created_at'    => $now,
-            'updated_at'    => $now,
-        ]);
-
-        return DB::table('user_privileges')->where('id', $id)->first();
+    // Soft-delete all other rows (active OR trashed) to avoid future confusion
+    $dupIds = $rows->skip(1)->pluck('id')->all();
+    if (!empty($dupIds)) {
+        DB::table('user_privileges')
+            ->whereIn('id', $dupIds)
+            ->update([
+                'deleted_at' => $now,
+                'updated_at' => $now,
+            ]);
     }
+
+    $payloadToStore = json_encode($tree);
+
+    if ($keep) {
+        DB::table('user_privileges')
+            ->where('id', $keep->id)
+            ->update([
+                'privileges'    => $payloadToStore,
+                'assigned_by'   => $actor['id'] ?: null,
+                'created_at_ip' => $r->ip(),
+                'deleted_at'    => null, // ✅ revive the kept row if it was trashed
+                'updated_at'    => $now,
+            ]);
+
+        return DB::table('user_privileges')->where('id', $keep->id)->first();
+    }
+
+    $id = DB::table('user_privileges')->insertGetId([
+        'uuid'          => (string) Str::uuid(),
+        'user_id'       => $userId,
+        'privileges'    => $payloadToStore,
+        'assigned_by'   => $actor['id'] ?: null,
+        'created_at_ip' => $r->ip(),
+        'created_at'    => $now,
+        'updated_at'    => $now,
+    ]);
+
+    return DB::table('user_privileges')->where('id', $id)->first();
+}
+
 /**
  * Build TREE structure in required format:
  * [
@@ -369,7 +389,7 @@ private function buildTreeFromPrivilegeIds(array $privIds): array
         'user_id'   => 'sometimes|integer|exists:users,id',
         'user_uuid' => 'sometimes|uuid|exists:users,uuid',
 
-        'tree' => 'required|array|min:1',
+        'tree' => 'sometimes|array|min:0',
 
         // header
         'tree.*.id' => 'required|integer|min:0',

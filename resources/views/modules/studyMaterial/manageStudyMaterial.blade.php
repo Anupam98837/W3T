@@ -9,11 +9,22 @@
 /* ===== Shell ===== */
 .sm-wrap{max-width:1140px;margin:16px auto 40px;overflow:visible}
 
+/* ✅ FIX (Dropdown clipped / not visible inside .table-responsive) */
+.table-wrap{overflow:visible}
+.table-wrap .table-responsive{overflow-x:auto; overflow-y:visible; position:relative}
+.module-materials .table-responsive{overflow-x:auto; overflow-y:visible; position:relative}
+
 /* Dropdowns in table */
 .table-wrap .dropdown{position:relative;z-index:6}
-.table-wrap .dd-toggle{position:relative;z-index:7}
-.dropdown [data-bs-toggle="dropdown"]{border-radius:10px}
-.table-wrap .dropdown-menu{border-radius:12px;border:1px solid var(--line-strong);box-shadow:var(--shadow-2);min-width:220px;z-index:5000}
+.table-wrap .dd-toggle{position:relative;z-index:7;border-radius:10px}
+
+/* ✅ safety: if any global css forces dropdown-menu hidden, ensure .show wins */
+.dropdown-menu.show{display:block !important}
+
+.table-wrap .dropdown-menu{
+  border-radius:12px;border:1px solid var(--line-strong);
+  box-shadow:var(--shadow-2);min-width:220px;z-index:5000
+}
 .dropdown-item{display:flex;align-items:center;gap:.6rem}
 .dropdown-item i{width:16px;text-align:center}
 .dropdown-item.text-danger{color:var(--danger-color)!important}
@@ -63,32 +74,18 @@ html.theme-dark .dropdown-menu{background:#0f172a;border-color:var(--line-strong
 }
 
 /* Library file cards */
-.library-file {
-  transition: all 0.2s ease;
-}
-
+.library-file { transition: all 0.2s ease; }
 .library-file:hover {
   transform: translateY(-2px);
   box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15) !important;
 }
-
-.library-file.border-primary {
-  border-width: 2px !important;
-}
+.library-file.border-primary { border-width: 2px !important; }
 
 /* File list items */
-.list-group-item {
-  transition: all 0.2s ease;
-}
+.list-group-item { transition: all 0.2s ease; }
+.list-group-item:hover { background-color: #f8f9fa; }
 
-.list-group-item:hover {
-  background-color: #f8f9fa;
-}
-
-.library-card {
-  position: relative;
-  overflow: hidden;
-}
+.library-card { position: relative; overflow: hidden; }
 
 .lib-overlay-check {
   position: absolute;
@@ -100,11 +97,7 @@ html.theme-dark .dropdown-menu{background:#0f172a;border-color:var(--line-strong
   border-radius: 999px;
   box-shadow: 0 1px 3px rgba(0,0,0,0.12);
 }
-
-html.theme-dark .lib-overlay-check {
-  background: rgba(15,23,42,0.9);
-}
-
+html.theme-dark .lib-overlay-check { background: rgba(15,23,42,0.9); }
 </style>
 @endpush
 
@@ -188,7 +181,6 @@ html.theme-dark .lib-overlay-check {
           href="/study-material/create"
           class="btn btn-primary"
           data-create-url="/study-material/create"
-          disabled
         >
           <i class="fa fa-plus me-1"></i> New Material
         </a>
@@ -354,7 +346,7 @@ html.theme-dark .lib-overlay-check {
       <div class="modal-footer">
         <button class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
 
-        {{-- (CHANGE #2) spinner inside Save button --}}
+        {{-- spinner inside Save button --}}
         <button id="em_save" class="btn btn-primary d-inline-flex align-items-center">
           <span id="em_save_spin" class="spinner-border spinner-border-sm me-2 d-none" role="status" aria-hidden="true"></span>
           <i id="em_save_icon" class="fa fa-save me-1"></i>
@@ -487,6 +479,7 @@ if (!TOKEN){
   Swal.fire('Login needed','Your session expired. Please login again.','warning')
     .then(()=> location.href='/');
 }
+
 async function getMyRole(token){
   if(!token) return '';
   try{
@@ -496,8 +489,6 @@ async function getMyRole(token){
     });
     if(!res.ok) return '';
     const data = await res.json().catch(()=>null);
-
-    // accept {status:'success', role:'x'} or {success:true, role:'x'} or {role:'x'}
     const role = data?.role;
     return role ? String(role).trim().toLowerCase() : '';
   }catch(_){
@@ -519,31 +510,32 @@ async function initRoleAndPermissions(){
 
   const isAdmin = r.includes('admin') || r.includes('super_admin') || r.includes('superadmin');
   const isInstructor = r.includes('instructor');
-  const isStudent = r.includes('student') || (!isAdmin && !isInstructor); // safe fallback
+  const isStudent = r.includes('student') || (!isAdmin && !isInstructor);
 
-  // ✅ your rules
   PERM = {
-    canSeeBin: isAdmin,              // student/instructor: no bin
-    canCreate: !isStudent,           // student: no create
-    canEdit: isAdmin,                // instructor: edit hidden
-    canDelete: isAdmin || isInstructor // student: delete hidden
+    canSeeBin: isAdmin,
+    canCreate: !isStudent,
+    canEdit: isAdmin,
+    canDelete: isAdmin || isInstructor
   };
 
   applyRoleUI();
 }
 
 function applyRoleUI(){
-  // Bin tab
   if (smTabBin && !PERM.canSeeBin) smTabBin.style.display = 'none';
 
-  // Create button
   if(btnCreate){
     if(!PERM.canCreate){
       btnCreate.style.display = 'none';
-      btnCreate.disabled = true;
+      btnCreate.classList.add('disabled');
+      btnCreate.setAttribute('aria-disabled','true');
+      btnCreate.setAttribute('tabindex','-1');
     } else {
       btnCreate.style.display = '';
-      btnCreate.disabled = !batchSel?.value || scope === 'bin';
+      btnCreate.classList.remove('disabled');
+      btnCreate.removeAttribute('tabindex');
+      btnCreate.setAttribute('aria-disabled','false');
     }
   }
 }
@@ -615,7 +607,6 @@ const metaTxt     = document.getElementById('metaTxt');
 
 const listToolbar = document.getElementById('listToolbar');
 const perPageSel  = document.getElementById('perPageSel');
-const btnFilters  = document.getElementById('btnFilters');
 const toolbarPanel = listToolbar ? listToolbar.closest('.panel') : null;
 
 const smTabActive   = document.getElementById('smTabActive');
@@ -653,12 +644,18 @@ function setScope(newScope){
     if (scope === 'bin') {
       listToolbar.classList.add('opacity-75');
       q.disabled = true;
-      if (btnCreate) btnCreate.disabled = true;
     } else {
       listToolbar.classList.remove('opacity-75');
       q.disabled = !batchSel.value;
-      if (btnCreate) btnCreate.disabled = !batchSel.value;
     }
+  }
+
+  // create button gating (anchor needs bootstrap disabled class)
+  if(btnCreate){
+    const shouldDisable = (!PERM.canCreate) || (!batchSel.value) || (scope === 'bin');
+    btnCreate.classList.toggle('disabled', shouldDisable);
+    btnCreate.setAttribute('aria-disabled', shouldDisable ? 'true' : 'false');
+    if(shouldDisable) btnCreate.setAttribute('tabindex','-1'); else btnCreate.removeAttribute('tabindex');
   }
 
   page = 1;
@@ -676,29 +673,49 @@ function setScope(newScope){
 }
 
 /* =================== INIT =================== */
-loadCourses();
-wire();
-setScope('active');
+(async function boot(){
+  await initRoleAndPermissions().catch(()=>{});
+  await loadCourses();
+  wire();
+  setScope('active');
+})();
 
 function enableFilters(on){
   [batchSel, q].forEach(el=> el.disabled = !on);
-  btnCreate.disabled = !on || scope === 'bin';
+  if(btnCreate){
+    const shouldDisable = (!PERM.canCreate) || (!on) || (scope === 'bin');
+    btnCreate.classList.toggle('disabled', shouldDisable);
+    btnCreate.setAttribute('aria-disabled', shouldDisable ? 'true' : 'false');
+    if(shouldDisable) btnCreate.setAttribute('tabindex','-1'); else btnCreate.removeAttribute('tabindex');
+  }
 }
 
 function wire(){
 
-  /* ========= Dropdown buttons ========= */
+  /* ✅ FIX (Action dropdown not opening): intercept toggle click in CAPTURE phase,
+     stop Bootstrap Data-API from double-toggling. */
   document.addEventListener('click', (e)=>{
     const btn = e.target.closest('.dd-toggle');
     if(!btn) return;
-    e.preventDefault(); e.stopPropagation();
+
+    e.preventDefault();
+    e.stopPropagation();
+    e.stopImmediatePropagation();
+
+    // close other open dropdowns
+    document.querySelectorAll('.dd-toggle').forEach(other=>{
+      if(other !== btn){
+        try{ bootstrap.Dropdown.getOrCreateInstance(other).hide(); }catch(_){}
+      }
+    });
+
     const dd = bootstrap.Dropdown.getOrCreateInstance(btn, {
       autoClose: 'outside',
       boundary: 'viewport',
       popperConfig: { strategy: 'fixed' }
     });
     dd.toggle();
-  });
+  }, true);
 
   /* ========= Column sorting ========= */
   document.querySelectorAll('thead th.sortable').forEach(th=>{
@@ -736,6 +753,7 @@ function wire(){
   batchSel.addEventListener('change', ()=>{
     moduleMaterialsCache.clear();
     if(batchSel.value){
+      setScope(scope); // refresh create disabled state + rerender
       renderModuleTable();
     }else{
       rowsEl.querySelectorAll('tr:not(#loaderRow):not(#ask)').forEach(n=>n.remove());
@@ -743,6 +761,7 @@ function wire(){
       askEl.style.display='';
       pager.innerHTML='';
       metaTxt.textContent='—';
+      setScope(scope);
     }
   });
 
@@ -788,20 +807,30 @@ function wire(){
     });
     smTabBin.addEventListener('click', (e)=>{
       e.preventDefault();
+      if (!PERM.canSeeBin) return;
       if (scope !== 'bin') setScope('bin');
     });
   }
 
+  /* ========= Actions (single delegated handler) ========= */
   document.addEventListener('click', (e)=>{
     const item=e.target.closest('.dropdown-item[data-act]');
     if(!item) return;
     e.preventDefault();
+
     const act=item.dataset.act, id=item.dataset.id, uuid=item.dataset.uuid;
+
+    // permission gating
+    if(act==='edit'   && !PERM.canEdit)   return;
+    if((act==='delete' || act==='purge') && !PERM.canDelete) return;
+    if((act==='restore' || act==='purge') && !PERM.canSeeBin) return;
+
     if(act==='view')    openView(uuid);
     if(act==='edit')    openEdit(id);
     if(act==='delete')  deleteItem(id);
     if(act==='purge')   purgeItem(id);
     if(act==='restore') restoreItem(id);
+
     const toggle=item.closest('.dropdown')?.querySelector('.dd-toggle');
     if(toggle) bootstrap.Dropdown.getOrCreateInstance(toggle).hide();
   });
@@ -901,10 +930,10 @@ function renderModuleTable(){
       <td colspan="3" class="text-muted small">Module under "${H.esc(courseSel.options[courseSel.selectedIndex]?.text || '')}"</td>
       <td>-</td>
       <td class="text-end">
-        <button class="btn btn-sm btn-primary" data-act="create-under-module" data-module-id="${modId}" style="display:none">
+        <button class="btn btn-sm btn-primary" style="display:none" data-act="create-under-module" data-module-id="${modId}" style="${PERM.canCreate && scope!=='bin' ? '' : 'display:none'}">
           <i class="fa fa-plus"></i> Add material
         </button>
-      </td>
+      </td> 
     `;
 
     const trDetails = document.createElement('tr');
@@ -942,6 +971,7 @@ function renderModuleTable(){
   }
   html+=li(cur>=pages,false,'Next',cur+1);
   pager.innerHTML=html;
+
   pager.querySelectorAll('a.page-link[data-page]').forEach(a=>{
     a.addEventListener('click',()=>{
       const t=Number(a.dataset.page);
@@ -976,8 +1006,9 @@ function renderModuleTable(){
 
   rowsEl.querySelectorAll('[data-act="create-under-module"]').forEach(btn=>{
     btn.addEventListener('click',()=>{
+      if(!PERM.canCreate) return;
       const mId = btn.dataset.moduleId;
-      const base = btnCreate.dataset.createUrl || '/study-material/create';
+      const base = btnCreate?.dataset?.createUrl || '/study-material/create';
       const qs = new URLSearchParams({
         course_id: courseSel.value,
         course_module_id: mId,
@@ -1011,18 +1042,10 @@ async function loadModuleMaterials(moduleId){
     });
 
     if (q.value.trim()) usp.set('search', q.value.trim());
+    if (statusFilter) usp.set('status', statusFilter);
+    if (!binMode) usp.set('include_deleted','0');
 
-    if (statusFilter) {
-      usp.set('status', statusFilter);
-    }
-
-    if (!binMode) {
-      usp.set('include_deleted','0');
-    }
-
-    const url = (scope === 'bin')
-      ? API.binIndex(usp)
-      : API.index(usp);
+    const url = (scope === 'bin') ? API.binIndex(usp) : API.index(usp);
 
     const res = await fetch(url,{
       headers:{Authorization:'Bearer '+TOKEN,Accept:'application/json','Cache-Control':'no-cache'}
@@ -1082,27 +1105,15 @@ function renderModuleMaterials(moduleId, items){
       </table>
     </div>
   `;
-
-  wrap.querySelectorAll('.dropdown-item[data-act]').forEach(item=>{
-    item.addEventListener('click', (e)=>{
-      e.preventDefault();
-      const act = item.dataset.act, id=item.dataset.id, uuid=item.dataset.uuid;
-      if(act==='view')    openView(uuid);
-      if(act==='edit')    openEdit(id);
-      if(act==='delete')  deleteItem(id);
-      if(act==='purge')   purgeItem(id);
-      if(act==='restore') restoreItem(id);
-      const toggle=item.closest('.dropdown')?.querySelector('.dd-toggle');
-      if(toggle) bootstrap.Dropdown.getOrCreateInstance(toggle).hide();
-    });
-  });
 }
 
 function showAsk(v){ askEl.style.display = v ? '' : 'none'; }
 function showLoader(v){ loaderRow.style.display = v ? '' : 'none'; }
 
 function rowActions(r){
+  // Bin scope
   if (scope === 'bin') {
+    if(!PERM.canSeeBin) return '';
     return `
       <div class="dropdown text-end" data-bs-display="static">
         <button type="button" class="btn btn-primary btn-sm dd-toggle" data-bs-toggle="dropdown" aria-expanded="false" title="Actions">
@@ -1117,6 +1128,7 @@ function rowActions(r){
       </div>`;
   }
 
+  // Active scope
   return `
     <div class="dropdown text-end" data-bs-display="static">
       <button type="button" class="btn btn-primary btn-sm dd-toggle" data-bs-toggle="dropdown" aria-expanded="false" title="Actions">
@@ -1124,14 +1136,14 @@ function rowActions(r){
       </button>
       <ul class="dropdown-menu dropdown-menu-end">
         <li><button class="dropdown-item" data-act="view" data-uuid="${H.esc(r.uuid)}"><i class="fa fa-eye"></i> View</button></li>
-        <li><button class="dropdown-item" data-act="edit" data-id="${r.id}"><i class="fa fa-pen-to-square"></i> Edit</button></li>
-        <li><hr class="dropdown-divider"></li>
-        <li><button class="dropdown-item text-danger" data-act="delete" data-id="${r.id}"><i class="fa fa-trash"></i> Delete</button></li>
+        ${PERM.canEdit ? `<li><button class="dropdown-item" data-act="edit" data-id="${r.id}"><i class="fa fa-pen-to-square"></i> Edit</button></li>` : ``}
+        ${PERM.canDelete ? `<li><hr class="dropdown-divider"></li>
+        <li><button class="dropdown-item text-danger" data-act="delete" data-id="${r.id}"><i class="fa fa-trash"></i> Delete</button></li>` : ``}
       </ul>
     </div>`;
 }
 
-/* ====== Existing flat list (kept as-is, not used by module view, left untouched) ====== */
+/* ====== Existing flat list (kept as-is) ====== */
 function rowHTML(r){
   const tr=document.createElement('tr');
   tr.innerHTML = `
@@ -1242,7 +1254,6 @@ const em_browse      =document.getElementById('em_browse');
 const em_libraryBtn  =document.getElementById('em_library');
 const em_files_list  =document.getElementById('em_files_list');
 
-/* (CHANGE #2) spinner refs + saving guard */
 const em_save_spin = document.getElementById('em_save_spin');
 const em_save_icon = document.getElementById('em_save_icon');
 const em_save_txt  = document.getElementById('em_save_txt');
@@ -1251,7 +1262,6 @@ let emIsSaving = false;
 let emDT = new DataTransfer();
 let emLibraryUrls = [];
 
-/* (CHANGE #1) dedupe helper (prevents same file being added twice) */
 function fileKey(f){
   return `${f?.name||''}__${f?.size||0}__${f?.lastModified||0}`;
 }
@@ -1322,7 +1332,6 @@ function addEditorFiles(files){
   const maxPer = 50*1024*1024;
   let big = false;
 
-  /* (CHANGE #1) build existing set to prevent duplicates */
   const existing = new Set(Array.from(emDT.files).map(fileKey));
 
   Array.from(files||[]).forEach(f=>{
@@ -1331,11 +1340,9 @@ function addEditorFiles(files){
       err(`"${f.name}" exceeds 50 MB.`);
       return;
     }
-
     const k = fileKey(f);
-    if(existing.has(k)) return; // skip duplicates
+    if(existing.has(k)) return;
     existing.add(k);
-
     emDT.items.add(f);
   });
 
@@ -1345,7 +1352,6 @@ function addEditorFiles(files){
 }
 
 if(em_dropzone){
-  /* (CHANGE #1) ignore clicks on inner buttons to avoid double-trigger */
   em_dropzone.addEventListener('click', (e)=>{
     if (e.target.closest('button')) return;
     em_files.click();
@@ -1370,7 +1376,6 @@ if(em_dropzone){
 }
 
 if(em_browse){
-  /* (CHANGE #1) stop bubbling so dropzone click doesn't fire too */
   em_browse.addEventListener('click',(e)=>{
     e.preventDefault();
     e.stopPropagation();
@@ -1378,7 +1383,6 @@ if(em_browse){
   });
 }
 
-/* file picker */
 em_files.addEventListener('change', ()=> addEditorFiles(em_files.files));
 
 function resetEditor(){
@@ -1401,19 +1405,9 @@ function resetEditor(){
   renderEmFiles();
 }
 
-function openCreateModal(){
-  if(!courseSel.value || !batchSel.value)
-    return Swal.fire('Select filters','Pick Course → Module → Batch first.','info');
-  if(binMode)
-    return Swal.fire('Bin view active','Switch off Bin to create.','info');
-  const m=new bootstrap.Modal(document.getElementById('editModal'));
-  em_mode.value='create'; em_id.value=''; em_title.textContent='Create Material';
-  resetEditor();
-  m.show();
-}
-
 async function openEdit(id){
   if(binMode) return Swal.fire('Bin view','Restore the item first to edit.','info');
+  if(!PERM.canEdit) return;
 
   const m = new bootstrap.Modal(document.getElementById('editModal'));
   em_mode.value = 'edit';
@@ -1450,7 +1444,6 @@ async function openEdit(id){
 
 em_save.addEventListener('click', saveMaterial);
 
-/* (CHANGE #2) helper to show spinner + lock button (prevents double submit / double upload) */
 function setSaveLoading(on){
   if(!em_save) return;
   em_save.disabled = !!on;
@@ -1460,7 +1453,6 @@ function setSaveLoading(on){
 }
 
 async function saveMaterial(){
-  /* (CHANGE #2) guard against double click */
   if (emIsSaving) return;
 
   if(!em_title_input.value.trim())
@@ -1502,18 +1494,17 @@ async function saveMaterial(){
     if(!res.ok) throw new Error((j?.message)|| (j?.errors ? Object.values(j.errors)[0] : 'Save failed'));
 
     ok('Material saved');
+
     const editEl = document.getElementById('editModal');
-const inst = bootstrap.Modal.getInstance(editEl) || bootstrap.Modal.getOrCreateInstance(editEl);
+    const inst = bootstrap.Modal.getInstance(editEl) || bootstrap.Modal.getOrCreateInstance(editEl);
 
-// after modal fully hides, force-clean any leftover backdrop/body state
-editEl.addEventListener('hidden.bs.modal', () => {
-  document.querySelectorAll('.modal-backdrop').forEach(b => b.remove());
-  document.body.classList.remove('modal-open');
-  document.body.style.removeProperty('padding-right');
-}, { once: true });
+    editEl.addEventListener('hidden.bs.modal', () => {
+      document.querySelectorAll('.modal-backdrop').forEach(b => b.remove());
+      document.body.classList.remove('modal-open');
+      document.body.style.removeProperty('padding-right');
+    }, { once: true });
 
-inst.hide();
-
+    inst.hide();
 
     moduleMaterialsCache.clear();
     if(batchSel.value) renderModuleTable();
@@ -1528,6 +1519,7 @@ inst.hide();
 
 /* =================== DELETE / RESTORE =================== */
 async function deleteItem(id){
+  if(!PERM.canDelete) return;
   const {isConfirmed}=await Swal.fire({
     icon:'warning',
     title:'Delete material?',
@@ -1551,6 +1543,7 @@ async function deleteItem(id){
 }
 
 async function purgeItem(id){
+  if(!PERM.canDelete) return;
   const {isConfirmed}=await Swal.fire({
     icon:'error',
     title:'Delete permanently?',
@@ -1574,6 +1567,7 @@ async function purgeItem(id){
 }
 
 async function restoreItem(id){
+  if(!PERM.canSeeBin) return;
   try{
     const res=await fetch(API.restore(id),{
       method:'POST',

@@ -16,6 +16,9 @@ Route::get('/', fn () => view('pages.landing.pages.home'));
 Route::get('/login', fn () => view('pages.auth.login'));
 Route::get('/register', fn () => view('pages.auth.register'));
 
+Route::get('/forgot-password', fn () => view('pages.auth.forgotPassword'));
+Route::get('/reset-password', fn () => view('pages.auth.resetPassword'));
+
 Route::get('/courses/all', fn () => view('pages.landing.pages.allCourse'));
 Route::get('/categories/all', fn () => view('pages.landing.pages.allCategory'));
 Route::get('/updates/all', fn () => view('pages.landing.pages.viewUpdates'));

@@ -397,6 +397,7 @@
                 <div class="profile-info">
                     <h1 id="pf_name">Loading...</h1>
                     <span class="role-badge" id="pf_role">Role</span>
+</br>
                     <p class="email" id="pf_email">
                         <i class="fas fa-envelope me-2"></i>Email
                     </p>

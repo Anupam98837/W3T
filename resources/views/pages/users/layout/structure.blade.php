@@ -501,8 +501,8 @@
             <i class="fa fa-chevron-down w3-chev"></i>
           </a>
           <div id="sm-dashboard-menu" class="w3-submenu" role="group" aria-label="Dashboard Menu submenu">
-            <a href="/dashboard-menu/create" class="w3-link"><i class="fa-solid fa-puzzle-piece"></i><span>Create Dashboard Menu</span></a>
-            <a href="/dashboard-menu/manage" class="w3-link"><i class="fa-solid fa-puzzle-piece"></i><span>Manage Dashboard Menu</span></a>
+            <a href="/dashboard-menu/create" class="w3-link"><span>Create Menu</span></a>
+            <a href="/dashboard-menu/manage" class="w3-link"><span>Manage Menu</span></a>
           </div>
         </div>
 
@@ -512,8 +512,8 @@
             <i class="fa fa-chevron-down w3-chev"></i>
           </a>
           <div id="sm-page-privilege" class="w3-submenu" role="group" aria-label="Page Privilege submenu">
-            <a href="/page-privilege/create" class="w3-link"><i class="fa-solid fa-circle-plus"></i><span>Create Page Privilege</span></a>
-            <a href="/page-privilege/manage" class="w3-link"><i class="fa-solid fa-list-check"></i><span>Manage Page Privilege</span></a>
+            <a href="/page-privilege/create" class="w3-link"><span>Create Privilege</span></a>
+            <a href="/page-privilege/manage" class="w3-link"><span>Manage Privilege</span></a>
           </div>
         </div>
 
