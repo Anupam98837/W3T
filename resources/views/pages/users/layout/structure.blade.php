@@ -347,6 +347,56 @@
     html.theme-dark .w3-sidebar-scroll::-webkit-scrollbar { width: 6px !important; }
     html.theme-dark .w3-sidebar-scroll::-webkit-scrollbar-track { background: #1e293b !important; }
     html.theme-dark .w3-sidebar-scroll::-webkit-scrollbar-thumb { background: #475569 !important; }
+    /* Admin user pill button (isolated from .btn-primary conflicts) */
+.admin-pill-btn{
+  background: var(--primary-color);
+  border: 1px solid var(--primary-color);
+  color:#fff;
+}
+.admin-pill-btn:hover{
+  background: var(--secondary-color);
+  border-color: var(--secondary-color);
+  color:#fff;
+}
+.admin-pill-btn:focus{
+  box-shadow: 0 0 0 .2rem rgba(158,54,58,.25);
+}
+/* User dropdown (isolated classes to avoid conflicts) */
+.admin-user-menu{
+  border-radius: 14px;
+  border: 1px solid var(--line-strong);
+  box-shadow: var(--shadow-2);
+  min-width: 220px;
+  padding: .4rem;
+}
+
+.admin-user-menu__header{
+  font-size: .78rem;
+  color: var(--muted);
+  padding: .35rem .75rem;
+}
+
+.admin-user-menu__item{
+  border-radius: 10px;
+  padding: .55rem .75rem;
+}
+
+.admin-user-menu__item:hover,
+.admin-user-menu__item:focus{
+  background: rgba(201,75,80,.10);
+}
+
+.admin-user-menu__divider{
+  margin: .35rem .4rem;
+}
+
+.admin-user-menu__item--danger{
+  color: var(--danger-color) !important;
+}
+.admin-user-menu__item--danger:hover{
+  background: rgba(220,53,69,.10);
+}
+
   </style>
 </head>
 <body>
@@ -661,18 +711,36 @@
       </div>
 
       <div class="dropdown d-none d-lg-block">
-        <a href="#" class="btn btn-primary rounded-pill d-flex align-items-center gap-2 px-3" id="userMenu" data-bs-toggle="dropdown" aria-expanded="false">
-          <i class="fa-regular fa-user"></i>
-          <span id="userRoleLabel" class="d-none d-xl-inline">Admin</span>
-        </a>
-        <ul class="dropdown-menu dropdown-menu-end shadow">
-          <li class="dropdown-header">Account</li>
-          <!-- ✅ default routes -->
-          <li><a class="dropdown-item" href="/profile"><i class="fa fa-id-badge me-2"></i>Profile</a></li>
-          <li><a class="dropdown-item" href="/settings"><i class="fa fa-gear me-2"></i>Settings</a></li>
-          <li><hr class="dropdown-divider"></li>
-          <li><a class="dropdown-item" href="#" id="logoutBtn"><i class="fa fa-right-from-bracket me-2"></i>Logout</a></li>
-        </ul>
+       <a href="#"
+   class="btn admin-pill-btn rounded-pill d-flex align-items-center gap-2 px-3"
+   id="userMenu" data-bs-toggle="dropdown" aria-expanded="false">
+  <i class="fa-regular fa-user"></i>
+  <span id="userRoleLabel" class="d-none d-xl-inline">Admin</span>
+</a>
+<ul class="dropdown-menu dropdown-menu-end admin-user-menu">
+  <li class="dropdown-header admin-user-menu__header">Account</li>
+
+  <!-- ✅ default routes -->
+  <li>
+    <a class="dropdown-item admin-user-menu__item" href="/profile">
+      <i class="fa fa-id-badge me-2"></i>Profile
+    </a>
+  </li>
+  <li>
+    <a class="dropdown-item admin-user-menu__item" href="/settings">
+      <i class="fa fa-gear me-2"></i>Settings
+    </a>
+  </li>
+
+  <li><hr class="dropdown-divider admin-user-menu__divider"></li>
+
+  <li>
+    <a class="dropdown-item admin-user-menu__item admin-user-menu__item--danger" href="#" id="logoutBtn">
+      <i class="fa fa-right-from-bracket me-2"></i>Logout
+    </a>
+  </li>
+</ul>
+
       </div>
     </div>
   </div>

@@ -6,105 +6,396 @@
 <link rel="stylesheet" href="{{ asset('assets/css/common/main.css') }}"/>
 
 <style>
-/* ===== Shell ===== */
-.qz-wrap{max-width:1140px;margin:16px auto 40px;overflow:visible}
-/* .panel{background:var(--surface);border:1px solid var(--line-strong);border-radius:16px;box-shadow:var(--shadow-2);padding:14px}
+.qz-wrap {
+  max-width: 1140px;
+  margin: 16px auto 40px;
+  overflow: visible !important;
+}
 
-/* Toolbar */
-/* .mfa-toolbar .form-control{height:40px;border-radius:12px;border:1px solid var(--line-strong);background:var(--surface)}
-.mfa-toolbar .form-select{height:40px;border-radius:12px;border:1px solid var(--line-strong);background:var(--surface)}
-.mfa-toolbar .btn{height:40px;border-radius:12px}
-.mfa-toolbar .btn-light{background:var(--surface);border:1px solid var(--line-strong)}
-.mfa-toolbar .btn-primary{background:var(--primary-color);border:none} */ */
+.table-wrap {
+  overflow: visible !important;
+}
 
-/* Tabs */
-/* .nav.nav-tabs{border-color:var(--line-strong)}
-.nav-tabs .nav-link{color:var(--ink)}
-.nav-tabs .nav-link.active{background:var(--surface);border-color:var(--line-strong) var(--line-strong) var(--surface)}
-.tab-content,.tab-pane{overflow:visible} */
+.table-wrap.card {
+  overflow: visible !important;
+}
 
-/* Table Card */
-/* .table-wrap.card{position:relative;border:1px solid var(--line-strong);border-radius:16px;background:var(--surface);box-shadow:var(--shadow-2);overflow:visible}
-.table-wrap .card-body{overflow:visible}
-.table-responsive{overflow:visible !important}
-.table{--bs-table-bg:transparent}
-.table thead th{font-weight:600;color:var(--muted-color);font-size:13px;border-bottom:1px solid var(--line-strong);background:var(--surface)}
-.table thead.sticky-top{z-index:3}
-.table tbody tr{border-top:1px solid var(--line-soft)}
-.table tbody tr:hover{background:var(--page-hover)}
-td .fw-semibold{color:var(--ink)}
-.small{font-size:12.5px} */
+.table-wrap .card-body {
+  overflow: visible !important;
+  padding: 0;
+}
 
-/* Status badges */
-.badge-soft{background:color-mix(in oklab, var(--muted-color) 12%, transparent);color:var(--ink)}
-.table .badge.badge-success{background:var(--success-color)!important;color:#fff!important}
-.table .badge.badge-secondary{background:#64748b!important;color:#fff!important}
+.table-responsive {
+  overflow-x: auto;
+  overflow-y: visible !important;
+  position: relative;
+}
 
-/* Sorting */
-.sortable{cursor:pointer;white-space:nowrap}
-.sortable .caret{display:inline-block;margin-left:.35rem;opacity:.65}
-.sortable.asc .caret::after{content:"▲";font-size:.7rem}
-.sortable.desc .caret::after{content:"▼";font-size:.7rem}
+/* 2. Remove any transform/filter/perspective that creates stacking context */
+.table-wrap,
+.table-wrap .card-body,
+.table-responsive,
+.tab-content,
+.tab-pane {
+  transform: none !important;
+  filter: none !important;
+  perspective: none !important;
+}
 
-/* Row cues */
-tr.is-archived td{background:color-mix(in oklab, var(--muted-color) 6%, transparent)}
-tr.is-deleted td{background:color-mix(in oklab, var(--danger-color) 6%, transparent)}
+/* 3. Table cells with dropdowns must not clip */
+.table td:has(.dropdown),
+.table th:has(.dropdown) {
+  position: static !important;
+  overflow: visible !important;
+}
 
-/* Dropdowns inside table */
-.table-wrap .dropdown{position:relative;z-index:6}
-.table-wrap .dd-toggle{position:relative;z-index:7}
-.dropdown [data-bs-toggle="dropdown"]{border-radius:10px}
-/* Default dropdown menu (when not portaled) */
-.table-wrap .dropdown-menu{border-radius:12px;border:1px solid var(--line-strong);box-shadow:var(--shadow-2);min-width:220px;z-index:5000}
-/* Portaled dropdown menu (moved to body) */
-.dropdown-menu.dd-portal{position:fixed!important;left:0;top:0;transform:none!important;z-index:5000;border-radius:12px;border:1px solid var(--line-strong);box-shadow:var(--shadow-2);min-width:220px;background:var(--surface)}
-.dropdown-item{display:flex;align-items:center;gap:.6rem}
-.dropdown-item i{width:16px;text-align:center}
-.dropdown-item.text-danger{color:var(--danger-color)!important}
+/* 4. Dropdown container positioning */
+.dropdown {
+  position: static !important;
+}
 
-/* Action icon style */
-.icon-btn{display:inline-flex;align-items:center;justify-content:center;height:34px;min-width:34px;padding:0 10px;border:1px solid var(--line-strong);background:var(--surface);border-radius:10px}
-.icon-btn:hover{box-shadow:var(--shadow-1)}
+/* 5. Dropdown toggle button */
+.dd-toggle {
+  position: relative;
+  z-index: 1;
+}
 
-/* Empty & loader */
-.empty{color:var(--muted-color)}
-.placeholder{background:linear-gradient(90deg,#00000010,#00000005,#00000010);border-radius:8px}
+/* 6. Dropdown menu with portal styling */
+.dropdown-menu {
+  border-radius: 12px;
+  border: 1px solid var(--line-strong);
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+  min-width: 220px;
+  z-index: 9999 !important;
+  position: absolute !important;
+}
 
-/* Modals */
-.modal-content{border-radius:16px;border:1px solid var(--line-strong);background:var(--surface)}
-.modal-header{border-bottom:1px solid var(--line-strong)}
-.modal-footer{border-top:1px solid var(--line-strong)}
-.form-control,.form-select{border-radius:12px;border:1px solid var(--line-strong);background:#fff}
-html.theme-dark .form-control,html.theme-dark .form-select{background:#0f172a;color:#e5e7eb;border-color:var(--line-strong)}
+/* 7. Portal class for body-appended menus */
+.dropdown-menu.dd-portal {
+  position: fixed !important;
+  z-index: 99999 !important;
+  margin: 0 !important;
+}
 
-/* Dark tweaks */
+/* 8. Ensure shown dropdowns are visible */
+.dropdown-menu.show {
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+
+/* 9. Dropdown items */
+.dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.5rem 1rem;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+  border: none;
+  background: none;
+  text-decoration: none;
+  color: inherit;
+  width: 100%;
+  text-align: left;
+}
+
+.dropdown-item:hover {
+  background-color: rgba(0, 0, 0, 0.05);
+}
+
+.dropdown-item i {
+  width: 16px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.dropdown-item.text-danger {
+  color: var(--danger-color) !important;
+}
+
+.dropdown-item.text-danger:hover {
+  background-color: rgba(239, 68, 68, 0.1);
+}
+
+/* 10. Dark mode dropdown */
+html.theme-dark .dropdown-menu {
+  background: #0f172a;
+  border-color: var(--line-strong);
+}
+
+html.theme-dark .dropdown-menu.dd-portal {
+  background: #0f172a;
+  border-color: var(--line-strong);
+}
+
+html.theme-dark .dropdown-item:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+/* 11. Prevent Bootstrap's default positioning issues */
+.dropdown-menu[data-bs-popper] {
+  position: fixed !important;
+}
+
+/* 12. Table row positioning */
+tbody tr {
+  position: relative;
+}
+
+/* ===== Status Badges ===== */
+.badge-soft {
+  background: color-mix(in oklab, var(--muted-color) 12%, transparent);
+  color: var(--ink);
+}
+
+.table .badge.badge-success {
+  background: var(--success-color) !important;
+  color: #fff !important;
+}
+
+.table .badge.badge-secondary {
+  background: #64748b !important;
+  color: #fff !important;
+}
+
+/* ===== Sorting ===== */
+.sortable {
+  cursor: pointer;
+  white-space: nowrap;
+  user-select: none;
+}
+
+.sortable .caret {
+  display: inline-block;
+  margin-left: 0.35rem;
+  opacity: 0.65;
+}
+
+.sortable.asc .caret::after {
+  content: "▲";
+  font-size: 0.7rem;
+}
+
+.sortable.desc .caret::after {
+  content: "▼";
+  font-size: 0.7rem;
+}
+
+/* ===== Row Visual Cues ===== */
+tr.is-archived td {
+  background: color-mix(in oklab, var(--muted-color) 6%, transparent);
+}
+
+tr.is-deleted td {
+  background: color-mix(in oklab, var(--danger-color) 6%, transparent);
+}
+
+/* ===== Action Icon Style ===== */
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 34px;
+  min-width: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--line-strong);
+  background: var(--surface);
+  border-radius: 10px;
+  transition: box-shadow 0.2s ease;
+}
+
+.icon-btn:hover {
+  box-shadow: var(--shadow-1);
+}
+
+/* ===== Empty State & Loader ===== */
+.empty {
+  color: var(--muted-color);
+}
+
+.placeholder {
+  background: linear-gradient(90deg, #00000010, #00000005, #00000010);
+  border-radius: 8px;
+  animation: placeholder-wave 2s ease-in-out infinite;
+}
+
+@keyframes placeholder-wave {
+  0% {
+    background-position: -200px 0;
+  }
+  100% {
+    background-position: calc(200px + 100%) 0;
+  }
+}
+
+.placeholder-wave {
+  animation: placeholder-wave 2s linear infinite;
+  background-size: 200px 100%;
+}
+
+/* ===== Modals ===== */
+.modal-content {
+  border-radius: 16px;
+  border: 1px solid var(--line-strong);
+  background: var(--surface);
+}
+
+.modal-header {
+  border-bottom: 1px solid var(--line-strong);
+}
+
+.modal-footer {
+  border-top: 1px solid var(--line-strong);
+}
+
+.form-control,
+.form-select {
+  border-radius: 12px;
+  border: 1px solid var(--line-strong);
+  background: #fff;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.form-control:focus,
+.form-select:focus {
+  border-color: var(--primary-color, #3b82f6);
+  box-shadow: 0 0 0 0.25rem rgba(59, 130, 246, 0.1);
+  outline: none;
+}
+
+/* ===== Dark Mode Tweaks ===== */
+html.theme-dark .form-control,
+html.theme-dark .form-select {
+  background: #0f172a;
+  color: #e5e7eb;
+  border-color: var(--line-strong);
+}
+
 html.theme-dark .panel,
 html.theme-dark .table-wrap.card,
-html.theme-dark .modal-content{background:#0f172a;border-color:var(--line-strong)}
-html.theme-dark .table thead th{background:#0f172a;border-color:var(--line-strong);color:#94a3b8}
-html.theme-dark .table tbody tr{border-color:var(--line-soft)}
-html.theme-dark .dropdown-menu{background:#0f172a;border-color:var(--line-strong)}
-/* Randomization modal tweaks */
-#randomizeModal .form-check{
+html.theme-dark .modal-content {
+  background: #0f172a;
+  border-color: var(--line-strong);
+}
+
+html.theme-dark .table thead th {
+  background: #0f172a;
+  border-color: var(--line-strong);
+  color: #94a3b8;
+}
+
+html.theme-dark .table tbody tr {
+  border-color: var(--line-soft);
+}
+
+html.theme-dark .dropdown-menu {
+  background: #0f172a;
+  border-color: var(--line-strong);
+}
+
+/* ===== Randomization Modal Tweaks ===== */
+#randomizeModal .form-check {
   display: grid;
   grid-template-columns: auto 1fr;
-  column-gap: .8rem;
+  column-gap: 0.8rem;
   align-items: flex-start;
+  margin-bottom: 1rem;
 }
 
-#randomizeModal .form-check-input{
+#randomizeModal .form-check-input {
   margin-left: 0;
-  margin-top: .25rem; /* vertically align with text */
+  margin-top: 0.25rem;
+  cursor: pointer;
 }
 
-#randomizeModal .form-check-label{
+#randomizeModal .form-check-label {
   margin-bottom: 0;
-  grid-column: 2;      /* text sits to the right of toggle */
+  grid-column: 2;
+  cursor: pointer;
 }
 
-#randomizeModal .form-text{
-  grid-column: 2;      /* helper text under the label, same column */
-  margin-top: .15rem;
+#randomizeModal .form-text {
+  grid-column: 2;
+  margin-top: 0.15rem;
+  font-size: 0.875rem;
+  color: var(--muted-color);
+}
+
+/* ===== Additional Table Improvements ===== */
+.table {
+  margin-bottom: 0;
+}
+
+.table thead {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: var(--surface);
+}
+
+.table-hover tbody tr:hover {
+  background-color: rgba(0, 0, 0, 0.02);
+}
+
+html.theme-dark .table-hover tbody tr:hover {
+  background-color: rgba(255, 255, 255, 0.05);
+}
+
+/* ===== Button Loading States ===== */
+.btn .spinner-border-sm {
+  width: 1rem;
+  height: 1rem;
+  border-width: 0.15em;
+}
+
+.btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* ===== Pagination Styling ===== */
+.pagination {
+  gap: 0.25rem;
+}
+
+.page-link {
+  border-radius: 8px;
+  border: 1px solid var(--line-strong);
+  transition: all 0.2s ease;
+}
+
+.page-link:hover {
+  background-color: rgba(0, 0, 0, 0.05);
+}
+
+.page-item.active .page-link {
+  background-color: var(--primary-color, #3b82f6);
+  border-color: var(--primary-color, #3b82f6);
+}
+
+html.theme-dark .page-link {
+  background: #0f172a;
+  color: #e5e7eb;
+}
+
+html.theme-dark .page-link:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+/* ===== Responsive Adjustments ===== */
+@media (max-width: 768px) {
+  .dropdown-menu {
+    min-width: 180px;
+  }
+  
+  .table-responsive {
+    font-size: 0.9rem;
+  }
+  
+  .qz-wrap {
+    margin: 12px;
+  }
 }
 
 </style>
@@ -411,94 +702,222 @@ html.theme-dark .dropdown-menu{background:#0f172a;border-color:var(--line-strong
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <script>
 /* ===== Force dropdown overflows to body (portal) ===== */
-(function(){
+/* ===== IMPROVED DROPDOWN HANDLER WITH PORTAL APPROACH ===== */
+
+(function() {
   let activePortal = null;
-  const placeMenu = (menu, btnRect) => {
+
+  /**
+   * Places a dropdown menu in the document body with fixed positioning
+   * This prevents overflow clipping issues in scrollable tables
+   */
+  function placeMenuInBody(menu, btnRect) {
     const vw = Math.max(document.documentElement.clientWidth, window.innerWidth || 0);
-    const spaceRight = vw - btnRect.right;
-    menu.classList.add('dd-portal');
-    menu.style.display = 'block';
-    menu.style.visibility = 'hidden'; // measure first
-    document.body.appendChild(menu);
-
-    // compute size after in body
-    const mw = menu.offsetWidth, mh = menu.offsetHeight;
-    let left = btnRect.left;
-    if (spaceRight < mw && btnRect.right - mw > 8) {
-      left = btnRect.right - mw; // flip to align right if not enough space
-    }
-    let top = btnRect.bottom + 4; // little offset below button
-    // Keep within viewport vertically
     const vh = Math.max(document.documentElement.clientHeight, window.innerHeight || 0);
-    if (top + mh > vh - 8) top = Math.max(8, vh - mh - 8);
-
+    
+    // Add portal class
+    menu.classList.add('dd-portal');
+    
+    // Temporarily show to measure
+    menu.style.display = 'block';
+    menu.style.visibility = 'hidden';
+    
+    // Append to body for measurement
+    document.body.appendChild(menu);
+    
+    // Get menu dimensions
+    const menuWidth = menu.offsetWidth;
+    const menuHeight = menu.offsetHeight;
+    
+    // Calculate horizontal position
+    let left = btnRect.left;
+    const spaceRight = vw - btnRect.right;
+    
+    // If not enough space on right, align to button's right edge
+    if (spaceRight < menuWidth && btnRect.right - menuWidth > 8) {
+      left = btnRect.right - menuWidth;
+    }
+    
+    // Keep within viewport horizontally
+    if (left + menuWidth > vw - 8) {
+      left = vw - menuWidth - 8;
+    }
+    if (left < 8) {
+      left = 8;
+    }
+    
+    // Calculate vertical position
+    let top = btnRect.bottom + 4;
+    
+    // If not enough space below, show above
+    if (top + menuHeight > vh - 8 && btnRect.top - menuHeight - 4 > 8) {
+      top = btnRect.top - menuHeight - 4;
+    }
+    
+    // Keep within viewport vertically
+    if (top + menuHeight > vh - 8) {
+      top = vh - menuHeight - 8;
+    }
+    if (top < 8) {
+      top = 8;
+    }
+    
+    // Apply final position
     menu.style.left = left + 'px';
-    menu.style.top  = top + 'px';
+    menu.style.top = top + 'px';
     menu.style.visibility = 'visible';
-  };
+  }
 
-  document.addEventListener('show.bs.dropdown', function(ev){
-    const toggle = ev.target; // .dropdown
-    const btn = toggle.querySelector('.dd-toggle, [data-bs-toggle="dropdown"]');
-    const menu = toggle.querySelector('.dropdown-menu');
-    if (!btn || !menu) return;
-
-    // clean any previous
+  /**
+   * Closes any open portaled dropdown
+   */
+  function closeActivePortal() {
     if (activePortal && activePortal.menu && activePortal.menu.isConnected) {
       activePortal.menu.classList.remove('dd-portal');
-      activePortal.parent.appendChild(activePortal.menu);
+      activePortal.menu.style.cssText = '';
+      
+      // Restore to original parent
+      if (activePortal.parent) {
+        activePortal.parent.appendChild(activePortal.menu);
+      }
+      
       activePortal = null;
     }
+  }
 
-    const rect = btn.getBoundingClientRect();
-    // Remember original parent to restore on hide
-    menu.__ddParent = menu.parentElement;
-    placeMenu(menu, rect);
-    activePortal = { menu: menu, parent: menu.__ddParent };
-
-    // Close on scroll/resize to avoid stale position
-    const closeOnEnv = () => {
-      try { bootstrap.Dropdown.getOrCreateInstance(btn).hide(); } catch {}
+  /**
+   * Listen for dropdown show event
+   */
+  document.addEventListener('show.bs.dropdown', function(event) {
+    const dropdownElement = event.target; // The .dropdown element
+    const toggleBtn = dropdownElement.querySelector('.dd-toggle, [data-bs-toggle="dropdown"]');
+    const menu = dropdownElement.querySelector('.dropdown-menu');
+    
+    if (!toggleBtn || !menu) return;
+    
+    // Close any existing portal
+    closeActivePortal();
+    
+    // Store original parent
+    menu.__originalParent = menu.parentElement;
+    
+    // Get button position
+    const rect = toggleBtn.getBoundingClientRect();
+    
+    // Place menu in body with fixed positioning
+    placeMenuInBody(menu, rect);
+    
+    // Store active portal reference
+    activePortal = {
+      menu: menu,
+      parent: menu.__originalParent
     };
-    menu.__ddListeners = [
-      ['scroll', closeOnEnv, true],
-      ['resize', closeOnEnv, false]
-    ];
-    window.addEventListener('resize', closeOnEnv);
-    document.addEventListener('scroll', closeOnEnv, true);
+    
+    // Setup close on scroll/resize
+    const closeHandler = () => {
+      try {
+        const instance = bootstrap.Dropdown.getInstance(toggleBtn);
+        if (instance) instance.hide();
+      } catch(e) {
+        console.error('Error closing dropdown:', e);
+      }
+    };
+    
+    menu.__closeHandler = closeHandler;
+    window.addEventListener('scroll', closeHandler, true);
+    window.addEventListener('resize', closeHandler);
   });
 
-  document.addEventListener('hidden.bs.dropdown', function(ev){
-    const toggle = ev.target;
-    const menu = toggle.querySelector('.dropdown-menu.dd-portal') || activePortal?.menu;
-    if (!menu) return;
-
-    // remove listeners
-    if (menu.__ddListeners) {
-      document.removeEventListener('scroll', menu.__ddListeners[0][1], true);
-      window.removeEventListener('resize', menu.__ddListeners[1][1]);
-      menu.__ddListeners = null;
+  /**
+   * Listen for dropdown hide event
+   */
+  document.addEventListener('hidden.bs.dropdown', function(event) {
+    const dropdownElement = event.target;
+    const menu = dropdownElement.querySelector('.dropdown-menu.dd-portal');
+    
+    if (!menu && !activePortal) return;
+    
+    const targetMenu = menu || (activePortal && activePortal.menu);
+    
+    if (targetMenu) {
+      // Remove event listeners
+      if (targetMenu.__closeHandler) {
+        window.removeEventListener('scroll', targetMenu.__closeHandler, true);
+        window.removeEventListener('resize', targetMenu.__closeHandler);
+        targetMenu.__closeHandler = null;
+      }
+      
+      // Restore menu to original parent
+      targetMenu.classList.remove('dd-portal');
+      targetMenu.style.cssText = '';
+      
+      if (targetMenu.__originalParent) {
+        targetMenu.__originalParent.appendChild(targetMenu);
+        targetMenu.__originalParent = null;
+      }
     }
+    
+    activePortal = null;
+  });
 
-    // restore to original parent
-    if (menu.__ddParent) {
-      menu.classList.remove('dd-portal');
-      menu.style.cssText = ''; // reset inline styles
-      menu.__ddParent.appendChild(menu);
-      activePortal = null;
+  /**
+   * Handle dropdown toggle clicks
+   */
+  document.addEventListener('click', (e) => {
+    const btn = e.target.closest('.dd-toggle');
+    if (!btn) return;
+    
+    e.preventDefault();
+    e.stopPropagation();
+    e.stopImmediatePropagation();
+    
+    // Close other dropdowns first
+    document.querySelectorAll('.dd-toggle').forEach(otherBtn => {
+      if (otherBtn !== btn) {
+        try {
+          const instance = bootstrap.Dropdown.getInstance(otherBtn);
+          if (instance) instance.hide();
+        } catch(e) {}
+      }
+    });
+    
+    // Toggle this dropdown
+    const instance = bootstrap.Dropdown.getOrCreateInstance(btn, {
+      autoClose: true,
+      boundary: 'viewport',
+      popperConfig: {
+        strategy: 'fixed',
+        modifiers: [
+          {
+            name: 'preventOverflow',
+            options: {
+              boundary: 'viewport',
+              padding: 8
+            }
+          },
+          {
+            name: 'flip',
+            options: {
+              fallbackPlacements: ['top-end', 'bottom-end', 'left-start', 'right-start']
+            }
+          }
+        ]
+      }
+    });
+    
+    instance.toggle();
+  }, true);
+
+  /**
+   * Close dropdown when clicking outside
+   */
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('.dropdown-menu') && !e.target.closest('.dd-toggle')) {
+      closeActivePortal();
     }
   });
+
 })();
-
-/* ================= Dropdown toggle handler ================= */
-document.addEventListener('click', (e) => {
-  const btn = e.target.closest('.dd-toggle');
-  if (!btn) return;
-  e.preventDefault(); e.stopPropagation();
-  const inst = bootstrap.Dropdown.getOrCreateInstance(btn, { autoClose:'outside', boundary:'viewport' });
-  inst.toggle();
-});
-
 (function(){
   /* ========= Auth / base panel ========= */
   const TOKEN = localStorage.getItem('token') || sessionStorage.getItem('token') || '';

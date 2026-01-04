@@ -1,6 +1,7 @@
 {{-- resources/views/modules/studyMaterials/createStudyMaterial.blade.php --}}
 @section('title','Create Study Material')
 
+@push('styles')
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"/>
 <link rel="stylesheet" href="{{ asset('assets/css/common/main.css') }}"/>
 
@@ -33,15 +34,14 @@
   .drop-icon{width:52px;height:52px;border-radius:999px;border:1px dashed var(--line-strong);display:flex;align-items:center;justify-content:center;margin-bottom:10px;opacity:.9}
   .file-list{margin-top:10px}
   .file-row{
-    display:grid;grid-template-columns:1fr auto auto auto;align-items:center;gap:12px;
+    display:grid;grid-template-columns:1fr auto auto;align-items:center;gap:12px;
     border:1px solid var(--line-strong);border-radius:12px;background:var(--surface-2,#fff);
     padding:10px 14px;margin-bottom:10px;transition:all 0.2s ease;
   }
   .file-row:hover{background:var(--surface-3);border-color:var(--line-medium);}
   .file-row .name{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:500;color:var(--ink)}
   .file-row .size{color:var(--muted-color);font-size:12px;min-width:70px;text-align:right}
-  
-  /* Improved button styles */
+
   .btn-action{
     border:none;background:transparent;padding:6px 10px;border-radius:6px;
     transition:all 0.2s ease;cursor:pointer;font-size:13px;display:flex;align-items:center;gap:4px;
@@ -51,7 +51,6 @@
   .btn-preview:hover{background:var(--primary-color);color:white;}
   .btn-delete{color:var(--danger-color);border-color:var(--danger-light);}
   .btn-delete:hover{background:var(--danger-color);color:white;}
-  
   .btn-group{display:flex;gap:8px;align-items:center;}
 
   .btn-loading{pointer-events:none;opacity:.85}
@@ -69,14 +68,8 @@
   html.theme-dark .file-row{background:#0b1020;border-color:var(--line-strong)}
   html.theme-dark .file-row:hover{background:#131d35;}
   html.theme-dark .preview-text {background: #1a2335;}
-  .lib-overlay-check {
-  position: absolute;
-  top: 8px;
-  left: 8px; /* original */
-  margin-left: 6px; /* added */
-}
-
 </style>
+@endpush
 
 @section('content')
 <div class="sm-wrap">
@@ -84,8 +77,8 @@
     <div class="card-header">
       <div class="sm-head">
         <i class="fa-solid fa-book-open"></i>
-        <strong>Create Study Material</strong>
-        <span class="hint">— Choose Course → Module → Batch, add details & upload files.</span>
+        <strong id="pageTitle">Create Study Material</strong>
+        <span class="hint" id="pageHint">— Choose Course → Module → Batch, add details & upload files.</span>
       </div>
     </div>
 
@@ -129,6 +122,7 @@
         <textarea id="description" class="form-control" rows="4" placeholder="Short description..."></textarea>
         <div class="err" data-for="description"></div>
       </div>
+
       <label class="form-check-label" for="allow_download">Allow Downloading Attachments</label>
       <div class="mb-3 form-check form-switch">
         <input class="form-check-input" type="checkbox" id="allow_download">
@@ -146,26 +140,30 @@
             <i class="fa fa-file-arrow-up me-1"></i>Choose Files
           </label>
           <input id="attachments" type="file" hidden multiple>
-           <button type="button" id="btnOpenLibrary" class="btn btn-outline-secondary">
+          <button type="button" id="btnOpenLibrary" class="btn btn-outline-secondary">
             <i class="fa fa-book me-1"></i>Choose from Library
           </button>
           <button type="button" id="btnClearAll" class="btn btn-light ms-2">Clear All</button>
         </div>
       </div>
+
       <div id="fileList" class="file-list"></div>
       <div class="err" data-for="attachments"></div>
+
       <div id="libraryList" class="file-list"></div>
-  <div class="err" data-for="library_urls"></div>
+      <div class="err" data-for="library_urls"></div>
+
       <div class="d-flex justify-content-between align-items-center mt-4">
         <a id="cancel" class="btn btn-light" href="/study-material/manage">Cancel</a>
         <button id="btnSave" class="btn btn-primary" type="button">
           <span class="btn-spinner" aria-hidden="true"></span>
-          <span class="btn-label"><i class="fa fa-floppy-disk me-1"></i>Create Study Material</span>
+          <span class="btn-label" id="saveLabel"><i class="fa fa-floppy-disk me-1"></i>Create Study Material</span>
         </button>
       </div>
     </div>
   </div>
-    {{-- Study Material Library Modal --}}
+
+  {{-- Study Material Library Modal --}}
   <div class="modal fade" id="smLibraryModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-lg modal-dialog-scrollable">
       <div class="modal-content">
@@ -202,14 +200,10 @@
           <div id="libGrid" class="row g-3"></div>
         </div>
         <div class="modal-footer d-flex justify-content-between align-items-center">
-          <div id="libSelectionInfo" class="tiny text-muted">
-            No items selected
-          </div>
+          <div id="libSelectionInfo" class="tiny text-muted">No items selected</div>
           <div>
             <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
-            <button id="btnLibAddSelected" type="button" class="btn btn-primary">
-              Add selected
-            </button>
+            <button id="btnLibAddSelected" type="button" class="btn btn-primary">Add selected</button>
           </div>
         </div>
       </div>
@@ -253,6 +247,7 @@
   </div>
 </div>
 @endsection
+
 @push('scripts')
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
@@ -271,13 +266,41 @@
     return;
   }
 
-  const API_SM      = '/api/study-materials';
-  const API_COURSES = '/api/courses?mode=active&per_page=50';
-  const API_MODULES = (courseId)=> `/api/course-modules?mode=active&course_id=${encodeURIComponent(courseId)}&per_page=50`;
-  const API_BATCHES = (courseId)=> `/api/batches?mode=active&course_id=${encodeURIComponent(courseId)}&per_page=50`;
+  /* ===================== MODE (CREATE / EDIT) ===================== */
+  const params = new URLSearchParams(location.search);
+  const EDIT_ID   = params.get('id') || '';
+  const EDIT_UUID = params.get('uuid') || '';
+  const IS_EDIT   = !!(EDIT_ID || EDIT_UUID);
+
+  const pageTitle = $('pageTitle');
+  const pageHint  = $('pageHint');
+  const saveLabel = $('saveLabel');
+
+  if(IS_EDIT){
+    pageTitle.textContent = 'Edit Study Material';
+    pageHint.textContent  = '— Course → Module → Batch will be auto-populated, then you can update details & files.';
+    saveLabel.innerHTML   = '<i class="fa fa-floppy-disk me-1"></i>Update Study Material';
+  }
+
+  /* ===================== APIs (with fallbacks) ===================== */
+  const API_SM = '/api/study-materials';
+  const API_UPDATE = (id)=> `/api/study-materials/${encodeURIComponent(id)}`;
+  const API_SHOW_UUID = (uuid)=> `/api/study-materials/show/${encodeURIComponent(uuid)}`;
+
+  // Prefer "my" endpoints when available (matches your manage page), fallback to generic ones.
+  const API_COURSES_A = '/api/courses/my?status=published&per_page=1000';
+  const API_COURSES_B = '/api/courses?mode=active&per_page=1000';
+
+  const API_MODULES_A = (courseId)=> `/api/course-modules?course_id=${encodeURIComponent(courseId)}&per_page=1000`;
+  const API_MODULES_B = (courseId)=> `/api/course-modules?mode=active&course_id=${encodeURIComponent(courseId)}&per_page=1000`;
+
+  const API_BATCHES_A = (courseId)=> `/api/batches/my?course_id=${encodeURIComponent(courseId)}&per_page=1000`;
+  const API_BATCHES_B = (courseId)=> `/api/batches?mode=active&course_id=${encodeURIComponent(courseId)}&per_page=1000`;
+
   const LIBRARY_API = API_SM;
 
   let libraryUrls = [];   // selected URLs from library
+  let editRow = null;     // loaded row in edit mode
 
   function setBusy(on){ $('busy').classList.toggle('show', !!on); }
   function setSaving(on){
@@ -294,17 +317,31 @@
   }
   function clrErr(){ document.querySelectorAll('.err').forEach(e=>{ e.textContent=''; e.style.display='none'; }); }
 
-  async function loadJSON(url){
-    const res = await fetch(url, { headers: { 'Authorization': 'Bearer '+TOKEN, 'Accept': 'application/json' }});
+  async function fetchJSON(url){
+    const res = await fetch(url, { headers: { 'Authorization': 'Bearer '+TOKEN, 'Accept': 'application/json', 'Cache-Control':'no-cache' }});
     const json = await res.json().catch(()=> ({}));
     if(!res.ok) throw new Error(json?.message || ('HTTP '+res.status));
-    return json?.data || json?.rows || json?.items || json;
+    return json;
   }
 
-  function fillSelect(sel, rows, labelKey){
+  function unwrapList(json){
+    return json?.data || json?.rows || json?.items || (Array.isArray(json) ? json : []);
+  }
+
+  async function loadListWithFallback(urlA, urlB){
+    try{
+      const j = await fetchJSON(urlA);
+      return unwrapList(j);
+    }catch(_){
+      const j2 = await fetchJSON(urlB);
+      return unwrapList(j2);
+    }
+  }
+
+  function fillSelect(sel, rows, labelKey, placeholder='Select...'){
     sel.innerHTML = '';
     const opt0 = document.createElement('option');
-    opt0.value = ''; opt0.textContent = 'Select...';
+    opt0.value = ''; opt0.textContent = placeholder;
     sel.appendChild(opt0);
 
     (rows||[]).forEach(r=>{
@@ -320,12 +357,22 @@
     });
   }
 
-  // Init: only load courses; modules & batches wait for course selection
+  function ensureOption(sel, value, label){
+    if(!value) return;
+    const exists = Array.from(sel.options).some(o => String(o.value) === String(value));
+    if(exists) return;
+    const o = document.createElement('option');
+    o.value = value;
+    o.textContent = label || ('Selected #' + value);
+    sel.appendChild(o);
+  }
+
+  /* ===================== LOAD COURSES + CASCADE ===================== */
   async function initDropdowns(){
     setBusy(true);
     try{
-      const courses = await loadJSON(API_COURSES);
-      fillSelect($('course_id'), courses, 'title');
+      const courses = await loadListWithFallback(API_COURSES_A, API_COURSES_B);
+      fillSelect($('course_id'), courses, 'title', 'Select...');
       $('course_module_id').disabled = true;
       $('batch_id').disabled = true;
     }catch(e){
@@ -336,38 +383,138 @@
     }
   }
 
-  // When course changes -> load modules and batches for that course
+  async function loadCourseDependencies(courseId){
+    if(!courseId) return {modules:[], batches:[]};
+
+    $('course_module_id').disabled = true;
+    $('batch_id').disabled = true;
+
+    const [modules, batches] = await Promise.all([
+      loadListWithFallback(API_MODULES_A(courseId), API_MODULES_B(courseId)).catch(()=>[]),
+      loadListWithFallback(API_BATCHES_A(courseId), API_BATCHES_B(courseId)).catch(()=>[])
+    ]);
+
+    fillSelect($('course_module_id'), modules, 'title', 'Select...');
+    fillSelect($('batch_id'), batches, 'badge_title', 'Select...');
+    $('course_module_id').disabled = false;
+    $('batch_id').disabled = false;
+
+    return {modules, batches};
+  }
+
+  // Course change -> load modules & batches
   $('course_id').addEventListener('change', async ()=>{
     const cid = $('course_id').value;
-
-    // Reset & disable until loaded
     fillSelect($('course_module_id'), []); $('course_module_id').disabled = true;
     fillSelect($('batch_id'), []);        $('batch_id').disabled = true;
-
     if(!cid) return;
-
     setBusy(true);
-    try{
-      const [modules, batches] = await Promise.all([
-        loadJSON(API_MODULES(cid)).catch(e=>{ console.error('Modules load failed:', e); fErr('course_module_id','Failed to load'); return []; }),
-        loadJSON(API_BATCHES(cid)).catch(e=>{ console.error('Batches load failed:', e); fErr('batch_id','Failed to load'); return []; })
-      ]);
-      fillSelect($('course_module_id'), modules, 'title');
-      fillSelect($('batch_id'), batches, 'badge_title');
-      $('course_module_id').disabled = false;
-      $('batch_id').disabled = false;
-    }finally{
-      setBusy(false);
-    }
+    try{ await loadCourseDependencies(cid); }
+    finally{ setBusy(false); }
   });
 
-  /* ===== attachments (local uploads) ===== */
+  /* ===================== EDIT: FETCH & AUTO POPULATE (Course -> Module -> Batch) ===================== */
+  async function fetchEditRow(){
+    if(EDIT_UUID){
+      const j = await fetchJSON(API_SHOW_UUID(EDIT_UUID));
+      // show endpoint returns manifest-like; try to normalize:
+      // if it contains direct fields:
+      if(j && typeof j === 'object'){
+        // Some backends return {data:{...}} or direct row
+        return j.data || j.row || j;
+      }
+    }
+
+    if(EDIT_ID){
+      // try list endpoint by id (your old editor did this)
+      const j = await fetchJSON(API_SM + '?' + new URLSearchParams({ id: EDIT_ID }).toString());
+      const rows = unwrapList(j);
+      return Array.isArray(rows) ? (rows[0] || null) : (j.data || null);
+    }
+
+    return null;
+  }
+
+  async function prefillAssociations(courseId, moduleId, batchId){
+    if(courseId){
+      ensureOption($('course_id'), courseId, 'Selected course');
+      $('course_id').value = String(courseId);
+
+      // IMPORTANT: load modules & batches after setting course
+      setBusy(true);
+      try{
+        await loadCourseDependencies(courseId);
+      }finally{
+        setBusy(false);
+      }
+    }
+
+    if(moduleId){
+      ensureOption($('course_module_id'), moduleId, 'Selected module');
+      $('course_module_id').value = String(moduleId);
+    }
+
+    if(batchId){
+      ensureOption($('batch_id'), batchId, 'Selected batch');
+      $('batch_id').value = String(batchId);
+    }
+  }
+
+  function normalizePolicy(row){
+    const v = (row?.view_policy || row?.policy || row?.download_policy || '').toString().toLowerCase();
+    // treat anything containing "download" as downloadable
+    return v.includes('download') ? 'downloadable' : 'inline_only';
+  }
+
+  async function initPrefill(){
+    // 1) if edit -> fetch row then populate in correct order
+    if(IS_EDIT){
+      setBusy(true);
+      try{
+        editRow = await fetchEditRow();
+        if(!editRow){
+          Swal.fire('Not found','Unable to load study material for editing.','error');
+          return;
+        }
+
+        // Course -> Module -> Batch (in that order)
+        await prefillAssociations(
+          editRow.course_id || editRow.courseId || '',
+          editRow.course_module_id || editRow.courseModuleId || '',
+          editRow.batch_id || editRow.batchId || ''
+        );
+
+        // Then basics
+        $('title').value = editRow.title || '';
+        $('description').value = editRow.description || '';
+        $('allow_download').checked = (normalizePolicy(editRow) === 'downloadable');
+
+      }catch(e){
+        console.error(e);
+        Swal.fire('Load failed', e.message || 'Failed to load edit data', 'error');
+      }finally{
+        setBusy(false);
+      }
+      return;
+    }
+
+    // 2) Create mode: support prefill from query (?course_id=&course_module_id=&batch_id=)
+    const qCourse = params.get('course_id') || '';
+    const qModule = params.get('course_module_id') || '';
+    const qBatch  = params.get('batch_id') || '';
+    if(qCourse){
+      await prefillAssociations(qCourse, qModule, qBatch);
+    }
+  }
+
+  /* ===================== Local uploads ===================== */
   const dz   = $('dz'),
         input= $('attachments'),
         list = $('fileList');
   let dt = new DataTransfer();
 
   function bytes(n){
+    n = Number(n||0);
     if(n>=1<<30) return (n/(1<<30)).toFixed(1)+' GB';
     if(n>=1<<20) return (n/(1<<20)).toFixed(1)+' MB';
     if(n>=1<<10) return (n/(1<<10)).toFixed(1)+' KB';
@@ -380,8 +527,8 @@
     const downloadBtn = $('downloadPreview');
 
     previewTitle.textContent = `Preview: ${file.name}`;
-
     const fileUrl = URL.createObjectURL(file);
+
     downloadBtn.href = fileUrl;
     downloadBtn.download = file.name;
     downloadBtn.style.display = 'inline-block';
@@ -429,7 +576,7 @@
 
   function redraw(){
     list.innerHTML='';
-    Array.from(dt.files).forEach((f)=>{
+    Array.from(dt.files).forEach((f, idx)=>{
       const row = document.createElement('div');
       row.className='file-row';
 
@@ -449,26 +596,20 @@
       previewBtn.className='btn-action btn-preview';
       previewBtn.type='button';
       previewBtn.innerHTML='<i class="fa fa-eye"></i><span>Preview</span>';
-      previewBtn.title = 'Preview file';
 
       const rm = document.createElement('button');
       rm.className='btn-action btn-delete';
       rm.type='button';
       rm.innerHTML='<i class="fa fa-trash"></i><span>Delete</span>';
-      rm.title = 'Remove file';
 
       previewBtn.addEventListener('click', (e)=>{
-        e.preventDefault();
-        e.stopPropagation();
-        const idx = Array.from(list.children).indexOf(row);
+        e.preventDefault(); e.stopPropagation();
         const file = dt.files[idx];
         if(file) previewFile(file);
       });
 
       rm.addEventListener('click',(e)=>{
-        e.preventDefault();
-        e.stopPropagation();
-        const idx = Array.from(list.children).indexOf(row);
+        e.preventDefault(); e.stopPropagation();
         const next = new DataTransfer();
         Array.from(dt.files).forEach((ff,i)=>{ if(i!==idx) next.items.add(ff); });
         dt = next;
@@ -484,6 +625,10 @@
       row.appendChild(btnGroup);
       list.appendChild(row);
     });
+
+    if(!dt.files.length){
+      list.innerHTML = '<div class="tiny text-muted">No files selected.</div>';
+    }
   }
 
   function addFiles(files){
@@ -507,12 +652,10 @@
     }
   }
 
- dz.addEventListener('click', (e)=> {
-
-  if (e.target.closest('label[for="attachments"]') || e.target.closest('#attachments')) return;
-
-  input.click();
-});
+  dz.addEventListener('click', (e)=> {
+    if (e.target.closest('label[for="attachments"]') || e.target.closest('#attachments') || e.target.closest('#btnOpenLibrary') || e.target.closest('#btnClearAll')) return;
+    input.click();
+  });
 
   input.addEventListener('change', ()=> addFiles(input.files));
   ['dragenter','dragover'].forEach(ev=>{
@@ -522,21 +665,18 @@
     dz.addEventListener(ev, e=>{ e.preventDefault(); e.stopPropagation(); dz.classList.remove('drag'); });
   });
   dz.addEventListener('drop', e=> addFiles(e.dataTransfer && e.dataTransfer.files));
+
   $('btnClearAll').addEventListener('click', (e)=>{
-  e.preventDefault();
-  e.stopPropagation();   
-  dt = new DataTransfer();
-  if (input) {
+    e.preventDefault(); e.stopPropagation();
+    dt = new DataTransfer();
     input.value = '';
     input.files = dt.files;
-  }
-  libraryUrls = [];
-  redraw();          
-  renderLibraryList(); 
-  // 4) Clear any error message
-  fErr('attachments','');
-});
-
+    libraryUrls = [];
+    redraw();
+    renderLibraryList();
+    fErr('attachments','');
+    fErr('library_urls','');
+  });
 
   $('previewModal').addEventListener('hidden.bs.modal', function() {
     const downloadBtn = $('downloadPreview');
@@ -546,9 +686,9 @@
     downloadBtn.style.display = 'none';
   });
 
-  /* ===== LIBRARY (Study Material attachments reused) ===== */
-  const libraryList       = $('libraryList');       // list of chosen library files (you'll need this div in the blade)
-  const btnOpenLibrary    = $('btnOpenLibrary');    // "Choose from Library" button
+  /* ===================== LIBRARY (attachments reused) ===================== */
+  const libraryList       = $('libraryList');
+  const btnOpenLibrary    = $('btnOpenLibrary');
   const libModal          = document.getElementById('smLibraryModal');
   const libGrid           = $('libGrid');
   const libEmpty          = $('libEmpty');
@@ -558,9 +698,9 @@
   const btnLibAddSelected = $('btnLibAddSelected');
   const libSelectionInfo  = $('libSelectionInfo');
 
-const libModalInstance  = libModal ? new bootstrap.Modal(libModal) : null;
-  let libItems        = [];        // normalized docs
-  let libSelectedKeys = new Set(); // url-without-query keys
+  const libModalInstance  = libModal ? new bootstrap.Modal(libModal) : null;
+  let libItems        = [];
+  let libSelectedKeys = new Set();
 
   function escapeHtml(str){
     return String(str || '').replace(/[&<>"'`=\/]/g, ch => ({
@@ -606,7 +746,6 @@ const libModalInstance  = libModal ? new bootstrap.Modal(libModal) : null;
       rm.type = 'button';
       rm.className = 'btn-action btn-delete';
       rm.innerHTML = '<i class="fa fa-trash"></i><span>Remove</span>';
-      rm.title = 'Remove library file';
       rm.dataset.idx = String(idx);
       rm.addEventListener('click', ()=>{
         const i = parseInt(rm.dataset.idx,10);
@@ -627,16 +766,13 @@ const libModalInstance  = libModal ? new bootstrap.Modal(libModal) : null;
   function updateLibSelectionInfo(){
     if(!libSelectionInfo) return;
     const count = libSelectedKeys.size;
-    libSelectionInfo.textContent = count
-      ? `${count} item${count>1?'s':''} selected`
-      : 'No items selected';
+    libSelectionInfo.textContent = count ? `${count} item${count>1?'s':''} selected` : 'No items selected';
   }
 
   function normalizeAttach(a){
     if(!a) return null;
 
     if(typeof a === 'string'){
-      // try JSON string
       try{
         const parsed = JSON.parse(a);
         if(Array.isArray(parsed)){
@@ -645,7 +781,6 @@ const libModalInstance  = libModal ? new bootstrap.Modal(libModal) : null;
         }
         if(parsed && typeof parsed === 'object') return normalizeAttach(parsed);
       }catch(e){
-        // treat as plain URL
         const url = a;
         const name = url.split('/').pop() || url;
         const ext  = extOf(url);
@@ -654,23 +789,11 @@ const libModalInstance  = libModal ? new bootstrap.Modal(libModal) : null;
     }
 
     const url =
-      a.signed_url ||
-      a.stream_url ||
-      a.url ||
-      a.path ||
-      a.file_url ||
-      a.storage_url ||
-      a.path_with_namespace ||
-      null;
-
+      a.signed_url || a.stream_url || a.url || a.path || a.file_url ||
+      a.storage_url || a.path_with_namespace || null;
     if(!url) return null;
 
-    const name =
-      a.name ||
-      a.label ||
-      a.original_name ||
-      (url.split('/').pop() || 'file');
-
+    const name = a.name || a.label || a.original_name || (url.split('/').pop() || 'file');
     const mime = a.mime || a.content_type || a.contentType || '';
     const size = a.size || a.filesize || 0;
     const ext  = (a.ext || a.extension || extOf(url)).toLowerCase();
@@ -679,107 +802,81 @@ const libModalInstance  = libModal ? new bootstrap.Modal(libModal) : null;
   }
 
   function renderLibGrid(){
-  if(!libGrid || !libEmpty) return;
-  libGrid.innerHTML = '';
+    if(!libGrid || !libEmpty) return;
+    libGrid.innerHTML = '';
 
-  if(!libItems.length){
-    libEmpty.style.display = 'block';
-    updateLibSelectionInfo();
-    return;
-  }
-  libEmpty.style.display = 'none';
-
-  const frag = document.createDocumentFragment();
-
-  libItems.forEach((doc, idx)=>{
-    const col = document.createElement('div');
-    col.className = 'col-md-4 mb-3';
-
-    const card = document.createElement('div');
-    card.className = 'card h-100 lib-card position-relative';
-
-    const thumbHtml = (doc.isImage && doc.url)
-      ? `<img src="${escapeHtml(doc.url)}" alt="${escapeHtml(doc.name)}" class="img-fluid rounded" style="max-height:140px;object-fit:cover;">`
-      : `<div class="lib-icon d-flex align-items-center justify-content-center" style="height:140px;">
-           <i class="fa fa-file fa-2x"></i>
-         </div>`;
-
-    const mimeText = doc.mime || ('File .' + (doc.ext || ''));
-    const sizeText = doc.size ? bytes(doc.size) : '';
-
-    card.innerHTML = `
-      <!-- checkbox overlay top-left -->
-      <div class="lib-overlay-check ml-6">
-        <input 
-          class="form-check-input lib-select" 
-          type="checkbox" 
-          data-key="${escapeHtml(doc.key)}" 
-          id="lib-${idx}"
-        >
-      </div>
-
-      <div class="card-img-top lib-thumb text-center p-3">
-        ${thumbHtml}
-      </div>
-
-      <div class="card-body d-flex flex-column">
-        <h6 class="card-title text-truncate" title="${escapeHtml(doc.name)}">
-          ${escapeHtml(doc.name)}
-        </h6>
-
-        <p class="card-text tiny text-muted mb-1">${escapeHtml(mimeText)}</p>
-        <p class="card-text tiny text-muted mb-2">${escapeHtml(sizeText)}</p>
-
-        <div class="mt-auto d-flex justify-content-start align-items-center">
-          ${
-            doc.url 
-              ? `<button 
-                   type="button" 
-                   class="btn btn-sm btn-outline-primary tiny d-inline-flex align-items-center px-2 py-1 lib-preview" 
-                   data-url="${escapeHtml(doc.url)}"
-                   style="font-size:12px;"
-                 >
-                   <i class="fa fa-arrow-up-right-from-square me-1"></i>
-                   Preview
-                 </button>`
-              : ''
-          }
-        </div>
-      </div>
-    `;
-
-    // ===== checkbox =====
-    const checkbox = card.querySelector('.lib-select');
-
-    // pre-check
-    if(libSelectedKeys.has(doc.key)) checkbox.checked = true;
-
-    checkbox.addEventListener('change',(e)=>{
-      const k = checkbox.getAttribute('data-key') || '';
-      if(e.target.checked) libSelectedKeys.add(k);
-      else libSelectedKeys.delete(k);
+    if(!libItems.length){
+      libEmpty.style.display = 'block';
       updateLibSelectionInfo();
+      return;
+    }
+    libEmpty.style.display = 'none';
+
+    const frag = document.createDocumentFragment();
+
+    libItems.forEach((doc, idx)=>{
+      const col = document.createElement('div');
+      col.className = 'col-md-4 mb-3';
+
+      const card = document.createElement('div');
+      card.className = 'card h-100 position-relative';
+
+      const thumbHtml = (doc.isImage && doc.url)
+        ? `<img src="${escapeHtml(doc.url)}" alt="${escapeHtml(doc.name)}" class="img-fluid rounded" style="max-height:140px;object-fit:cover;">`
+        : `<div class="d-flex align-items-center justify-content-center text-muted" style="height:140px;">
+             <i class="fa fa-file fa-2x"></i>
+           </div>`;
+
+      const mimeText = doc.mime || ('File .' + (doc.ext || ''));
+      const sizeText = doc.size ? bytes(doc.size) : '';
+
+      card.innerHTML = `
+        <div class="position-absolute" style="top:8px;left:8px;z-index:3;background:rgba(255,255,255,.9);padding:4px 6px;border-radius:999px;">
+          <input class="form-check-input lib-select" type="checkbox" data-key="${escapeHtml(doc.key)}" id="lib-${idx}">
+        </div>
+
+        <div class="card-img-top text-center p-3">${thumbHtml}</div>
+
+        <div class="card-body d-flex flex-column">
+          <h6 class="card-title text-truncate" title="${escapeHtml(doc.name)}">${escapeHtml(doc.name)}</h6>
+          <p class="card-text tiny text-muted mb-1">${escapeHtml(mimeText)}</p>
+          <p class="card-text tiny text-muted mb-2">${escapeHtml(sizeText)}</p>
+
+          <div class="mt-auto d-flex justify-content-start align-items-center">
+            ${
+              doc.url
+                ? `<button type="button" class="btn btn-sm btn-outline-primary tiny d-inline-flex align-items-center px-2 py-1 lib-preview" data-url="${escapeHtml(doc.url)}">
+                     <i class="fa fa-arrow-up-right-from-square me-1"></i> Preview
+                   </button>`
+                : ''
+            }
+          </div>
+        </div>
+      `;
+
+      const checkbox = card.querySelector('.lib-select');
+      if(libSelectedKeys.has(doc.key)) checkbox.checked = true;
+
+      checkbox.addEventListener('change',()=>{
+        const k = checkbox.getAttribute('data-key') || '';
+        if(checkbox.checked) libSelectedKeys.add(k);
+        else libSelectedKeys.delete(k);
+        updateLibSelectionInfo();
+      });
+
+      card.addEventListener('click',(ev)=>{
+        if(ev.target.closest('.lib-select') || ev.target.closest('.lib-preview')) return;
+        checkbox.checked = !checkbox.checked;
+        checkbox.dispatchEvent(new Event('change'));
+      });
+
+      col.appendChild(card);
+      frag.appendChild(col);
     });
 
-    // ===== card click → toggle checkbox =====
-    card.addEventListener('click',(ev)=>{
-      if(
-        ev.target.closest('.lib-select') ||
-        ev.target.closest('.lib-preview')
-      ) return;
-
-      checkbox.checked = !checkbox.checked;
-      checkbox.dispatchEvent(new Event('change'));
-    });
-
-    col.appendChild(card);
-    frag.appendChild(col);
-  });
-
-  libGrid.appendChild(frag);
-  updateLibSelectionInfo();
-}
-
+    libGrid.appendChild(frag);
+    updateLibSelectionInfo();
+  }
 
   async function fetchLibraryItems(query){
     if(!LIBRARY_API || !libLoading || !libGrid) return;
@@ -788,7 +885,6 @@ const libModalInstance  = libModal ? new bootstrap.Modal(libModal) : null;
     libGrid.innerHTML = '';
     if(libEmpty) libEmpty.style.display = 'none';
     libItems = [];
-    libSelectedKeys = new Set();
     updateLibSelectionInfo();
 
     try{
@@ -800,30 +896,18 @@ const libModalInstance  = libModal ? new bootstrap.Modal(libModal) : null;
       const res = await fetch(url,{
         headers:{ 'Authorization':'Bearer '+TOKEN, 'Accept':'application/json' }
       });
-      const text = await res.text();
-      let json = null;
-      if(text){
-        try{ json = JSON.parse(text); }catch(e){ json = null; }
-      }
-
+      const json = await res.json().catch(()=> ({}));
       if(!res.ok){
-        const msg = json && (json.message || json.error) ? (json.message || json.error) : ('HTTP '+res.status);
-        err('Library error: ' + msg);
+        err('Library error: ' + (json?.message || ('HTTP '+res.status)));
         libItems = [];
         renderLibGrid();
         return;
       }
 
-      let rows = [];
-      if(Array.isArray(json)) rows = json;
-      else if(json && Array.isArray(json.data)) rows = json.data;
-      else if(json && json.data && Array.isArray(json.data.data)) rows = json.data.data;
-      else if(json && Array.isArray(json.items)) rows = json.items;
-      else if(json && Array.isArray(json.rows)) rows = json.rows;
+      const rows = unwrapList(json);
 
       const docMap = new Map();
-
-      rows.forEach(row=>{
+      (rows||[]).forEach(row=>{
         let atts = row.attachments || row.files || row.resources || row.attachment || row.file || [];
         if(typeof atts === 'string'){
           try{
@@ -852,15 +936,8 @@ const libModalInstance  = libModal ? new bootstrap.Modal(libModal) : null;
               size: n.size || 0,
               ext:  n.ext || extOf(n.url),
               isImage: isImageExt(n.ext || extOf(n.url)),
-              refs: [smTitle],
-              searchText: (smTitle + ' ' + (n.name || '') + ' ' + (n.url || '')).toLowerCase()
+              refs: [smTitle]
             });
-          }else{
-            const entry = docMap.get(key);
-            if(entry.refs.indexOf(smTitle) === -1){
-              entry.refs.push(smTitle);
-              entry.searchText += ' ' + smTitle;
-            }
           }
         });
       });
@@ -876,43 +953,36 @@ const libModalInstance  = libModal ? new bootstrap.Modal(libModal) : null;
     }
   }
 
-  // open modal
   if (btnOpenLibrary && libModalInstance) {
-  btnOpenLibrary.addEventListener('click', (e)=>{
-    e.preventDefault();
-    e.stopPropagation();  
+    btnOpenLibrary.addEventListener('click', (e)=>{
+      e.preventDefault(); e.stopPropagation();
 
-    libSelectedKeys = new Set();
-    (libraryUrls || []).forEach(u=>{
-      if(!u) return;
-      const key = String(u).split('?')[0];
-      libSelectedKeys.add(key);
+      libSelectedKeys = new Set();
+      (libraryUrls || []).forEach(u=>{
+        if(!u) return;
+        const key = String(u).split('?')[0];
+        libSelectedKeys.add(key);
+      });
+
+      if (libSearch) libSearch.value = '';
+      updateLibSelectionInfo();
+      libModalInstance.show();
+      fetchLibraryItems('');
     });
+  }
 
-    if (libSearch) libSearch.value = '';
-    updateLibSelectionInfo();
-    libModalInstance.show();
-    fetchLibraryItems('');
-  });
-}
-
-
-  // search
   if(btnLibSearch && libSearch){
     btnLibSearch.addEventListener('click',()=>{
-      const q = (libSearch.value||'').trim();
-      fetchLibraryItems(q);
+      fetchLibraryItems((libSearch.value||'').trim());
     });
     libSearch.addEventListener('keypress',(e)=>{
       if(e.key==='Enter'){
         e.preventDefault();
-        const q = (libSearch.value||'').trim();
-        fetchLibraryItems(q);
+        fetchLibraryItems((libSearch.value||'').trim());
       }
     });
   }
 
-  // confirm selections → libraryUrls[]
   if(btnLibAddSelected && libModalInstance){
     btnLibAddSelected.addEventListener('click',()=>{
       const chosen = [];
@@ -926,9 +996,10 @@ const libModalInstance  = libModal ? new bootstrap.Modal(libModal) : null;
     });
   }
 
-  /* ===== submit ===== */
+  /* ===================== SUBMIT (CREATE / UPDATE) ===================== */
   $('btnSave').addEventListener('click', async ()=>{
     clrErr();
+
     const course_id        = $('course_id').value;
     const course_module_id = $('course_module_id').value;
     const batch_id         = $('batch_id').value;
@@ -946,11 +1017,15 @@ const libModalInstance  = libModal ? new bootstrap.Modal(libModal) : null;
     fd.append('course_module_id', course_module_id);
     fd.append('batch_id', batch_id);
     fd.append('title', title);
-    const desc = ($('description').value||'').trim(); if(desc) fd.append('description', desc);
+
+    const desc = ($('description').value||'').trim();
+    if(desc) fd.append('description', desc);
+
     fd.append('view_policy', $('allow_download').checked ? 'downloadable' : 'inline_only');
 
     // local uploads
     Array.from(dt.files).forEach(f=> fd.append('attachments[]', f, f.name));
+
     // library URLs
     (libraryUrls || []).forEach(u=>{
       if(u) fd.append('library_urls[]', u);
@@ -958,17 +1033,34 @@ const libModalInstance  = libModal ? new bootstrap.Modal(libModal) : null;
 
     setSaving(true);
     try{
-      const res = await fetch(API_SM, {
-        method:'POST',
+      let url = API_SM;
+      let method = 'POST';
+
+      if(IS_EDIT){
+        // update
+        const idToUse = (editRow && editRow.id) ? editRow.id : EDIT_ID;
+        if(!idToUse){
+          Swal.fire('Update failed','Missing id for update.','error');
+          return;
+        }
+        url = API_UPDATE(idToUse);
+        fd.append('_method','PATCH'); // support Laravel method spoofing
+        method = 'POST';
+      }
+
+      const res = await fetch(url, {
+        method,
         headers:{ 'Authorization':'Bearer '+TOKEN, 'Accept':'application/json' },
         body:fd
       });
       const json = await res.json().catch(()=> ({}));
+
       if(res.ok){
-        ok('Study material created');
-        setTimeout(()=> location.replace('/admin/course/studyMaterial/manage'), 700);
+        ok(IS_EDIT ? 'Study material updated' : 'Study material created');
+        setTimeout(()=> location.replace('/study-material/manage'), 700);
         return;
       }
+
       if(res.status===422){
         const e = json.errors || {};
         if(e['attachments.*']) fErr('attachments', Array.isArray(e['attachments.*'])? e['attachments.*'][0] : String(e['attachments.*']));
@@ -978,11 +1070,13 @@ const libModalInstance  = libModal ? new bootstrap.Modal(libModal) : null;
         err(json.message || 'Please fix the highlighted fields.');
         return;
       }
+
       if(res.status===403){
         Swal.fire({icon:'error',title:'Unauthorized',html:'Your role lacks permission for this endpoint.'});
         return;
       }
-      Swal.fire('Save failed', json.message || ('HTTP '+res.status), 'error');
+
+      Swal.fire(IS_EDIT ? 'Update failed' : 'Save failed', json.message || ('HTTP '+res.status), 'error');
     }catch(ex){
       console.error(ex);
       Swal.fire('Network error','Please check your connection and try again.','error');
@@ -991,9 +1085,13 @@ const libModalInstance  = libModal ? new bootstrap.Modal(libModal) : null;
     }
   });
 
-  // boot
-  initDropdowns();
-  renderLibraryList();   // initial state
+  /* ===================== BOOT ===================== */
+  (async function boot(){
+    await initDropdowns();
+    redraw();
+    renderLibraryList();
+    await initPrefill(); // ✅ course -> module -> batch auto-population for edit
+  })();
 })();
 </script>
 @endpush

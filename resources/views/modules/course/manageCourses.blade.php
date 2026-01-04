@@ -28,32 +28,6 @@ tr.is-archived td{background:color-mix(in oklab, var(--muted-color) 6%, transpar
 tr.is-draft td{background:color-mix(in oklab, var(--warning-color) 4%, transparent)}
 tr.is-deleted td{background:color-mix(in oklab, var(--danger-color) 6%, transparent)}
 
-/* Dropdowns inside table */
-.table-wrap .dropdown{position:relative;z-index:6}
-.table-wrap .dd-toggle{position:relative;z-index:7}
-.dropdown [data-bs-toggle="dropdown"]{border-radius:10px}
-/* Default dropdown menu (when not portaled) */
-.table-wrap .dropdown-menu{border-radius:12px;border:1px solid var(--line-strong);box-shadow:var(--shadow-2);min-width:220px;z-index:5000}
-/* Portaled dropdown menu (moved to body) */
-/* PORTALED DROPDOWN — ensure it covers content and sits above table rows */
-.dropdown-menu.dd-portal{
-  position: fixed !important;
-  left: 0 !important;
-  top: 0 !important;
-  transform: none !important;
-  z-index: 99999 !important;               /* very high z-index to outrank other elements */
-  min-width: 220px;
-  border-radius: 12px;
-  border: 1px solid var(--line-strong);
-  box-shadow: 0 12px 30px rgba(15,23,42,0.12);
-  background: var(--surface);
-  overflow: visible !important;            /* ensure contents aren't clipped */
-  padding: .375rem 0;
-}
-.dropdown-item{display:flex;align-items:center;gap:.6rem}
-.dropdown-item i{width:16px;text-align:center}
-.dropdown-item.text-danger{color:var(--danger-color)!important}
-
 /* Ensure pointer for View Course */
 .view-course-link,
 .dropdown-item { cursor: pointer; }

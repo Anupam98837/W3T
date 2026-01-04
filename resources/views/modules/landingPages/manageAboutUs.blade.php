@@ -11,6 +11,23 @@
     margin: 16px auto 40px;
     overflow: visible;
 }
+/* About Us - Save button (doesn't touch global .btn-primary / pills) */
+.au-save-btn{
+  background: var(--primary-color);
+  border: 1px solid var(--primary-color);
+  color: #fff;
+  border-radius: 12px;
+  padding: .6rem 1rem;
+  font-weight: 600;
+}
+.au-save-btn:hover{
+  background: var(--secondary-color);
+  border-color: var(--secondary-color);
+}
+.au-save-btn:focus{
+  box-shadow: 0 0 0 .2rem rgba(110, 54, 158, 0.25);
+}
+
 
 /* ===== Toolbar ===== */
 .terms-toolbar {
@@ -954,10 +971,11 @@ html.theme-dark .vision-card {
                     <i class="fa-solid fa-trash"></i>
                     Delete
                 </button>
-                <button type="button" id="btnSave" class="btn btn-primary">
-                    <i class="fa-solid fa-save"></i>
-                    Save About Us
-                </button>
+                <button type="button" id="btnSave" class="btn au-save-btn">
+  <i class="fa-solid fa-save"></i>
+  Save About Us
+</button>
+
             </div>
         </div>
     </div>

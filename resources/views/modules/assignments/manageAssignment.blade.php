@@ -272,34 +272,133 @@ async function getMyRole(token){
   const moduleFetchControllers = new Map();
 
   /* ================= helpers for dropdowns ================= */
-  function initDropdowns(root=document){
-    if(!root) return;
-    root.querySelectorAll('[data-bs-toggle="dropdown"], .dd-toggle').forEach(btn=>{
-      try{
-        bootstrap.Dropdown.getOrCreateInstance(btn, {
-          autoClose: 'outside',
-          boundary: 'viewport',
-          popperConfig: { strategy: 'fixed' }
-        });
-      }catch(_){}
-    });
-  }
+ // Replace the initDropdowns function with this improved version:
 
-  // delegated click for custom .dd-toggle buttons
-  document.addEventListener('click', (e) => {
-    const btn = e.target.closest('.dd-toggle');
-    if(!btn) return;
-    e.preventDefault();
-    e.stopPropagation();
+function initDropdowns(root=document){
+  if(!root) return;
+  root.querySelectorAll('[data-bs-toggle="dropdown"], .dd-toggle').forEach(btn=>{
     try{
-      const dd = bootstrap.Dropdown.getOrCreateInstance(btn, {
-        autoClose: 'outside',
+      // Destroy existing instance if any
+      const existing = bootstrap.Dropdown.getInstance(btn);
+      if(existing) existing.dispose();
+      
+      // Create new instance with fixed positioning
+      bootstrap.Dropdown.getOrCreateInstance(btn, {
+        autoClose: true,
         boundary: 'viewport',
-        popperConfig: { strategy: 'fixed' }
+        popperConfig: {
+          strategy: 'fixed',
+          modifiers: [
+            {
+              name: 'offset',
+              options: {
+                offset: [0, 8]
+              }
+            },
+            {
+              name: 'preventOverflow',
+              options: {
+                boundary: 'viewport',
+                padding: 8
+              }
+            },
+            {
+              name: 'flip',
+              options: {
+                fallbackPlacements: ['top-end', 'bottom-end', 'left-start', 'right-start']
+              }
+            }
+          ]
+        }
       });
-      dd.toggle();
     }catch(_){}
   });
+}
+
+// Also update the delegated click handler:
+document.addEventListener('click', (e) => {
+  const btn = e.target.closest('.dd-toggle');
+  if(!btn) return;
+  e.preventDefault();
+  e.stopPropagation();
+  
+  try{
+    // Destroy existing instance
+    const existing = bootstrap.Dropdown.getInstance(btn);
+    if(existing) existing.dispose();
+    
+    // Create new instance with fixed positioning
+    const dd = bootstrap.Dropdown.getOrCreateInstance(btn, {
+      autoClose: true,
+      boundary: 'viewport',
+      popperConfig: {
+        strategy: 'fixed',
+        modifiers: [
+          {
+            name: 'offset',
+            options: {
+              offset: [0, 8]
+            }
+          },
+          {
+            name: 'preventOverflow',
+            options: {
+              boundary: 'viewport',
+              padding: 8
+            }
+          },
+          {
+            name: 'flip',
+            options: {
+              fallbackPlacements: ['top-end', 'bottom-end', 'left-start', 'right-start']
+            }
+          }
+        ]
+      }
+    });
+    dd.toggle();
+  }catch(_){}
+});
+
+// Additionally, update the runtime CSS injection:
+(function injectRuntimeStyles(){
+  const id = 'as-manage-runtime-styles';
+  if(document.getElementById(id)) return;
+  const css = `
+    .table-responsive { 
+      overflow: visible !important; 
+    }
+    table { 
+      overflow: visible !important; 
+    }
+    .dim { 
+      pointer-events: none; 
+    }
+    .dim.show { 
+      pointer-events: auto; 
+    }
+    
+    /* Force dropdown menu positioning */
+    .dropdown-menu {
+      position: fixed !important;
+      z-index: 9999 !important;
+    }
+    
+    /* Ensure parent doesn't clip dropdown */
+    .dropdown {
+      position: static !important;
+    }
+    
+    td .dropdown,
+    th .dropdown {
+      position: static !important;
+    }
+  `;
+  const s = document.createElement('style');
+  s.id = id;
+  s.appendChild(document.createTextNode(css));
+  document.head.appendChild(s);
+})();
 
   /* ================= scope handling ================= */
   function setScope(newScope){

@@ -6,22 +6,6 @@
 
 <style>
 .sm-wrap{max-width:1140px;margin:16px auto 40px;overflow:visible}
-/* .panel{background:var(--surface,#fff);border:1px solid var(--line-strong,#e5e7eb);border-radius:16px;box-shadow:var(--shadow-2,0 10px 30px rgba(15,23,42,.08));padding:14px} */
-
-/* Table Card */
-/* .table-wrap.card{position:relative;border:1px solid var(--line-strong,#e5e7eb);border-radius:16px;background:var(--surface,#fff);box-shadow:var(--shadow-2,0 12px 35px rgba(15,23,42,.08));overflow:visible}
-.table-wrap .card-body{overflow:visible}
-.table thead th{font-weight:600;color:var(--muted-color,#64748b);font-size:13px;border-bottom:1px solid var(--line-strong,#e5e7eb);background:var(--surface,#fff)}
-.table thead.sticky-top{z-index:3}
-.table tbody tr{border-top:1px solid var(--line-soft,#e5e7eb)}
-.table tbody tr:hover{background:var(--page-hover,#f8fafc)}
-.small{font-size:12.5px} */
-
-/* Dropdowns in table */
-.table-wrap .dropdown{position:relative;z-index:6}
-.table-wrap .dd-toggle{position:relative;z-index:7}
-.dropdown [data-bs-toggle="dropdown"]{border-radius:10px}
-.table-wrap .dropdown-menu{border-radius:12px;border:1px solid var(--line-strong,#e5e7eb);box-shadow:var(--shadow-2,0 12px 35px rgba(15,23,42,.16));min-width:220px;z-index:5000}
 .dropdown-item{display:flex;align-items:center;gap:.6rem}
 .dropdown-item i{width:16px;text-align:center}
 .dropdown-item.text-danger{color:var(--danger-color,#dc2626)!important}

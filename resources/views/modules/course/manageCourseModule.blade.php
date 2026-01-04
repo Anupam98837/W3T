@@ -24,15 +24,6 @@ tr.state-deleted td{background:color-mix(in oklab, var(--danger-color) 6%, trans
 .table .badge.badge-success{background:var(--success-color)!important;color:#fff!important}
 .table .badge.badge-secondary{background:#64748b!important;color:#fff!important}
 
-/* Dropdowns inside table (with portal) */
-.table-wrap .dropdown{position:relative;z-index:6}
-.table-wrap .dd-toggle{position:relative;z-index:7}
-.dropdown [data-bs-toggle="dropdown"]{border-radius:10px}
-.table-wrap .dropdown-menu{border-radius:12px;border:1px solid var(--line-strong);box-shadow:var(--shadow-2);min-width:220px;z-index:5000}
-.dropdown-menu.dd-portal{position:fixed!important;left:0;top:0;transform:none!important;z-index:5000;border-radius:12px;border:1px solid var(--line-strong);box-shadow:var(--shadow-2);min-width:220px;background:var(--surface)}
-.dropdown-item{display:flex;align-items:center;gap:.6rem}
-.dropdown-item i{width:16px;text-align:center}
-.dropdown-item.text-danger{color:var(--danger-color)!important}
 
 /* Buttons */
 .icon-btn{display:inline-flex;align-items:center;justify-content:center;height:34px;min-width:34px;padding:0 10px;border:1px solid var(--line-strong);background:var(--surface);border-radius:10px}
@@ -75,11 +66,6 @@ html.theme-dark .dropdown-menu{background:#0f172a;border-color:var(--line-strong
   transform: none !important;   /* transforms create new stacking contexts and break fixed/absolute positioning */
 }
 
-/* keep dropdown toggle above table row so it remains clickable */
-.table-wrap .dd-toggle { z-index: 7; position: relative; }
-
-/* small: ensure dropdown caret/contents not clipped visually */
-.dropdown-menu { overflow: visible; }
 </style>
 @endpush
 

@@ -453,7 +453,6 @@ document.addEventListener('DOMContentLoaded', function(){
         <li><button type="button" class="dropdown-item" data-action="view"><i class="fa fa-eye"></i> View</button></li>
         ${canWrite?`<li><button type="button" class="dropdown-item" data-action="edit"><i class="fa fa-pen"></i> Edit</button></li>`:''}
           <li><button type="button" class="dropdown-item" data-action="assign-privilege"><i class="fa fa-key"></i> Assign Privilege</button></li>
-        <li><button type="button" class="dropdown-item" data-action="manage-privileges"><i class="fa fa-shield-alt"></i> Manage Privileges</button></li>
         ${canDelete?`<li><hr class="dropdown-divider"></li><li><button type="button" class="dropdown-item text-danger" data-action="delete"><i class="fa fa-trash"></i> Delete</button></li>`:''}
       </ul>
     </div>

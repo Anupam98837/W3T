@@ -21,11 +21,6 @@ body.contact-reorder-mode #rows-active tr {
 tr.state-deleted td{background:color-mix(in oklab, var(--danger-color) 6%, transparent)}
 
 /* Dropdowns inside table (portal safe) */
-.table-wrap .dropdown{position:relative;z-index:6}
-.table-wrap .dd-toggle{position:relative;z-index:7}
-.dropdown [data-bs-toggle="dropdown"]{border-radius:10px}
-.table-wrap .dropdown-menu{border-radius:12px;border:1px solid var(--line-strong);box-shadow:var(--shadow-2);min-width:180px;z-index:5000}
-.dropdown-menu.dd-portal{position:fixed!important;left:0;top:0;transform:none!important;z-index:5000;border-radius:12px;border:1px solid var(--line-strong);box-shadow:var(--shadow-2);min-width:180px;background:var(--surface)}
 
 .icon-btn{display:inline-flex;align-items:center;justify-content:center;height:34px;min-width:34px;padding:0 10px;border:1px solid var(--line-strong);background:var(--surface);border-radius:10px}
 .icon-btn:hover{box-shadow:var(--shadow-1)}

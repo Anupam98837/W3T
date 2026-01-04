@@ -20,13 +20,6 @@
 }
 
 /* Panel layout (shared with other admin pages) */
-.panel{
-  background:var(--surface,#fff);
-  border:1px solid var(--line-strong,#e5e7eb);
-  border-radius:16px;
-  box-shadow:0 10px 30px rgba(15,23,42,.08);
-  padding:14px 18px;
-}
 
 /* RTE */
 .rte-wrap{
@@ -102,22 +95,6 @@
   border-bottom: 1px solid #e5e7eb;
 }
 
-/* Dropdowns in table */
-.table-wrap .dropdown{position:relative;z-index:6}
-.table-wrap .dd-toggle{position:relative;z-index:7}
-.dropdown [data-bs-toggle="dropdown"]{border-radius:10px}
-.table-wrap .dropdown-menu{
-  border-radius:12px;
-  border:1px solid var(--line-strong,#e5e7eb);
-  box-shadow:0 12px 35px rgba(15,23,42,.16);
-  min-width:180px;
-  z-index:5000;
-}
-.dropdown-item{
-  display:flex;
-  align-items:center;
-  gap:.6rem;
-}
 .dropdown-item i{
   width:16px;
   text-align:center;
