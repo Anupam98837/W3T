@@ -672,19 +672,17 @@
 
         const hrefLine = n.href ? `<span class="d-block small text-muted mt-1"><i class="fa fa-link me-1 opacity-75"></i>${esc(n.href)}</span>` : '';
 
-        main.innerHTML = `
-          <div class="dm-title">
-            ${esc(n.name || '-')}
-            ${statusBadge(n.status)}
-            ${level>0 ? `<span class="badge badge-soft ms-2">Level ${level+1}</span>` : ''}
-            ${hasKids ? `<span class="badge badge-soft ms-2">${n.children.length} child</span>` : ''}
-          </div>
-          <div class="dm-meta">
-            ${n.icon_class ? `icon: ${esc(n.icon_class)}` : '—'}
-            ${n.description ? ` • ${esc(String(n.description).slice(0,80))}${String(n.description).length>80?'…':''}` : ''}
-          </div>
-          ${hrefLine}
-        `;
+              main.innerHTML = `
+  <div class="dm-title">
+    ${n.icon_class ? `<i class="${esc(n.icon_class)} dm-title-ico me-2"></i>` : `<i class="fa-solid fa-folder dm-title-ico me-2"></i>`}
+    <span class="dm-title-text">${esc(n.name || '-')}</span>
+    ${statusBadge(n.status)}
+    ${level>0 ? `<span class="badge badge-soft ms-2">Level ${level+1}</span>` : ''}
+    ${hasKids ? `<span class="badge badge-soft ms-2">${n.children.length} child</span>` : ''}
+  </div>
+ 
+  ${hrefLine}
+`;
 
         const actions = document.createElement('div');
         actions.className = 'dm-actions';
