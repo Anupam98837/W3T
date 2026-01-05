@@ -7,8 +7,138 @@
 
 <style>
 /* ===== Shell ===== */
-.blog-wrap{max-width:1140px;margin:16px auto 40px;overflow:visible}
+/* ===== COMPLETE DROPDOWN FIX FOR BLOG MANAGEMENT ===== */
 
+/* Ensure all containers allow overflow */
+.blog-wrap,
+.table-wrap,
+.card,
+.card-body,
+.table-responsive {
+  position: relative !important;
+  overflow: visible !important;
+  transform: none !important;
+}
+
+/* Table rows and cells */
+.table tbody tr {
+  position: relative;
+  overflow: visible !important;
+}
+
+.table tbody tr td {
+  overflow: visible !important;
+}
+
+.table tbody tr td:last-child {
+  position: relative;
+  z-index: 1;
+  overflow: visible !important;
+}
+
+.dropdown-item i {
+  width: 18px;
+  text-align: center;
+  opacity: 0.8;
+}
+
+.dropdown-item:hover {
+  background: rgba(0, 0, 0, 0.05);
+  color: var(--ink, #1f2937);
+}
+
+.dropdown-item.text-danger {
+  color: #ef4444 !important;
+}
+
+.dropdown-item.text-danger:hover {
+  background: rgba(239, 68, 68, 0.08);
+  color: #dc2626 !important;
+}
+
+/* Divider */
+.dropdown-divider {
+  margin: 0.375rem 0;
+  border-top: 1px solid var(--line-strong, #e5e7eb);
+}
+
+/* Links in dropdown */
+.dropdown-item[href] {
+  text-decoration: none;
+}
+
+.dropdown-item[href]:hover {
+  text-decoration: none;
+}
+
+/* Dark mode support */
+html.theme-dark .dropdown-menu,
+html.theme-dark .dropdown-menu.dd-portal {
+  background: #0f172a;
+  border-color: #334155;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6), 
+              0 0 0 1px rgba(255, 255, 255, 0.1);
+}
+
+html.theme-dark .dropdown-item {
+  color: #e5e7eb;
+}
+
+html.theme-dark .dropdown-item:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: #f3f4f6;
+}
+
+html.theme-dark .dropdown-item.text-danger {
+  color: #f87171 !important;
+}
+
+html.theme-dark .dropdown-item.text-danger:hover {
+  background: rgba(239, 68, 68, 0.15);
+  color: #fca5a5 !important;
+}
+
+html.theme-dark .dropdown-divider {
+  border-color: #334155;
+}
+
+/* Ensure pagination doesn't interfere */
+.pagination {
+  position: relative;
+  z-index: 1;
+}
+
+/* Make sure card footer doesn't clip */
+.card-body {
+  padding-bottom: 0 !important;
+}
+
+.card-body > .d-flex:last-child {
+  padding: 1rem;
+  overflow: visible !important;
+}
+
+/* Special handling for last rows in table */
+.table tbody tr:nth-last-child(-n+3) .dropdown-menu {
+  margin-bottom: 0 !important;
+}
+
+/* Ensure nav-tabs don't interfere */
+.nav-tabs {
+  position: relative;
+  z-index: 1;
+}
+
+/* Tab content must allow overflow */
+.tab-content {
+  position: relative;
+  overflow: visible !important;
+}
+
+.tab-pane {
+  position: relative;
+  overflow: visible !important;
+}
 /* ===== Pills / badges ===== */
 .badge-soft{background:color-mix(in oklab, var(--muted-color) 12%, transparent);color:var(--ink)}
 .badge-status{font-weight:700;letter-spacing:.02em}
@@ -32,23 +162,6 @@ tr.is-inactive td{background:color-mix(in oklab, var(--danger-color) 6%, transpa
 tr.is-draft td{background:color-mix(in oklab, var(--warning-color) 5%, transparent)}
 tr.is-deleted td{background:color-mix(in oklab, var(--danger-color) 8%, transparent)}
 
-/* ===== Dropdown portal (same proven pattern) ===== */
-.table-wrap .dropdown{position:relative;z-index:6}
-.table-wrap .dd-toggle{position:relative;z-index:7;border-radius:10px}
-.table-wrap .dropdown-menu{border-radius:12px;border:1px solid var(--line-strong);box-shadow:var(--shadow-2);min-width:220px;z-index:5000}
-.dropdown-menu.dd-portal{
-  position: fixed !important;
-  left: 0 !important; top: 0 !important;
-  transform: none !important;
-  z-index: 99999 !important;
-  min-width: 220px;
-  border-radius: 12px;
-  border: 1px solid var(--line-strong);
-  box-shadow: 0 12px 30px rgba(15,23,42,0.12);
-  background: var(--surface);
-  overflow: visible !important;
-  padding: .375rem 0;
-}
 .dropdown-item{display:flex;align-items:center;gap:.6rem}
 .dropdown-item i{width:16px;text-align:center}
 .dropdown-item.text-danger{color:var(--danger-color)!important}
@@ -333,35 +446,50 @@ html.theme-dark .dropdown-menu{background:#0f172a;border-color:var(--line-strong
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <script>
 /* ===== Force dropdown overflows to body (portal) — same stable implementation ===== */
+/* ===== Enhanced Dropdown portal logic ===== */
 (function(){
   let activePortal = null;
 
   const placeMenu = (menu, btnRect) => {
     const vw = Math.max(document.documentElement.clientWidth, window.innerWidth || 0);
-    const spaceRight = vw - btnRect.right;
+    const vh = Math.max(document.documentElement.clientHeight, window.innerHeight || 0);
 
     menu.classList.add('dd-portal');
     menu.style.display = 'block';
     menu.style.visibility = 'hidden';
     document.body.appendChild(menu);
 
-    const mw = menu.offsetWidth, mh = menu.offsetHeight;
+    const mw = menu.offsetWidth;
+    const mh = menu.offsetHeight;
 
+    // Horizontal positioning
     let left = btnRect.left;
-    if (spaceRight < mw && btnRect.right - mw > 8) left = btnRect.right - mw;
+    const spaceRight = vw - btnRect.right;
+    if (spaceRight < mw && btnRect.right - mw > 8) {
+      left = btnRect.right - mw;
+    }
 
+    // Vertical positioning - check if dropdown fits below
     let top = btnRect.bottom + 4;
-    const vh = Math.max(document.documentElement.clientHeight, window.innerHeight || 0);
-    if (top + mh > vh - 8) top = Math.max(8, vh - mh - 8);
+    const spaceBelow = vh - btnRect.bottom;
+    const spaceAbove = btnRect.top;
+
+    // If not enough space below but enough above, position above
+    if (spaceBelow < mh + 20 && spaceAbove > mh + 20) {
+      top = btnRect.top - mh - 4;
+    } else if (spaceBelow < mh + 20) {
+      // Not enough space either way, position to fit in viewport
+      top = Math.max(8, Math.min(top, vh - mh - 8));
+    }
 
     menu.style.left = left + 'px';
-    menu.style.top  = top + 'px';
+    menu.style.top = top + 'px';
     menu.style.visibility = 'visible';
   };
 
   document.addEventListener('show.bs.dropdown', function(ev){
     const dd = ev.target;
-    const btn  = dd.querySelector('.dd-toggle, [data-bs-toggle="dropdown"]');
+    const btn = dd.querySelector('.dd-toggle, [data-bs-toggle="dropdown"]');
     const menu = dd.querySelector('.dropdown-menu');
     if (!btn || !menu) return;
 
@@ -377,8 +505,11 @@ html.theme-dark .dropdown-menu{background:#0f172a;border-color:var(--line-strong
     activePortal = { menu, parent: menu.__ddParent };
 
     const closeOnEnv = () => {
-      try { bootstrap.Dropdown.getOrCreateInstance(btn).hide(); } catch {}
+      try { 
+        bootstrap.Dropdown.getOrCreateInstance(btn).hide(); 
+      } catch {}
     };
+    
     menu.__ddCloseOnEnv = closeOnEnv;
     window.addEventListener('resize', closeOnEnv);
     document.addEventListener('scroll', closeOnEnv, true);
@@ -403,7 +534,6 @@ html.theme-dark .dropdown-menu{background:#0f172a;border-color:var(--line-strong
     }
   });
 })();
-
 /* ================= Dropdown toggle handler ================= */
 document.addEventListener('click', (e) => {
   const btn = e.target.closest('.dd-toggle');

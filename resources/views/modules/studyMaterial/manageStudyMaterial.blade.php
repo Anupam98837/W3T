@@ -862,14 +862,7 @@ function renderModuleTable(){
       <td colspan="3" class="text-muted small">Module under "${H.esc(courseSel.options[courseSel.selectedIndex]?.text || '')}"</td>
       <td>-</td>
       <td class="text-end">
-        <button
-          class="btn btn-sm btn-primary"
-          data-act="create-under-module"
-          data-module-id="${modId}"
-          style="${(PERM.canCreate && scope!=='bin') ? '' : 'display:none'}"
-        >
-          <i class="fa fa-plus"></i> Add material
-        </button>
+      
       </td>
     `;
 

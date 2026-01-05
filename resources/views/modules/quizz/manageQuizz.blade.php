@@ -6,85 +6,118 @@
 <link rel="stylesheet" href="{{ asset('assets/css/common/main.css') }}"/>
 
 <style>
-.qz-wrap {
-  max-width: 1140px;
-  margin: 16px auto 40px;
-  overflow: visible !important;
-}
+/* ===== COMPLETE DROPDOWN FIX FOR QUIZ MANAGEMENT ===== */
 
-.table-wrap {
-  overflow: visible !important;
-}
-
-.table-wrap.card {
-  overflow: visible !important;
-}
-
-.table-wrap .card-body {
-  overflow: visible !important;
-  padding: 0;
-}
-
-.table-responsive {
-  overflow-x: auto;
-  overflow-y: visible !important;
-  position: relative;
-}
-
-/* 2. Remove any transform/filter/perspective that creates stacking context */
+/* 1. Ensure all containers allow overflow */
+.qz-wrap,
 .table-wrap,
-.table-wrap .card-body,
+.card,
+.card-body,
 .table-responsive,
 .tab-content,
 .tab-pane {
+  position: relative !important;
+  overflow: visible !important;
   transform: none !important;
   filter: none !important;
   perspective: none !important;
 }
 
-/* 3. Table cells with dropdowns must not clip */
+/* 2. Force table to allow overflow */
+.table {
+  position: relative;
+  overflow: visible !important;
+}
+
+/* 3. Table cells and rows */
+.table tbody tr {
+  position: relative;
+  overflow: visible !important;
+}
+
+.table tbody tr td {
+  overflow: visible !important;
+}
+
+.table tbody tr td:last-child {
+  position: relative;
+  z-index: 1;
+  overflow: visible !important;
+}
+
 .table td:has(.dropdown),
 .table th:has(.dropdown) {
   position: static !important;
   overflow: visible !important;
 }
 
-/* 4. Dropdown container positioning */
+/* 4. Dropdown container - static positioning */
 .dropdown {
   position: static !important;
 }
 
 /* 5. Dropdown toggle button */
-.dd-toggle {
+.dd-toggle,
+[data-bs-toggle="dropdown"] {
   position: relative;
-  z-index: 1;
+  z-index: 10;
+  border-radius: 8px;
+  transition: all 0.15s ease;
 }
 
-/* 6. Dropdown menu with portal styling */
-.dropdown-menu {
-  border-radius: 12px;
-  border: 1px solid var(--line-strong);
-  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+.dd-toggle:hover,
+[data-bs-toggle="dropdown"]:hover {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+/* 6. Non-portaled dropdown menu (fallback) */
+.dropdown-menu:not(.dd-portal) {
+  position: fixed !important;
+  z-index: 999999 !important;
   min-width: 220px;
-  z-index: 9999 !important;
-  position: absolute !important;
+  max-width: 300px;
+  border-radius: 12px;
+  border: 1px solid var(--line-strong, #e5e7eb);
+  box-shadow: 0 20px 40px rgba(15, 23, 42, 0.2);
+  background: var(--surface, #ffffff);
+  padding: 0.5rem 0;
 }
 
-/* 7. Portal class for body-appended menus */
+/* 7. Portaled dropdown menu - HIGHEST priority */
 .dropdown-menu.dd-portal {
   position: fixed !important;
-  z-index: 99999 !important;
+  left: 0 !important;
+  top: 0 !important;
+  transform: none !important;
+  z-index: 999999 !important;
+  min-width: 220px;
+  max-width: 300px;
+  border-radius: 12px;
+  border: 1px solid var(--line-strong, #e5e7eb);
+  box-shadow: 0 20px 40px rgba(15, 23, 42, 0.2), 
+              0 0 0 1px rgba(0, 0, 0, 0.05);
+  background: var(--surface, #ffffff);
+  overflow: visible !important;
+  padding: 0.5rem 0;
   margin: 0 !important;
+  will-change: transform;
 }
 
-/* 8. Ensure shown dropdowns are visible */
+/* 8. Force show state */
 .dropdown-menu.show {
   display: block !important;
   visibility: visible !important;
   opacity: 1 !important;
+  z-index: 999999 !important;
+  overflow: visible !important;
 }
 
-/* 9. Dropdown items */
+/* 9. Remove Bootstrap's default popper positioning */
+.dropdown-menu[data-bs-popper] {
+  position: fixed !important;
+}
+
+/* 10. Dropdown items */
 .dropdown-item {
   display: flex;
   align-items: center;
@@ -95,54 +128,121 @@
   border: none;
   background: none;
   text-decoration: none;
-  color: inherit;
+  color: var(--ink, #1f2937);
   width: 100%;
   text-align: left;
+  white-space: nowrap;
 }
 
 .dropdown-item:hover {
   background-color: rgba(0, 0, 0, 0.05);
+  color: var(--ink, #1f2937);
 }
 
 .dropdown-item i {
-  width: 16px;
+  width: 18px;
   text-align: center;
   flex-shrink: 0;
+  opacity: 0.8;
 }
 
 .dropdown-item.text-danger {
-  color: var(--danger-color) !important;
+  color: #ef4444 !important;
 }
 
 .dropdown-item.text-danger:hover {
-  background-color: rgba(239, 68, 68, 0.1);
+  background-color: rgba(239, 68, 68, 0.08);
+  color: #dc2626 !important;
 }
 
-/* 10. Dark mode dropdown */
-html.theme-dark .dropdown-menu {
-  background: #0f172a;
-  border-color: var(--line-strong);
+/* 11. Divider */
+.dropdown-divider {
+  margin: 0.375rem 0;
+  border-top: 1px solid var(--line-strong, #e5e7eb);
 }
 
+/* 12. Dark mode support */
+html.theme-dark .dropdown-menu,
 html.theme-dark .dropdown-menu.dd-portal {
   background: #0f172a;
-  border-color: var(--line-strong);
+  border-color: #334155;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6), 
+              0 0 0 1px rgba(255, 255, 255, 0.1);
+}
+
+html.theme-dark .dropdown-item {
+  color: #e5e7eb;
 }
 
 html.theme-dark .dropdown-item:hover {
-  background-color: rgba(255, 255, 255, 0.1);
+  background-color: rgba(255, 255, 255, 0.05);
+  color: #f3f4f6;
 }
 
-/* 11. Prevent Bootstrap's default positioning issues */
-.dropdown-menu[data-bs-popper] {
-  position: fixed !important;
+html.theme-dark .dropdown-item.text-danger {
+  color: #f87171 !important;
 }
 
-/* 12. Table row positioning */
-tbody tr {
+html.theme-dark .dropdown-item.text-danger:hover {
+  background-color: rgba(239, 68, 68, 0.15);
+  color: #fca5a5 !important;
+}
+
+html.theme-dark .dropdown-divider {
+  border-color: #334155;
+}
+
+/* 13. Pagination and footer */
+.pagination {
   position: relative;
+  z-index: 1;
 }
 
+.card-body > .d-flex:last-child {
+  padding: 1rem;
+  overflow: visible !important;
+}
+
+/* 14. Nav tabs positioning */
+.nav-tabs {
+  position: relative;
+  z-index: 1;
+}
+
+/* 15. Special handling for last rows */
+.table tbody tr:nth-last-child(-n+3) .dropdown-menu {
+  margin-bottom: 0 !important;
+}
+
+/* 16. Status badges - keep original styles */
+.badge-soft {
+  background: color-mix(in oklab, var(--muted-color) 12%, transparent);
+  color: var(--ink);
+}
+
+.table .badge.badge-success {
+  background: var(--success-color) !important;
+  color: #fff !important;
+}
+
+.table .badge.badge-secondary {
+  background: #64748b !important;
+  color: #fff !important;
+}
+
+/* 17. Responsive adjustments */
+@media (max-width: 768px) {
+  .dropdown-menu,
+  .dropdown-menu.dd-portal {
+    min-width: 180px;
+    max-width: 240px;
+  }
+  
+  .dropdown-item {
+    padding: 0.4rem 0.8rem;
+    font-size: 0.9rem;
+  }
+}
 /* ===== Status Badges ===== */
 .badge-soft {
   background: color-mix(in oklab, var(--muted-color) 12%, transparent);
@@ -703,13 +803,12 @@ html.theme-dark .page-link:hover {
 <script>
 /* ===== Force dropdown overflows to body (portal) ===== */
 /* ===== IMPROVED DROPDOWN HANDLER WITH PORTAL APPROACH ===== */
-
+/* ===== ENHANCED DROPDOWN PORTAL LOGIC ===== */
 (function() {
   let activePortal = null;
 
   /**
-   * Places a dropdown menu in the document body with fixed positioning
-   * This prevents overflow clipping issues in scrollable tables
+   * Places dropdown menu with smart positioning
    */
   function placeMenuInBody(menu, btnRect) {
     const vw = Math.max(document.documentElement.clientWidth, window.innerWidth || 0);
@@ -718,65 +817,55 @@ html.theme-dark .page-link:hover {
     // Add portal class
     menu.classList.add('dd-portal');
     
-    // Temporarily show to measure
+    // Show for measurement
     menu.style.display = 'block';
     menu.style.visibility = 'hidden';
     
-    // Append to body for measurement
+    // Append to body
     document.body.appendChild(menu);
     
-    // Get menu dimensions
+    // Get dimensions
     const menuWidth = menu.offsetWidth;
     const menuHeight = menu.offsetHeight;
     
-    // Calculate horizontal position
+    // Horizontal positioning
     let left = btnRect.left;
     const spaceRight = vw - btnRect.right;
     
-    // If not enough space on right, align to button's right edge
     if (spaceRight < menuWidth && btnRect.right - menuWidth > 8) {
       left = btnRect.right - menuWidth;
     }
     
     // Keep within viewport horizontally
-    if (left + menuWidth > vw - 8) {
-      left = vw - menuWidth - 8;
-    }
-    if (left < 8) {
-      left = 8;
-    }
+    left = Math.max(8, Math.min(left, vw - menuWidth - 8));
     
-    // Calculate vertical position
+    // Vertical positioning - smart detection
     let top = btnRect.bottom + 4;
+    const spaceBelow = vh - btnRect.bottom;
+    const spaceAbove = btnRect.top;
     
-    // If not enough space below, show above
-    if (top + menuHeight > vh - 8 && btnRect.top - menuHeight - 4 > 8) {
+    // If not enough space below but enough above, position above
+    if (spaceBelow < menuHeight + 20 && spaceAbove > menuHeight + 20) {
       top = btnRect.top - menuHeight - 4;
+    } else if (spaceBelow < menuHeight + 20) {
+      // Not enough space either way
+      top = Math.max(8, Math.min(top, vh - menuHeight - 8));
     }
     
-    // Keep within viewport vertically
-    if (top + menuHeight > vh - 8) {
-      top = vh - menuHeight - 8;
-    }
-    if (top < 8) {
-      top = 8;
-    }
-    
-    // Apply final position
+    // Apply position
     menu.style.left = left + 'px';
     menu.style.top = top + 'px';
     menu.style.visibility = 'visible';
   }
 
   /**
-   * Closes any open portaled dropdown
+   * Closes active portaled dropdown
    */
   function closeActivePortal() {
     if (activePortal && activePortal.menu && activePortal.menu.isConnected) {
       activePortal.menu.classList.remove('dd-portal');
       activePortal.menu.style.cssText = '';
       
-      // Restore to original parent
       if (activePortal.parent) {
         activePortal.parent.appendChild(activePortal.menu);
       }
@@ -786,34 +875,34 @@ html.theme-dark .page-link:hover {
   }
 
   /**
-   * Listen for dropdown show event
+   * Show dropdown event
    */
   document.addEventListener('show.bs.dropdown', function(event) {
-    const dropdownElement = event.target; // The .dropdown element
+    const dropdownElement = event.target;
     const toggleBtn = dropdownElement.querySelector('.dd-toggle, [data-bs-toggle="dropdown"]');
     const menu = dropdownElement.querySelector('.dropdown-menu');
     
     if (!toggleBtn || !menu) return;
     
-    // Close any existing portal
+    // Close existing
     closeActivePortal();
     
-    // Store original parent
+    // Store parent
     menu.__originalParent = menu.parentElement;
     
-    // Get button position
+    // Get position
     const rect = toggleBtn.getBoundingClientRect();
     
-    // Place menu in body with fixed positioning
+    // Place in body
     placeMenuInBody(menu, rect);
     
-    // Store active portal reference
+    // Store reference
     activePortal = {
       menu: menu,
       parent: menu.__originalParent
     };
     
-    // Setup close on scroll/resize
+    // Close on scroll/resize
     const closeHandler = () => {
       try {
         const instance = bootstrap.Dropdown.getInstance(toggleBtn);
@@ -829,7 +918,7 @@ html.theme-dark .page-link:hover {
   });
 
   /**
-   * Listen for dropdown hide event
+   * Hide dropdown event
    */
   document.addEventListener('hidden.bs.dropdown', function(event) {
     const dropdownElement = event.target;
@@ -840,14 +929,14 @@ html.theme-dark .page-link:hover {
     const targetMenu = menu || (activePortal && activePortal.menu);
     
     if (targetMenu) {
-      // Remove event listeners
+      // Remove listeners
       if (targetMenu.__closeHandler) {
         window.removeEventListener('scroll', targetMenu.__closeHandler, true);
         window.removeEventListener('resize', targetMenu.__closeHandler);
         targetMenu.__closeHandler = null;
       }
       
-      // Restore menu to original parent
+      // Restore to parent
       targetMenu.classList.remove('dd-portal');
       targetMenu.style.cssText = '';
       
@@ -861,7 +950,7 @@ html.theme-dark .page-link:hover {
   });
 
   /**
-   * Handle dropdown toggle clicks
+   * Handle toggle clicks
    */
   document.addEventListener('click', (e) => {
     const btn = e.target.closest('.dd-toggle');
@@ -869,9 +958,8 @@ html.theme-dark .page-link:hover {
     
     e.preventDefault();
     e.stopPropagation();
-    e.stopImmediatePropagation();
     
-    // Close other dropdowns first
+    // Close other dropdowns
     document.querySelectorAll('.dd-toggle').forEach(otherBtn => {
       if (otherBtn !== btn) {
         try {
@@ -884,32 +972,14 @@ html.theme-dark .page-link:hover {
     // Toggle this dropdown
     const instance = bootstrap.Dropdown.getOrCreateInstance(btn, {
       autoClose: true,
-      boundary: 'viewport',
-      popperConfig: {
-        strategy: 'fixed',
-        modifiers: [
-          {
-            name: 'preventOverflow',
-            options: {
-              boundary: 'viewport',
-              padding: 8
-            }
-          },
-          {
-            name: 'flip',
-            options: {
-              fallbackPlacements: ['top-end', 'bottom-end', 'left-start', 'right-start']
-            }
-          }
-        ]
-      }
+      boundary: 'viewport'
     });
     
     instance.toggle();
-  }, true);
+  });
 
   /**
-   * Close dropdown when clicking outside
+   * Close when clicking outside
    */
   document.addEventListener('click', (e) => {
     if (!e.target.closest('.dropdown-menu') && !e.target.closest('.dd-toggle')) {

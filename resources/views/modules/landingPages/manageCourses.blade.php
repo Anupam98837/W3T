@@ -38,11 +38,6 @@ tr.state-archived td{background:color-mix(in oklab, var(--muted-color) 7%, trans
   color:#1d4ed8
 }
 
-
-.dropdown-item{display:flex;align-items:center;gap:.6rem}
-.dropdown-item i{width:16px;text-align:center}
-.dropdown-item.text-danger{color:var(--danger-color)!important}
-
 /* Buttons */
 .icon-btn{
   display:inline-flex;align-items:center;justify-content:center;
@@ -61,15 +56,137 @@ html.theme-dark .table-wrap.card{background:#0f172a;border-color:var(--line-stro
 html.theme-dark .table thead th{background:#0f172a;border-color:var(--line-strong);color:#94a3b8}
 html.theme-dark .table tbody tr{border-color:var(--line-soft)}
 html.theme-dark .dropdown-menu{background:#0f172a;border-color:var(--line-strong)}
+/* ===== COMPLETE DROPDOWN FIX ===== */
 
-/* Ensure wrappers don't clip dropdowns */
-.table-responsive,
+/* Ensure all containers allow overflow */
+.fc-wrap,
 .table-wrap,
 .card,
-.fc-wrap {
+.card-body,
+.table-responsive {
+  position: relative !important;
+  overflow: visible !important;
   transform: none !important;
 }
 
+/* Force table to allow overflow */
+.table {
+  position: relative;
+  overflow: visible !important;
+}
+
+/* Dropdown container must be static to escape row clipping */
+
+
+/* Non-portaled dropdown (fallback) */
+.dropdown-menu:not(.dd-portal) {
+  position: fixed !important;
+  z-index: 999999 !important;
+  min-width: 220px;
+  max-width: 300px;
+  border-radius: 12px;
+  border: 1px solid #e5e7eb;
+  box-shadow: 0 20px 40px rgba(15, 23, 42, 0.2);
+  background: #ffffff;
+  padding: 0.5rem 0;
+}
+
+/* Force show state */
+.dropdown-menu.show {
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  z-index: 999999 !important;
+  overflow: visible !important;
+}
+
+/* Dropdown items */
+.dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.5rem 1rem;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+  white-space: nowrap;
+}
+
+.dropdown-item i {
+  width: 18px;
+  text-align: center;
+  opacity: 0.8;
+}
+
+.dropdown-item:hover {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+.dropdown-item.text-danger {
+  color: #ef4444 !important;
+}
+
+.dropdown-item.text-danger:hover {
+  background: rgba(239, 68, 68, 0.08);
+}
+
+/* Divider */
+.dropdown-divider {
+  margin: 0.375rem 0;
+  border-top: 1px solid #e5e7eb;
+}
+
+/* View Course link styling */
+.view-course-link {
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.view-course-link:hover {
+  text-decoration: none;
+}
+
+/* Dark mode support */
+html.theme-dark .dropdown-menu,
+html.theme-dark .dropdown-menu.dd-portal {
+  background: #0f172a;
+  border-color: #334155;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6), 
+              0 0 0 1px rgba(255, 255, 255, 0.1);
+}
+
+html.theme-dark .dropdown-item:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+html.theme-dark .dropdown-item.text-danger:hover {
+  background: rgba(239, 68, 68, 0.15);
+}
+
+html.theme-dark .dropdown-divider {
+  border-color: #334155;
+}
+
+/* Ensure pagination doesn't interfere */
+.pagination {
+  position: relative;
+  z-index: 1;
+}
+
+/* Make sure card footer doesn't clip */
+.card-body {
+  padding-bottom: 0 !important;
+}
+
+.card-body > .d-flex:last-child {
+  padding: 1rem;
+  overflow: visible !important;
+}
+
+/* Special handling for last rows in table */
+.table tbody tr:nth-last-child(-n+3) .dropdown-menu {
+  /* For rows near the bottom, ensure dropdown can extend upward if needed */
+  margin-bottom: 0 !important;
+}
 /* Featured toggle column */
 .feature-toggle-cell{white-space:nowrap}
 .feature-toggle-label{font-size:11px;color:var(--muted-color);display:block}
@@ -480,63 +597,93 @@ html.theme-dark .media-item{background:#0b1020;border-color:var(--line-strong)}
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <script>
 /* ===== Dropdown portal logic (same as privileges) ===== */
+/* ===== Enhanced Dropdown portal logic ===== */
 (function(){
   let activePortal=null;
   const place=(menu, btnRect)=>{
-    const vw=Math.max(document.documentElement.clientWidth, window.innerWidth||0);
+    const vw = Math.max(document.documentElement.clientWidth, window.innerWidth || 0);
+    const vh = Math.max(document.documentElement.clientHeight, window.innerHeight || 0);
+    
     menu.classList.add('dd-portal');
-    menu.style.display='block';
-    menu.style.visibility='hidden';
+    menu.style.display = 'block';
+    menu.style.visibility = 'hidden';
     document.body.appendChild(menu);
 
-    const mw=menu.offsetWidth, mh=menu.offsetHeight;
-    let left = (vw - btnRect.right < mw && btnRect.right - mw > 8)
-      ? (btnRect.right - mw)
-      : btnRect.left;
-    let top  = btnRect.bottom + 4;
-    const vh=Math.max(document.documentElement.clientHeight, window.innerHeight||0);
-    if(top + mh > vh - 8) top = Math.max(8, vh - mh - 8);
-
+    const mw = menu.offsetWidth;
+    const mh = menu.offsetHeight;
+    
+    // Horizontal positioning
+    let left = btnRect.left;
+    const spaceRight = vw - btnRect.right;
+    if (spaceRight < mw && btnRect.right - mw > 8) {
+      left = btnRect.right - mw;
+    }
+    
+    // Vertical positioning - check if dropdown fits below
+    let top = btnRect.bottom + 4;
+    const spaceBelow = vh - btnRect.bottom;
+    const spaceAbove = btnRect.top;
+    
+    // If not enough space below but enough above, position above
+    if (spaceBelow < mh + 20 && spaceAbove > mh + 20) {
+      top = btnRect.top - mh - 4;
+    } else if (spaceBelow < mh + 20) {
+      // Not enough space either way, position to fit in viewport
+      top = Math.max(8, Math.min(top, vh - mh - 8));
+    }
+    
     menu.style.left = left + 'px';
-    menu.style.top  = top + 'px';
-    menu.style.visibility='visible';
+    menu.style.top = top + 'px';
+    menu.style.visibility = 'visible';
   };
 
   document.addEventListener('show.bs.dropdown', (ev)=>{
-    const dd=ev.target,
-          btn=dd.querySelector('.dd-toggle,[data-bs-toggle="dropdown"]'),
-          menu=dd.querySelector('.dropdown-menu');
-    if(!btn || !menu) return;
-    if(activePortal?.menu?.isConnected){
+    const dd = ev.target;
+    const btn = dd.querySelector('.dd-toggle,[data-bs-toggle="dropdown"]');
+    const menu = dd.querySelector('.dropdown-menu');
+    if (!btn || !menu) return;
+    
+    if (activePortal?.menu?.isConnected) {
       activePortal.menu.classList.remove('dd-portal');
       activePortal.parent.appendChild(activePortal.menu);
-      activePortal=null;
+      activePortal = null;
     }
-    const rect=btn.getBoundingClientRect();
-    menu.__parent=menu.parentElement;
+    
+    const rect = btn.getBoundingClientRect();
+    menu.__parent = menu.parentElement;
     place(menu, rect);
-    activePortal={menu, parent:menu.__parent};
+    activePortal = {menu, parent: menu.__parent};
 
-    const close=()=>{ try{ bootstrap.Dropdown.getOrCreateInstance(btn).hide(); }catch{} };
-    menu.__ls=[ ['resize',close,false], ['scroll',close,true] ];
+    const close = () => {
+      try { 
+        bootstrap.Dropdown.getOrCreateInstance(btn).hide(); 
+      } catch {}
+    };
+    
+    menu.__ls = [
+      ['resize', close, false], 
+      ['scroll', close, true]
+    ];
     window.addEventListener('resize', close);
     document.addEventListener('scroll', close, true);
   });
 
   document.addEventListener('hidden.bs.dropdown', (ev)=>{
-    const dd=ev.target;
-    const menu=dd.querySelector('.dropdown-menu.dd-portal') || activePortal?.menu;
-    if(!menu) return;
-    if(menu.__ls){
+    const dd = ev.target;
+    const menu = dd.querySelector('.dropdown-menu.dd-portal') || activePortal?.menu;
+    if (!menu) return;
+    
+    if (menu.__ls) {
       document.removeEventListener('scroll', menu.__ls[1][1], true);
       window.removeEventListener('resize', menu.__ls[0][1]);
-      menu.__ls=null;
+      menu.__ls = null;
     }
-    if(menu.__parent){
+    
+    if (menu.__parent) {
       menu.classList.remove('dd-portal');
-      menu.style.cssText='';
+      menu.style.cssText = '';
       menu.__parent.appendChild(menu);
-      activePortal=null;
+      activePortal = null;
     }
   });
 })();
