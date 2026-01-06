@@ -193,56 +193,72 @@ class BlogController extends Controller
         if (in_array($s, ['1','true','yes','y','on'], true)) return 1;
         return 0;
     }
+/* =========================================================
+ |  LIST
+ |  GET /api/blogs
+ |========================================================= */
+public function index(Request $r)
+{
+    $page    = max(1, (int)$r->query('page', 1));
+    $per     = min(100, max(5, (int)$r->query('per_page', 20)));
+    $qText   = trim((string)$r->query('q', ''));
+    $status  = $r->query('status', null);
+    $pub     = $r->query('is_published', null);
+    $sort    = (string)$r->query('sort', 'created_at');
+    $dir     = strtolower((string)$r->query('direction', 'desc')) === 'asc' ? 'asc' : 'desc';
 
-    /* =========================================================
-     |  LIST
-     |  GET /api/blogs
-     |========================================================= */
-    public function index(Request $r)
-    {
-        $page    = max(1, (int)$r->query('page', 1));
-        $per     = min(100, max(5, (int)$r->query('per_page', 20)));
-        $qText   = trim((string)$r->query('q', ''));
-        $status  = $r->query('status', null);      // draft|pending_approval|approved|active|inactive
-        $pub     = $r->query('is_published', null);// 1|0|yes|no
-        $sort    = (string)$r->query('sort', 'created_at');
-        $dir     = strtolower((string)$r->query('direction', 'desc')) === 'asc' ? 'asc' : 'desc';
+    $allowedSort = ['created_at','updated_at','title','slug','blog_date','approved_at'];
+    if (!in_array($sort, $allowedSort, true)) $sort = 'created_at';
 
-        $allowedSort = ['created_at','updated_at','title','slug','blog_date','approved_at'];
-        if (!in_array($sort, $allowedSort, true)) $sort = 'created_at';
+    $actor = $this->actor($r);
+    $role  = strtolower((string)($actor['role'] ?? ''));
+    $uid   = (int)($actor['id'] ?? 0);
 
-        $base = DB::table('blogs')->whereNull('deleted_at');
-
-        if ($qText !== '') {
-            $base->where(function($w) use ($qText){
-                $w->where('title', 'like', "%{$qText}%")
-                  ->orWhere('slug', 'like', "%{$qText}%")
-                  ->orWhere('shortcode', 'like', "%{$qText}%")
-                  ->orWhere('short_description', 'like', "%{$qText}%");
-            });
-        }
-
-        if ($status !== null && $status !== '') {
-            $base->where('status', (string)$status);
-        }
-
-        if ($pub !== null && $pub !== '') {
-            $base->where('is_published', $this->normalizePublish($pub));
-        }
-
-        $total = (clone $base)->count();
-        $rows  = $base->orderBy($sort, $dir)->orderBy('id', 'asc')->forPage($page, $per)->get();
-
-        return response()->json([
-            'success' => true,
-            'data' => $rows,
-            'pagination' => [
-                'page' => $page,
-                'per_page' => $per,
-                'total' => $total,
-            ],
-        ]);
+    // ✅ if not authenticated, block
+    if ($uid <= 0) {
+        return response()->json(['success' => false, 'message' => 'Unauthenticated'], 401);
     }
+
+    $isAdmin = in_array($role, ['admin', 'superadmin', 'super_admin'], true);
+
+    $base = DB::table('blogs')->whereNull('deleted_at');
+
+    // ✅ non-admin users see only their own created blogs
+    if (!$isAdmin) {
+        $base->where('created_by_user_id', $uid);
+    }
+
+    if ($qText !== '') {
+        $base->where(function($w) use ($qText){
+            $w->where('title', 'like', "%{$qText}%")
+              ->orWhere('slug', 'like', "%{$qText}%")
+              ->orWhere('shortcode', 'like', "%{$qText}%")
+              ->orWhere('short_description', 'like', "%{$qText}%");
+        });
+    }
+
+    if ($status !== null && $status !== '') {
+        $base->where('status', (string)$status);
+    }
+
+    if ($pub !== null && $pub !== '') {
+        $base->where('is_published', $this->normalizePublish($pub));
+    }
+
+    $total = (clone $base)->count();
+    $rows  = $base->orderBy($sort, $dir)->orderBy('id', 'asc')->forPage($page, $per)->get();
+
+    return response()->json([
+        'success' => true,
+        'data' => $rows,
+        'pagination' => [
+            'page' => $page,
+            'per_page' => $per,
+            'total' => $total,
+        ],
+    ]);
+}
+
 
     /* =========================================================
      |  TRASH

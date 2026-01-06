@@ -1079,5 +1079,318 @@ public function mySidebarMenus(Request $r)
         'tree'      => $outTree,
     ], 200);
 }
+public function myPrivileges(Request $request)
+{
+    // ✅ same actor-id logic you already use
+    $userId = (int) ($request->attributes->get('auth_tokenable_id') ?? optional($request->user())->id ?? 0);
+    if ($userId <= 0) {
+        return response()->json(['success' => false, 'message' => 'Unauthenticated'], 401);
+    }
+
+    // Required tables
+    if (!Schema::hasTable('user_privileges')) {
+        return response()->json(['success' => false, 'message' => 'user_privileges table not found'], 500);
+    }
+    if (!Schema::hasTable('dashboard_menu')) {
+        return response()->json(['success' => false, 'message' => 'dashboard_menu table not found'], 500);
+    }
+    if (!Schema::hasTable('page_privilege')) {
+        return response()->json(['success' => false, 'message' => 'page_privilege table not found'], 500);
+    }
+
+    // ✅ One row per user (non-deleted)
+    $row = DB::table('user_privileges')
+        ->where('user_id', $userId)
+        ->when(Schema::hasColumn('user_privileges', 'deleted_at'), fn($q) => $q->whereNull('deleted_at'))
+        ->first();
+
+    if (!$row || empty($row->privileges)) {
+        return response()->json([
+            'success' => true,
+            'user_id' => $userId,
+            'data'    => [],
+            'flat'    => ['privileges' => []],
+            'current' => null,
+        ]);
+    }
+
+    // Decode JSON tree
+    $treeJson = json_decode($row->privileges, true);
+    if (!is_array($treeJson) || json_last_error() !== JSON_ERROR_NONE) {
+        return response()->json([
+            'success' => false,
+            'message' => 'Invalid privileges JSON in user_privileges.privileges',
+        ], 500);
+    }
+
+    /**
+     * Collect grants:
+     * $grantsByMenu[menu_id] = [
+     *   'privilege_ids' => [1,2,3],
+     *   'actions'       => ['add','edit',...]
+     * ];
+     */
+    $grantsByMenu = [];
+
+    $walk = function ($nodes) use (&$walk, &$grantsByMenu) {
+        if (!is_array($nodes)) return;
+
+        foreach ($nodes as $node) {
+            if (!is_array($node)) continue;
+
+            $menuId = isset($node['id']) ? (int)$node['id'] : 0;
+            if ($menuId > 0) {
+                if (!isset($grantsByMenu[$menuId])) {
+                    $grantsByMenu[$menuId] = ['privilege_ids' => [], 'actions' => []];
+                }
+
+                // privileges at this node (usually on child/page node)
+                if (!empty($node['privileges']) && is_array($node['privileges'])) {
+                    foreach ($node['privileges'] as $p) {
+                        if (!is_array($p)) continue;
+
+                        if (isset($p['id']) && is_numeric($p['id'])) {
+                            $grantsByMenu[$menuId]['privilege_ids'][] = (int)$p['id'];
+                        }
+                        if (isset($p['action']) && $p['action'] !== '') {
+                            $grantsByMenu[$menuId]['actions'][] = strtolower(trim((string)$p['action']));
+                        }
+                    }
+                }
+            }
+
+            // recurse children
+            if (!empty($node['children']) && is_array($node['children'])) {
+                $walk($node['children']);
+            }
+        }
+    };
+
+    $walk($treeJson);
+
+    // No grants => no visible menus
+    $allowedMenuIds = array_keys($grantsByMenu);
+    if (empty($allowedMenuIds)) {
+        return response()->json([
+            'success' => true,
+            'user_id' => $userId,
+            'data'    => [],
+            'flat'    => ['privileges' => []],
+            'current' => null,
+        ]);
+    }
+
+    // ✅ Load ALL menus (non-deleted, non-archived) so we can include parent chain
+    $menuQuery = DB::table('dashboard_menu')->whereNull('deleted_at');
+
+    if (Schema::hasColumn('dashboard_menu', 'status')) {
+        $menuQuery->where(function ($q) {
+            $q->whereNull('status')->orWhereRaw("LOWER(status) != 'archived'");
+        });
+    }
+
+    // Use your selector if exists, else fallback
+    $selectCols = method_exists($this, 'moduleSelectColumns')
+        ? $this->moduleSelectColumns(false)
+        : ['id','uuid','parent_id','name','href','status','icon_class','is_dropdown_head','position','created_at','updated_at'];
+
+    $menus = $menuQuery->select($selectCols)->get();
+
+    if ($menus->isEmpty()) {
+        return response()->json([
+            'success' => true,
+            'user_id' => $userId,
+            'data'    => [],
+            'flat'    => ['privileges' => []],
+            'current' => null,
+        ]);
+    }
+
+    // id => menu
+    $byId = [];
+    foreach ($menus as $m) {
+        // normalize href (if helper exists)
+        if (isset($m->href)) {
+            if (method_exists($this, 'normalizeHrefForResponse')) {
+                $m->href = $this->normalizeHrefForResponse($m->href);
+            } else {
+                $m->href = $m->href ? ('/' . ltrim($m->href, '/')) : '';
+            }
+        }
+
+        $m->children   = [];
+        $m->privileges = []; // will attach
+        $byId[(int)$m->id] = $m;
+    }
+
+    // ✅ Include ancestors so dropdown heads show
+    $includeIds = [];
+    foreach ($allowedMenuIds as $mid) {
+        $cur = (int)$mid;
+        $guard = 0;
+
+        while ($cur > 0 && isset($byId[$cur]) && $guard < 60) {
+            $includeIds[$cur] = true;
+
+            $parent = $byId[$cur]->parent_id ?? null;
+            if ($parent === null || (int)$parent === 0) break;
+
+            $cur = (int)$parent;
+            $guard++;
+        }
+    }
+
+    // ✅ Collect privilege ids + actions from grants
+    $wantedPrivIds = [];
+    $wantedActionsByMenu = []; // menu_id => set(actions)
+    foreach ($grantsByMenu as $mid => $g) {
+        if (!empty($g['privilege_ids'])) {
+            foreach ($g['privilege_ids'] as $pid) $wantedPrivIds[$pid] = true;
+        }
+        if (!empty($g['actions'])) {
+            foreach ($g['actions'] as $act) $wantedActionsByMenu[$mid][$act] = true;
+        }
+    }
+    $wantedPrivIds = array_keys($wantedPrivIds);
+
+    // ✅ Fetch detailed privileges from page_privilege
+    $ppCols = ['id','uuid','dashboard_menu_id','action','description','created_at'];
+    if (Schema::hasColumn('page_privilege', 'key'))           $ppCols[] = 'key';
+    if (Schema::hasColumn('page_privilege', 'status'))        $ppCols[] = 'status';
+    if (Schema::hasColumn('page_privilege', 'order_no'))      $ppCols[] = 'order_no';
+    if (Schema::hasColumn('page_privilege', 'assigned_apis')) $ppCols[] = 'assigned_apis';
+    if (Schema::hasColumn('page_privilege', 'meta'))          $ppCols[] = 'meta';
+
+    $ppQuery = DB::table('page_privilege')->select($ppCols);
+
+    if (Schema::hasColumn('page_privilege', 'deleted_at')) {
+        $ppQuery->whereNull('deleted_at');
+    }
+    if (Schema::hasColumn('page_privilege', 'status')) {
+        $ppQuery->where(function ($q) {
+            $q->whereNull('status')->orWhereRaw("LOWER(status) != 'archived'");
+        });
+    }
+
+    // Prefer ID list if JSON stores IDs
+    if (!empty($wantedPrivIds)) {
+        $ppQuery->whereIn('id', $wantedPrivIds);
+    } else {
+        // If JSON only stores actions: load privileges for those menus and filter by action later
+        $ppQuery->whereIn('dashboard_menu_id', array_keys($wantedActionsByMenu));
+    }
+
+    $privileges = $ppQuery
+        ->orderBy('dashboard_menu_id', 'asc')
+        ->orderBy('action', 'asc')
+        ->get();
+
+    // Group privileges by menu_id, and filter to allowed actions if needed
+    $privByMenu = $privileges->groupBy('dashboard_menu_id')->map(function ($list, $menuId) use ($wantedActionsByMenu, $wantedPrivIds) {
+        if (!empty($wantedPrivIds)) {
+            return $list->values();
+        }
+        // filter by allowed actions for this menu
+        $allowed = $wantedActionsByMenu[(int)$menuId] ?? [];
+        if (empty($allowed)) return collect([]);
+        return $list->filter(function ($p) use ($allowed) {
+            $a = strtolower((string)($p->action ?? ''));
+            return isset($allowed[$a]);
+        })->values();
+    });
+
+    // ✅ Attach privileges to nodes (only to included nodes)
+    foreach (array_keys($includeIds) as $id) {
+        $node = $byId[$id];
+
+        // only attach privileges where user has grants for that menu_id
+        if (isset($grantsByMenu[$id])) {
+            // Optional rule: do not attach privileges to dropdown-head nodes
+            if ((int)($node->is_dropdown_head ?? 0) === 0) {
+                $node->privileges = ($privByMenu[$id] ?? collect([]))->values();
+            }
+        }
+    }
+
+    // ✅ Build parent -> children ONLY for included nodes
+    $byParent = [];
+    foreach (array_keys($includeIds) as $id) {
+        $pid = $byId[$id]->parent_id ?? null;
+        $byParent[$pid][] = (int)$id;
+    }
+
+    // ✅ Sort children by position then id (if position exists)
+    $hasPosition = Schema::hasColumn('dashboard_menu', 'position');
+    foreach ($byParent as $pid => $childIds) {
+        usort($childIds, function ($a, $b) use ($byId, $hasPosition) {
+            if ($hasPosition) {
+                $pa = (int)($byId[$a]->position ?? 0);
+                $pb = (int)($byId[$b]->position ?? 0);
+                if ($pa !== $pb) return $pa <=> $pb;
+            }
+            return (int)$a <=> (int)$b;
+        });
+        $byParent[$pid] = $childIds;
+    }
+
+    // ✅ Build tree (roots: null and 0)
+    $makeTree = function ($pid) use (&$makeTree, &$byParent, &$byId) {
+        $nodes = [];
+        foreach ($byParent[$pid] ?? [] as $id) {
+            $node = $byId[$id];
+            $node->children = $makeTree($node->id);
+            $nodes[] = $node;
+        }
+        return $nodes;
+    };
+
+    $outTree = array_merge($makeTree(null), $makeTree(0));
+
+    // ✅ Optional: return privileges for a specific current menu (helpful for UI)
+    $current = null;
+
+    $menuIdParam  = (int) ($request->query('menu_id') ?? 0);
+    $menuHrefParam = trim((string)($request->query('menu_href') ?? $request->query('href') ?? ''));
+
+    if ($menuIdParam > 0 && isset($byId[$menuIdParam])) {
+        $m = $byId[$menuIdParam];
+        $current = [
+            'menu_id'    => (int)$m->id,
+            'href'       => (string)($m->href ?? ''),
+            'name'       => (string)($m->name ?? ''),
+            'privileges' => ($m->privileges ?? []),
+            'actions'    => collect($m->privileges ?? [])->pluck('action')->map(fn($a)=>strtolower((string)$a))->values(),
+        ];
+    } elseif ($menuHrefParam !== '') {
+        $menuHrefParam = '/' . ltrim($menuHrefParam, '/');
+        // best match: exact or prefix match
+        foreach ($byId as $m) {
+            $href = (string)($m->href ?? '');
+            if (!$href) continue;
+
+            if ($menuHrefParam === $href || str_starts_with($menuHrefParam, rtrim($href,'/') . '/')) {
+                $current = [
+                    'menu_id'    => (int)$m->id,
+                    'href'       => $href,
+                    'name'       => (string)($m->name ?? ''),
+                    'privileges' => ($m->privileges ?? []),
+                    'actions'    => collect($m->privileges ?? [])->pluck('action')->map(fn($a)=>strtolower((string)$a))->values(),
+                ];
+                break;
+            }
+        }
+    }
+
+    return response()->json([
+        'success' => true,
+        'user_id' => $userId,
+        'data'    => $outTree,     // ✅ visible dashboard menu tree only
+        'flat'    => [
+            'privileges' => $privileges,  // ✅ optional helper
+            'grants'     => $grantsByMenu // ✅ what JSON grants said
+        ],
+        'current' => $current,
+    ]);
+}
 
 }

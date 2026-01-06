@@ -6,10 +6,6 @@
 <link rel="stylesheet" href="{{ asset('assets/css/common/main.css') }}">
 
 <style>
-/* ===== Shell ===== */
-/* ===== COMPLETE DROPDOWN FIX FOR BLOG MANAGEMENT ===== */
-
-/* Ensure all containers allow overflow */
 .blog-wrap,
 .table-wrap,
 .card,
@@ -102,11 +98,7 @@ html.theme-dark .dropdown-divider {
   border-color: #334155;
 }
 
-/* Ensure pagination doesn't interfere */
-.pagination {
-  position: relative;
-  z-index: 1;
-}
+
 
 /* Make sure card footer doesn't clip */
 .card-body {
@@ -358,7 +350,7 @@ html.theme-dark .dropdown-menu{background:#0f172a;border-color:var(--line-strong
 
             <div class="d-flex flex-wrap align-items-center justify-content-between p-3 gap-2">
               <div class="text-muted small" id="metaTxt-{{ $t['key'] }}">—</div>
-              <nav style="position:relative; z-index:1;"><ul id="pager-{{ $t['key'] }}" class="pagination mb-0"></ul></nav>
+              <nav style="position:relative;"><ul id="pager-{{ $t['key'] }}" class="pagination mb-0"></ul></nav>
             </div>
           </div>
         </div>
@@ -445,8 +437,7 @@ html.theme-dark .dropdown-menu{background:#0f172a;border-color:var(--line-strong
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <script>
-/* ===== Force dropdown overflows to body (portal) — same stable implementation ===== */
-/* ===== Enhanced Dropdown portal logic ===== */
+/* ===== Force dropdown overflows to body (portal) — stable implementation ===== */
 (function(){
   let activePortal = null;
 
@@ -465,25 +456,21 @@ html.theme-dark .dropdown-menu{background:#0f172a;border-color:var(--line-strong
     // Horizontal positioning
     let left = btnRect.left;
     const spaceRight = vw - btnRect.right;
-    if (spaceRight < mw && btnRect.right - mw > 8) {
-      left = btnRect.right - mw;
-    }
+    if (spaceRight < mw && btnRect.right - mw > 8) left = btnRect.right - mw;
 
-    // Vertical positioning - check if dropdown fits below
+    // Vertical positioning
     let top = btnRect.bottom + 4;
     const spaceBelow = vh - btnRect.bottom;
     const spaceAbove = btnRect.top;
 
-    // If not enough space below but enough above, position above
     if (spaceBelow < mh + 20 && spaceAbove > mh + 20) {
       top = btnRect.top - mh - 4;
     } else if (spaceBelow < mh + 20) {
-      // Not enough space either way, position to fit in viewport
       top = Math.max(8, Math.min(top, vh - mh - 8));
     }
 
     menu.style.left = left + 'px';
-    menu.style.top = top + 'px';
+    menu.style.top  = top + 'px';
     menu.style.visibility = 'visible';
   };
 
@@ -505,11 +492,9 @@ html.theme-dark .dropdown-menu{background:#0f172a;border-color:var(--line-strong
     activePortal = { menu, parent: menu.__ddParent };
 
     const closeOnEnv = () => {
-      try { 
-        bootstrap.Dropdown.getOrCreateInstance(btn).hide(); 
-      } catch {}
+      try { bootstrap.Dropdown.getOrCreateInstance(btn).hide(); } catch {}
     };
-    
+
     menu.__ddCloseOnEnv = closeOnEnv;
     window.addEventListener('resize', closeOnEnv);
     document.addEventListener('scroll', closeOnEnv, true);
@@ -534,6 +519,7 @@ html.theme-dark .dropdown-menu{background:#0f172a;border-color:var(--line-strong
     }
   });
 })();
+
 /* ================= Dropdown toggle handler ================= */
 document.addEventListener('click', (e) => {
   const btn = e.target.closest('.dd-toggle');
@@ -543,7 +529,7 @@ document.addEventListener('click', (e) => {
   inst.toggle();
 });
 
-(function(){
+(async function(){
   /* ========= Globals ========= */
   const TOKEN = localStorage.getItem('token') || sessionStorage.getItem('token') || '';
   if (!TOKEN){
@@ -556,6 +542,180 @@ document.addEventListener('click', (e) => {
   const errToast = new bootstrap.Toast(document.getElementById('errToast'));
   const ok  = (m)=>{ const el=document.getElementById('okMsg'); if(el) el.textContent = m||'Done'; okToast.show(); };
   const err = (m)=>{ const el=document.getElementById('errMsg'); if(el) el.textContent = m||'Something went wrong'; errToast.show(); };
+
+  /* ========= Fetch helper (needed early for my-privileges) ========= */
+  async function fetchJson(url, opts={}){
+    const res = await fetch(url, {
+      ...opts,
+      headers: {
+        'Authorization': 'Bearer ' + TOKEN,
+        'Accept': 'application/json',
+        ...(opts.headers || {})
+      }
+    });
+    const j = await res.json().catch(()=>({}));
+    if (!res.ok) {
+      const msg = j?.message || j?.error || ('HTTP ' + res.status);
+      const e = new Error(msg);
+      e.status = res.status;
+      e.payload = j;
+      throw e;
+    }
+    return j;
+  }
+// DEFAULT DENY
+const PERMS = {
+  loaded:false,
+  canView:false,
+  canViewBin:false,
+  canCreate:false,
+  canPreview:false,
+  canEdit:false,
+  canPublish:false,
+  canDelete:false,
+  canRestore:false,
+  canForce:false,
+  canAnyStatus:false,
+  statusAllowed:{ draft:false, pending_approval:false, approved:false, active:false, inactive:false },
+  privSet:new Set(),
+};
+
+function slugify(str){
+  return String(str||'').trim().toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'');
+}
+
+function flattenTree(nodes, out=[]){
+  (nodes||[]).forEach(n=>{
+    out.push(n);
+    if (Array.isArray(n?.children)) flattenTree(n.children, out);
+  });
+  return out;
+}
+
+function buildPrivSetFromNode(node){
+  const set = new Set();
+  (node?.privileges || []).forEach(p=>{
+    if (!p) return;
+    if (p.key) set.add(String(p.key).toLowerCase());     // e.g. all-blog.view
+    if (p.action) set.add(slugify(p.action));            // e.g. view
+    if (p.name) set.add(slugify(p.name));
+  });
+  return set;
+}
+
+function hasAny(set, ...keys){ return keys.some(k => set.has(k)); }
+
+// ✅ IMPORTANT: view should allow page load
+function computePermsStrict(set){
+  const canCreate  = hasAny(set,'create','add','new','store');
+  const canEdit    = hasAny(set,'edit','update','modify');
+  const canDelete  = hasAny(set,'delete','remove','destroy');
+  const canRestore = hasAny(set,'restore');
+  const canForce   = hasAny(set,'force','force-delete','permanent-delete','delete-permanently');
+  const canPublish = hasAny(set,'publish','unpublish','toggle-publish','togglepublish');
+  const canPreview = hasAny(set,'preview','open-preview','view-preview');
+
+  const masterStatus = hasAny(set,'status','set-status','change-status');
+
+  const statusAllowed = {
+    draft:            masterStatus || hasAny(set,'draft','mark-draft','set-draft'),
+    pending_approval: masterStatus || hasAny(set,'pending','pending-approval','pending_approval','mark-pending'),
+    approved:         masterStatus || hasAny(set,'approved','approve','mark-approved'),
+    active:           masterStatus || hasAny(set,'active','activate','mark-active'),
+    inactive:         masterStatus || hasAny(set,'inactive','deactivate','mark-inactive'),
+  };
+
+  const canAnyStatus = Object.values(statusAllowed).some(Boolean);
+  const canViewBin   = hasAny(set,'bin','trash','deleted') || canRestore || canForce;
+
+  // ✅ STRICT VIEW: allow if action "view" OR any "*.view" key exists
+  const canView =
+    hasAny(set,'view','read','list') ||
+    Array.from(set).some(x => String(x).endsWith('.view') || String(x).endsWith('-view'));
+
+  return { canView, canViewBin, canCreate, canEdit, canDelete, canRestore, canForce, canPublish, canPreview, statusAllowed, canAnyStatus };
+}
+
+function applyPermsToUI(){
+  // New Blog
+  const btnCreate = document.getElementById('btnCreate');
+  if (btnCreate && !PERMS.canCreate) btnCreate.style.display = 'none';
+
+  // Bin tab
+  const binTabLi = document.querySelector('a[href="#tab-bin"]')?.closest('li');
+  const binPane  = document.getElementById('tab-bin');
+  if (!PERMS.canViewBin){
+    if (binTabLi) binTabLi.style.display = 'none';
+    if (binPane)  binPane.style.display  = 'none';
+  }
+
+  // ✅ Hide Actions column if user has no action permissions
+  const canAnyAction = PERMS.canEdit || PERMS.canPublish || PERMS.canDelete || PERMS.canRestore || PERMS.canForce || PERMS.canAnyStatus || PERMS.canPreview;
+  if (!canAnyAction){
+    document.querySelectorAll('th:last-child, td:last-child').forEach(el=>{
+      // only hide in these tables (safe)
+      if (el.closest('.table')) el.style.display = 'none';
+    });
+  }
+}
+
+async function initMyPrivileges(){
+  const deny = (msg='You do not have permission to view Blogs.') => {
+    PERMS.loaded = true;
+    applyPermsToUI();
+    Swal.fire('Access denied', msg, 'error');
+    return false;
+  };
+
+  try{
+    // ✅ Always pass menu_href so backend can set `current` (even if it returns null, we fallback)
+    const res = await fetchJson('/api/my-privileges?menu_href=' + encodeURIComponent(location.pathname));
+
+    if (!res?.success) return deny(res?.message || 'Permission check failed.');
+
+    const tree = Array.isArray(res?.data) ? res.data : [];
+    if (!tree.length) return deny();
+
+    let set = new Set();
+
+    // 1) Prefer current if present
+    if (res?.current && Array.isArray(res.current.privileges) && res.current.privileges.length){
+      set = buildPrivSetFromNode(res.current);
+    } else {
+      // 2) Fallback: match node by href from tree
+      const flat = flattenTree(tree, []);
+      const path = (location.pathname || '/').replace(/\/+$/,'') || '/';
+
+      const node = flat.find(n=>{
+        const href = String(n?.href || '').replace(/\/+$/,'');
+        return href && (href === path || path.startsWith(href + '/'));
+      });
+
+      if (!node) return deny();
+
+      set = buildPrivSetFromNode(node);
+    }
+
+    PERMS.privSet = set;
+
+    const computed = computePermsStrict(set);
+    PERMS.loaded = true;
+    Object.assign(PERMS, computed);
+
+    applyPermsToUI();
+
+    if (!PERMS.canView) return deny();
+    return true;
+
+  }catch(e){
+    return deny(e?.message || 'Permission check failed.');
+  }
+}
+
+// call it (same as you already do)
+const okToLoad = await initMyPrivileges();
+if (!okToLoad) return;
+
 
   /* ========= DOM refs ========= */
   const q           = document.getElementById('q');
@@ -689,9 +849,9 @@ document.addEventListener('click', (e) => {
   }
 
   /**
-   * ✅ Preview URL rule:
-   * - Always use /blog/view/{slug}
-   * - If NOT published OR status not in (approved,active) => append ?mode=test
+   * Preview URL:
+   * - Always /blog/view/{slug}
+   * - If NOT published OR status not in (approved,active) => ?mode=test
    */
   function previewUrlFor(r){
     const slug = (r.slug || '').trim();
@@ -701,58 +861,135 @@ document.addEventListener('click', (e) => {
     const st = String(r.status || '').toLowerCase();
     const okStatus = (st === 'approved' || st === 'active');
 
-    // add ?mode=test when not public
     if (!isPublished || !okStatus) return base + '?mode=test';
     return base;
   }
 
   function blogActions(scope, r){
+    if (!PERMS.loaded) return '';
+
+    const canAnyAction =
+      PERMS.canEdit || PERMS.canPublish || PERMS.canDelete ||
+      PERMS.canRestore || PERMS.canForce || PERMS.canAnyStatus || PERMS.canPreview;
+
+    if (PERMS.loaded && !canAnyAction) return '';
+
     const uuid  = r.uuid;
     const title = escapeHtml(r.title || '');
-    const slug  = escapeHtml(r.slug || '');
+    const slug  = (r.slug || '').trim();
 
     if (scope === 'bin'){
+      const items = [];
+
+      if (PERMS.canRestore){
+        items.push(`
+          <li><button class="dropdown-item" data-act="restore" data-uuid="${uuid}" data-title="${title}">
+            <i class="fa fa-rotate-left"></i> Restore
+          </button></li>
+        `);
+      }
+
+      if (PERMS.canForce){
+        items.push(`
+          <li><button class="dropdown-item text-danger" data-act="force" data-uuid="${uuid}" data-title="${title}">
+            <i class="fa fa-skull-crossbones"></i> Delete Permanently
+          </button></li>
+        `);
+      }
+
+      if (PERMS.loaded && items.length === 0) return '';
+
       return `
         <div class="dropdown text-end" data-bs-display="static" data-bs-boundary="viewport">
           <button type="button" class="btn btn-light btn-sm dd-toggle" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false" title="Actions">
             <i class="fa fa-ellipsis-vertical"></i>
           </button>
           <ul class="dropdown-menu dropdown-menu-end">
-            <li><button class="dropdown-item" data-act="restore" data-uuid="${uuid}" data-title="${title}">
-              <i class="fa fa-rotate-left"></i> Restore
-            </button></li>
-            <li><button class="dropdown-item text-danger" data-act="force" data-uuid="${uuid}" data-title="${title}">
-              <i class="fa fa-skull-crossbones"></i> Delete Permanently
-            </button></li>
+            ${items.join('')}
           </ul>
         </div>`;
     }
 
-    const isPub = String(r.is_published)==='1';
-    const pubLabel = isPub ? 'Unpublish' : 'Publish';
-    const pubIcon  = isPub ? 'fa-eye-slash' : 'fa-eye';
-    const pubNext  = isPub ? 'no' : 'yes';
+    const items = [];
 
-    // ✅ NEW: Preview item (redirect to /blog/view/{slug} with optional mode=test)
-    const previewHref = previewUrlFor(r);
+    if (PERMS.canPreview && slug){
+      const previewHref = previewUrlFor(r);
+      items.push(`
+        <li>
+          <a class="dropdown-item" href="${previewHref}" target="_blank" rel="noopener" title="Preview">
+            <i class="fa-solid fa-up-right-from-square"></i> Preview
+          </a>
+        </li>
+        <li><hr class="dropdown-divider"></li>
+      `);
+    }
 
-    const statusItems = `
+    if (PERMS.canEdit){
+      items.push(`
+        <li>
+          <a class="dropdown-item" href="/blog/create?uuid=${encodeURIComponent(uuid)}" title="Edit">
+            <i class="fa fa-pen-to-square"></i> Edit
+          </a>
+        </li>
+      `);
+    }
+
+    if (PERMS.canPublish){
+      const isPub = String(r.is_published)==='1';
+      const pubLabel = isPub ? 'Unpublish' : 'Publish';
+      const pubIcon  = isPub ? 'fa-eye-slash' : 'fa-eye';
+      const pubNext  = isPub ? 'no' : 'yes';
+
+      items.push(`
+        <li><button class="dropdown-item" data-act="togglePublish" data-uuid="${uuid}" data-title="${title}" data-publish="${pubNext}">
+          <i class="fa ${pubIcon}"></i> ${pubLabel}
+        </button></li>
+      `);
+    }
+
+    const stItems = [];
+    if (PERMS.statusAllowed?.draft) stItems.push(`
       <li><button class="dropdown-item" data-act="setStatus" data-uuid="${uuid}" data-title="${title}" data-status="draft">
         <i class="fa fa-file-lines"></i> Mark Draft
       </button></li>
+    `);
+    if (PERMS.statusAllowed?.pending_approval) stItems.push(`
       <li><button class="dropdown-item" data-act="setStatus" data-uuid="${uuid}" data-title="${title}" data-status="pending_approval">
         <i class="fa fa-hourglass-half"></i> Mark Pending
       </button></li>
+    `);
+    if (PERMS.statusAllowed?.approved) stItems.push(`
       <li><button class="dropdown-item" data-act="setStatus" data-uuid="${uuid}" data-title="${title}" data-status="approved">
         <i class="fa fa-circle-check"></i> Mark Approved
       </button></li>
+    `);
+    if (PERMS.statusAllowed?.active) stItems.push(`
       <li><button class="dropdown-item" data-act="setStatus" data-uuid="${uuid}" data-title="${title}" data-status="active">
         <i class="fa fa-bolt"></i> Mark Active
       </button></li>
+    `);
+    if (PERMS.statusAllowed?.inactive) stItems.push(`
       <li><button class="dropdown-item" data-act="setStatus" data-uuid="${uuid}" data-title="${title}" data-status="inactive">
         <i class="fa fa-ban"></i> Mark Inactive
       </button></li>
-    `;
+    `);
+
+    if (stItems.length){
+      items.push(`<li><hr class="dropdown-divider"></li>`);
+      items.push(stItems.join(''));
+    }
+
+    if (PERMS.canDelete){
+      items.push(`
+        <li><hr class="dropdown-divider"></li>
+        <li><button class="dropdown-item text-danger" data-act="delete" data-uuid="${uuid}" data-title="${title}">
+          <i class="fa fa-trash"></i> Delete (Move to Bin)
+        </button></li>
+      `);
+    }
+
+    const meaningful = items.join('').trim();
+    if (PERMS.loaded && !meaningful) return '';
 
     return `
       <div class="dropdown text-end" data-bs-display="static">
@@ -760,32 +997,7 @@ document.addEventListener('click', (e) => {
           <i class="fa fa-ellipsis-vertical"></i>
         </button>
         <ul class="dropdown-menu dropdown-menu-end">
-
-          <li>
-            <a class="dropdown-item" href="${previewHref}" target="_blank" rel="noopener" title="Preview">
-              <i class="fa-solid fa-up-right-from-square"></i> Preview
-            </a>
-          </li>
-
-          <li><hr class="dropdown-divider"></li>
-
-          <li>
-            <a class="dropdown-item" href="/blog/create?uuid=${encodeURIComponent(uuid)}" title="Edit">
-              <i class="fa fa-pen-to-square"></i> Edit
-            </a>
-          </li>
-
-          <li><button class="dropdown-item" data-act="togglePublish" data-uuid="${uuid}" data-title="${title}" data-publish="${pubNext}">
-            <i class="fa ${pubIcon}"></i> ${pubLabel}
-          </button></li>
-
-          <li><hr class="dropdown-divider"></li>
-          ${statusItems}
-          <li><hr class="dropdown-divider"></li>
-
-          <li><button class="dropdown-item text-danger" data-act="delete" data-uuid="${uuid}" data-title="${title}">
-            <i class="fa fa-trash"></i> Delete (Move to Bin)
-          </button></li>
+          ${meaningful}
         </ul>
       </div>`;
   }
@@ -805,11 +1017,14 @@ document.addEventListener('click', (e) => {
       if (st === 'draft') tr.classList.add('is-draft');
       if (isDeleted) tr.classList.add('is-deleted');
 
-      const img = r.featured_image_url ? `<img class="thumb-mini" src="${escapeHtml(r.featured_image_url)}" alt="thumb">` : `<div class="thumb-mini d-flex align-items-center justify-content-center text-muted"><i class="fa fa-image"></i></div>`;
+      const img = r.featured_image_url
+        ? `<img class="thumb-mini" src="${escapeHtml(r.featured_image_url)}" alt="thumb">`
+        : `<div class="thumb-mini d-flex align-items-center justify-content-center text-muted"><i class="fa fa-image"></i></div>`;
+
       const title = escapeHtml(r.title||'-');
-      const slug = escapeHtml(r.slug||'');
-      const sc = escapeHtml(r.shortcode||'');
-      const sd = escapeHtml(r.short_description||'');
+      const slug  = escapeHtml(r.slug||'');
+      const sc    = escapeHtml(r.shortcode||'');
+      const sd    = escapeHtml(r.short_description||'');
 
       tr.innerHTML = `
         <td>
@@ -883,27 +1098,12 @@ document.addEventListener('click', (e) => {
     metaTxt.textContent = `Showing page ${current} of ${totalPages} — ${total} result(s)`;
   }
 
-  async function fetchJson(url, opts={}){
-    const res = await fetch(url, {
-      ...opts,
-      headers: {
-        'Authorization': 'Bearer ' + TOKEN,
-        'Accept': 'application/json',
-        ...(opts.headers || {})
-      }
-    });
-    const j = await res.json().catch(()=>({}));
-    if (!res.ok) {
-      const msg = j?.message || j?.error || ('HTTP ' + res.status);
-      const e = new Error(msg);
-      e.status = res.status;
-      e.payload = j;
-      throw e;
-    }
-    return j;
-  }
-
   async function load(scope){
+    if (scope === 'bin' && PERMS.loaded && !PERMS.canViewBin){
+      err('Not allowed');
+      return;
+    }
+
     showLoader(scope, true);
     const emptyEl = document.querySelector(tabs[scope].empty);
     const rowsEl  = document.querySelector(tabs[scope].rows);
@@ -942,7 +1142,7 @@ document.addEventListener('click', (e) => {
     }
   }
 
-  /* ========= Actions (uses update/delete/restore/force like your API) ========= */
+  /* ========= Actions ========= */
   async function updateBlog(uuid, patch, successMsg){
     try{
       await fetchJson(`/api/blogs/${encodeURIComponent(uuid)}`, {
@@ -970,7 +1170,9 @@ document.addEventListener('click', (e) => {
     try{
       await fetchJson(`/api/blogs/${encodeURIComponent(uuid)}`, { method:'DELETE' });
       ok('Moved to Bin');
-      load('all'); load('bin'); load('draft'); load('pending'); load('approved'); load('active'); load('inactive');
+      load('all');
+      if (PERMS.canViewBin) load('bin');
+      load('draft'); load('pending'); load('approved'); load('active'); load('inactive');
     }catch(e){ err(e.message || 'Delete failed'); }
   }
 
@@ -985,7 +1187,8 @@ document.addEventListener('click', (e) => {
     try{
       await fetchJson(`/api/blogs/${encodeURIComponent(uuid)}/restore`, { method:'POST' });
       ok('Restored');
-      load('bin'); load('all');
+      if (PERMS.canViewBin) load('bin');
+      load('all');
     }catch(e){ err(e.message || 'Restore failed'); }
   }
 
@@ -1000,12 +1203,11 @@ document.addEventListener('click', (e) => {
     try{
       await fetchJson(`/api/blogs/${encodeURIComponent(uuid)}/force`, { method:'DELETE' });
       ok('Deleted permanently');
-      load('bin');
+      if (PERMS.canViewBin) load('bin');
     }catch(e){ err(e.message || 'Permanent delete failed'); }
   }
 
   /* ========= Event wiring ========= */
-
   document.querySelectorAll('#tab-all th.sortable').forEach(th=>{
     th.addEventListener('click', ()=>{
       const col = th.dataset.col;
@@ -1070,6 +1272,19 @@ document.addEventListener('click', (e) => {
     const uuid = item.dataset.uuid || '';
     const title = decodeHtml(item.dataset.title || '');
 
+    // ✅ permission guards
+    if (PERMS.loaded){
+      if (act === 'delete' && !PERMS.canDelete) return err('Not allowed');
+      if (act === 'restore' && !PERMS.canRestore) return err('Not allowed');
+      if (act === 'force' && !PERMS.canForce) return err('Not allowed');
+      if (act === 'togglePublish' && !PERMS.canPublish) return err('Not allowed');
+
+      if (act === 'setStatus'){
+        const next = item.dataset.status || '';
+        if (!PERMS.statusAllowed?.[next]) return err('Not allowed');
+      }
+    }
+
     if (act === 'delete') return deleteBlog(uuid, title);
     if (act === 'restore') return restoreBlog(uuid, title);
     if (act === 'force') return forceDeleteBlog(uuid, title);
@@ -1094,12 +1309,19 @@ document.addEventListener('click', (e) => {
   document.querySelector('a[href="#tab-approved"]')?.addEventListener('shown.bs.tab', ()=> load('approved'));
   document.querySelector('a[href="#tab-active"]')?.addEventListener('shown.bs.tab', ()=> load('active'));
   document.querySelector('a[href="#tab-inactive"]')?.addEventListener('shown.bs.tab', ()=> load('inactive'));
-  document.querySelector('a[href="#tab-bin"]')?.addEventListener('shown.bs.tab', ()=> load('bin'));
+  document.querySelector('a[href="#tab-bin"]')?.addEventListener('shown.bs.tab', ()=>{
+    if (PERMS.loaded && !PERMS.canViewBin){
+      err('Not allowed');
+      document.querySelector('a[href="#tab-all"]')?.click();
+      return;
+    }
+    load('bin');
+  });
 
   /* ========= Initial Load ========= */
   applyFromURL();
   load('all');
 
-})(); // end IIFE
+})(); // end async IIFE
 </script>
 @endpush

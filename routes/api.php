@@ -801,3 +801,5 @@ Route::middleware('checkRole')->group(function () {
     Route::get('/my/sidebar-menus', [\App\Http\Controllers\API\UserPrivilegeController::class, 'mySidebarMenus']);
     
 });
+//Page privileges 
+Route::middleware('checkRole')->get('/my-privileges', [UserPrivilegeController::class, 'myPrivileges']);
