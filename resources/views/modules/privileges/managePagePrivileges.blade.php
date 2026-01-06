@@ -382,9 +382,9 @@ html.theme-dark .priv-accordion .list-group-item{
       <div class="modal-body">
         <div class="row g-3 mb-2">
           <div class="col-md-6">
-            <label class="form-label">Module</label>
+            <label class="form-label">Dashboard Menu</label>
             <select id="bulk_module_select" class="form-select"><option>Loading…</option></select>
-            <div class="small text-muted mt-1">Select the module to edit its privileges.</div>
+            <div class="small text-muted mt-1">Select the dashboard menu to edit its privileges.</div>
           </div>
 
           <div class="col-md-6 d-flex align-items-end">
@@ -722,7 +722,7 @@ html.theme-dark .priv-accordion .list-group-item{
         const opts = items.map(m =>
           `<option value="${esc(m.uuid || m.id)}">${esc(m.name || ('#' + m.id))}</option>`
         );
-        selectEl.innerHTML = '<option value="">Select module…</option>' + opts.join('');
+        selectEl.innerHTML = '<option value="">Select dashboard menu…</option>' + opts.join('');
       }catch(e){
         selectEl.innerHTML = '<option value="">Failed to load</option>';
       }

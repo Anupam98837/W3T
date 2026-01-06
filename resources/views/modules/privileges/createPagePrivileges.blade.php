@@ -103,14 +103,14 @@
 
       {{-- Module (via modal) --}}
       <div class="col-12">
-        <label class="form-label mb-1">Module <span class="req">*</span></label>
+        <label class="form-label mb-1">Dashboard Menu <span class="req">*</span></label>
         <div class="field-row">
           <div class="grow">
-            <input id="module_label" class="form-control readonly" readonly placeholder="Select a module from dashboard menus…">
+            <input id="module_label" class="form-control readonly" readonly placeholder="Select a dashboard menu from dashboard menus…">
             <input id="module_id" type="hidden" value="">
           </div>
           <button id="btnPickModule" type="button" class="btn btn-light">
-            <i class="fa fa-sitemap me-1"></i>Choose Module
+            <i class="fa fa-sitemap me-1"></i>Choose dashbord menu
           </button>
           <button id="btnClearModule" type="button" class="btn btn-light">
             <i class="fa fa-xmark me-1"></i>Clear
@@ -121,7 +121,7 @@
 
       {{-- Action --}}
       <div class="col-md-6">
-        <label class="form-label mb-1">Action (unique per module) <span class="req">*</span></label>
+        <label class="form-label mb-1">Action (unique per menu) <span class="req">*</span></label>
         <select id="action_select" class="form-select">
           <option value="">Select action…</option>
           <option value="add">Add</option>

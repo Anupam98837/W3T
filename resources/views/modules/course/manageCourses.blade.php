@@ -8,6 +8,7 @@
 <style>
 /* ===== Shell ===== */
 .crs-wrap{max-width:1140px;margin:16px auto 40px;overflow:visible}
+.dropdown-menu.dd-portal{ z-index: 3000 !important; }
 
 /* Badges (stronger specificity so they don't go white) */
 .table .badge.badge-success{background:var(--success-color) !important;color:#fff !important}
@@ -655,83 +656,95 @@ html.theme-dark .media-item{background:#0b1020;border-color:var(--line-strong)}
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <script>
 /* ===== Force dropdown overflows to body (portal) ===== */
-(function(){
-  let activePortal = null;
-  const placeMenu = (menu, btnRect) => {
+/* ===== Force dropdown overflows to body (portal) — FIXED for all tabs ===== */
+(function () {
+  let active = null;
+
+  function cleanup(menu) {
+    if (!menu) return;
+
+    if (menu.__ddClose) {
+      document.removeEventListener('scroll', menu.__ddClose, true);
+      window.removeEventListener('resize', menu.__ddClose);
+      menu.__ddClose = null;
+    }
+
+    if (menu.__ddParent) {
+      menu.classList.remove('dd-portal');
+      menu.style.position = '';
+      menu.style.left = '';
+      menu.style.top = '';
+      menu.style.display = '';
+      menu.style.visibility = '';
+      menu.__ddParent.appendChild(menu);
+      menu.__ddParent = null;
+    }
+  }
+
+  function place(menu, btn) {
+    const rect = btn.getBoundingClientRect();
     const vw = Math.max(document.documentElement.clientWidth, window.innerWidth || 0);
-    const spaceRight = vw - btnRect.right;
+    const vh = Math.max(document.documentElement.clientHeight, window.innerHeight || 0);
+
+    menu.__ddParent = menu.parentElement;
+
     menu.classList.add('dd-portal');
-    menu.style.display = 'block';
-    menu.style.visibility = 'hidden'; // measure first
     document.body.appendChild(menu);
 
-    // compute size after in body
-    const mw = menu.offsetWidth, mh = menu.offsetHeight;
-    let left = btnRect.left;
-    if (spaceRight < mw && btnRect.right - mw > 8) {
-      left = btnRect.right - mw; // flip to align right if not enough space
-    }
-    let top = btnRect.bottom + 4; // little offset below button
-    // Keep within viewport vertically
-    const vh = Math.max(document.documentElement.clientHeight, window.innerHeight || 0);
-    if (top + mh > vh - 8) top = Math.max(8, vh - mh - 8);
+    // fixed so rect coords match exactly
+    menu.style.position = 'fixed';
+    menu.style.display = 'block';
+    menu.style.visibility = 'hidden';
+
+    const mw = menu.offsetWidth;
+    const mh = menu.offsetHeight;
+
+    let left = rect.left;
+    if (left + mw > vw - 8) left = Math.max(8, rect.right - mw);
+
+    let top = rect.bottom + 6;
+    if (top + mh > vh - 8) top = Math.max(8, rect.top - mh - 6); // flip up if needed
 
     menu.style.left = left + 'px';
     menu.style.top  = top + 'px';
     menu.style.visibility = 'visible';
-  };
+  }
 
-  document.addEventListener('show.bs.dropdown', function(ev){
-    const toggle = ev.target; // .dropdown
-    const btn = toggle.querySelector('.dd-toggle, [data-bs-toggle="dropdown"]');
-    const menu = toggle.querySelector('.dropdown-menu');
-    if (!btn || !menu) return;
+  // Bootstrap dropdown events fire on the TOGGLE button in many cases
+  document.addEventListener('show.bs.dropdown', function (ev) {
+    const btn = ev.target.closest('.dd-toggle,[data-bs-toggle="dropdown"]') || ev.target;
+    const dd  = btn?.closest?.('.dropdown') || ev.target.closest('.dropdown');
+    if (!dd) return;
 
-    // clean any previous
-    if (activePortal && activePortal.menu && activePortal.menu.isConnected) {
-      activePortal.menu.classList.remove('dd-portal');
-      activePortal.parent.appendChild(activePortal.menu);
-      activePortal = null;
-    }
+    const menu = dd.querySelector('.dropdown-menu');
+    if (!menu || !btn) return;
 
-    const rect = btn.getBoundingClientRect();
-    // Remember original parent to restore on hide
-    menu.__ddParent = menu.parentElement;
-    placeMenu(menu, rect);
-    activePortal = { menu: menu, parent: menu.__ddParent };
+    if (active?.menu && active.menu !== menu) cleanup(active.menu);
 
-    // Close on scroll/resize to avoid stale position
+    // already portaled
+    if (menu.classList.contains('dd-portal')) return;
+
+    place(menu, btn);
+    active = { menu, btn };
+
     const closeOnEnv = () => {
       try { bootstrap.Dropdown.getOrCreateInstance(btn).hide(); } catch {}
     };
-    menu.__ddListeners = [
-      ['scroll', closeOnEnv, true],
-      ['resize', closeOnEnv, false]
-    ];
-    window.addEventListener('resize', closeOnEnv);
-    document.addEventListener('scroll', closeOnEnv, true);
-  });
 
-  document.addEventListener('hidden.bs.dropdown', function(ev){
-    const toggle = ev.target;
-    const menu = toggle.querySelector('.dropdown-menu.dd-portal') || activePortal?.menu;
+    menu.__ddClose = closeOnEnv;
+    document.addEventListener('scroll', closeOnEnv, true);
+    window.addEventListener('resize', closeOnEnv);
+  }, true);
+
+  document.addEventListener('hidden.bs.dropdown', function (ev) {
+    const btn = ev.target.closest('.dd-toggle,[data-bs-toggle="dropdown"]') || ev.target;
+    const dd  = btn?.closest?.('.dropdown') || ev.target.closest('.dropdown');
+    const menu = dd?.querySelector?.('.dropdown-menu') || active?.menu;
     if (!menu) return;
 
-    // remove listeners
-    if (menu.__ddListeners) {
-      document.removeEventListener('scroll', menu.__ddListeners[0][1], true);
-      window.removeEventListener('resize', menu.__ddListeners[1][1]);
-      menu.__ddListeners = null;
-    }
-
-    // restore to original parent
-    if (menu.__ddParent) {
-      menu.classList.remove('dd-portal');
-      menu.style.cssText = ''; // reset inline styles
-      menu.__ddParent.appendChild(menu);
-      activePortal = null;
-    }
-  });
+    cleanup(menu);
+    if (active?.menu === menu) active = null;
+  }, true);
 })();
 
 /* ================= Dropdown toggle handler ================= */
@@ -884,77 +897,130 @@ document.addEventListener('click', (e) => {
   }
 
   /* ========= Row Actions ========= */
-  function rowActions(scope, r){
-    const isArchived = String(r.status||'').toLowerCase() === 'archived';
-    const isDraft = String(r.status||'').toLowerCase() === 'draft';
-    const isDeleted = !!r.deleted_at;
+  function dropdownShell(itemsHtml){
+  return `
+    <div class="dropdown text-end" data-bs-display="static" data-bs-boundary="viewport">
+    <button type="button"
+      class="btn btn-light btn-sm dd-toggle"
+      data-bs-toggle="dropdown"
+      data-bs-auto-close="outside"
+      aria-expanded="false"
+      title="Actions">
+      <i class="fa fa-ellipsis-vertical"></i>
+    </button>
 
-    if (scope === 'bin') {
-      return `
-        <div class="dropdown text-end" data-bs-display="static" data-bs-boundary="viewport">
-          <button type="button" class="btn btn-light btn-sm dd-toggle" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false" title="Actions">
-            <i class="fa fa-ellipsis-vertical"></i>
-          </button>
-          <ul class="dropdown-menu dropdown-menu-end">
-            <li><button class="dropdown-item" data-act="restore" data-uuid="${r.uuid}" data-title="${escapeHtml(r.title||'')}">
-              <i class="fa fa-rotate-left"></i> Restore
-            </button></li>
-            <li><button class="dropdown-item text-danger" data-act="force" data-uuid="${r.uuid}" data-title="${escapeHtml(r.title||'')}">
-              <i class="fa fa-skull-crossbones"></i> Delete Permanently
-            </button></li>
-          </ul>
-        </div>`;
-    }
+      <ul class="dropdown-menu dropdown-menu-end">
+        ${itemsHtml}
+      </ul>
+    </div>`;
+}
 
-    let statusActions = '';
-    if (scope === 'courses') {
-      statusActions = `
-        <li><button class="dropdown-item" data-act="archive" data-uuid="${r.uuid}" data-title="${escapeHtml(r.title||'')}" title="Archive this course">
-             <i class="fa fa-box-archive"></i> Archive
-           </button></li>`;
-    } else if (scope === 'archived') {
-      statusActions = `
-        <li><button class="dropdown-item" data-act="unarchive" data-uuid="${r.uuid}" data-title="${escapeHtml(r.title||'')}" title="Move back to published">
-             <i class="fa fa-box-open"></i> Unarchive
-           </button></li>`;
-    } else if (scope === 'draft') {
-      statusActions = `
-        <li><button class="dropdown-item" data-act="publish" data-uuid="${r.uuid}" data-title="${escapeHtml(r.title||'')}" title="Publish this course">
-             <i class="fa fa-rocket"></i> Publish
-           </button></li>
-        <li><button class="dropdown-item" data-act="archive" data-uuid="${r.uuid}" data-title="${escapeHtml(r.title||'')}" title="Archive this course">
-             <i class="fa fa-box-archive"></i> Archive
-           </button></li>`;
-    }
+function rowActions(scope, r){
+  const uuid  = r.uuid;
+  const id    = r.id;
+  const title = escapeHtml(r.title || '');
+  const short = escapeHtml(r.short_description || '');
 
-    return `
-      <div class="dropdown text-end" data-bs-display="static">
-        <button type="button" class="btn btn-light btn-sm dd-toggle" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false" title="Actions">
-          <i class="fa fa-ellipsis-vertical"></i>
+  // ✅ Same “top block” like Courses tab (for ALL tabs)
+  // In Bin we disable items to keep UI identical (you can remove these if you don’t want them there)
+  const disabled = (scope === 'bin') ? 'disabled' : '';
+  const ariaDis  = (scope === 'bin') ? 'aria-disabled="true" tabindex="-1"' : '';
+  const viewHref = (scope === 'bin') ? 'javascript:void(0)' : `/courses/${encodeURIComponent(uuid)}`;
+
+  const topBlock = `
+    <li>
+      <a class="dropdown-item view-course-link ${disabled}"
+         href="${viewHref}" ${ariaDis} title="View Course">
+        <i class="fa fa-eye"></i> View Course
+      </a>
+    </li>
+
+    <li>
+      <button class="dropdown-item ${disabled}" ${ariaDis}
+              data-act="edit" data-uuid="${uuid}" data-title="${title}">
+        <i class="fa fa-pen-to-square"></i> Edit
+      </button>
+    </li>
+
+    <li>
+      <button class="dropdown-item ${disabled}" ${ariaDis}
+              data-act="modules" data-id="${id}" data-uuid="${uuid}"
+              data-title="${title}" data-short="${short}">
+        <i class="fa fa-layer-group"></i> Create Course Module
+      </button>
+    </li>
+
+    <li>
+      <button class="dropdown-item ${disabled}" ${ariaDis}
+              data-act="media" data-uuid="${uuid}"
+              data-title="${title}" data-short="${short}">
+        <i class="fa fa-images"></i> Course Featured Media
+      </button>
+    </li>
+
+    <li><hr class="dropdown-divider"></li>
+  `;
+
+  // ✅ Tab-specific “status block” (custom options)
+  let statusBlock = '';
+  if (scope === 'courses') {
+    statusBlock = `
+      <li>
+        <button class="dropdown-item" data-act="archive" data-uuid="${uuid}" data-title="${title}">
+          <i class="fa fa-box-archive"></i> Archive
         </button>
-        <ul class="dropdown-menu dropdown-menu-end">
-          <li>
-            <a class="dropdown-item view-course-link" href="/courses/${encodeURIComponent(r.uuid)}" title="View Course">
-              <i class="fa fa-eye"></i> View Course
-            </a>
-          </li>
-          <li><button class="dropdown-item" data-act="edit" data-uuid="${r.uuid}" data-title="${escapeHtml(r.title||'')}">
-            <i class="fa fa-pen-to-square"></i> Edit
-          </button></li>
-          <li><button class="dropdown-item" data-act="modules" data-id="${r.id}" data-uuid="${r.uuid}" data-title="${escapeHtml(r.title||'')}" data-short="${escapeHtml(r.short_description||'')}">
-            <i class="fa fa-layer-group"></i> Create Course Module
-          </button></li>
-          <li><button class="dropdown-item" data-act="media" data-uuid="${r.uuid}" data-title="${escapeHtml(r.title||'')}" data-short="${escapeHtml(r.short_description||'')}">
-            <i class="fa fa-images"></i> Course Featured Media
-          </button></li>
-          <li><hr class="dropdown-divider"></li>
-          ${statusActions}
-          <li><button class="dropdown-item text-danger" data-act="delete" data-uuid="${r.uuid}" data-title="${escapeHtml(r.title||'')}">
-            <i class="fa fa-trash"></i> Delete
-          </button></li>
-        </ul>
-      </div>`;
+      </li>
+    `;
+  } else if (scope === 'archived') {
+    statusBlock = `
+      <li>
+        <button class="dropdown-item" data-act="unarchive" data-uuid="${uuid}" data-title="${title}">
+          <i class="fa fa-box-open"></i> Unarchive
+        </button>
+      </li>
+    `;
+  } else if (scope === 'draft') {
+    statusBlock = `
+      <li>
+        <button class="dropdown-item" data-act="publish" data-uuid="${uuid}" data-title="${title}">
+          <i class="fa fa-rocket"></i> Publish
+        </button>
+      </li>
+      <li>
+        <button class="dropdown-item" data-act="archive" data-uuid="${uuid}" data-title="${title}">
+          <i class="fa fa-box-archive"></i> Archive
+        </button>
+      </li>
+    `;
+  } else if (scope === 'bin') {
+    statusBlock = `
+      <li>
+        <button class="dropdown-item" data-act="restore" data-uuid="${uuid}" data-title="${title}">
+          <i class="fa fa-rotate-left"></i> Restore
+        </button>
+      </li>
+    `;
   }
+
+  // ✅ Final “danger block”
+  const dangerBlock = (scope === 'bin')
+    ? `
+      <li>
+        <button class="dropdown-item text-danger" data-act="force" data-uuid="${uuid}" data-title="${title}">
+          <i class="fa fa-skull-crossbones"></i> Delete Permanently
+        </button>
+      </li>
+    `
+    : `
+      <li>
+        <button class="dropdown-item text-danger" data-act="delete" data-uuid="${uuid}" data-title="${title}">
+          <i class="fa fa-trash"></i> Delete
+        </button>
+      </li>
+    `;
+
+  return dropdownShell(topBlock + statusBlock + dangerBlock);
+}
 
   function renderRows(scope, items){
     const rowsEl = document.querySelector(tabs[scope].rows);
@@ -1619,3 +1685,4 @@ async function persistReorder(){
 })(); // end main IIFE
 </script>
 @endpush
+  
