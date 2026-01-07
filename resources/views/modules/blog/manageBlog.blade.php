@@ -10,11 +10,13 @@
 .table-wrap,
 .card,
 .card-body,
-.table-responsive {
+.table-responsive{
   position: relative !important;
-  overflow: visible !important;
+  overflow-x: auto !important; /* keep horizontal hidden (optional) */
+  overflow-y: auto !important;   /* ✅ vertical scroll */
   transform: none !important;
 }
+
 
 /* Table rows and cells */
 .table tbody tr {
@@ -613,7 +615,7 @@ function computePermsStrict(set){
   const canRestore = hasAny(set,'restore');
   const canForce   = hasAny(set,'force','force-delete','permanent-delete','delete-permanently');
   const canPublish = hasAny(set,'publish','unpublish','toggle-publish','togglepublish');
-  const canPreview = hasAny(set,'preview','open-preview','view-preview');
+  const canPreview = true;
 
   const masterStatus = hasAny(set,'status','set-status','change-status');
 
@@ -912,7 +914,7 @@ if (!okToLoad) return;
 
     const items = [];
 
-    if (PERMS.canPreview && slug){
+    if (slug){
       const previewHref = previewUrlFor(r);
       items.push(`
         <li>

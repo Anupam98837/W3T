@@ -235,10 +235,10 @@ body{margin:0;background:var(--ce-bg);color:var(--ce-text);}
         <!-- =========================
              TEXT BASICS
         ========================== -->
-        <div class="ce-component" draggable="true" data-key="ce-personalized-greeting"
+        {{-- <div class="ce-component" draggable="true" data-key="ce-personalized-greeting"
           data-html="<p style='margin:0 0 12px 0; line-height:1.5; font-size:1rem;'>Hi %%first_name%%,</p>">
           <i class="fa-solid fa-hand-wave"></i> Personalized Greeting
-        </div>
+        </div> --}}
       
         <div class="ce-component" draggable="true" data-key="ce-heading"
           data-html="<h2 style='margin:0 0 12px 0;'>Your Heading</h2>">
