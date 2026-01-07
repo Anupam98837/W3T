@@ -402,7 +402,7 @@ public function index(Request $r)
      |========================================================= */
     public function store(Request $request)
     {
-        if ($resp = $this->requireRole($request, ['admin','superadmin'])) return $resp;
+        // if ($resp = $this->requireRole($request, ['admin','superadmin'])) return $resp;
 
         $data = $request->validate([
             'title'             => ['required','string','max:255'],

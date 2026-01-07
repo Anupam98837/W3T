@@ -150,6 +150,7 @@ class CheckRole
             'aut'          => 'author',
             'writer'       => 'author',
             'editor'       => 'author',
+            'author'       => 'author',
         ];
 
         // If the incoming is already one of our canonical forms (with/without underscore),
