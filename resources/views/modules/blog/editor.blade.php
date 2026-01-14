@@ -798,33 +798,47 @@ block.querySelectorAll('a').forEach((el,i)=>{
 
   /* === styling/content helpers === */
   function addAlignField(panel, block){
-    let currentAlign = 'left';
+  // ✅ read current align from actual block
+  const cs = getComputedStyle(block);
+  let currentAlign = (block.style.textAlign || cs.textAlign || 'left').toLowerCase();
+  if(!['left','center','right'].includes(currentAlign)) currentAlign = 'left';
 
+  const field = document.createElement('div');
+  field.className = 'ce-field';
+  field.innerHTML = `
+    <label>Horizontal Align</label>
+    <div class="ce-align-group">
+      <button class="ce-align-btn ${currentAlign === 'left' ? 'active' : ''}" data-align="left"><i class="fa-solid fa-align-left"></i></button>
+      <button class="ce-align-btn ${currentAlign === 'center' ? 'active' : ''}" data-align="center"><i class="fa-solid fa-align-center"></i></button>
+      <button class="ce-align-btn ${currentAlign === 'right' ? 'active' : ''}" data-align="right"><i class="fa-solid fa-align-right"></i></button>
+    </div>
+  `;
 
+  field.querySelectorAll('.ce-align-btn').forEach(b => {
+    b.addEventListener('click', () => {
+      pushHistory();
+      const align = b.dataset.align;
 
-    const field = document.createElement('div');
-    field.className = 'ce-field';
-    field.innerHTML = `
-      <label>Horizontal Align</label>
-      <div class="ce-align-group">
-        <button class="ce-align-btn ${currentAlign === 'left' ? 'active' : ''}" data-align="left"><i class="fa-solid fa-align-left"></i></button>
-        <button class="ce-align-btn ${currentAlign === 'center' ? 'active' : ''}" data-align="center"><i class="fa-solid fa-align-center"></i></button>
-        <button class="ce-align-btn ${currentAlign === 'right' ? 'active' : ''}" data-align="right"><i class="fa-solid fa-align-right"></i></button>
-      </div>`;
+      field.querySelectorAll('.ce-align-btn').forEach(x => x.classList.remove('active'));
+      b.classList.add('active');
 
-    field.querySelectorAll('.ce-align-btn').forEach(b => {
-      b.addEventListener('click', () => {
-        pushHistory();
-        const align = b.dataset.align;
-        field.querySelectorAll('.ce-align-btn').forEach(x => x.classList.remove('active'));
-        b.classList.add('active');
+      // ✅ actually apply alignment
+      block.style.textAlign = align;
 
-        syncExport();
+      // ✅ special cases (buttons/images often need inline-block to respect text-align)
+      block.querySelectorAll('a, button, img, figure').forEach(el=>{
+        if(el.closest('.cs-social-links')) return; // keep social editor separate
+        const d = getComputedStyle(el).display;
+        if(d === 'inline' || d === 'inline-flex') el.style.display = 'inline-block';
       });
-    });
 
-    panel.appendChild(field);
-  }
+      syncExport();
+    });
+  });
+
+  panel.appendChild(field);
+}
+
 
   function addSpacingField(panel, block){
     const cs=getComputedStyle(block);
