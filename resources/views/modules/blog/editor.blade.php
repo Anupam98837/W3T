@@ -165,6 +165,10 @@ body{margin:0;background:var(--ce-bg);color:var(--ce-text);}
 }
 .ce-device-btn.active { background: var(--ce-accent-light); color: var(--ce-accent); }
 .ce-device-btn i { font-size: 16px; }
+/* ✅ Default Section Padding (existing + new) */
+.ce-block[data-key^="ce-section-"] section{
+  padding:12px 0 !important;
+}
 
 /* Responsive canvas sizes */
 .ce-canvas.desktop { max-width: 100%; }
@@ -245,10 +249,10 @@ body{margin:0;background:var(--ce-bg);color:var(--ce-text);}
           <i class="fa-solid fa-heading"></i> Heading
         </div>
       
-        <div class="ce-component" draggable="true" data-key="ce-subtitle"
+        {{-- <div class="ce-component" draggable="true" data-key="ce-subtitle"
           data-html="<h3 style='margin:0 0 12px 0;font-size:1.1rem;color:#374151;font-weight:600;'>Sub Title</h3>">
           <i class="fa-solid fa-heading"></i> Sub Title
-        </div>
+        </div> --}}
       
         <div class="ce-component" draggable="true" data-key="ce-paragraph"
           data-html="<p style='margin:0 0 12px 0;line-height:1.5;'>Your paragraph text goes here…</p>">
@@ -375,11 +379,12 @@ body{margin:0;background:var(--ce-bg);color:var(--ce-text);}
       
 
       <div class="ce-components-list" id="list-sections">
-        <div class="ce-component" draggable="true" data-key="ce-section-1" data-html="<section style='margin:0 auto;padding:0;'><div class='ce-section-slot-wrapper' style='width:100%!important;display:flex;justify-content:space-between;flex-wrap:wrap;'><div class='ce-section-slot' style='flex:1;min-width:100%;position:relative;display:flex;flex-direction:column;'><div class='ce-slot'></div><span class='ce-add-inside'><i class='fa-solid fa-plus'></i> Add content</span></div></div></section>"><i class="fa-solid fa-square"></i> 1 Column</div>
-        <div class="ce-component" draggable="true" data-key="ce-section-2" data-html="<section style='margin:0 auto;padding:0;'><div class='ce-section-slot-wrapper' style='width:100%!important;display:flex;justify-content:space-between;flex-wrap:wrap;'><div class='ce-section-slot' style='flex:1;min-width:49%;position:relative;display:flex;flex-direction:column;'><div class='ce-slot'></div><span class='ce-add-inside'><i class='fa-solid fa-plus'></i> Add content</span></div><div class='ce-section-slot' style='flex:1;min-width:49%;position:relative;display:flex;flex-direction:column;'><div class='ce-slot'></div><span class='ce-add-inside'><i class='fa-solid fa-plus'></i> Add content</span></div></div></section>"><i class="fa-solid fa-table-columns"></i> 2 Columns</div>
-        <div class="ce-component" draggable="true" data-key="ce-section-3" data-html="<section style='margin:0 auto;padding:0;'><div class='ce-section-slot-wrapper' style='width:100%!important;display:flex;justify-content:space-between;flex-wrap:wrap;'><div class='ce-section-slot' style='flex:1;min-width:32%;position:relative;display:flex;flex-direction:column;'><div class='ce-slot'></div><span class='ce-add-inside'><i class='fa-solid fa-plus'></i> Add content</span></div><div class='ce-section-slot' style='flex:1;min-width:32%;position:relative;display:flex;flex-direction:column;'><div class='ce-slot'></div><span class='ce-add-inside'><i class='fa-solid fa-plus'></i> Add content</span></div><div class='ce-section-slot' style='flex:1;min-width:32%;position:relative;display:flex;flex-direction:column;'><div class='ce-slot'></div><span class='ce-add-inside'><i class='fa-solid fa-plus'></i> Add content</span></div></div></section>"><i class="fa-solid fa-border-all"></i> 3 Columns</div>
-        <div class="ce-component" draggable="true" data-key="ce-section-4" data-html="<section style='margin:0 auto;padding:0;'><div class='ce-section-slot-wrapper' style='width:100%!important;display:flex;justify-content:space-between;flex-wrap:wrap;'><div class='ce-section-slot' style='flex:1;min-width:23%;position:relative;display:flex;flex-direction:column;'><div class='ce-slot'></div><span class='ce-add-inside'><i class='fa-solid fa-plus'></i> Add content</span></div><div class='ce-section-slot' style='flex:1;min-width:23%;position:relative;display:flex;flex-direction:column;'><div class='ce-slot'></div><span class='ce-add-inside'><i class='fa-solid fa-plus'></i> Add content</span></div><div class='ce-section-slot' style='flex:1;min-width:23%;position:relative;display:flex;flex-direction:column;'><div class='ce-slot'></div><span class='ce-add-inside'><i class='fa-solid fa-plus'></i> Add content</span></div><div class='ce-section-slot' style='flex:1;min-width:23%;position:relative;display:flex;flex-direction:column;'><div class='ce-slot'></div><span class='ce-add-inside'><i class='fa-solid fa-plus'></i> Add content</span></div></div></section>"><i class="fa-solid fa-grip-lines"></i> 4 Columns</div>
+        <div class="ce-component" draggable="true" data-key="ce-section-1" data-html="<section style='margin:0 auto;padding:12px 0;'><div class='ce-section-slot-wrapper' style='width:100%!important;display:flex;justify-content:space-between;flex-wrap:wrap;'><div class='ce-section-slot' style='flex:1;min-width:100%;position:relative;display:flex;flex-direction:column;'><div class='ce-slot'></div><span class='ce-add-inside'><i class='fa-solid fa-plus'></i> Add content</span></div></div></section>"><i class='fa-solid fa-square'></i> 1 Column</div>
+        <div class="ce-component" draggable="true" data-key="ce-section-2" data-html="<section style='margin:0 auto;padding:12px 0;'><div class='ce-section-slot-wrapper' style='width:100%!important;display:flex;justify-content:space-between;flex-wrap:wrap;gap:16px;'><div class='ce-section-slot' style='flex:1 1 calc(50% - 8px);min-width:calc(50% - 8px);position:relative;display:flex;flex-direction:column;'><div class='ce-slot'></div><span class='ce-add-inside'><i class='fa-solid fa-plus'></i> Add content</span></div><div class='ce-section-slot' style='flex:1 1 calc(50% - 8px);min-width:calc(50% - 8px);position:relative;display:flex;flex-direction:column;'><div class='ce-slot'></div><span class='ce-add-inside'><i class='fa-solid fa-plus'></i> Add content</span></div></div></section>"><i class='fa-solid fa-table-columns'></i> 2 Columns</div>
+        <div class="ce-component" draggable="true" data-key="ce-section-3" data-html="<section style='margin:0 auto;padding:12px 0;'><div class='ce-section-slot-wrapper' style='width:100%!important;display:flex;justify-content:space-between;flex-wrap:wrap;gap:16px;'><div class='ce-section-slot' style='flex:1 1 calc(33.333% - 11px);min-width:calc(33.333% - 11px);position:relative;display:flex;flex-direction:column;'><div class='ce-slot'></div><span class='ce-add-inside'><i class='fa-solid fa-plus'></i> Add content</span></div><div class='ce-section-slot' style='flex:1 1 calc(33.333% - 11px);min-width:calc(33.333% - 11px);position:relative;display:flex;flex-direction:column;'><div class='ce-slot'></div><span class='ce-add-inside'><i class='fa-solid fa-plus'></i> Add content</span></div><div class='ce-section-slot' style='flex:1 1 calc(33.333% - 11px);min-width:calc(33.333% - 11px);position:relative;display:flex;flex-direction:column;'><div class='ce-slot'></div><span class='ce-add-inside'><i class='fa-solid fa-plus'></i> Add content</span></div></div></section>"><i class='fa-solid fa-border-all'></i> 3 Columns</div>
+        <div class="ce-component" draggable="true" data-key="ce-section-4" data-html="<section style='margin:0 auto;padding:12px 0;'><div class='ce-section-slot-wrapper' style='width:100%!important;display:flex;justify-content:space-between;flex-wrap:wrap;gap:16px;'><div class='ce-section-slot' style='flex:1 1 calc(25% - 12px);min-width:calc(25% - 12px);position:relative;display:flex;flex-direction:column;'><div class='ce-slot'></div><span class='ce-add-inside'><i class='fa-solid fa-plus'></i> Add content</span></div><div class='ce-section-slot' style='flex:1 1 calc(25% - 12px);min-width:calc(25% - 12px);position:relative;display:flex;flex-direction:column;'><div class='ce-slot'></div><span class='ce-add-inside'><i class='fa-solid fa-plus'></i> Add content</span></div><div class='ce-section-slot' style='flex:1 1 calc(25% - 12px);min-width:calc(25% - 12px);position:relative;display:flex;flex-direction:column;'><div class='ce-slot'></div><span class='ce-add-inside'><i class='fa-solid fa-plus'></i> Add content</span></div><div class='ce-section-slot' style='flex:1 1 calc(25% - 12px);min-width:calc(25% - 12px);position:relative;display:flex;flex-direction:column;'><div class='ce-slot'></div><span class='ce-add-inside'><i class='fa-solid fa-plus'></i> Add content</span></div></div></section>"><i class='fa-solid fa-grip-lines'></i> 4 Columns</div>
       </div>
+      
     </aside>
   </div>
 </div>
@@ -423,17 +428,20 @@ let importedDocHead = '';
 
 (function(){
   const state = {
-    editEl:null,
-    outEl:null,
-    markerEl:null,
-    selectedBlock:null,
-    undoStack:[],
-    redoStack:[],
-    saving:false,
-    currentUnit: 'px',
-    currentDevice: 'desktop',
-    propTabByBlockId: {} /* ✅ keep active inspector tab per block */
-  };
+  editEl:null,
+  outEl:null,
+  markerEl:null,
+  selectedBlock:null,
+  undoStack:[],
+  redoStack:[],
+  saving:false,
+  currentUnit: 'px',
+  currentDevice: 'desktop',
+  propTabByBlockId: {},
+  popupEl: null,    
+  popupAnchor: null 
+};
+
 
   /* ===== HISTORY ===== */
   function pushHistory(){
@@ -617,9 +625,11 @@ let importedDocHead = '';
     });
   }
 
-  /* ===== ADD POPUP ===== */
+  /* ===== ADD POPUP (FIXED) ===== */
   function openAddPopup(anchor) {
     closePopup();
+
+    state.popupAnchor = anchor;
 
     const items = Array.from(document.querySelectorAll('#list-elements .ce-component')).map(el => ({
       key: el.dataset.key,
@@ -630,6 +640,8 @@ let importedDocHead = '';
     popup.className = 'ce-add-popup';
     popup.innerHTML = `<h4>Add element</h4>${items.map(i => `<button data-key="${i.key}">${i.label}</button>`).join('')}`;
     document.body.appendChild(popup);
+
+    state.popupEl = popup;
 
     const rect = anchor.getBoundingClientRect();
     const margin = 6;
@@ -642,41 +654,68 @@ let importedDocHead = '';
     const popupHeight = popup.offsetHeight;
     const viewportBottom = window.scrollY + window.innerHeight;
 
+    // flip up if overflowing
     if (top + popupHeight > viewportBottom) {
       top = rect.top + window.scrollY - popupHeight - margin;
       popup.style.top = top + 'px';
     }
 
+    // ✅ prevent outside-close firing when clicking inside popup
+    popup.addEventListener('pointerdown', e => e.stopPropagation());
+
     popup.addEventListener('click', e => {
-      if (e.target.tagName === 'BUTTON') {
-        const key = e.target.dataset.key;
-        const data = getComponentDataByKey(key);
-        if (!data) return;
+      const btn = e.target.closest('button');
+      if (!btn) return;
 
-        pushHistory();
+      const key = btn.dataset.key;
+      const data = getComponentDataByKey(key);
+      if (!data) return;
 
-        if (key === 'ce-html') {
-          const html = prompt('Enter custom HTML:', '<div>Custom</div>');
-          if (html !== null) data.html = html;
-          else { closePopup(); return; }
-        }
+      pushHistory();
 
-        const block = createBlock(data.html, data.key);
-
-        let slot = null;
-        const sectionSlot = anchor.closest('.ce-section-slot');
-        if (sectionSlot) slot = sectionSlot.querySelector('.ce-slot');
-        slot = slot || anchor.previousElementSibling || anchor.parentElement.querySelector('.ce-slot') || anchor.parentElement || state.editEl;
-
-        slot.appendChild(block);
-        closePopup();
-        syncExport();
+      if (key === 'ce-html') {
+        const html = prompt('Enter custom HTML:', '<div>Custom</div>');
+        if (html !== null) data.html = html;
+        else { closePopup(); return; }
       }
+
+      const block = createBlock(data.html, data.key);
+
+      // ✅ Always detect correct slot when clicked from Section Add-content
+      let slot = null;
+      const sectionSlot = anchor.closest('.ce-section-slot');
+      if (sectionSlot) slot = sectionSlot.querySelector('.ce-slot');
+
+      slot = slot || anchor.previousElementSibling || anchor.parentElement.querySelector('.ce-slot') || anchor.parentElement || state.editEl;
+
+      slot.appendChild(block);
+      closePopup();
+      syncExport();
     });
 
-    popup.addEventListener('click', e => e.stopPropagation());
-    document.addEventListener('click', closePopup, { once: true });
+    // ✅ IMPORTANT FIX:
+    // attach outside close AFTER current click finishes,
+    // so it doesn't instantly close the popup randomly (section bug)
+    setTimeout(() => {
+      document.addEventListener('pointerdown', closePopup, { once: true });
+    }, 0);
   }
+
+  function closePopup(e){
+    const p = state.popupEl || document.querySelector('.ce-add-popup');
+    if(!p) return;
+
+    // ✅ if clicked inside popup or on the same anchor -> ignore
+    if(e){
+      if(p.contains(e.target)) return;
+      if(state.popupAnchor && state.popupAnchor.contains && state.popupAnchor.contains(e.target)) return;
+    }
+
+    p.remove();
+    state.popupEl = null;
+    state.popupAnchor = null;
+  }
+
 
   function closePopup(){
     const p=document.querySelector('.ce-add-popup');
@@ -732,7 +771,17 @@ let importedDocHead = '';
 
     const contentHTML=getInnerHTMLWithoutUI(block);
     const tagNames=['H1','H2','H3','H4','H5','H6','P','A','SPAN','BUTTON','LI'];
-    const textNodes=block.querySelectorAll(tagNames.join(','));
+    const textNodes = getOutermostTextNodes(block);
+
+    function getOutermostTextNodes(block){
+      // only “main” text containers (NOT span/a inside them)
+      const selector = 'h1,h2,h3,h4,h5,h6,p,figcaption';
+      const all = Array.from(block.querySelectorAll(selector));
+
+      // keep only the highest-level ones (skip nested)
+      return all.filter(el => !el.parentElement.closest(selector));
+    }
+
 
     const unitToggle = document.createElement('div');
     unitToggle.className = 'ce-unit-toggle';
@@ -1098,31 +1147,45 @@ block.querySelectorAll('a').forEach((el,i)=>{
     });
   }
 
-  function addTextEditors(panel, nodes) {
+    function addTextEditors(panel, nodes) {
     nodes.forEach((node, idx) => {
       if (isUI(node)) return;
       if (node.classList && node.classList.contains('ce-tag')) return;
       if (node.closest && node.closest('.cs-social-links')) return;
 
+      // ✅ IMPORTANT FIX: skip LI (list items will be handled by addListEditors)
+      if (node.tagName === 'LI') return;
+
       const wrap = document.createElement('div');
       wrap.className = 'ce-field';
       wrap.innerHTML = `
         <label>Text ${idx + 1}</label>
+
         <div class="ce-text-toolbar">
           <button type="button" data-cmd="bold"><b>B</b></button>
           <button type="button" data-cmd="italic"><i>I</i></button>
           <button type="button" data-cmd="underline"><u>U</u></button>
           <button type="button" data-cmd="strikethrough"><s>S</s></button>
+
+          <!-- ✅ NEW: List Buttons -->
+          <button type="button" data-cmd="insertUnorderedList" title="Bullet List">• List</button>
+          <button type="button" data-cmd="insertOrderedList" title="Numbered List">1. List</button>
+
           <button type="button" data-cmd="createLink">🔗</button>
           <input type="color" data-cmd="foreColor" title="Text color">
+
           <div class="ce-font-controls">
             <select data-cmd="fontName">
               <option value="Arial">Arial</option>
+              <option value="Book Antiqua">Book Antiqua</option>
+              <option value="Cambria">Cambria</option>
+              <option value="Century Schoolbook">Century Schoolbook</option>
               <option value="Georgia">Georgia</option>
               <option value="Tahoma">Tahoma</option>
               <option value="Times New Roman">Times New Roman</option>
               <option value="Verdana">Verdana</option>
             </select>
+
             <select data-cmd="fontSize">
               <option value="1">10px</option>
               <option value="2">13px</option>
@@ -1134,17 +1197,21 @@ block.querySelectorAll('a').forEach((el,i)=>{
             </select>
           </div>
         </div>
+
         <div class="ce-text-area" contenteditable="true">${node.innerHTML}</div>
       `;
 
+      // ✅ Buttons work automatically (UL/OL will work too)
       wrap.querySelectorAll('.ce-text-toolbar button').forEach(btn => {
         btn.addEventListener('click', () => {
           const cmd = btn.dataset.cmd;
           let val = null;
+
           if (cmd === 'createLink') {
             val = prompt('Enter URL:', 'https://');
             if (!val) return;
           }
+
           document.execCommand(cmd, false, val);
           wrap.querySelector('.ce-text-area').focus();
         });
@@ -1168,45 +1235,148 @@ block.querySelectorAll('a').forEach((el,i)=>{
     });
   }
 
+
+
   function addListEditors(panel, block){
     const lists = block.querySelectorAll('ul,ol');
     lists.forEach((list, idx)=>{
       if(isUI(list)) return;
-      const field=document.createElement('div');field.className='ce-field';
-      field.innerHTML=`<label>List ${idx+1} Items</label>
-        <div class="ce-list-items" style="margin-bottom:6px;"></div>
-        <button type="button" class="ce-btn-sm ce-primary ce-add-li"><i class="fa-solid fa-plus"></i> Add item</button>`;
+
+      const field=document.createElement('div');
+      field.className='ce-field';
+      field.innerHTML=`
+        <label>List ${idx+1} Items</label>
+        <div class="ce-list-items" style="display:flex;flex-direction:column;gap:10px;margin-bottom:8px;"></div>
+        <button type="button" class="ce-btn-sm ce-primary ce-add-li">
+          <i class="fa-solid fa-plus"></i> Add item
+        </button>
+      `;
+
       const itemsWrap = field.querySelector('.ce-list-items');
 
-      function makeRow(li){
-        const row=document.createElement('div');row.style.display='flex';row.style.gap='6px';row.style.marginBottom='4px';
-        row.innerHTML=`<input type="text" value="${li.textContent}" style="flex:1;">
-          <button type="button" class="ce-btn-sm ce-del-li"><i class="fa-solid fa-trash"></i></button>`;
-        row.querySelector('input').addEventListener('input',e=>{
-          pushHistory(); li.textContent=e.target.value; syncExport();
+      function makeEditorRow(li){
+        const row = document.createElement('div');
+        row.style.border = '1px solid var(--ce-border)';
+        row.style.borderRadius = '6px';
+        row.style.padding = '8px';
+        row.style.background = '#fff';
+
+        row.innerHTML = `
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+            <strong style="font-size:12px;">Item</strong>
+            <button type="button" class="ce-btn-sm ce-del-li" style="margin-left:auto;">
+              <i class="fa-solid fa-trash"></i>
+            </button>
+          </div>
+
+          <div class="ce-text-toolbar">
+            <button type="button" data-cmd="bold"><b>B</b></button>
+            <button type="button" data-cmd="italic"><i>I</i></button>
+            <button type="button" data-cmd="underline"><u>U</u></button>
+            <button type="button" data-cmd="strikethrough"><s>S</s></button>
+
+            <!-- ✅ NEW: List buttons inside LI editor -->
+            <button type="button" data-cmd="insertUnorderedList" title="Bullet List">• List</button>
+            <button type="button" data-cmd="insertOrderedList" title="Numbered List">1. List</button>
+
+            <button type="button" data-cmd="createLink">🔗</button>
+            <input type="color" data-cmd="foreColor" title="Text color">
+
+            <div class="ce-font-controls">
+              <select data-cmd="fontName">
+                <option value="Arial">Arial</option>
+                <option value="Book Antiqua">Book Antiqua</option>
+                <option value="Cambria">Cambria</option>
+                <option value="Century Schoolbook">Century Schoolbook</option>
+                <option value="Georgia">Georgia</option>
+                <option value="Tahoma">Tahoma</option>
+                <option value="Times New Roman">Times New Roman</option>
+                <option value="Verdana">Verdana</option>
+              </select>
+
+              <select data-cmd="fontSize">
+                <option value="1">10px</option>
+                <option value="2">13px</option>
+                <option value="3" selected>16px</option>
+                <option value="4">18px</option>
+                <option value="5">24px</option>
+                <option value="6">32px</option>
+                <option value="7">48px</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="ce-text-area ce-li-editor" contenteditable="true">${li.innerHTML}</div>
+        `;
+
+        const editor = row.querySelector('.ce-li-editor');
+
+        // Toolbar actions
+        row.querySelectorAll('.ce-text-toolbar button').forEach(btn=>{
+          btn.addEventListener('click', ()=>{
+            editor.focus();
+            const cmd = btn.dataset.cmd;
+            let val = null;
+
+            if(cmd === 'createLink'){
+              val = prompt('Enter URL:', 'https://');
+              if(!val) return;
+            }
+
+            document.execCommand(cmd, false, val);
+            editor.focus();
+          });
         });
-        row.querySelector('.ce-del-li').addEventListener('click',()=>{
-          pushHistory(); li.remove(); row.remove(); syncExport();
+
+        row.querySelectorAll('.ce-text-toolbar select, .ce-text-toolbar input[type="color"]').forEach(ctrl=>{
+          ctrl.addEventListener('change', e=>{
+            editor.focus();
+            document.execCommand(ctrl.dataset.cmd, false, e.target.value);
+            editor.focus();
+          });
         });
+
+        // Live sync to LI HTML
+        let armed=false;
+        editor.addEventListener('input', ()=>{
+          if(!armed){ pushHistory(); armed=true; }
+          li.innerHTML = editor.innerHTML;
+          syncExport();
+        });
+        editor.addEventListener('blur', ()=>{ armed=false; });
+
+        // Delete
+        row.querySelector('.ce-del-li').addEventListener('click', ()=>{
+          pushHistory();
+          li.remove();
+          row.remove();
+          syncExport();
+        });
+
         return row;
       }
 
+      // Build existing items
       Array.from(list.children).forEach(li=>{
-        if(li.tagName!=='LI') return;
-        itemsWrap.appendChild(makeRow(li));
+        if(li.tagName !== 'LI') return;
+        itemsWrap.appendChild(makeEditorRow(li));
       });
 
-      field.querySelector('.ce-add-li').addEventListener('click',()=>{
+      // Add item (✅ creates editor also)
+      field.querySelector('.ce-add-li').addEventListener('click', ()=>{
         pushHistory();
-        const li=document.createElement('li');li.textContent='New item';
+        const li=document.createElement('li');
+        li.innerHTML = 'New item';
         list.appendChild(li);
-        itemsWrap.appendChild(makeRow(li));
+        itemsWrap.appendChild(makeEditorRow(li));
         syncExport();
       });
 
       panel.appendChild(field);
     });
   }
+
+
 
   function addImageContentEditors(panel, block){
     const imgs=block.querySelectorAll('img');
