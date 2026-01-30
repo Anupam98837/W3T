@@ -627,105 +627,111 @@ let importedDocHead = '';
 
   /* ===== ADD POPUP (FIXED) ===== */
   function openAddPopup(anchor) {
-    closePopup();
+  closePopup(); // ✅ Close any existing popup before opening a new one
 
-    state.popupAnchor = anchor;
+  state.popupAnchor = anchor;
 
-    const items = Array.from(document.querySelectorAll('#list-elements .ce-component')).map(el => ({
-      key: el.dataset.key,
-      label: el.textContent.trim()
-    }));
+  const items = Array.from(document.querySelectorAll('#list-elements .ce-component')).map(el => ({
+    key: el.dataset.key,
+    label: el.textContent.trim()
+  }));
 
-    const popup = document.createElement('div');
-    popup.className = 'ce-add-popup';
-    popup.innerHTML = `<h4>Add element</h4>${items.map(i => `<button data-key="${i.key}">${i.label}</button>`).join('')}`;
-    document.body.appendChild(popup);
+  const popup = document.createElement('div');
+  popup.className = 'ce-add-popup';
+  popup.innerHTML = `<h4>Add element</h4>${items
+    .map(i => `<button type="button" data-key="${i.key}">${i.label}</button>`)
+    .join('')}`;
+  document.body.appendChild(popup);
 
-    state.popupEl = popup;
+  state.popupEl = popup;
 
-    const rect = anchor.getBoundingClientRect();
-    const margin = 6;
-    let top = rect.bottom + window.scrollY + margin;
-    let left = rect.left + window.scrollX;
+  const rect = anchor.getBoundingClientRect();
+  const margin = 6;
 
+  let top = rect.bottom + window.scrollY + margin;
+  let left = rect.left + window.scrollX;
+
+  popup.style.top = top + 'px';
+  popup.style.left = left + 'px';
+
+  // ✅ Measure after positioning
+  const popupHeight = popup.offsetHeight;
+  const viewportBottom = window.scrollY + window.innerHeight;
+
+  // ✅ Flip up if overflowing bottom
+  if (top + popupHeight > viewportBottom) {
+    top = rect.top + window.scrollY - popupHeight - margin;
+    // ✅ Clamp if still too high
+    if (top < window.scrollY + margin) top = window.scrollY + margin;
     popup.style.top = top + 'px';
-    popup.style.left = left + 'px';
+  }
 
-    const popupHeight = popup.offsetHeight;
-    const viewportBottom = window.scrollY + window.innerHeight;
+  // ✅ Prevent outside-close firing when clicking inside popup
+  popup.addEventListener('pointerdown', e => e.stopPropagation());
 
-    // flip up if overflowing
-    if (top + popupHeight > viewportBottom) {
-      top = rect.top + window.scrollY - popupHeight - margin;
-      popup.style.top = top + 'px';
+  popup.addEventListener('click', e => {
+    const btn = e.target.closest('button');
+    if (!btn) return;
+
+    const key = btn.dataset.key;
+    const data = getComponentDataByKey(key);
+    if (!data) return;
+
+    pushHistory();
+
+    if (key === 'ce-html') {
+      const html = prompt('Enter custom HTML:', '<div>Custom</div>');
+      if (html !== null) data.html = html;
+      else { closePopup(); return; }
     }
 
-    // ✅ prevent outside-close firing when clicking inside popup
-    popup.addEventListener('pointerdown', e => e.stopPropagation());
+    const block = createBlock(data.html, data.key);
 
-    popup.addEventListener('click', e => {
-      const btn = e.target.closest('button');
-      if (!btn) return;
+    // ✅ Always detect correct slot when clicked from Section Add-content
+    let slot = null;
+    const sectionSlot = anchor.closest('.ce-section-slot');
+    if (sectionSlot) slot = sectionSlot.querySelector('.ce-slot');
 
-      const key = btn.dataset.key;
-      const data = getComponentDataByKey(key);
-      if (!data) return;
+    slot =
+      slot ||
+      anchor.previousElementSibling ||
+      anchor.parentElement.querySelector('.ce-slot') ||
+      anchor.parentElement ||
+      state.editEl;
 
-      pushHistory();
+    slot.appendChild(block);
 
-      if (key === 'ce-html') {
-        const html = prompt('Enter custom HTML:', '<div>Custom</div>');
-        if (html !== null) data.html = html;
-        else { closePopup(); return; }
-      }
+    closePopup();
+    syncExport();
+  });
 
-      const block = createBlock(data.html, data.key);
+  // ✅ Attach outside close AFTER current click finishes
+  setTimeout(() => {
+    document.addEventListener('pointerdown', closePopup, { once: true });
+  }, 0);
+}
 
-      // ✅ Always detect correct slot when clicked from Section Add-content
-      let slot = null;
-      const sectionSlot = anchor.closest('.ce-section-slot');
-      if (sectionSlot) slot = sectionSlot.querySelector('.ce-slot');
+function closePopup(e) {
+  const p = state.popupEl || document.querySelector('.ce-add-popup');
+  if (!p) return;
 
-      slot = slot || anchor.previousElementSibling || anchor.parentElement.querySelector('.ce-slot') || anchor.parentElement || state.editEl;
-
-      slot.appendChild(block);
-      closePopup();
-      syncExport();
-    });
-
-    // ✅ IMPORTANT FIX:
-    // attach outside close AFTER current click finishes,
-    // so it doesn't instantly close the popup randomly (section bug)
-    setTimeout(() => {
-      document.addEventListener('pointerdown', closePopup, { once: true });
-    }, 0);
+  // ✅ If clicked inside popup or on the same anchor -> ignore
+  if (e) {
+    if (p.contains(e.target)) return;
+    if (state.popupAnchor && state.popupAnchor.contains && state.popupAnchor.contains(e.target)) return;
   }
 
-  function closePopup(e){
-    const p = state.popupEl || document.querySelector('.ce-add-popup');
-    if(!p) return;
+  p.remove();
+  state.popupEl = null;
+  state.popupAnchor = null;
+}
 
-    // ✅ if clicked inside popup or on the same anchor -> ignore
-    if(e){
-      if(p.contains(e.target)) return;
-      if(state.popupAnchor && state.popupAnchor.contains && state.popupAnchor.contains(e.target)) return;
-    }
+function getComponentDataByKey(key) {
+  const el = document.querySelector(`.ce-component[data-key="${key}"]`);
+  if (!el) return null;
+  return { key: el.dataset.key, html: el.dataset.html };
+}
 
-    p.remove();
-    state.popupEl = null;
-    state.popupAnchor = null;
-  }
-
-
-  function closePopup(){
-    const p=document.querySelector('.ce-add-popup');
-    if(p) p.remove();
-  }
-  function getComponentDataByKey(key){
-    const el=document.querySelector(`.ce-component[data-key="${key}"]`);
-    if(!el) return null;
-    return {key:el.dataset.key, html:el.dataset.html};
-  }
 
   /* ===== INSPECTOR ===== */
   function renderInspector(block){
