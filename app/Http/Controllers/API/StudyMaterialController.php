@@ -687,242 +687,222 @@ class StudyMaterialController extends Controller
         // Use Laravel's binary file response with inline disposition
         return response()->download($absPath, $name, $headers, 'inline');
     }
+/* =========================================================
+ | View Study Materials by Batch (with RBAC + Module Filter)
+ * ========================================================= */
+public function viewStudyMaterialByBatch(Request $r, string $batchKey)
+{
+    /* --------------------------
+     | Role & Actor
+     * -------------------------- */
+    $role = (string) $r->attributes->get('auth_role');
+    $uid  = (int) ($r->attributes->get('auth_tokenable_id') ?? 0);
+
+    if (!in_array($role, ['superadmin','admin','instructor','student'], true)) {
+        return response()->json(['error' => 'Unauthorized Access'], 403);
+    }
+
+    $isAdminLike = in_array($role, ['superadmin','admin'], true);
+    $isInstructor = $role === 'instructor';
+    $isStudent    = $role === 'student';
+    $isStaff      = $isAdminLike || $isInstructor;
+
+    /* --------------------------
+     | Resolve Batch
+     * -------------------------- */
+    $bq = DB::table('batches')->whereNull('deleted_at');
+
+    if (ctype_digit($batchKey)) {
+        $bq->where('id', (int)$batchKey);
+    } elseif (Str::isUuid($batchKey)) {
+        $bq->where('uuid', $batchKey);
+    } elseif (Schema::hasColumn('batches','slug')) {
+        $bq->where('slug', $batchKey);
+    } else {
+        return response()->json(['error' => 'Batch not found'], 404);
+    }
+
+    $batch = $bq->first();
+    if (!$batch) return response()->json(['error' => 'Batch not found'], 404);
+
+    /* --------------------------
+     | RBAC checks
+     * -------------------------- */
+    $biUserCol = Schema::hasColumn('batch_instructors','user_id')
+        ? 'user_id'
+        : (Schema::hasColumn('batch_instructors','instructor_id') ? 'instructor_id' : null);
+
+    $bsUserCol = Schema::hasColumn('batch_students','user_id')
+        ? 'user_id'
+        : (Schema::hasColumn('batch_students','student_id') ? 'student_id' : null);
+
+    if ($isInstructor) {
+        if (!$biUserCol) return response()->json(['error'=>'Schema error'],500);
+        if (!DB::table('batch_instructors')
+            ->where('batch_id',$batch->id)
+            ->where($biUserCol,$uid)
+            ->whereNull('deleted_at')
+            ->exists()) {
+            return response()->json(['error'=>'Forbidden'],403);
+        }
+    }
+
+    if ($isStudent) {
+        if (!$bsUserCol) return response()->json(['error'=>'Schema error'],500);
+        if (!DB::table('batch_students')
+            ->where('batch_id',$batch->id)
+            ->where($bsUserCol,$uid)
+            ->whereNull('deleted_at')
+            ->exists()) {
+            return response()->json(['error'=>'Forbidden'],403);
+        }
+    }
+
+    /* --------------------------
+     | Course
+     * -------------------------- */
+    $course = DB::table('courses')
+        ->where('id', $batch->course_id)
+        ->whereNull('deleted_at')
+        ->first();
+
+    if (!$course) {
+        return response()->json(['error'=>'Course not found'],404);
+    }
 
     /* =========================================================
-     |  View Study Materials by Batch (with RBAC)
+     | 🔥 Resolve Module Filter (UUID or ID)
      * ========================================================= */
-    public function viewStudyMaterialByBatch(Request $r, string $batchKey)
-    {
-        // ---- role from CheckRole (canonical: superadmin/admin/instructor/student)
-        $role = (string) $r->attributes->get('auth_role');
-        $uid  = (int) ($r->attributes->get('auth_tokenable_id') ?? 0);
-        if (!$role || !in_array($role, ['superadmin','admin','instructor','student'], true)) {
-            return response()->json(['error' => 'Unauthorized Access'], 403);
-        }
-        $isAdminLike = in_array($role, ['superadmin','admin'], true);
-        $isInstructor = $role === 'instructor';
-        $isStudent    = $role === 'student';
+    $filterModuleId = null;
 
-        // ---- resolve batch by id / uuid / (optional) slug
-        $bq = DB::table('batches')->whereNull('deleted_at');
-        if (ctype_digit($batchKey)) {
-            $bq->where('id', (int)$batchKey);
-        } elseif (Str::isUuid($batchKey)) {
-            $bq->where('uuid', $batchKey);
-        } elseif (Schema::hasColumn('batches','slug')) {
-            $bq->where('slug', $batchKey);
-        } else {
-            return response()->json(['error' => 'Batch not found'], 404);
-        }
-        $batch = $bq->first();
-        if (!$batch) return response()->json(['error' => 'Batch not found'], 404);
+    $moduleUuid = $r->query('module_uuid') ?? $r->query('module');
+    $moduleId   = $r->query('course_module_id');
 
-        // ---- detect pivot FK columns safely (same as your course function)
-        $biUserCol = Schema::hasColumn('batch_instructors','user_id')
-            ? 'user_id'
-            : (Schema::hasColumn('batch_instructors','instructor_id') ? 'instructor_id' : null);
-
-        $bsUserCol = Schema::hasColumn('batch_students','user_id')
-            ? 'user_id'
-            : (Schema::hasColumn('batch_students','student_id') ? 'student_id' : null);
-
-        // ---- RBAC: must be assigned if instructor/student
-        if ($isInstructor) {
-            if (!$biUserCol) {
-                return response()->json(['error'=>'Schema issue: batch_instructors needs user_id OR instructor_id'], 500);
-            }
-            $assigned = DB::table('batch_instructors')
-                ->where('batch_id', $batch->id)
-                ->whereNull('deleted_at')
-                ->where($biUserCol, $uid)
-                ->exists();
-            if (!$assigned) return response()->json(['error' => 'Forbidden'], 403);
-        }
-        if ($isStudent) {
-            if (!$bsUserCol) {
-                return response()->json(['error'=>'Schema issue: batch_students needs user_id OR student_id'], 500);
-            }
-            $enrolled = DB::table('batch_students')
-                ->where('batch_id', $batch->id)
-                ->whereNull('deleted_at')
-                ->where($bsUserCol, $uid)
-                ->exists();
-            if (!$enrolled) return response()->json(['error' => 'Forbidden'], 403);
-        }
-
-        // ---- load course for context
-        $course = DB::table('courses')
-            ->where('id', $batch->course_id)
-            ->whereNull('deleted_at')
-            ->first();
-        if (!$course) {
-            return response()->json(['error' => 'Course not found for this batch'], 404);
-        }
-
-        // ---- load modules for this course (students only see published)
-        $isStaff = $isAdminLike || $isInstructor;
-        $modQ = DB::table('course_modules')
+    if ($moduleUuid && Str::isUuid($moduleUuid)) {
+        $filterModuleId = DB::table('course_modules')
+            ->where('uuid', $moduleUuid)
             ->where('course_id', $course->id)
             ->whereNull('deleted_at')
-            ->orderBy('order_no')->orderBy('id');
-        if (!$isStaff) $modQ->where('status', 'published');
-        $modules = $modQ->get();
+            ->value('id');
+    }
+    elseif ($moduleId && ctype_digit((string)$moduleId)) {
+        $filterModuleId = DB::table('course_modules')
+            ->where('id', (int)$moduleId)
+            ->where('course_id', $course->id)
+            ->whereNull('deleted_at')
+            ->value('id');
+    }
 
-        // ---- load study materials for this batch with creator's name
-        $smQ = DB::table('study_materials as sm')
-            ->leftJoin('course_modules as cm', 'cm.id', '=', 'sm.course_module_id')
-            ->leftJoin('users as creator', 'creator.id', '=', 'sm.created_by') // Join with users table for creator
-            ->where('sm.batch_id', $batch->id)
-            ->whereNull('sm.deleted_at')
-            ->whereNull('cm.deleted_at')
-            ->select(
-                'sm.id',
-                'sm.uuid',
-                'sm.title',
-                'sm.slug',
-                'sm.description',
-                'sm.view_policy',
-                'sm.attachment',
-                'sm.attachment_count',
-                'sm.course_module_id',
-                'sm.created_by',
-                'cm.title as module_title',
-                'cm.uuid as module_uuid',
-                'sm.created_at',
-                'sm.updated_at',
-                'creator.name as created_by_name' // Get creator's name
-            )
-            ->orderBy('cm.order_no')
-            ->orderBy('sm.created_at', 'desc');
+    // ❌ Module param provided but invalid
+    if (($moduleUuid || $moduleId) && !$filterModuleId) {
+        return response()->json([
+            'error' => 'Module not found for this course'
+        ], 404);
+    }
 
-        // Students only see study materials from published modules
-        if (!$isStaff) {
-            $smQ->where('cm.status', 'published');
-        }
+    /* --------------------------
+     | Modules (Sidebar)
+     * -------------------------- */
+    $modQ = DB::table('course_modules')
+        ->where('course_id', $course->id)
+        ->whereNull('deleted_at');
 
-        $studyMaterials = $smQ->get();
+    if (!$isStaff) $modQ->where('status', 'published');
+    if ($filterModuleId) $modQ->where('id', $filterModuleId);
 
-        // Process attachments and group by module
-        $materialsByModule = [];
-        foreach ($studyMaterials as $material) {
-            $moduleId = $material->course_module_id;
+    $modules = $modQ
+        ->orderBy('order_no')
+        ->orderBy('id')
+        ->get();
 
-            if (!isset($materialsByModule[$moduleId])) {
-                $materialsByModule[$moduleId] = [
-                    'module' => [
-                        'id' => (int)$material->course_module_id,
-                        'uuid' => $material->module_uuid,
-                        'title' => $material->module_title,
-                    ],
-                    'materials' => []
-                ];
-            }
+    /* --------------------------
+     | Study Materials
+     * -------------------------- */
+    $rows = DB::table('study_materials as sm')
+        ->join('course_modules as cm', function ($j) {
+            $j->on('cm.id','=','sm.course_module_id')
+              ->whereNull('cm.deleted_at');
+        })
+        ->leftJoin('users as u','u.id','=','sm.created_by')
+        ->where('sm.batch_id', $batch->id)
+        ->where('cm.course_id', $course->id)
+        ->whereNull('sm.deleted_at')
+        ->when(!$isStaff, fn($q)=>$q->where('cm.status','published'))
+        ->when($filterModuleId, fn($q)=>$q->where('sm.course_module_id',$filterModuleId))
+        ->orderBy('cm.order_no')
+        ->orderBy('sm.created_at','desc')
+        ->select(
+            'sm.*',
+            'cm.uuid as module_uuid',
+            'cm.title as module_title',
+            'u.name as created_by_name'
+        )
+        ->get();
 
-            $attachments = $this->jsonDecode($material->attachment);
-            $materialData = [
-                'id' => (int)$material->id,
-                'uuid' => $material->uuid,
-                'title' => $material->title,
-                'slug' => $material->slug,
-                'description' => $material->description,
-                'view_policy' => $material->view_policy,
-                'attachments' => $attachments,
-                'attachment_count' => (int)$material->attachment_count,
-                'created_by' => $material->created_by ? (int)$material->created_by : null,
-                'created_by_name' => $material->created_by_name,
-                'created_at' => $material->created_at,
-                'updated_at' => $material->updated_at,
+    /* --------------------------
+     | Group by Module
+     * -------------------------- */
+    $grouped = [];
+
+    foreach ($rows as $row) {
+        $mid = (int)$row->course_module_id;
+
+        if (!isset($grouped[$mid])) {
+            $grouped[$mid] = [
+                'module' => [
+                    'id'    => $mid,
+                    'uuid'  => $row->module_uuid,
+                    'title' => $row->module_title,
+                ],
+                'materials' => []
             ];
+        }
 
-            // Generate stream URLs for frontend (if attachments have id)
-            foreach ($materialData['attachments'] as &$attachment) {
-                if (isset($attachment['id'])) {
-                    $attachment['stream_url'] = $this->appUrl() . "/api/study-materials/stream/{$material->uuid}/{$attachment['id']}";
-                }
+        $attachments = $this->jsonDecode($row->attachment);
+
+        foreach ($attachments as &$a) {
+            if (isset($a['id'])) {
+                $a['stream_url'] =
+                    $this->appUrl()."/api/study-materials/stream/{$row->uuid}/{$a['id']}";
             }
-
-            $materialsByModule[$moduleId]['materials'][] = $materialData;
         }
 
-        // Convert to indexed array
-        $modulesWithMaterials = array_values($materialsByModule);
+        $grouped[$mid]['materials'][] = [
+            'id' => (int)$row->id,
+            'uuid' => $row->uuid,
+            'title' => $row->title,
+            'description' => $row->description,
+            'attachments' => $attachments,
+            'attachment_count' => (int)$row->attachment_count,
+            'created_by_name' => $row->created_by_name,
+            'created_at' => $row->created_at,
+        ];
+    }
 
-        // ---- instructors for sidebar (same as your course function)
-        $instructors = collect();
-        if ($biUserCol) {
-            $instructors = DB::table('batch_instructors as bi')
-                ->join('users as u', function($j) use ($biUserCol){
-                    $j->on('u.id', '=', DB::raw("bi.$biUserCol"));
-                })
-                ->where('bi.batch_id', $batch->id)
-                ->whereNull('bi.deleted_at')
-                ->whereNull('u.deleted_at')
-                ->select('u.id','u.uuid','u.name','u.email','u.role')
-                ->get()
-                ->map(fn($u) => [
-                    'id'    => (int)$u->id,
-                    'uuid'  => $u->uuid,
-                    'name'  => $u->name,
-                    'email' => $u->email,
-                    'role'  => $u->role,
-                ])
-                ->values();
-        }
-
-        // ---- batch stats
-        $studentsCount = DB::table('batch_students')
-            ->where('batch_id', $batch->id)
-            ->whereNull('deleted_at')
-            ->count();
-
-        $materialsCount = DB::table('study_materials')
-            ->where('batch_id', $batch->id)
-            ->whereNull('deleted_at')
-            ->count();
-
-        // ---- payload
-        $payload = [
+    /* --------------------------
+     | Response
+     * -------------------------- */
+    return response()->json([
+        'data' => [
             'batch' => (array)$batch,
             'course' => [
                 'id' => (int)$course->id,
                 'uuid' => $course->uuid,
                 'title' => $course->title,
-                'slug' => $course->slug,
             ],
-            'modules_with_materials' => $modulesWithMaterials,
-            'all_modules' => $modules->map(fn($m) => [
+            'modules_with_materials' => array_values($grouped),
+            'all_modules' => $modules->map(fn($m)=>[
                 'id' => (int)$m->id,
                 'uuid' => $m->uuid,
                 'title' => $m->title,
                 'status' => $m->status,
-                'order_no' => (int)$m->order_no,
             ])->values(),
-            'instructors' => $instructors,
-            'stats' => [
-                'students_count' => (int)$studentsCount,
-                'materials_count' => (int)$materialsCount,
-                'modules_count' => count($modules),
-                'you_are_instructor' => $isInstructor,
-                'you_are_student' => $isStudent,
-            ],
             'permissions' => [
-                'can_view_unpublished_modules' => $isStaff,
-                'can_view_unpublished_materials' => $isStaff,
                 'can_upload_materials' => $isAdminLike || $isInstructor,
-            ],
-        ];
-
-        // Log access (using your logging pattern)
-        $this->logWithActor('[Study Materials View By Batch] payload prepared', $r, [
-            'batch_id' => (int)$batch->id,
-            'course_id' => (int)$course->id,
-            'materials_count' => $materialsCount,
-            'modules_count' => count($modulesWithMaterials),
-            'role' => $role,
-        ]);
-
-        return response()->json(['data' => $payload]);
-    }
+            ]
+        ]
+    ]);
+}
 
     /**
      * Create study material for a batch (resolve batch by id|uuid|slug).
@@ -931,139 +911,169 @@ class StudyMaterialController extends Controller
      */
     public function storeByBatch(Request $r, string $batchKey)
 {
-    // permission (admin/superadmin/instructor)
+    // ---- permission (admin/superadmin/instructor)
     if ($res = $this->requireRole($r, ['admin','superadmin','instructor'])) return $res;
     $actor = $this->actor($r);
-    $role = $actor['role'];
-    $uid  = $actor['id'];
+    $role  = $actor['role'];
+    $uid   = $actor['id'];
 
-    // resolve batch (id | uuid | slug)
+    /* --------------------------------
+     | Resolve batch (id | uuid | slug)
+     * -------------------------------- */
     $bq = DB::table('batches')->whereNull('deleted_at');
+
     if (ctype_digit($batchKey)) {
         $bq->where('id', (int)$batchKey);
-    } elseif (\Illuminate\Support\Str::isUuid($batchKey)) {
+    } elseif (Str::isUuid($batchKey)) {
         $bq->where('uuid', $batchKey);
-    } elseif (\Illuminate\Support\Facades\Schema::hasColumn('batches', 'slug')) {
+    } elseif (Schema::hasColumn('batches','slug')) {
         $bq->where('slug', $batchKey);
     } else {
-        return response()->json(['error' => 'Batch not found'], 404);
+        return response()->json(['error'=>'Batch not found'],404);
     }
+
     $batch = $bq->first();
-    if (!$batch) return response()->json(['error' => 'Batch not found'], 404);
+    if (!$batch) return response()->json(['error'=>'Batch not found'],404);
 
-    // If instructor, must be assigned to this batch
+    /* --------------------------------
+     | Instructor must be assigned
+     * -------------------------------- */
     if ($role === 'instructor') {
-        $biUserCol = \Illuminate\Support\Facades\Schema::hasColumn('batch_instructors','user_id')
+        $biUserCol = Schema::hasColumn('batch_instructors','user_id')
             ? 'user_id'
-            : (\Illuminate\Support\Facades\Schema::hasColumn('batch_instructors','instructor_id') ? 'instructor_id' : null);
+            : (Schema::hasColumn('batch_instructors','instructor_id') ? 'instructor_id' : null);
+
         if (!$biUserCol) {
-            return response()->json(['error'=>'Schema issue: batch_instructors needs user_id OR instructor_id'], 500);
+            return response()->json(['error'=>'Schema issue: batch_instructors missing FK'],500);
         }
+
         $assigned = DB::table('batch_instructors')
-            ->where('batch_id', $batch->id)
+            ->where('batch_id',$batch->id)
+            ->where($biUserCol,$uid)
             ->whereNull('deleted_at')
-            ->where($biUserCol, $uid)
             ->exists();
-        if (!$assigned) return response()->json(['error' => 'Forbidden'], 403);
+
+        if (!$assigned) return response()->json(['error'=>'Forbidden'],403);
     }
 
-    // infer course_id from batch (safer for consistency)
-    $courseId = (int) ($batch->course_id ?? 0);
+    /* --------------------------------
+     | Infer course
+     * -------------------------------- */
+    $courseId = (int) $batch->course_id;
+    if (!$courseId) {
+        return response()->json(['error'=>'Batch has no course'],422);
+    }
 
-    // validation (added library_urls.*)
+    /* --------------------------------
+     | Validation
+     * -------------------------------- */
     $v = Validator::make($r->all(), [
-        'course_module_id' => 'sometimes|nullable|integer|exists:course_modules,id',
-        'module_uuid'      => 'sometimes|nullable|uuid|exists:course_modules,uuid',
-        'module'           => 'sometimes|nullable',
+        'course_module_id' => 'nullable|integer',
+        'module_uuid'      => 'nullable|uuid',
+        'module'           => 'nullable',
         'title'            => 'required|string|max:255',
         'description'      => 'nullable|string',
         'view_policy'      => 'nullable|in:inline_only,downloadable',
         'attachments.*'    => 'nullable|file|max:51200',
         'library_urls.*'   => 'nullable|url',
     ], [
-        'attachments.*.max' => 'Each attachment must be <= 50 MB.'
+        'attachments.*.max' => 'Each attachment must be <= 50 MB.',
     ]);
-    if ($v->fails()) return response()->json(['errors' => $v->errors()], 422);
 
-    // Resolve module (same logic as earlier)
+    if ($v->fails()) {
+        return response()->json(['errors'=>$v->errors()],422);
+    }
+
+    /* =========================================================
+     | 🔥 Unified module resolution (single source of truth)
+     * ========================================================= */
+    $moduleKey =
+        $r->input('course_module_id')
+        ?? $r->input('module_uuid')
+        ?? $r->input('module')
+        ?? $r->query('module'); // optional future support
+
     $moduleId = null;
-    if ($r->filled('course_module_id')) {
-        $module = DB::table('course_modules')->where('id', (int)$r->course_module_id)->whereNull('deleted_at')->first();
-        if (!$module) {
-            return response()->json(['errors' => ['course_module_id' => ['Course module not found']]], 422);
+
+    if ($moduleKey !== null && $moduleKey !== '') {
+
+        if (ctype_digit((string)$moduleKey)) {
+            $moduleId = (int)$moduleKey;
+
+        } elseif (Str::isUuid((string)$moduleKey)) {
+            $moduleId = DB::table('course_modules')
+                ->where('uuid',$moduleKey)
+                ->whereNull('deleted_at')
+                ->value('id');
         }
-        $moduleId = (int)$module->id;
-    } elseif ($r->filled('module_uuid') || $r->filled('module')) {
-        $modUuid = $r->input('module_uuid') ?: $r->input('module');
-        if ($modUuid && \Illuminate\Support\Str::isUuid($modUuid)) {
-            $module = DB::table('course_modules')->where('uuid', $modUuid)->whereNull('deleted_at')->first();
-            if (!$module) {
-                return response()->json(['errors' => ['module_uuid' => ['Course module (uuid) not found']]], 422);
-            }
-            $moduleId = (int)$module->id;
-        } else {
-            $moduleId = null;
-        }
-    } else {
-        $modsQuery = DB::table('course_modules')
-            ->where('course_id', $courseId)
+
+       
+        if ($moduleKey === null) {
+    return response()->json([
+        'errors' => [
+            'module' => ['Module is required when creating study material']
+        ]
+    ], 422);
+}
+
+
+        // 🔐 ensure module belongs to batch’s course
+        $valid = DB::table('course_modules')
+            ->where('id',$moduleId)
+            ->where('course_id',$courseId)
             ->whereNull('deleted_at')
-            ->orderBy('order_no')->orderBy('id');
+            ->exists();
 
-        $modules = $modsQuery->get();
-
-        if ($modules->count() === 1) {
-            $moduleId = (int)$modules->first()->id;
-        } else {
-            $published = $modules->firstWhere('status', 'published');
-            if ($published) {
-                $moduleId = (int)$published->id;
-            } else {
-                $moduleId = null;
-            }
+        if (!$valid) {
+            return response()->json([
+                'errors'=>['module'=>['Module does not belong to this batch course']]
+            ],422);
         }
     }
 
-    if ($moduleId !== null) {
-        $moduleCheck = DB::table('course_modules')->where('id', $moduleId)->whereNull('deleted_at')->first();
-        if (!$moduleCheck || (int)$moduleCheck->course_id !== $courseId) {
-            return response()->json(['errors' => ['course_module_id' => ['Course module does not belong to this batch\'s course']]], 422);
-        }
-    }
+    /* --------------------------------
+     | Identifiers
+     * -------------------------------- */
+    $uuid   = $this->genUuid();
+    $slug   = $this->uniqueSlug($r->title);
+    $policy = $r->input('view_policy','inline_only');
 
-    // build identifiers
-    $uuid = $this->genUuid();
-    $slug = $this->uniqueSlug($r->title);
-    $policy = $r->input('view_policy', 'inline_only');
-
-    // Build attachments using helper (handles uploaded files + library_urls)
+    /* --------------------------------
+     | Attachments (files + library)
+     * -------------------------------- */
     $stored = $this->appendFilesAndLibraryUrls($r, (int)$batch->id, []);
 
+    /* --------------------------------
+     | Insert
+     * -------------------------------- */
     $now = Carbon::now();
+
     $id = DB::table('study_materials')->insertGetId([
-        'uuid'               => $uuid,
-        'course_id'          => $courseId,
-        'course_module_id'   => $moduleId !== null ? $moduleId : null,
-        'batch_id'           => (int)$batch->id,
-        'title'              => $r->title,
-        'slug'               => $slug,
-        'description'        => $r->input('description'),
-        'attachment'         => $stored ? json_encode($stored) : null,
-        'attachment_count'   => count($stored),
-        'view_policy'        => $policy,
-        'created_by'         => $actor['id'] ?: 0,
-        'created_at'         => $now,
-        'updated_at'         => $now,
+        'uuid'             => $uuid,
+        'course_id'        => $courseId,
+        'course_module_id' => $moduleId,
+        'batch_id'         => (int)$batch->id,
+        'title'            => $r->title,
+        'slug'             => $slug,
+        'description'      => $r->input('description'),
+        'attachment'       => $stored ? json_encode($stored) : null,
+        'attachment_count' => count($stored),
+        'view_policy'      => $policy,
+        'created_by'       => $actor['id'] ?: 0,
+        'created_at'       => $now,
+        'updated_at'       => $now,
     ]);
 
     return response()->json([
-        'message' => 'Study material created',
-        'id'      => $id,
-        'uuid'    => $uuid,
-        'slug'    => $slug,
+        'message'     => 'Study material created',
+        'id'          => $id,
+        'uuid'        => $uuid,
+        'slug'        => $slug,
+        'module_id'   => $moduleId,
         'attachments' => $stored,
-    ], 201);
+    ],201);
 }
+
 
     /* =========================================================
      |  BIN (deleted items) by Batch

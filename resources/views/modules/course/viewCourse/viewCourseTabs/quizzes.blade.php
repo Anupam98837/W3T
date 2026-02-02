@@ -51,7 +51,6 @@
   background:rgba(148,163,184,.15);
   color:#475569;
 }
-
 </style>
 
 <div class="crs-wrap">
@@ -89,7 +88,6 @@
               <button id="qz-refresh" class="btn btn-outline-primary d-flex align-items-center gap-1">
                 <i class="fa fa-rotate-right"></i> Refresh
               </button>
-             
             </div>
 
             <div class="col-md-2 col-lg-4 d-flex justify-content-end">
@@ -182,9 +180,9 @@
       <div class="modal-body">
         <input type="hidden" id="aq_mode" value="create">
         <input type="hidden" id="aq_quiz_id" value="">
-        
+
         <div class="row g-3">
-          
+
           <div class="col-md-6">
             <label class="form-label">Course <span class="text-danger">*</span></label>
             <select id="aq_course" class="form-select">
@@ -339,9 +337,10 @@
     </div>
   </div>
 </div>
+
 <script>
 (async function(){
-   function normalizeRole(raw){
+  function normalizeRole(raw){
     return String(raw || '')
       .toLowerCase()
       .replace(/[-\s]+/g, '_')
@@ -349,7 +348,6 @@
       .replace(/^_+|_+$/g, '');
   }
 
-  // numeric helper (handles "2" too)
   function toNum(v){
     if (v === null || v === undefined || v === '') return null;
     const n = Number(v);
@@ -368,7 +366,6 @@
     return;
   }
 
-  // ✅ role from API (single source of truth)
   const getMyRole = async (token) => {
     if (!token) return '';
     try {
@@ -380,7 +377,6 @@
         }
       });
 
-      // handle expired token same way as apiFetch
       if (res.status === 401) {
         try { await Swal.fire({ icon:'warning', title:'Session expired', text:'Please login again.' }); } catch(e){}
         location.href = '/';
@@ -397,10 +393,8 @@
     return '';
   };
 
-  // ✅ Use API role (fallback only to window.role if you set it from Blade)
   const role = normalizeRole((await getMyRole(window.TOKEN)) || window.role || '');
 
-  // role helpers (use canonical checks)
   const isAdmin      = role === 'super_admin' || role === 'superadmin' || role === 'admin' || role.includes('_admin');
   const isInstructor = role.includes('instructor');
   const isStudent    = role === 'student';
@@ -409,7 +403,6 @@
   const canEdit    = isAdmin || isInstructor;
   const canDelete  = isAdmin || isInstructor;
   const canViewBin = isAdmin;
-
 
   const apiBase = '/api';
   const defaultHeaders = { 'Accept': 'application/json' };
@@ -456,12 +449,10 @@
   const detailsClose  = document.getElementById('qz-details-close');
   const detailsFooter = document.getElementById('qz-details-footer');
 
-  // Attempts / Results modal elems
   const attemptsModalEl  = document.getElementById('quizAttemptsModal');
   const attemptsHeaderEl = document.getElementById('qa_attempts_header');
   const attemptsRowsEl   = document.getElementById('qa_attempt_rows');
 
-  // NEW EDIT MODAL ELEMENTS
   const editModalEl         = document.getElementById('editQuizModal');
   const editQuizIdInput     = document.getElementById('edit_quiz_id');
   const editQuizName        = document.getElementById('edit_quiz_name');
@@ -472,7 +463,6 @@
   const editQuizSubmit      = document.getElementById('editQuizSubmit');
   const editQuizAlert       = document.getElementById('editQuizAlert');
 
-  // assign modal elements
   const qz_q        = document.getElementById('qz_q'),
         qz_per      = document.getElementById('qz_per'),
         qz_apply    = document.getElementById('qz_apply'),
@@ -482,7 +472,6 @@
         qz_meta     = document.getElementById('qz_meta'),
         qz_pager    = document.getElementById('qz_pager');
 
-  // Force hide the Assign Quiz button for students (clean)
   if (isStudent && $assignBtn) {
     $assignBtn.style.display = 'none';
     $assignBtn.style.visibility = 'hidden';
@@ -500,6 +489,119 @@
     if (last === 'view') return parts.at(-2);
     return last;
   };
+
+  // ✅ FIX: Prefer real UUID from URL (query/path/hash) instead of returning "m=1" or "mid=1" first.
+  const deriveModuleUuid = () => {
+    try {
+      const url = new URL(window.location.href);
+
+      const uuidRe = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
+
+      const candidates = [
+        'module_uuid',
+        'module',
+        'moduleId',
+        'module_id',
+        'course_module_uuid',
+        'course_module_id',
+        'mid',
+        'm'
+      ];
+
+      // 1) First pass: return FIRST candidate that looks like a UUID
+      for (const key of candidates) {
+        const v = url.searchParams.get(key);
+        if (v && uuidRe.test(String(v).trim())) return String(v).trim();
+      }
+
+      // 2) If URL path contains uuid, prefer that over numeric query params
+      const parts = url.pathname.split('/').filter(Boolean);
+
+      const modulesIdx = parts.findIndex(p => ['module','modules'].includes(String(p).toLowerCase()));
+      if (modulesIdx !== -1 && parts[modulesIdx + 1] && uuidRe.test(parts[modulesIdx + 1])) {
+        return parts[modulesIdx + 1];
+      }
+
+      const anyPath = parts.find(p => uuidRe.test(p));
+      if (anyPath) return anyPath;
+
+      // 3) Hash uuid
+      const hash = (url.hash || '').replace('#','');
+      if (hash && uuidRe.test(hash)) return hash;
+
+      // 4) Finally: fall back to any non-empty candidate (could be numeric id)
+      for (const key of candidates) {
+        const v = url.searchParams.get(key);
+        if (v && String(v).trim() !== '') return String(v).trim();
+      }
+
+      return null;
+    } catch (e) {
+      return null;
+    }
+  };
+
+  // ✅ expose so other code can reuse safely
+  window.deriveModuleUuid = deriveModuleUuid;
+
+  // ✅ Get module filter dynamically (do NOT cache once)
+  function getModuleFilter() {
+    const mod = String(deriveModuleUuid() || '').trim();
+    if (!mod) return null;
+
+    // numeric => treat as id
+    if (/^\d+$/.test(mod)) return { course_module_id: String(Number(mod)) };
+
+    // otherwise treat as uuid
+    return { course_module_uuid: mod };
+  }
+
+  // ✅ Use BOTH keys in querystring (backend can read either)
+  function moduleQueryString(){
+    const mf = getModuleFilter();
+    if (!mf) return '';
+    const p = new URLSearchParams();
+
+    if (mf.course_module_uuid) {
+      p.set('course_module_uuid', String(mf.course_module_uuid).trim());
+      p.set('module_uuid', String(mf.course_module_uuid).trim());
+    } else if (mf.course_module_id != null) {
+      p.set('course_module_id', String(mf.course_module_id).trim());
+      p.set('module_id', String(mf.course_module_id).trim());
+    }
+
+    return p.toString();
+  }
+
+  function passesModuleFilter(item){
+    const mf = getModuleFilter();
+    if (!mf) return true;
+
+    // try many possible keys (server might return any of these)
+    const cmid =
+      item.course_module_id ??
+      item.module_id ??
+      item.pivot?.course_module_id ??
+      item.batch_quiz?.course_module_id ??
+      item.batch_quizzes?.course_module_id ??
+      null;
+
+    const cmuuid =
+      item.course_module_uuid ??
+      item.module_uuid ??
+      item.pivot?.course_module_uuid ??
+      item.batch_quiz?.course_module_uuid ??
+      item.batch_quizzes?.course_module_uuid ??
+      null;
+
+    if (mf.course_module_id != null) return String(cmid ?? '') === String(mf.course_module_id);
+    if (mf.course_module_uuid) return String(cmuuid ?? '').toLowerCase() === String(mf.course_module_uuid).toLowerCase();
+    return true;
+  }
+
+  function getQueryParam(name) {
+    try { return (new URL(window.location.href)).searchParams.get(name); } catch(e) { return null; }
+  }
 
   (function ensureBatchInDomFromUrl() {
     const host = document.querySelector('.crs-wrap');
@@ -525,12 +627,10 @@
     return { batch_id: pathBatch || null };
   }
 
-  // UI helpers
   function showLoader(v){ if ($loader) $loader.style.display = v ? 'flex' : 'none'; }
   function showEmpty(v){ if ($empty) $empty.style.display  = v ? 'block' : 'none'; }
   function showItems(v){ if ($items) $items.style.display  = v ? 'block' : 'none'; }
 
-  // ---------- Dropdown utilities ----------
   function closeAllDropdowns(){
     document.querySelectorAll('.qz-more .qz-dd.show').forEach(d => {
       d.classList.remove('show');
@@ -541,7 +641,6 @@
   document.addEventListener('click', () => closeAllDropdowns());
   document.addEventListener('keydown', (e)=> { if (e.key === 'Escape') closeAllDropdowns(); });
 
-  // ---------- Normalize server response ----------
   function normalizeServerResponse(json) {
     if (!json) return { items: [], pagination: { total:0, per_page:20, current_page:1, last_page:1 } };
 
@@ -594,7 +693,6 @@
   function applyFiltersAndRender(){
     let list = (_assignedCache || []).slice();
 
-    // search (client-side)
     const q = ($search?.value || '').trim().toLowerCase();
     if (q) {
       list = list.filter(it => {
@@ -604,7 +702,6 @@
       });
     }
 
-    // sort
     const sortValRaw = $sort ? $sort.value : '';
     const sortVal = sortValRaw || 'display_asc';
 
@@ -621,7 +718,6 @@
     renderList(list);
   }
 
-  // ---------- Build quiz row ----------
   function createQuizRow(row) {
     const wrapper = document.createElement('div');
     wrapper.className = 'qz-item';
@@ -692,7 +788,6 @@
     datePill.textContent = row.assigned_at ? new Date(row.assigned_at).toLocaleDateString() : '';
     right.appendChild(datePill);
 
-    // ✅ attempts (supports numeric strings too)
     const attemptsAllowed = toNum(
       row.attempt_allowed ??
       row.attempts_allowed ??
@@ -708,10 +803,6 @@
       null
     );
 
-    // rules:
-    // null => unknown => allow start
-    // 0    => unlimited => allow start
-    // >0   => allow if used < allowed
     let canAttemptMore = true;
 
     if (attemptsAllowed !== null && attemptsAllowed > 0) {
@@ -732,7 +823,6 @@
       }
     }
 
-    // ✅ Start Quiz: ONLY for students + attempts remaining (or unlimited/unknown)
     if (isStudent && canAttemptMore) {
       const startBtn = document.createElement('button');
       startBtn.className = 'btn btn-primary';
@@ -753,7 +843,6 @@
     const moreWrap = document.createElement('div');
     moreWrap.className='qz-more';
 
-    // ✅ Result should be only for students
     const canSeeResults = isStudent;
 
     moreWrap.innerHTML = `
@@ -768,7 +857,6 @@
 
     right.appendChild(moreWrap);
 
-    // dropdown wiring
     const ddBtn = moreWrap.querySelector('.qz-dd-btn');
     const dd    = moreWrap.querySelector('.qz-dd');
 
@@ -887,35 +975,19 @@
     return wrapper;
   }
 
-  // ---------- Start Quiz ----------
   function startQuiz(row) {
     try {
-      const quizUuid =
-        row.uuid ||
-        row.quiz?.uuid ||
-        row.quiz?.id ||
-        row.id;
+      const quizUuid = row.uuid || row.quiz?.uuid || row.quiz?.id || row.id;
+      if (!quizUuid) { showErr("Missing quiz UUID"); return; }
 
-      if (!quizUuid) {
-        showErr("Missing quiz UUID");
-        return;
-      }
-
-      const batchQuizUuid =
-        row.batch_quizzes_uuid ||
-        row.batch_quiz_uuid ||
-        row.batch_quiz?.uuid ||
-        null;
-
+      const batchQuizUuid = row.batch_quizzes_uuid || row.batch_quiz_uuid || row.batch_quiz?.uuid || null;
       if (!batchQuizUuid) {
         showErr("Missing batch quiz UUID");
         console.warn("Row data:", row);
         return;
       }
 
-      const finalUrl =
-        `/exam/${encodeURIComponent(quizUuid)}?batch=${encodeURIComponent(batchQuizUuid)}`;
-
+      const finalUrl = `/exam/${encodeURIComponent(quizUuid)}?batch=${encodeURIComponent(batchQuizUuid)}`;
       window.location.href = finalUrl;
     } catch (e) {
       console.error("startQuiz error", e);
@@ -923,7 +995,6 @@
     }
   }
 
-  // ---------- Rendering ----------
   function renderList(items){
     if (!$items) return;
     $items.innerHTML = '';
@@ -1006,12 +1077,7 @@
   // ---------- Results (student) ----------
   async function openQuizResults(row) {
     try {
-      const quizKey =
-        row.uuid ||
-        row.quiz?.uuid ||
-        row.quiz_id ||
-        row.quiz?.id ||
-        row.id;
+      const quizKey = row.uuid || row.quiz?.uuid || row.quiz_id || row.quiz?.id || row.id;
 
       if (!quizKey) {
         showErr('Missing quiz reference for results.');
@@ -1019,11 +1085,7 @@
         return;
       }
 
-      const batchQuizUuid =
-        row.batch_quizzes_uuid ||
-        row.batch_quiz_uuid ||
-        row.batch_quiz?.uuid ||
-        null;
+      const batchQuizUuid = row.batch_quizzes_uuid || row.batch_quiz_uuid || row.batch_quiz?.uuid || null;
 
       let url = `/api/exam/quizzes/${encodeURIComponent(quizKey)}/my-attempts`;
       if (batchQuizUuid) url += `?batch_quiz=${encodeURIComponent(batchQuizUuid)}`;
@@ -1040,11 +1102,7 @@
       const attempts = Array.isArray(json.attempts) ? json.attempts : [];
 
       if (!attempts.length) {
-        Swal.fire({
-          icon: 'info',
-          title: 'No result available',
-          text: 'You have not attempted this quiz yet.'
-        });
+        Swal.fire({ icon: 'info', title: 'No result available', text: 'You have not attempted this quiz yet.' });
         return;
       }
 
@@ -1079,12 +1137,7 @@
 
           const attemptNo = r?.attempt_number || (index + 1);
 
-          const dt =
-            a.started_at ||
-            a.created_at ||
-            a.finished_at ||
-            null;
-
+          const dt = a.started_at || a.created_at || a.finished_at || null;
           const dtText = dt ? new Date(dt).toLocaleString() : '—';
 
           let statusClass = 'other';
@@ -1120,7 +1173,6 @@
           attemptsRowsEl.appendChild(tr);
         });
 
-        // ✅ FIX: redirect properly, no unused `next`, no token in URL
         attemptsRowsEl.querySelectorAll('.qa-view-result').forEach(btn => {
           btn.addEventListener('click', (ev) => {
             ev.preventDefault();
@@ -1134,7 +1186,6 @@
         });
       }
 
-      // Show modal
       if (attemptsModalEl) {
         try {
           if (window.bootstrap && typeof bootstrap.Modal === 'function') {
@@ -1155,7 +1206,6 @@
     }
   }
 
-  // ---------- Edit modal ----------
   function enterQzEditMode(row){
     if (!editQuizForm) return;
 
@@ -1372,10 +1422,7 @@
     return wrap;
   }
 
-  let _prevListHtml = null;
-
   async function openBin() {
-    if (!_prevListHtml && $items) _prevListHtml = $items.innerHTML;
     showLoader(true); showEmpty(false); showItems(false);
 
     try {
@@ -1403,7 +1450,10 @@
       const ctx = readContext();
       if (!ctx || !ctx.batch_id) throw new Error('Batch context required');
 
-      const url = `${apiBase}/batch/${encodeURIComponent(ctx.batch_id)}/quizzes`;
+      // ✅ module filter param appended
+      const mqs = moduleQueryString();
+      const url = `${apiBase}/batch/${encodeURIComponent(ctx.batch_id)}/quizzes${mqs ? ('?' + mqs) : ''}`;
+
       const res = await apiFetch(url);
       if (!res.ok) throw new Error('HTTP ' + res.status);
 
@@ -1411,11 +1461,15 @@
       const { items } = normalizeServerResponse(json);
 
       // keep only assigned
-      _assignedCache = (items || []).filter(it => {
-        const assigned = (it.assigned === true) || (it.assign_status_flag == 1) || (it.batch_quiz_id != null);
-        return !!assigned;
+      let assigned = (items || []).filter(it => {
+        const ok = (it.assigned === true) || (it.assign_status_flag == 1) || (it.batch_quiz_id != null);
+        return !!ok;
       });
 
+      // ✅ client-side fallback module filter (if server doesn't filter)
+      assigned = assigned.filter(passesModuleFilter);
+
+      _assignedCache = assigned;
       applyFiltersAndRender();
     } catch(e){
       console.error('Load quizzes error', e);
@@ -1427,7 +1481,6 @@
     }
   }
 
-  // bindings
   let searchTimer;
   $search?.addEventListener('input', () => {
     clearTimeout(searchTimer);
@@ -1435,24 +1488,20 @@
   });
 
   $sort?.addEventListener('change', applyFiltersAndRender);
-
   $refresh?.addEventListener('click', loadQuizzes);
 
-  // Assign Quiz button event listener (only if not student)
   $assignBtn?.addEventListener('click', () => {
     const ctx = readContext();
     if (!ctx || !ctx.batch_id) { showErr('Batch context required to assign quizzes'); return; }
     openQuizzes(ctx.batch_id);
   });
 
-  // Bin button visibility
   if ($btnBin) $btnBin.style.display = canViewBin ? 'inline-block' : 'none';
 
-  // run initial
   loadQuizzes();
 
   // --------------------------
-  // ASSIGN MODAL (separate load + toggles)
+  // ASSIGN MODAL
   // --------------------------
   let quizzesModal, qz_uuid=null, qz_page=1;
 
@@ -1463,6 +1512,7 @@
     p.set('page', qz_page);
     if(qz_assigned && qz_assigned.value==='assigned') p.set('assigned','1');
     if(qz_assigned && qz_assigned.value==='unassigned') p.set('assigned','0');
+
     return p.toString();
   }
 
@@ -1540,7 +1590,6 @@
 
       qz_rows.appendChild(frag);
 
-      /* ================= ASSIGN TOGGLE ================= */
       qz_rows.querySelectorAll('.qz-tg').forEach(ch=>{
         ch.addEventListener('change', async ()=>{
           const row = ch.closest('tr');
@@ -1567,7 +1616,6 @@
         });
       });
 
-      /* ================= PUBLISH TOGGLE ================= */
       qz_rows.querySelectorAll('.qz-pub').forEach(pb=>{
         pb.addEventListener('change', async ()=>{
           const row = pb.closest('tr');
@@ -1589,7 +1637,6 @@
         });
       });
 
-      /* ================= ATTEMPTS INPUT SAVE ================= */
       qz_rows.querySelectorAll('.qz-order').forEach(io=>{
         io.addEventListener('blur', async ()=>{
           const row = io.closest('tr');
@@ -1611,7 +1658,6 @@
         });
       });
 
-      /* ================= PAGINATION ================= */
       const total = Number(pag.total||items.length),
             per   = Number(pag.per_page||20),
             cur   = Number(pag.current_page||1);
@@ -1651,9 +1697,27 @@
     }
   }
 
+  // ✅ FIX: send module UUID (not default "1") so backend resolves ID and stores it.
   async function toggleQuiz(uuid, payload, checkboxEl=null, quiet=false){
     try{
       if(typeof payload.assigned === 'undefined') payload.assigned = true;
+
+      const mf = getModuleFilter();
+      if (mf) {
+        // If UUID exists, always send UUID keys (backend will resolve id)
+        if (mf.course_module_uuid) {
+          payload.course_module_uuid = String(mf.course_module_uuid);
+          payload.module_uuid = String(mf.course_module_uuid);
+
+          // ensure we DO NOT accidentally send id keys
+          delete payload.course_module_id;
+          delete payload.module_id;
+        } else if (mf.course_module_id != null) {
+          // fallback (only if URL truly has numeric module id)
+          payload.course_module_id = Number(mf.course_module_id);
+          payload.module_id = Number(mf.course_module_id);
+        }
+      }
 
       const res = await apiFetch(`/api/batches/${encodeURIComponent(uuid)}/quizzes/toggle`,{
         method: 'POST',
@@ -1681,7 +1745,6 @@
     }
   }
 
-  // Expose openQuizzes so Assign button can call it
   window.openQuizzes = openQuizzes;
 
 })();

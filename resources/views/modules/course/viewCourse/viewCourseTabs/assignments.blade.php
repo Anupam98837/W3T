@@ -1010,12 +1010,117 @@ syncLate();
   async function apiFetch(url,opts={}){opts.headers=Object.assign({},opts.headers||{},defaultHeaders);const res=await fetch(url,opts);if(res.status===401){try{await Swal.fire({icon:'warning',title:'Session expired',text:'Please login again.',allowOutsideClick:false,allowEscapeKey:false});}catch(e){}location.href='/';throw new Error('Unauthorized');}return res;}
 
   const deriveCourseKey=()=>{const p=location.pathname.split('/').filter(Boolean);const last=p.at(-1)?.toLowerCase();if(last==='view'&&p.length>=2)return p.at(-2);return p.at(-1);};
-  function getQueryParam(name){try{return(new URL(window.location.href)).searchParams.get(name);}catch(e){return null;}}
+const deriveModuleUuid = () => {
+    try {
+      const url = new URL(window.location.href);
 
-  (function ensureBatchInDomFromUrl(){const host=document.querySelector('.crs-wrap');if(!host)return;const existing=host.dataset.batchId??host.dataset.batch_id??'';if(!existing||String(existing).trim()===''){const pathKey=deriveCourseKey();if(pathKey){host.dataset.batchId=String(pathKey);host.dataset.batch_id=String(pathKey);}const qModule=getQueryParam('module')||getQueryParam('course_module_id');if(qModule){host.dataset.moduleId=String(qModule);host.dataset.module_id=String(qModule);}}})();
+      const candidates = [
+        'module_uuid',
+        'module',
+        'moduleId',
+        'module_id',
+        'course_module_uuid',
+        'course_module_id',
+        'mid',
+        'm'
+      ];
 
-  function readContext(){const host=document.querySelector('.crs-wrap');if(host){const batchId=host.dataset.batchId??host.dataset.batch_id??'';const moduleId=host.dataset.moduleId??host.dataset.module_id??'';if(batchId)return {batch_id:String(batchId)||null,module_id:moduleId||null};}const pathBatch=deriveCourseKey()||null;const qModule=getQueryParam('module')||getQueryParam('course_module_id')||null;return {batch_id:pathBatch||null,module_id:qModule||null};}
-  function readContextFallback(){const host=document.querySelector('.crs-wrap');if(host){const batchId=host.dataset.batchId??host.dataset.batch_id??'';const moduleId=host.dataset.moduleId??host.dataset.module_id??'';if(batchId)return {batch_id:String(batchId),module_id:String(moduleId)||null};}const pathBatch=deriveCourseKey()||null;const qModule=(new URL(window.location.href)).searchParams.get('module')||(new URL(window.location.href)).searchParams.get('course_module_id')||null;return {batch_id:pathBatch,module_id:qModule};}
+      for (const key of candidates) {
+        const v = url.searchParams.get(key);
+        if (v && String(v).trim() !== '') return String(v).trim();
+      }
+
+      // fallback: UUID inside path like /modules/<uuid> or /module/<uuid>
+      const uuidRe = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
+      const parts = url.pathname.split('/').filter(Boolean);
+
+      const modulesIdx = parts.findIndex(p => ['module','modules'].includes(String(p).toLowerCase()));
+      if (modulesIdx !== -1 && parts[modulesIdx + 1] && uuidRe.test(parts[modulesIdx + 1])) {
+        return parts[modulesIdx + 1];
+      }
+
+      const any = parts.find(p => uuidRe.test(p));
+      if (any) return any;
+
+      // fallback: UUID in hash
+      const hash = (url.hash || '').replace('#','');
+      if (hash && uuidRe.test(hash)) return hash;
+
+      return null;
+    } catch (e) {
+      return null;
+    }
+  };
+
+  function getQueryParam(name) {
+    try { return (new URL(window.location.href)).searchParams.get(name); } catch(e) { return null; }
+  }
+// -----------------------------------------
+// ACTIVE MODULE UUID (single source of truth)
+// -----------------------------------------
+function getActiveModuleUuid() {
+  // 1) strongest: module_uuid from URL (query/path/hash)
+  const u = deriveModuleUuid();
+  if (u) return String(u).trim();
+
+  // 2) fallback: dataset if already set
+  const host = document.querySelector('.crs-wrap');
+  const ds = host ? (host.dataset.moduleUuid || host.dataset.module_uuid || host.dataset.moduleId || host.dataset.module_id || '') : '';
+  if (ds && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(ds)) {
+    return String(ds).trim();
+  }
+
+  return null;
+}
+(function ensureBatchInDomFromUrl(){
+  const host = document.querySelector('.crs-wrap');
+  if(!host) return;
+
+  // batch id (as you already do)
+  const existingBatch = host.dataset.batchId ?? host.dataset.batch_id ?? '';
+  if(!existingBatch || String(existingBatch).trim()===''){
+    const pathKey = deriveCourseKey();
+    if(pathKey){
+      host.dataset.batchId = String(pathKey);
+      host.dataset.batch_id = String(pathKey);
+    }
+  }
+
+  // ✅ module uuid from URL (NEW)
+  const mu = getActiveModuleUuid();
+  if (mu) {
+    host.dataset.moduleUuid = mu;
+    host.dataset.module_uuid = mu;
+
+    // keep old keys too (so your older code doesn't break)
+    host.dataset.moduleId = mu;
+    host.dataset.module_id = mu;
+  }
+})();
+function readContext(){
+  const host = document.querySelector('.crs-wrap');
+  const moduleUuid = getActiveModuleUuid();
+
+  if (host){
+    const batchId = host.dataset.batchId ?? host.dataset.batch_id ?? '';
+    if (batchId) {
+      return {
+        batch_id: String(batchId) || null,
+        module_uuid: moduleUuid || null
+      };
+    }
+  }
+
+  const pathBatch = deriveCourseKey() || null;
+  return {
+    batch_id: pathBatch || null,
+    module_uuid: moduleUuid || null
+  };
+}
+
+function readContextFallback(){
+  return readContext();
+}
 
   function closeAllDropdowns(){document.querySelectorAll('.as-more .as-dd.show').forEach(d=>{d.classList.remove('show');d.setAttribute('aria-hidden','true');});}
   document.addEventListener('click',()=>closeAllDropdowns());
@@ -1523,22 +1628,103 @@ wrap.addEventListener('contextmenu', (e) => {
     closeBtn.addEventListener('click',()=>{cleanupOnClose();closeFullscreenPreview();});
     await renderAt(currentIndex);
   }
+async function loadAssignments(){
+  showLoader(true);
+  showItems(false);
+  showEmpty(false);
 
-  async function loadAssignments(){
-    showLoader(true);showItems(false);showEmpty(false);
-    try{
-      const ctx=readContext();if(!ctx||!ctx.batch_id)throw new Error('Batch context required');
-      const url=`/api/batches/${encodeURIComponent(ctx.batch_id)}/assignments`;const res=await apiFetch(url);if(!res.ok)throw new Error('HTTP '+res.status);
-      const json=await res.json().catch(()=>null);if(!json||!json.data)throw new Error('Invalid response format');
-      const modulesWithAssignments=json.data.modules_with_assignments||[];let allAssignments=[];
-      modulesWithAssignments.forEach(moduleGroup=>{if(moduleGroup.assignments&&Array.isArray(moduleGroup.assignments)){moduleGroup.assignments.forEach(assign=>{assign.module_title=moduleGroup.module?.title||'Unknown Module';assign.module_uuid=moduleGroup.module?.uuid||'';allAssignments.push(assign);});}});
-      const sortVal=$sort?$sort.value:'created_desc';
-      allAssignments.sort((a,b)=>{const da=a.created_at?new Date(a.created_at):new Date(0);const db=b.created_at?new Date(b.created_at):new Date(0);if(sortVal==='created_desc')return db-da; if(sortVal==='created_asc')return da-db; if(sortVal==='title_asc')return (a.title||'').localeCompare(b.title||''); return 0;});
-      renderList(allAssignments);
-      if(json.data.batch)window.currentBatchContext=json.data.batch;
-    }catch(e){console.error('Load assignments error:',e);if($items)$items.innerHTML='<div class="as-empty">Unable to load assignments — please refresh.</div>';showItems(true);showErr('Failed to load assignments: '+(e.message||'Unknown error'));}
-    finally{showLoader(false);}
+  try{
+    const ctx = (typeof readContext === 'function') ? readContext() : null;
+    if(!ctx || !ctx.batch_id) throw new Error('Batch context required');
+
+    // ✅ Always resolve active module UUID from URL/dataset (single source)
+    const moduleUuid =
+      (ctx.module_uuid || ctx.moduleUuid || ctx.module_id || ctx.moduleId || '').toString().trim()
+      || (typeof getActiveModuleUuid === 'function' ? getActiveModuleUuid() : '')
+      || (typeof deriveModuleUuid === 'function' ? deriveModuleUuid() : '');
+
+    // If you want to allow “show all modules” when missing, set `allowAllWhenNoModule = true`
+    const allowAllWhenNoModule = false;
+
+    if(!moduleUuid && !allowAllWhenNoModule){
+      throw new Error('Module UUID missing in URL (module_uuid/module/etc).');
+    }
+
+    // ✅ Try API param first (backend may support it)
+    const params = new URLSearchParams();
+    if(moduleUuid) params.set('module_uuid', moduleUuid);
+
+    const url = `/api/batches/${encodeURIComponent(ctx.batch_id)}/assignments` + (params.toString() ? `?${params.toString()}` : '');
+    const res = await apiFetch(url);
+
+    if(!res.ok) throw new Error('HTTP ' + res.status);
+
+    const json = await res.json().catch(()=>null);
+    if(!json || !json.data) throw new Error('Invalid response format');
+
+    const modulesWithAssignments = Array.isArray(json.data.modules_with_assignments)
+      ? json.data.modules_with_assignments
+      : [];
+
+    // ✅ Guaranteed client-side filter fallback (even if API ignores param)
+    const activeMu = (moduleUuid || '').toString().toLowerCase();
+    const filteredModules = (!activeMu && allowAllWhenNoModule)
+      ? modulesWithAssignments
+      : modulesWithAssignments.filter(g => {
+          const mu = (g?.module?.uuid || g?.module_uuid || g?.moduleUuid || g?.course_module_uuid || '').toString().toLowerCase();
+          return mu && mu === activeMu;
+        });
+
+    let allAssignments = [];
+    filteredModules.forEach(moduleGroup => {
+      const groupTitle = moduleGroup?.module?.title || moduleGroup?.module_title || 'Unknown Module';
+      const groupUuid  = moduleGroup?.module?.uuid  || moduleGroup?.module_uuid || moduleGroup?.moduleUuid || moduleUuid || '';
+
+      const arr = Array.isArray(moduleGroup.assignments) ? moduleGroup.assignments : [];
+      arr.forEach(assign => {
+        // annotate for UI
+        assign.module_title = groupTitle;
+        assign.module_uuid  = groupUuid;
+        allAssignments.push(assign);
+      });
+    });
+
+    // sorting (your original)
+    const sortVal = $sort ? $sort.value : 'created_desc';
+    allAssignments.sort((a,b)=>{
+      const da = a && a.created_at ? new Date(a.created_at) : new Date(0);
+      const db = b && b.created_at ? new Date(b.created_at) : new Date(0);
+      if(sortVal==='created_desc') return db - da;
+      if(sortVal==='created_asc')  return da - db;
+      if(sortVal==='title_asc')    return (a?.title||'').localeCompare(b?.title||'');
+      return 0;
+    });
+
+    renderList(allAssignments);
+
+    if(json.data.batch) window.currentBatchContext = json.data.batch;
+
+    // ✅ empty state
+    if(!allAssignments.length){
+      showItems(false);
+      showEmpty(true);
+    }else{
+      showEmpty(false);
+      showItems(true);
+    }
+
+  } catch(e){
+    console.error('Load assignments error:', e);
+    if($items) $items.innerHTML = '<div class="as-empty">Unable to load assignments — please refresh.</div>';
+    showItems(true);
+    showEmpty(false);
+    showErr('Failed to load assignments: ' + (e.message || 'Unknown error'));
+  } finally {
+    showLoader(false);
   }
+}
+
+
   if($refresh)$refresh.addEventListener('click',loadAssignments);
   if($search)$search.addEventListener('keyup',e=>{if(e.key==='Enter')loadAssignments();});
   if($sort)$sort.addEventListener('change',loadAssignments);
@@ -2779,11 +2965,59 @@ function resetCreateModalFields(){try{const cf=document.getElementById('assignCr
   const createForm=document.getElementById('assignCreateForm');
   function getSanitizedInstructionsHtml(){const instEl=document.getElementById(descriptionFieldId)||{};const raw=(instEl.innerHTML||instEl.value||'').trim();if(!raw)return'';const cleaned=sanitizeHtml(raw);const final=enforceSafeLinksOnFragment(cleaned);return final;}
 
-  if(createForm){
-createForm.addEventListener('submit',async(ev)=>{ev.preventDefault();const alertEl=document.getElementById('assignCreateAlert');if(alertEl){alertEl.style.display='none';alertEl.innerHTML='';}
-      const title=(document.getElementById('assign_title').value||'').trim();if(!title){if(alertEl){alertEl.textContent='Title required';alertEl.style.display='';}return;}
-      const batchKey=(document.getElementById('assign_batch_key')||{}).value||'';if(!batchKey){if(alertEl){alertEl.textContent='Batch context not found';alertEl.style.display='';}return;}
-      const fd=new FormData();const ctx=(typeof readContext==='function')?readContext():readContextFallback();if(ctx&&ctx.module_id){if(/^\d+$/.test(String(ctx.module_id)))fd.append('course_module_id',ctx.module_id);else fd.append('module_uuid',ctx.module_id);}
+ if(createForm){
+  createForm.addEventListener('submit',async(ev)=>{
+    ev.preventDefault();
+    const alertEl=document.getElementById('assignCreateAlert');
+    if(alertEl){alertEl.style.display='none';alertEl.innerHTML='';}
+    
+    const title=(document.getElementById('assign_title').value||'').trim();
+    if(!title){
+      if(alertEl){alertEl.textContent='Title required';alertEl.style.display='';}
+      return;
+    }
+    
+    const batchKey=(document.getElementById('assign_batch_key')||{}).value||'';
+    if(!batchKey){
+      if(alertEl){alertEl.textContent='Batch context not found';alertEl.style.display='';}
+      return;
+    }
+    
+    const fd=new FormData();
+    
+    /* =========================
+       ✅ FIX: Properly resolve and send module_uuid
+       ========================= */
+    const ctx = (typeof readContext==='function') ? readContext() : readContextFallback();
+    
+    // Get active module UUID from URL (single source of truth)
+    const activeModuleUuid = (typeof getActiveModuleUuid === 'function') 
+      ? getActiveModuleUuid() 
+      : (ctx && (ctx.module_uuid || ctx.moduleUuid || ctx.module_id || ctx.moduleId) || null);
+    
+    console.log('[CREATE] Active module UUID:', activeModuleUuid); // DEBUG
+    
+    if (activeModuleUuid) {
+      // Send as module_uuid (UUID format) or course_module_id (numeric format)
+      if (/^\d+$/.test(String(activeModuleUuid))) {
+        // Numeric ID
+        fd.append('course_module_id', String(activeModuleUuid));
+        console.log('[CREATE] Sending course_module_id:', activeModuleUuid);
+      } else if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(activeModuleUuid))) {
+        // UUID format
+        fd.append('module_uuid', String(activeModuleUuid));
+        console.log('[CREATE] Sending module_uuid:', activeModuleUuid);
+      } else {
+        console.warn('[CREATE] Module identifier not in expected format:', activeModuleUuid);
+      }
+    } else {
+      console.warn('[CREATE] No module UUID found in URL or context!');
+      if(alertEl){
+        alertEl.textContent='Module context missing. Please ensure you are accessing this page from a specific module.';
+        alertEl.style.display='';
+      }
+      return;
+    }if(ctx&&ctx.module_id){if(/^\d+$/.test(String(ctx.module_id)))fd.append('course_module_id',ctx.module_id);else fd.append('module_uuid',ctx.module_id);}
       fd.append('title',title);const slug=(document.getElementById('assign_slug').value||'').trim();if(slug)fd.append('slug',slug);
       const instHtml=getSanitizedInstructionsHtml();
       if(instHtml){fd.append('description',instHtml);fd.append('instruction',instHtml);fd.append('instructions',instHtml);}else{fd.append('description','');fd.append('instruction','');fd.append('instructions','');}

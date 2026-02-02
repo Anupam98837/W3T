@@ -1175,67 +1175,165 @@ public function quizzIndex(Request $request, $idOrUuid)
         ],
     ]);
 }
+private function resolveCourseModuleIdFromRequest(Request $request): ?int
+{
+    // numeric ids first
+    foreach (['course_module_id','module_id'] as $k) {
+        if ($request->filled($k) && is_numeric($request->input($k))) {
+            return (int) $request->input($k);
+        }
+    }
+
+    // uuid keys
+    $uuid = $request->input('course_module_uuid') ?: $request->input('module_uuid');
+    $uuid = is_string($uuid) ? trim($uuid) : '';
+
+    if ($uuid === '') return null;
+
+    // resolve uuid -> id
+    $row = DB::table('course_modules')
+        ->whereNull('deleted_at')
+        ->where('uuid', $uuid)
+        ->first();
+    
+    return $row ? (int) $row->id : null;
+}
+
 public function quizzToggle(Request $request, $idOrUuid)
 {
     $uid = $this->authUserIdFromToken($request);
-    if (!$uid) return response()->json(['success' => false, 'message' => 'Unauthorized'], 401);
+    if (!$uid) {
+        return response()->json(['success' => false, 'message' => 'Unauthorized'], 401);
+    }
 
     $batch = $this->findBatch($idOrUuid);
-    if (!$batch) return response()->json(['success' => false, 'message' => 'Batch not found'], 404);
+    if (!$batch) {
+        return response()->json(['success' => false, 'message' => 'Batch not found'], 404);
+    }
 
     $v = Validator::make($request->all(), [
-        'quiz_id'            => 'required|integer|exists:quizz,id',
-        'assigned'           => 'required|boolean',
-        'display_order'      => 'sometimes|integer|min:0',
-        'publish_to_students'=> 'sometimes|boolean',
-        'available_from'     => 'nullable|date',
-        'available_until'    => 'nullable|date|after_or_equal:available_from',
-        'attempt_allowed'    => 'sometimes|nullable|integer|min:0',
+        'quiz_id'             => 'required|integer|exists:quizz,id',
+        'assigned'            => 'required|boolean',
+        'display_order'       => 'sometimes|integer|min:0',
+        'publish_to_students' => 'sometimes|boolean',
+        'available_from'      => 'nullable|date',
+        'available_until'     => 'nullable|date|after_or_equal:available_from',
+        'attempt_allowed'     => 'sometimes|nullable|integer|min:0',
+
+        // ✅ Module context from URL (optional)
+        'module_uuid'         => 'sometimes|nullable|string',
+        'course_module_uuid'  => 'sometimes|nullable|string',
+        'module_id'           => 'sometimes|nullable|integer',
+        'course_module_id'    => 'sometimes|nullable|integer',
     ]);
-    if ($v->fails()) return response()->json(['success' => false, 'errors' => $v->errors()], 422);
+
+    if ($v->fails()) {
+        return response()->json(['success' => false, 'errors' => $v->errors()], 422);
+    }
 
     $now    = now();
     $ip     = $request->ip();
     $quizId = (int) $request->quiz_id;
 
-    // cache column presence once
-    $hasAssignedAt = Schema::hasColumn('batch_quizzes', 'assigned_at');
+    // Cache column presence
+    $hasAssignedAt      = Schema::hasColumn('batch_quizzes', 'assigned_at');
+    $hasCourseModuleId  = Schema::hasColumn('batch_quizzes', 'course_module_id');
 
-    // fetch existing (include soft-deleted so we can revive)
+    // ✅ Resolve module context from request
+    $courseModuleId = $hasCourseModuleId ? $this->resolveCourseModuleIdFromRequest($request) : null;
+
+    // 🔍 DEBUG LOGGING
+    \Log::info('Quiz Toggle Request', [
+        'batch_id' => $batch->id,
+        'quiz_id' => $quizId,
+        'assigned' => $request->boolean('assigned'),
+        'request_data' => [
+            'course_module_id' => $request->input('course_module_id'),
+            'module_id' => $request->input('module_id'),
+            'course_module_uuid' => $request->input('course_module_uuid'),
+            'module_uuid' => $request->input('module_uuid'),
+        ],
+        'resolved_course_module_id' => $courseModuleId,
+        'has_column' => $hasCourseModuleId,
+    ]);
+
+    // Fetch existing assignment (include soft-deleted so we can revive)
     $existing = DB::table('batch_quizzes')
         ->where('batch_id', $batch->id)
         ->where('quiz_id', $quizId)
         ->first();
 
-    // Use transaction to avoid races
     $pivotId = null;
-    DB::transaction(function() use (
-        $request, $batch, $quizId, $uid, $ip, $now, $existing, $hasAssignedAt, &$pivotId
+
+    // Use transaction to avoid race conditions
+    DB::transaction(function () use (
+        $request, $batch, $quizId, $uid, $ip, $now, $existing,
+        $hasAssignedAt, $hasCourseModuleId, $courseModuleId, &$pivotId
     ) {
         if ($request->boolean('assigned')) {
-            // build payload using optional() to avoid ->property on null
+            // ========================================
+            // ASSIGN QUIZ TO BATCH
+            // ========================================
+
             $payload = [
-                'assign_status'      => 1,
-                'display_order'      => $request->filled('display_order') ? (int)$request->display_order : (optional($existing)->display_order ?? 1),
-                'publish_to_students'=> $request->has('publish_to_students') ? (int)$request->publish_to_students : (optional($existing)->publish_to_students ?? 0),
-                'available_from'     => $request->filled('available_from') ? $request->available_from : (optional($existing)->available_from ?? null),
-                'available_until'    => $request->filled('available_until') ? $request->available_until : (optional($existing)->available_until ?? null),
-                // attempt_allowed sourced from request if present, otherwise keep existing pivot value
-                'attempt_allowed'    => $request->has('attempt_allowed') ? (is_null($request->attempt_allowed) ? null : (int)$request->attempt_allowed) : (optional($existing)->attempt_allowed ?? null),
-                'unassigned_at'      => null,
-                'updated_at'         => $now,
-                'deleted_at'         => null,
+                'assign_status'       => 1,
+                'status'              => 'active',
+                
+                'display_order'       => $request->filled('display_order')
+                    ? (int) $request->display_order
+                    : (optional($existing)->display_order ?? 1),
+
+                'publish_to_students' => $request->has('publish_to_students')
+                    ? (int) $request->boolean('publish_to_students')
+                    : (optional($existing)->publish_to_students ?? 0),
+
+                'available_from'      => $request->filled('available_from')
+                    ? $request->available_from
+                    : (optional($existing)->available_from ?? null),
+
+                'available_until'     => $request->filled('available_until')
+                    ? $request->available_until
+                    : (optional($existing)->available_until ?? null),
+
+                'attempt_allowed'     => $request->has('attempt_allowed')
+                    ? (is_null($request->attempt_allowed) ? null : (int) $request->attempt_allowed)
+                    : (optional($existing)->attempt_allowed ?? null),
+
+                'unassigned_at'       => null,
+                'updated_at'          => $now,
+                'deleted_at'          => null, // Revive if soft-deleted
             ];
 
+            // ✅ STORE MODULE CONTEXT
+            if ($hasCourseModuleId) {
+                // If module is provided in request, use it
+                // Otherwise, keep existing module (or null if new assignment)
+                $payload['course_module_id'] = $courseModuleId !== null
+                    ? $courseModuleId
+                    : (optional($existing)->course_module_id ?? null);
+            }
+
+            // Set assigned_at timestamp
             if ($hasAssignedAt) {
-                // if existing had assigned_at keep it, otherwise set now
+                // If already assigned, keep original timestamp
+                // If new assignment, set current timestamp
                 $payload['assigned_at'] = optional($existing)->assigned_at ?? $now;
             }
 
             if ($existing) {
-                DB::table('batch_quizzes')->where('id', $existing->id)->update($payload);
+                // Update existing assignment
+                DB::table('batch_quizzes')
+                    ->where('id', $existing->id)
+                    ->update($payload);
+                
                 $pivotId = $existing->id;
+
+                \Log::info('Quiz Assignment Updated', [
+                    'pivot_id' => $pivotId,
+                    'course_module_id' => $payload['course_module_id'] ?? null,
+                ]);
             } else {
+                // Create new assignment
                 $insertData = array_merge($payload, [
                     'uuid'          => (string) Str::uuid(),
                     'batch_id'      => $batch->id,
@@ -1247,10 +1345,19 @@ public function quizzToggle(Request $request, $idOrUuid)
                 ]);
 
                 $pivotId = DB::table('batch_quizzes')->insertGetId($insertData);
+
+                \Log::info('Quiz Assignment Created', [
+                    'pivot_id' => $pivotId,
+                    'course_module_id' => $insertData['course_module_id'] ?? null,
+                ]);
             }
+
         } else {
-            // unassign -> soft-delete + set assign_status = 0
-            DB::table('batch_quizzes')
+            // ========================================
+            // UNASSIGN QUIZ FROM BATCH
+            // ========================================
+
+            $affected = DB::table('batch_quizzes')
                 ->where('batch_id', $batch->id)
                 ->where('quiz_id', $quizId)
                 ->whereNull('deleted_at')
@@ -1261,143 +1368,78 @@ public function quizzToggle(Request $request, $idOrUuid)
                     'updated_at'    => $now,
                 ]);
 
-            // keep pivotId null to indicate removal
+            \Log::info('Quiz Assignment Removed', [
+                'batch_id' => $batch->id,
+                'quiz_id' => $quizId,
+                'rows_affected' => $affected,
+            ]);
+
             $pivotId = null;
         }
     });
 
-    // if it was an unassign, return success + null data so client removes it
+    // If unassigned, return success with null data
     if (is_null($pivotId)) {
-        return response()->json(['success' => true, 'data' => null]);
+        return response()->json([
+            'success' => true,
+            'message' => 'Quiz unassigned successfully',
+            'data' => null
+        ]);
     }
 
-    // fetch pivot row to return (fresh)
+    // ========================================
+    // FETCH FRESH PIVOT DATA TO RETURN
+    // ========================================
+
     $pivot = DB::table('batch_quizzes')->where('id', $pivotId)->first();
 
-    // attempt_allowed now comes from pivot
-    $attemptAllowed = isset($pivot->attempt_allowed) ? (is_null($pivot->attempt_allowed) ? null : (int)$pivot->attempt_allowed) : null;
-
-    $assignedAt = null;
-    if ($pivot) {
-        $assignedAt = $hasAssignedAt ? ($pivot->assigned_at ?? $pivot->created_at ?? null) : ($pivot->created_at ?? null);
+    if (!$pivot) {
+        return response()->json([
+            'success' => false,
+            'message' => 'Assignment created but could not be retrieved'
+        ], 500);
     }
 
-    $response = [
-        'success' => true,
-        'data'    => $pivot ? [
-            'id'                 => (int)$pivot->id,
-            'uuid'               => $pivot->uuid,
-            'batch_id'           => (int)$pivot->batch_id,
-            'quiz_id'            => (int)$pivot->quiz_id,
-            'display_order'      => isset($pivot->display_order) ? (int)$pivot->display_order : null,
-            'assign_status'      => isset($pivot->assign_status) ? (bool)$pivot->assign_status : false,
-            'publish_to_students'=> isset($pivot->publish_to_students) ? (bool)$pivot->publish_to_students : false,
-            'available_from'     => $pivot->available_from ?? null,
-            'available_until'    => $pivot->available_until ?? null,
-            'assigned_at'        => $assignedAt,
-            'created_at'         => $pivot->created_at ?? null,
-            'updated_at'         => $pivot->updated_at ?? null,
-            // now from pivot
-            'attempt_allowed'    => $attemptAllowed,
-        ] : null,
+    // Build response data
+    $assignedAt = $hasAssignedAt
+        ? ($pivot->assigned_at ?? $pivot->created_at ?? null)
+        : ($pivot->created_at ?? null);
+
+    $data = [
+        'id'                  => (int) $pivot->id,
+        'uuid'                => $pivot->uuid ?? null,
+        'batch_id'            => (int) $pivot->batch_id,
+        'quiz_id'             => (int) $pivot->quiz_id,
+        'display_order'       => isset($pivot->display_order) ? (int) $pivot->display_order : null,
+        'assign_status'       => isset($pivot->assign_status) ? (bool) $pivot->assign_status : false,
+        'publish_to_students' => isset($pivot->publish_to_students) ? (bool) $pivot->publish_to_students : false,
+        'available_from'      => $pivot->available_from ?? null,
+        'available_until'     => $pivot->available_until ?? null,
+        'assigned_at'         => $assignedAt,
+        'created_at'          => $pivot->created_at ?? null,
+        'updated_at'          => $pivot->updated_at ?? null,
+        'attempt_allowed'     => isset($pivot->attempt_allowed) 
+            ? (is_null($pivot->attempt_allowed) ? null : (int) $pivot->attempt_allowed)
+            : null,
     ];
 
-    return response()->json($response);   
-}
-public function quizzUpdate(Request $request, $idOrUuid)
-{
-    $uid = $this->authUserIdFromToken($request);
-    if (!$uid) return response()->json(['success' => false, 'message' => 'Unauthorized'], 401);
+    // ✅ Include course_module_id in response
+    if ($hasCourseModuleId && isset($pivot->course_module_id)) {
+        $data['course_module_id'] = is_null($pivot->course_module_id) 
+            ? null 
+            : (int) $pivot->course_module_id;
+    }
 
-    $batch = $this->findBatch($idOrUuid);
-    if (!$batch) return response()->json(['success' => false, 'message' => 'Batch not found'], 404);
-
-    $v = Validator::make($request->all(), [
-        // identify pivot either by batch_quiz_id OR quiz_id
-        'batch_quiz_id'      => 'nullable|integer|exists:batch_quizzes,id',
-        'quiz_id'            => 'nullable|integer|exists:quizz,id',
-        'display_order'      => 'sometimes|nullable|integer|min:0',
-        'publish_to_students'=> 'sometimes|boolean',
-        'available_from'     => 'nullable|date',
-        'available_until'    => 'nullable|date|after_or_equal:available_from',
-        // update pivot attempt_allowed
-        'attempt_allowed'    => 'sometimes|nullable|integer|min:0',
+    \Log::info('Quiz Toggle Response', [
+        'pivot_id' => $pivotId,
+        'course_module_id' => $data['course_module_id'] ?? 'not_set',
     ]);
-    if ($v->fails()) return response()->json(['success' => false, 'errors' => $v->errors()], 422);
 
-    // locate pivot
-    $pivot = null;
-    if ($request->filled('batch_quiz_id')) {
-        $pivot = DB::table('batch_quizzes')->where('id', (int)$request->batch_quiz_id)->first();
-        if (!$pivot) return response()->json(['success'=>false,'message'=>'Assignment not found'],404);
-        if ((int)$pivot->batch_id !== (int)$batch->id) {
-            return response()->json(['success'=>false,'message'=>'Assignment does not belong to this batch'],403);
-        }
-    } elseif ($request->filled('quiz_id')) {
-        $pivot = DB::table('batch_quizzes')
-            ->where('batch_id', $batch->id)
-            ->where('quiz_id', (int)$request->quiz_id)
-            ->first();
-        if (!$pivot) return response()->json(['success'=>false,'message'=>'Assignment not found for this batch'],404);
-    } else {
-        return response()->json(['success'=>false,'message'=>'batch_quiz_id or quiz_id required'],422);
-    }
-
-    $now = now();
-    DB::transaction(function() use ($request, $pivot, $now) {
-        $update = ['updated_at' => $now];
-
-        if ($request->has('display_order')) {
-            $update['display_order'] = $request->input('display_order') === null ? null : (int)$request->input('display_order');
-        }
-
-        if ($request->has('publish_to_students')) {
-            $update['publish_to_students'] = (int) $request->input('publish_to_students');
-        }
-
-        if ($request->has('available_from')) {
-            $update['available_from'] = $request->input('available_from') ?: null;
-        }
-
-        if ($request->has('available_until')) {
-            $update['available_until'] = $request->input('available_until') ?: null;
-        }
-
-        // update pivot attempt_allowed when provided
-        if ($request->has('attempt_allowed')) {
-            $update['attempt_allowed'] = $request->input('attempt_allowed') === null ? null : (int)$request->input('attempt_allowed');
-        }
-
-        if (count($update) > 1) {
-            DB::table('batch_quizzes')->where('id', $pivot->id)->update($update);
-        }
-    });
-
-    // fetch fresh pivot to return authoritative values
-    $pivot = DB::table('batch_quizzes')->where('id', $pivot->id)->first();
-    $assignedAt = $pivot->assigned_at ?? $pivot->created_at ?? null;
-
-    $response = [
+    return response()->json([
         'success' => true,
-        'data'    => $pivot ? [
-            'id'                 => (int)$pivot->id,
-            'uuid'               => $pivot->uuid,
-            'batch_id'           => (int)$pivot->batch_id,
-            'quiz_id'            => (int)$pivot->quiz_id,
-            'display_order'      => isset($pivot->display_order) ? (int)$pivot->display_order : null,
-            'assign_status'      => isset($pivot->assign_status) ? (bool)$pivot->assign_status : false,
-            'publish_to_students'=> isset($pivot->publish_to_students) ? (bool)$pivot->publish_to_students : false,
-            'available_from'     => $pivot->available_from ?? null,
-            'available_until'    => $pivot->available_until ?? null,
-            'assigned_at'        => $assignedAt,
-            'created_at'         => $pivot->created_at ?? null,
-            'updated_at'         => $pivot->updated_at ?? null,
-            // pivot-sourced attempts
-            'attempt_allowed'    => isset($pivot->attempt_allowed) ? (is_null($pivot->attempt_allowed) ? null : (int)$pivot->attempt_allowed) : null,
-        ] : null,
-    ];
-
-    return response()->json($response);
+        'message' => 'Quiz assigned successfully',
+        'data'    => $data,
+    ]);
 }
 public function enrollStudent(Request $request, $idOrUuid)
 {

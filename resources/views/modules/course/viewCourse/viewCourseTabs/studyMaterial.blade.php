@@ -323,21 +323,21 @@
 (function(){
   // const role = (sessionStorage.getItem('role') || localStorage.getItem('role') || '').toLowerCase();
   const TOKEN = localStorage.getItem('token') || sessionStorage.getItem('token') || '';
-if (!TOKEN) {
-  Swal.fire({ icon: 'warning', title: 'Login required', text: 'Please sign in to continue.', allowOutsideClick: false })
-    .then(()=>{ window.location.href = '/'; });
-  return;
-}
-
-// ===== In-memory role (cache + async event), SAME as chat =====
-let role = '';
-const getRoleNow = () => {
-  if (window.__AUTH_CACHE__ && typeof window.__AUTH_CACHE__.role === 'string') {
-    return window.__AUTH_CACHE__.role;
+  if (!TOKEN) {
+    Swal.fire({ icon: 'warning', title: 'Login required', text: 'Please sign in to continue.', allowOutsideClick: false })
+      .then(()=>{ window.location.href = '/'; });
+    return;
   }
-  return '';
-};
-role = String(getRoleNow() || '').trim().toLowerCase();
+
+  // ===== In-memory role (cache + async event), SAME as chat =====
+  let role = '';
+  const getRoleNow = () => {
+    if (window.__AUTH_CACHE__ && typeof window.__AUTH_CACHE__.role === 'string') {
+      return window.__AUTH_CACHE__.role;
+    }
+    return '';
+  };
+  role = String(getRoleNow() || '').trim().toLowerCase();
 
   const isAdmin      = role.includes('admin')|| role.includes('superadmin');
   const isSuperAdmin = role.includes('super_admin') || role.includes('superadmin');
@@ -389,13 +389,66 @@ role = String(getRoleNow() || '').trim().toLowerCase();
     return parts.at(-1);
   };
 
+  /* ---------------------
+   * Module UUID from URL (FIXED + ROBUST)
+   * - supports module_uuid, module, module_id, course_module_id, etc.
+   * - URL ALWAYS WINS over dataset defaults
+   * - also supports UUID in path (/modules/{uuid}) as fallback
+   * --------------------- */
+  const deriveModuleUuid = () => {
+    try {
+      const url = new URL(window.location.href);
+
+      const candidates = [
+        'module_uuid',
+        'module',
+        'moduleId',
+        'module_id',
+        'course_module_uuid',
+        'course_module_id',
+        'mid',
+        'm'
+      ];
+
+      for (const key of candidates) {
+        const v = url.searchParams.get(key);
+        if (v && String(v).trim() !== '') return String(v).trim();
+      }
+
+      // fallback: UUID inside path like /modules/<uuid> or /module/<uuid>
+      const uuidRe = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
+      const parts = url.pathname.split('/').filter(Boolean);
+
+      const modulesIdx = parts.findIndex(p => ['module','modules'].includes(String(p).toLowerCase()));
+      if (modulesIdx !== -1 && parts[modulesIdx + 1] && uuidRe.test(parts[modulesIdx + 1])) {
+        return parts[modulesIdx + 1];
+      }
+
+      const any = parts.find(p => uuidRe.test(p));
+      if (any) return any;
+
+      // fallback: UUID in hash
+      const hash = (url.hash || '').replace('#','');
+      if (hash && uuidRe.test(hash)) return hash;
+
+      return null;
+    } catch (e) {
+      return null;
+    }
+  };
+
   function getQueryParam(name) {
     try { return (new URL(window.location.href)).searchParams.get(name); } catch(e) { return null; }
   }
 
+  /* ---------------------
+   * Sync context into DOM (FIXED)
+   * - If module exists in URL, override dataset (prevents "first module default" bug)
+   * --------------------- */
   (function ensureBatchInDomFromUrl() {
     const host = document.querySelector('.crs-wrap');
     if (!host) return;
+
     const existing = host.dataset.batchId ?? host.dataset.batch_id ?? '';
     if (!existing || String(existing).trim() === '') {
       const pathKey = deriveCourseKey();
@@ -403,24 +456,68 @@ role = String(getRoleNow() || '').trim().toLowerCase();
         host.dataset.batchId = String(pathKey);
         host.dataset.batch_id = String(pathKey);
       }
-      const qModule = getQueryParam('module') || getQueryParam('course_module_id');
-      if (qModule) {
-        host.dataset.moduleId = String(qModule);
-        host.dataset.module_id = String(qModule);
-      }
+    }
+
+    const qModule = deriveModuleUuid();
+    if (qModule) {
+      host.dataset.moduleId = String(qModule);
+      host.dataset.module_id = String(qModule);
     }
   })();
 
+  /* ---------------------
+   * readContext (FIXED)
+   * - URL FIRST, then dataset fallback
+   * - keep dataset in sync
+   * --------------------- */
   function readContext() {
     const host = document.querySelector('.crs-wrap');
-    if (host) {
-      const batchId = host.dataset.batchId ?? host.dataset.batch_id ?? '';
-      const moduleId = host.dataset.moduleId ?? host.dataset.module_id ?? '';
-      if (batchId) return { batch_id: String(batchId) || null, module_id: moduleId || null };
+
+    const batchId =
+      host?.dataset.batchId ||
+      host?.dataset.batch_id ||
+      deriveCourseKey() ||
+      null;
+
+    const moduleFromUrl = deriveModuleUuid();
+    const moduleId =
+      (moduleFromUrl && String(moduleFromUrl).trim() !== '' ? moduleFromUrl : null) ||
+      host?.dataset.moduleId ||
+      host?.dataset.module_id ||
+      null;
+
+    if (host && moduleId) {
+      host.dataset.moduleId = String(moduleId);
+      host.dataset.module_id = String(moduleId);
     }
-    const pathBatch = deriveCourseKey() || null;
-    const qModule = getQueryParam('module') || getQueryParam('course_module_id') || null;
-    return { batch_id: pathBatch || null, module_id: qModule || null };
+
+    return {
+      batch_id: batchId ? String(batchId) : null,
+      module_id: moduleId ? String(moduleId) : null
+    };
+  }
+
+  function waitForModuleContext(timeout = 1200) {
+    return new Promise((resolve) => {
+      const start = Date.now();
+      (function check() {
+        // always resync from URL
+        try {
+          const host = document.querySelector('.crs-wrap');
+          const qModule = deriveModuleUuid();
+          if (host && qModule) {
+            host.dataset.moduleId = String(qModule);
+            host.dataset.module_id = String(qModule);
+          }
+        } catch(e){}
+
+        const ctx = readContext();
+        if (ctx && ctx.module_id) return resolve(ctx);
+
+        if (Date.now() - start > timeout) return resolve(null);
+        requestAnimationFrame(check);
+      })();
+    });
   }
 
   // ---------------------
@@ -436,6 +533,16 @@ role = String(getRoleNow() || '').trim().toLowerCase();
   function showLoader(v){ if ($loader) $loader.style.display = v ? 'flex' : 'none'; }
   function showEmpty(v){ if ($empty) $empty.style.display = v ? 'block' : 'none'; }
   function showItems(v){ if ($items) $items.style.display = v ? 'block' : 'none'; }
+
+  // STRICT module from URL-first context
+  function getStrictModuleFromContext() {
+    const fromUrl = deriveModuleUuid();
+    if (fromUrl && String(fromUrl).trim() !== '') return String(fromUrl).trim();
+
+    const ctx = readContext();
+    if (!ctx || !ctx.module_id) return null;
+    return String(ctx.module_id).trim();
+  }
 
   function formatSize(bytes){
     if (bytes == null) return '';
@@ -510,7 +617,6 @@ role = String(getRoleNow() || '').trim().toLowerCase();
   function normalizeAttachmentForPreview(a){
     if (!a) return null;
     if (typeof a === 'string') return { url: a, name: (a||'').split('/').pop() || a };
-    // object with url-like keys
     const url = a.signed_url || a.url || a.path || null;
     if (!url) return null;
     return { url, name: a.name || a.original_name || url.split('/').pop(), mime: a.mime || a.content_type || '' };
@@ -644,15 +750,7 @@ role = String(getRoleNow() || '').trim().toLowerCase();
     return wrapper;
   }
 
-  function renderList(items){
-    if (!$items) return;
-    $items.innerHTML = '';
-    if (!items || items.length === 0){ showItems(false); showEmpty(true); return; }
-    showEmpty(false); showItems(true);
-    items.forEach(it => $items.appendChild(createItemRow(it)));
-  }
-
-  // details modal (unchanged except small cleanups)
+  // details modal
   function openDetailsModal(row) {
     if (!detailsModal) return;
     detailsModal.style.display = 'block';
@@ -740,7 +838,7 @@ role = String(getRoleNow() || '').trim().toLowerCase();
   if (detailsClose) detailsClose.addEventListener('click', closeDetailsModal);
 
   // ---------------------
-  // Fullscreen preview helpers (unchanged)
+  // Fullscreen preview helpers
   // ---------------------
   function closeFullscreenPreview() {
     const existing = document.querySelector('.sm-fullscreen');
@@ -900,53 +998,133 @@ role = String(getRoleNow() || '').trim().toLowerCase();
     await renderAt(currentIndex);
   }
 
-  // -------------------------
-  // loadMaterials (uses batch_id/module_id filters)
-  // -------------------------
-  async function loadMaterials(){
-    showLoader(true); showItems(false); showEmpty(false);
-    try {
-      const ctx = readContext();
-      if (!ctx || !ctx.batch_id) throw new Error('Batch context required');
+  function renderModules(modulesWithMaterials) {
+    if (!$items) return;
+    $items.innerHTML = '';
 
-      const url = `${apiBase}/batch/${encodeURIComponent(ctx.batch_id)}`;
+    if (!modulesWithMaterials || modulesWithMaterials.length === 0) {
+      showItems(false);
+      showEmpty(true);
+      return;
+    }
+
+    showEmpty(false);
+    showItems(true);
+
+    modulesWithMaterials.forEach(group => {
+      const module = group.module || {};
+      const materials = Array.isArray(group.materials) ? group.materials : [];
+
+      const moduleWrap = document.createElement('div');
+      moduleWrap.className = 'mb-4';
+
+      const moduleHeader = document.createElement('div');
+      moduleHeader.className = 'd-flex align-items-center gap-2 mb-2';
+      moduleHeader.innerHTML = `
+        <h5 class="mb-0" style="font-weight:700">
+          <i class="fa fa-layer-group me-1 text-primary"></i>
+          ${escapeHtml(module.title || 'Untitled Module')}
+        </h5>
+        <span class="small text-muted">(${materials.length})</span>
+      `;
+
+      moduleWrap.appendChild(moduleHeader);
+
+      if (!materials.length) {
+        const empty = document.createElement('div');
+        empty.className = 'sm-empty';
+        empty.textContent = 'No study materials in this module.';
+        moduleWrap.appendChild(empty);
+        $items.appendChild(moduleWrap);
+        return;
+      }
+
+      materials.forEach(mat => {
+        moduleWrap.appendChild(createItemRow(mat));
+      });
+
+      $items.appendChild(moduleWrap);
+    });
+  }
+
+  // -------------------------
+  // loadMaterials (FIXED: strict module from URL-first context)
+  // -------------------------
+  async function loadMaterials() {
+    showLoader(true);
+    showItems(false);
+    showEmpty(false);
+
+    try {
+      // always resync DOM context from URL before reading
+      try {
+        const host = document.querySelector('.crs-wrap');
+        const qModule = deriveModuleUuid();
+        if (host && qModule) {
+          host.dataset.moduleId = String(qModule);
+          host.dataset.module_id = String(qModule);
+        }
+      } catch(e){}
+
+      const ctx = await waitForModuleContext();
+
+      if (!ctx || !ctx.batch_id) {
+        throw new Error('Batch context required');
+      }
+
+      if (!ctx.module_id) {
+        console.warn('Module context missing – aborting material load');
+        showEmpty(true);
+        return;
+      }
+
+      // ALWAYS pass module_uuid (uuid)
+      const url =
+        `${apiBase}/batch/${encodeURIComponent(ctx.batch_id)}` +
+        `?module_uuid=${encodeURIComponent(ctx.module_id)}`;
+
+      console.debug('Loading materials with URL →', url);
+
       const res = await apiFetch(url);
       if (!res.ok) throw new Error('HTTP ' + res.status);
-      const json = await res.json().catch(()=>null);
+
+      const json = await res.json().catch(() => null);
       if (!json || !json.data) throw new Error('Invalid response format');
 
       const modulesWithMaterials = json.data.modules_with_materials || [];
-      let allMaterials = [];
 
-      modulesWithMaterials.forEach(moduleGroup => {
-        if (moduleGroup.materials && Array.isArray(moduleGroup.materials)) {
-          moduleGroup.materials.forEach(material => {
-            material.module_title = moduleGroup.module?.title || 'Unknown Module';
-            material.module_uuid = moduleGroup.module?.uuid || '';
-            allMaterials.push(material);
-          });
-        }
-      });
-
+      // SORT (per module)
       const sortVal = $sort ? $sort.value : 'created_desc';
-      allMaterials.sort((a,b)=>{
-        const da = a.created_at ? new Date(a.created_at) : new Date(0);
-        const db = b.created_at ? new Date(b.created_at) : new Date(0);
-        if (sortVal === 'created_desc') return db - da;
-        if (sortVal === 'created_asc') return da - db;
-        if (sortVal === 'title_asc') return (a.title||'').localeCompare(b.title||'');
-        return 0;
+
+      modulesWithMaterials.forEach(group => {
+        if (!Array.isArray(group.materials)) return;
+        group.materials.sort((a, b) => {
+          const da = a.created_at ? new Date(a.created_at) : new Date(0);
+          const db = b.created_at ? new Date(b.created_at) : new Date(0);
+          if (sortVal === 'created_desc') return db - da;
+          if (sortVal === 'created_asc') return da - db;
+          if (sortVal === 'title_asc') return (a.title || '').localeCompare(b.title || '');
+          return 0;
+        });
       });
 
-      renderList(allMaterials);
+      renderModules(modulesWithMaterials);
 
-      if (json.data.batch) window.currentBatchContext = json.data.batch;
+      if (json.data.batch) {
+        window.currentBatchContext = json.data.batch;
+      }
+
     } catch (e) {
       console.error('Load materials error:', e);
-      if ($items) $items.innerHTML = '<div class="sm-empty">Unable to load study materials — please refresh.</div>';
+      if ($items) {
+        $items.innerHTML =
+          '<div class="sm-empty">Unable to load study materials — please refresh.</div>';
+      }
       showItems(true);
-      showErr('Failed to load study materials: ' + (e.message || 'Unknown error'));
-    } finally { showLoader(false); }
+      showErr('Failed to load study materials');
+    } finally {
+      showLoader(false);
+    }
   }
 
   if ($refresh) $refresh.addEventListener('click', loadMaterials);
@@ -969,10 +1147,13 @@ role = String(getRoleNow() || '').trim().toLowerCase();
   }
 
   let _manualBackdrop = null;
+
   function showCreateModal() {
     const smFormEl = document.getElementById('smCreateForm');
+
     if (smFormEl) {
       const isEditing = (smIdInput && smIdInput.value && smIdInput.value.trim() !== '');
+
       if (!isEditing) {
         smFormEl.reset();
         smFormEl.classList.remove('was-validated');
@@ -981,10 +1162,26 @@ role = String(getRoleNow() || '').trim().toLowerCase();
         smFormEl.classList.remove('was-validated');
       }
     }
-    const smAlert = document.getElementById('smCreateAlert'); if (smAlert) smAlert.style.display = 'none';
+
+    const smAlert = document.getElementById('smCreateAlert');
+    if (smAlert) smAlert.style.display = 'none';
+
+    // FORCE MODULE FROM URL-FIRST CONTEXT
+    const strictModule = getStrictModuleFromContext();
+    if (!strictModule && !smIdInput?.value) {
+      if (smAlert) {
+        smAlert.innerHTML = 'Module context missing. Please open this module first.';
+        smAlert.style.display = '';
+      }
+      return;
+    }
+
     updateContextDisplay();
 
-    if (createModalInstance && typeof createModalInstance.show === 'function') { createModalInstance.show(); return; }
+    if (createModalInstance && typeof createModalInstance.show === 'function') {
+      createModalInstance.show();
+      return;
+    }
     if (!createModalEl) return;
 
     _manualBackdrop = document.createElement('div'); _manualBackdrop.className = 'modal-backdrop fade show';
@@ -1027,6 +1224,12 @@ role = String(getRoleNow() || '').trim().toLowerCase();
   function _fallbackEscHandler(e){ if (e.key === 'Escape') hideCreateModal(); }
 
   function enterEditMode(row){
+    // lock module to URL-first context even in edit mode
+    const strictModule = getStrictModuleFromContext();
+    if (!strictModule) {
+      showErr('Module context missing. Reload page.');
+    }
+
     if (smIdInput) smIdInput.value = row.id || '';
     if (smMethodInput) smMethodInput.value = 'PATCH';
     if (smTitleInput) smTitleInput.value = row.title || '';
@@ -1139,7 +1342,6 @@ role = String(getRoleNow() || '').trim().toLowerCase();
     const modalTitle = createModalEl.querySelector('.modal-title');
     if (modalTitle) modalTitle.innerHTML = '<i class="fa fa-plus me-2"></i> Add Study Material';
     if (smCreateSubmitBtn) smCreateSubmitBtn.innerHTML = '<i class="fa fa-save me-1"></i> Create';
-    // clear transient library selection state
     if (createModalEl) createModalEl._selectedLibraryUrls = [];
     const fileList = createModalEl?.querySelector('#sm_fileList');
     if (fileList) fileList.innerHTML = '';
@@ -1163,16 +1365,24 @@ role = String(getRoleNow() || '').trim().toLowerCase();
       const editingId = smIdInput && smIdInput.value ? smIdInput.value.trim() : '';
       const ctx = readContext();
       const batchKey = ctx?.batch_id ?? ctx?.batch_uuid ?? null;
+
       if (!editingId && !batchKey) {
         if (smAlert) { smAlert.innerHTML = 'Missing Batch context — cannot create study material here.'; smAlert.style.display = ''; }
         return;
       }
 
-      // build FormData (inside submit handler)
       const fd = new FormData();
       if (ctx && ctx.batch_id) fd.append('batch_uuid', ctx.batch_id);
 
-      const mod = ctx && ctx.module_id ? String(ctx.module_id).trim() : '';
+      const mod = getStrictModuleFromContext();
+      if (!editingId && !mod) {
+        if (smAlert) {
+          smAlert.innerHTML = 'Module is required to create study material.';
+          smAlert.style.display = '';
+        }
+        throw new Error('Missing module context');
+      }
+
       if (mod) {
         if (/^\d+$/.test(mod)) {
           fd.append('course_module_id', mod);
@@ -1197,10 +1407,9 @@ role = String(getRoleNow() || '').trim().toLowerCase();
         fd.append('attachments[]', files[i]);
       }
 
-      // append library URLs if any (added via Choose from Library)
+      // append library URLs if any
       const libUrls = (createModalEl && Array.isArray(createModalEl._selectedLibraryUrls)) ? createModalEl._selectedLibraryUrls : [];
       if (libUrls && libUrls.length) {
-        // dedupe
         const seen = {};
         libUrls.forEach(u => {
           if (!u) return;
@@ -1216,6 +1425,7 @@ role = String(getRoleNow() || '').trim().toLowerCase();
 
       const prevHtml = smSubmit ? smSubmit.innerHTML : (editingId ? 'Update' : 'Create');
       if (smSubmit) { smSubmit.disabled = true; smSubmit.innerHTML = `<i class="fa fa-spinner fa-spin me-1"></i> ${editingId ? 'Updating...' : 'Creating...'}`; }
+
       try {
         let endpoint = apiBase;
         let method = 'POST';
@@ -1237,6 +1447,7 @@ role = String(getRoleNow() || '').trim().toLowerCase();
 
         const res = await apiFetch(endpoint, { method: method, body: fd });
         const json = await res.json().catch(()=>({}));
+
         if (!res.ok) {
           if (res.status === 422 && json.errors) {
             let msgs = [];
@@ -1257,11 +1468,17 @@ role = String(getRoleNow() || '').trim().toLowerCase();
         exitEditMode();
         showOk(json.message || (editingId ? 'Updated' : 'Created'));
         await loadMaterials();
-      } catch (err) { console.error('Create/Update failed', err); showErr('Save failed'); }
-      finally { if (smSubmit) { smSubmit.disabled = false; smSubmit.innerHTML = prevHtml; } }
+      } catch (err) {
+        console.error('Create/Update failed', err);
+        showErr('Save failed');
+      } finally {
+        if (smSubmit) { smSubmit.disabled = false; smSubmit.innerHTML = prevHtml; }
+      }
     });
 
-    if (createModalEl) { try { createModalEl.addEventListener('show.bs.modal', () => updateContextDisplay()); } catch(e){} }
+    if (createModalEl) {
+      try { createModalEl.addEventListener('show.bs.modal', () => updateContextDisplay()); } catch(e){}
+    }
   })();
 
   function updateContextDisplay() {
@@ -1273,23 +1490,29 @@ role = String(getRoleNow() || '').trim().toLowerCase();
     const isEditing = (smIdInput && smIdInput.value && smIdInput.value.trim() !== '');
 
     if (!ctx || !ctx.batch_id) {
-      if (ctxText) ctxText.textContent = isEditing ? 'Editing (batch unknown)' : 'Missing context';
-      if (isEditing) {
-        if (ctxErr) ctxErr.style.display = 'none';
-        if (submitBtn) submitBtn.disabled = false;
-        return;
-      }
+      if (ctxText) ctxText.textContent = isEditing ? 'Editing (batch unknown)' : 'Missing batch context';
+      if (ctxErr) ctxErr.style.display = isEditing ? 'none' : '';
+      if (submitBtn) submitBtn.disabled = !isEditing;
+      return;
+    }
+
+    if (ctxText) {
+      if (ctx.module_id) ctxText.textContent = `Batch: ${ctx.batch_id} • Module: ${ctx.module_id}`;
+      else ctxText.textContent = `Batch: ${ctx.batch_id} • Module: NOT SELECTED`;
+    }
+
+    if (!isEditing && !ctx.module_id) {
       if (ctxErr) ctxErr.style.display = '';
       if (submitBtn) submitBtn.disabled = true;
-    } else {
-      if (ctxText) ctxText.textContent = `Batch: ${ctx.batch_id}` + (ctx.module_id ? ` • Module: ${ctx.module_id}` : '');
-      if (ctxErr) ctxErr.style.display = 'none';
-      if (submitBtn) submitBtn.disabled = false;
+      return;
     }
+
+    if (ctxErr) ctxErr.style.display = 'none';
+    if (submitBtn) submitBtn.disabled = false;
   }
 
   // -------------------------
-  // BIN / Deleted items logic (kept largely same; minor change: include batch filter)
+  // BIN / Deleted items logic
   // -------------------------
   (function initBin(){
     if (!$btnBin) return;
@@ -1318,7 +1541,7 @@ role = String(getRoleNow() || '').trim().toLowerCase();
         const items = j && (j.data || j.items) ? (j.data || j.items) : (Array.isArray(j) ? j : []);
         return (items || []).map(it => {
           if (typeof it.attachment === 'string' && it.attachment) {
-            try { it.attachment = JSON.parse(it.attachment); } catch { /* leave as-is */ }
+            try { it.attachment = JSON.parse(it.attachment); } catch {}
           }
           return it;
         }).filter(it => !!(it && (it.deleted_at || it.deletedAt)));
@@ -1446,11 +1669,11 @@ role = String(getRoleNow() || '').trim().toLowerCase();
       if (!_prevContent && $items) _prevContent = $items.innerHTML;
       showLoader(true); showEmpty(false); showItems(false);
       try {
-        const host = document.querySelector('.crs-wrap');
         const params = new URLSearchParams();
         const ctx = readContext();
         if (ctx && ctx.batch_id) params.set('batch_uuid', ctx.batch_id);
         if (ctx && ctx.module_id) params.set('module_uuid', ctx.module_id);
+
         const items = await fetchDeletedMaterials(params.toString());
         const tableEl = buildBinTable(items || []);
         if ($items) { $items.innerHTML = ''; $items.appendChild(tableEl); showItems(true); }
@@ -1482,10 +1705,7 @@ role = String(getRoleNow() || '').trim().toLowerCase();
     $btnBin.addEventListener('click', (ev) => { ev.preventDefault(); openBin(); });
   })();
 
-  /* ===== scoped drag & drop + Library picker for Study Material modal =====
-     Inserts a "Choose from Library" button and implements the picker modal,
-     selection storage, and rendering of library selections into #sm_fileList.
-  */
+  /* ===== scoped drag & drop + Library picker for Study Material modal ===== */
   (function wireSmAttachments(){
     if (!createModalEl) return;
 
@@ -1497,7 +1717,6 @@ role = String(getRoleNow() || '').trim().toLowerCase();
     const chooseLabel = $in('#sm_choose_label');
     const clearBtn = $in('#sm_clear_files');
 
-    // store selected files (File objects) and selected library URLs (strings)
     let selectedFiles = [];
     if (!createModalEl._selectedLibraryUrls) createModalEl._selectedLibraryUrls = [];
 
@@ -1513,7 +1732,6 @@ role = String(getRoleNow() || '').trim().toLowerCase();
       if(!fileListWrap) return;
       fileListWrap.innerHTML = '';
 
-      // first: render file objects
       selectedFiles.forEach((f, idx) => {
         const item = document.createElement('div');
         item.className = 'sm-file-item';
@@ -1532,7 +1750,6 @@ role = String(getRoleNow() || '').trim().toLowerCase();
         fileListWrap.appendChild(item);
       });
 
-      // second: render library selections (with Preview + Remove buttons)
       const libs = createModalEl._selectedLibraryUrls || [];
       libs.forEach((u, idx) => {
         const name = (u || '').split('/').pop() || u;
@@ -1596,7 +1813,6 @@ role = String(getRoleNow() || '').trim().toLowerCase();
       renderFileList();
     }
 
-    // ---------- Add "Choose from Library" button next to the native choose label ----------
     if (chooseLabel && !createModalEl.querySelector('#sm_choose_from_library')) {
       const libBtn = document.createElement('button');
       libBtn.type = 'button';
@@ -1612,7 +1828,6 @@ role = String(getRoleNow() || '').trim().toLowerCase();
       });
     }
 
-    // drag/drop handlers
     if (dropzone) {
       ['dragenter','dragover'].forEach(ev => dropzone.addEventListener(ev, (e) => { e.preventDefault(); e.stopPropagation(); dropzone.classList.add('dragover'); }));
       ['dragleave','dragend','drop'].forEach(ev => dropzone.addEventListener(ev, (e) => { e.preventDefault(); e.stopPropagation(); dropzone.classList.remove('dragover'); }));
@@ -1636,446 +1851,431 @@ role = String(getRoleNow() || '').trim().toLowerCase();
 
     if (clearBtn) clearBtn.addEventListener('click', ()=> { selectedFiles = []; createModalEl._selectedLibraryUrls = []; renderFileList(); });
 
-    // expose getter so submit handler may read files appended by DnD
     createModalEl._getSelectedSmFiles = ()=> selectedFiles.slice();
-    // ensure selectedLibraryUrls exists
     if (!Array.isArray(createModalEl._selectedLibraryUrls)) createModalEl._selectedLibraryUrls = [];
 
-    // reset on modal show/hidden
     try {
       createModalEl.addEventListener('show.bs.modal', ()=> {
         const isEditing = (smIdInput && smIdInput.value && smIdInput.value.trim() !== '');
         if (!isEditing) { selectedFiles = []; createModalEl._selectedLibraryUrls = []; renderFileList(); }
-        else {
-          renderFileList();
-        }
+        else { renderFileList(); }
       });
-      createModalEl.addEventListener('hidden.bs.modal', ()=> { /* keep selection until explicitly cleared */ });
     } catch(e){}
 
     // ---------------------------
-    // Library picker implementation (with Preview per-row)
+    // Library picker implementation (unchanged, relies on apiBase + batch)
     // ---------------------------
     let _libModal = null;
-function ensureLibraryModal() {
-  if (_libModal) return _libModal;
-  const m = document.createElement('div');
-  m.className = 'modal fade';
-  m.id = 'smLibraryModal';
-  m.tabIndex = -1;
-  m.innerHTML = `
-    <div class="modal-dialog modal-lg modal-dialog-scrollable">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h5 class="modal-title"><i class="fa fa-book me-2"></i>Choose from Library</h5>
-          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-        </div>
-        <div class="modal-body" style="min-height:160px;">
-         <div id="smLibLoader" style="display:none; padding:18px;">
-          <div style="display:flex; align-items:center; gap:8px;">
-            <div class="spin" aria-hidden="true"></div>
-            <div class="text-muted">Loading library…</div>
-          </div>
-        </div>
 
-          <div id="smLibEmpty" style="display:none;" class="text-muted small p-3;">No library items found for this batch.</div>
-          
-          <!-- Search Bar -->
-          <div id="smLibSearchContainer" class="mb-3" style="display:none;">
-            <div class="input-group input-group-sm">
-              <span class="input-group-text" id="search-addon">
-                <i class="fa fa-search"></i>
-              </span>
-              <input 
-                type="text" 
-                id="smLibSearch" 
-                class="form-control" 
-                placeholder="Search documents by name or reference..." 
-                aria-label="Search"
-                aria-describedby="search-addon"
-              />
-              <button id="smLibClearSearch" class="btn btn-outline-secondary" type="button" style="display:none;">
-                <i class="fa fa-times"></i>
-              </button>
+    function ensureLibraryModal() {
+      if (_libModal) return _libModal;
+      const m = document.createElement('div');
+      m.className = 'modal fade';
+      m.id = 'smLibraryModal';
+      m.tabIndex = -1;
+      m.innerHTML = `
+        <div class="modal-dialog modal-lg modal-dialog-scrollable">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h5 class="modal-title"><i class="fa fa-book me-2"></i>Choose from Library</h5>
+              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
-            <div id="smLibSearchResults" class="small text-muted mt-2" style="display:none;"></div>
-          </div>
-          
-          <div id="smLibList" style="display:none;"></div>
-        </div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
-          <button id="smLibConfirm" type="button" class="btn btn-primary">Add selected</button>
-        </div>
-      </div>
-    </div>
-  `;
-  document.body.appendChild(m);
-  _libModal = m;
-  return _libModal;
-}
-
-async function openLibraryPicker() {
-  const modalEl = ensureLibraryModal();
-  const libList = modalEl.querySelector('#smLibList');
-  const libLoader = modalEl.querySelector('#smLibLoader');
-  const libEmpty = modalEl.querySelector('#smLibEmpty');
-  const libConfirm = modalEl.querySelector('#smLibConfirm');
-  const searchContainer = modalEl.querySelector('#smLibSearchContainer');
-  const searchInput = modalEl.querySelector('#smLibSearch');
-  const clearSearchBtn = modalEl.querySelector('#smLibClearSearch');
-  const searchResults = modalEl.querySelector('#smLibSearchResults');
-
-  // reset UI
-  libList.innerHTML = '';
-  libLoader.style.display = '';
-  libList.style.display = 'none';
-  libEmpty.style.display = 'none';
-  searchContainer.style.display = 'none';
-  searchInput.value = '';
-  clearSearchBtn.style.display = 'none';
-  searchResults.style.display = 'none';
-  libConfirm.disabled = true;
-
-  // show modal (bootstrap if available)
-  try {
-    if (window.bootstrap && typeof window.bootstrap.Modal === 'function') {
-      bootstrap.Modal.getOrCreateInstance(modalEl).show();
-    } else {
-      modalEl.style.display = 'block';
-      modalEl.classList.add('show');
-      document.body.classList.add('modal-open');
-    }
-  } catch (e) {}
-
-  // inject grid/card styles with search-specific styles
-  if (!document.getElementById('sm-lib-card-styles')) {
-    const style = document.createElement('style');
-    style.id = 'sm-lib-card-styles';
-    style.textContent = `
-      /* grid */
-      #smLibList .sm-lib-grid { display: grid; gap: 12px; grid-template-columns: repeat(3, 1fr); }
-      @media (max-width: 1024px) { #smLibList .sm-lib-grid { grid-template-columns: repeat(2, 1fr); } }
-      @media (max-width: 640px) { #smLibList .sm-lib-grid { grid-template-columns: repeat(1, 1fr); } }
-
-      /* card */
-      .sm-lib-card { display:flex; flex-direction:column; gap:8px; padding:10px; border-radius:10px; border:1px solid rgba(0,0,0,0.06); background:#fff; min-height:160px; position:relative; overflow:hidden; }
-      .sm-lib-thumb { height:120px; display:block; width:100%; object-fit:cover; border-radius:8px; background: linear-gradient(180deg,#f7f7f7,#fff); box-shadow: inset 0 0 0 1px rgba(0,0,0,0.02); }
-      .sm-lib-card .card-head { display:flex; align-items:center; gap:10px; }
-      .sm-lib-card .card-title { font-weight:600; font-size:14px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-      .sm-lib-card .card-meta { font-size:12px; color:var(--muted-color); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-      .sm-lib-card .card-refs { font-size:12px; color:var(--muted-color); margin-top:6px; max-height:3.6em; overflow:hidden; }
-      .sm-lib-card .card-actions { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-top:auto; }
-      .sm-lib-card .overlay-checkbox { position:absolute; top:10px; left:10px; z-index:5; background:rgba(255,255,255,0.9); padding:6px; border-radius:6px; box-shadow:0 1px 3px rgba(0,0,0,0.06); }
-      .sm-lib-placeholder-icon { width:100%; height:120px; display:flex; align-items:center; justify-content:center; font-size:36px; color:rgba(0,0,0,0.35); border-radius:8px; background: linear-gradient(180deg,#fafafa,#fff); }
-      .sm-lib-badge { font-size:11px; padding:4px 6px; border-radius:6px; background:rgba(0,0,0,0.05); }
-      .sm-lib-card .card-name { margin-top:6px; font-weight:600; font-size:13px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-      
-      /* Search highlighting */
-      .highlight { background-color: rgba(255, 255, 0, 0.3); padding: 0 1px; border-radius: 2px; }
-      
-      /* Filtered card state */
-      .sm-lib-card.filtered-out { opacity: 0.4; pointer-events: none; }
-    `;
-    document.head.appendChild(style);
-  }
-
-  try {
-    const ctx = readContext();
-    if (!ctx || !ctx.batch_id) throw new Error('Missing batch context');
-
-    const url = `${apiBase}/batch/${encodeURIComponent(ctx.batch_id)}`;
-    const res = await apiFetch(url);
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    const json = await res.json().catch(() => null);
-    if (!json || !json.data) throw new Error('Invalid response');
-
-    const modulesWithMaterials = json.data.modules_with_materials || [];
-
-    // dedupe docs by url (strip query string for key)
-    const docMap = new Map();
-    modulesWithMaterials.forEach(mg => {
-      const moduleTitle = mg.module?.title || '';
-      (mg.materials || []).forEach(mat => {
-        const materialTitle = mat.title || 'Untitled';
-        const materialId = mat.id || mat.uuid || '';
-        const atts = Array.isArray(mat.attachment) ? mat.attachment : (mat.attachments || []);
-        (atts || []).forEach(a => {
-          const normalized = (typeof a === 'string') ? { url: a, name: (a||'').split('/').pop() } : a;
-          const urlCandidate = (normalized.signed_url || normalized.url || normalized.path || '') + '';
-          if (!urlCandidate) return;
-          const key = urlCandidate.split('?')[0];
-          if (!docMap.has(key)) {
-            docMap.set(key, {
-              url: urlCandidate,
-              name: normalized.name || (urlCandidate.split('/').pop() || 'file'),
-              refs: [{ materialTitle, moduleTitle, materialId }],
-              sample: normalized,
-              // Store all searchable text in one property for easier searching
-              searchText: (normalized.name || '') + ' ' + 
-                         (materialTitle || '') + ' ' + 
-                         (moduleTitle || '') + ' ' +
-                         (urlCandidate || '')
-            });
-          } else {
-            const entry = docMap.get(key);
-            const hasRef = entry.refs.some(r => String(r.materialId) === String(materialId) && r.materialTitle === materialTitle);
-            if (!hasRef) {
-              entry.refs.push({ materialTitle, moduleTitle, materialId });
-              // Update search text with new references
-              entry.searchText += ' ' + (materialTitle || '') + ' ' + (moduleTitle || '');
-            }
-          }
-        });
-      });
-    });
-
-    libLoader.style.display = 'none';
-
-    const items = Array.from(docMap.values());
-    if (!items.length) {
-      libEmpty.style.display = '';
-      libList.style.display = 'none';
-      searchContainer.style.display = 'none';
-      libConfirm.disabled = true;
-      return;
-    }
-
-    // Show search container since we have items
-    searchContainer.style.display = '';
-
-    // helper: detect type by extension
-    function extOf(u){ try { return (u || '').split('?')[0].split('.').pop().toLowerCase(); } catch(e){ return ''; } }
-    function isImageExt(e){ return ['png','jpg','jpeg','webp','gif','svg'].includes(e); }
-    function isPdfExt(e){ return e === 'pdf'; }
-    function isVideoExt(e){ return ['mp4','webm','ogg','mov'].includes(e); }
-
-    // Function to highlight search terms in text
-    function highlightText(text, searchTerm) {
-      if (!searchTerm || !text) return escapeHtml(text);
-      
-      const escapedText = escapeHtml(text);
-      const regex = new RegExp(`(${searchTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
-      return escapedText.replace(regex, '<span class="highlight">$1</span>');
-    }
-
-    // Function to render library items with optional filtering
-    function renderLibraryItems(filteredItems = items, searchTerm = '') {
-      const selectedSet = new Set((createModalEl._selectedLibraryUrls || []).map(u => String(u)));
-      
-      const cardHtml = filteredItems.map((it, idx) => {
-        const url = it.url || '';
-        const name = it.name || (url||'').split('/').pop() || `file-${idx+1}`;
-        const ext = extOf(url);
-        const isImg = isImageExt(ext);
-        const isPdf = isPdfExt(ext);
-        const isVid = isVideoExt(ext);
-        const refs = it.refs.map(r => (r.moduleTitle ? `${r.materialTitle} • ${r.moduleTitle}` : r.materialTitle));
-        const refsShort = refs.slice(0,3).join(', ');
-        const more = Math.max(0, refs.length - 3);
-        const refsDisplay = refsShort + (more ? `, +${more} more` : '');
-        const checked = selectedSet.has(url) ? 'checked' : '';
-
-        // Highlight name and refs if searching
-        const highlightedName = searchTerm ? highlightText(name, searchTerm) : escapeHtml(name);
-        const highlightedRefs = searchTerm ? highlightText(refsDisplay, searchTerm) : escapeHtml(refsDisplay);
-
-        // thumbnail markup
-        let thumbHtml = '';
-        if (isImg) {
-          thumbHtml = `<img loading="lazy" class="sm-lib-thumb" src="${escapeHtml(url)}" alt="${escapeHtml(name)}" />`;
-        } else if (isPdf) {
-          thumbHtml = `<div class="sm-lib-placeholder-icon"><i class="fa fa-file-pdf"></i></div>`;
-        } else if (isVid) {
-          thumbHtml = `<div class="sm-lib-placeholder-icon"><i class="fa fa-video"></i></div>`;
-        } else {
-          thumbHtml = `<div class="sm-lib-placeholder-icon"><i class="fa fa-file"></i></div>`;
-        }
-
-        return `
-          <div class="sm-lib-card" data-url="${escapeHtml(url)}" data-ext="${escapeHtml(ext)}" data-name="${escapeHtml(name)}">
-            <div class="overlay-checkbox">
-              <input class="sm-lib-checkbox" type="checkbox" data-url="${escapeHtml(url)}" ${checked} />
-            </div>
-
-            <div class="thumb-wrap">${thumbHtml}</div>
-
-            <div class="card-name" title="${escapeHtml(name)}">${highlightedName}</div>
-            <div class="card-refs" title="${escapeHtml(refs.join(' • '))}">${highlightedRefs}</div>
-
-            <div class="card-actions">
-              <div style="display:flex; gap:8px; align-items:center;">
-                <button type="button" class="sm-lib-preview-row btn btn-sm btn-outline-primary" data-url="${escapeHtml(url)}" title="Preview"><i class="fa fa-eye"></i> Preview</button>
+            <div class="modal-body" style="min-height:160px;">
+             <div id="smLibLoader" style="display:none; padding:18px;">
+              <div style="display:flex; align-items:center; gap:8px;">
+                <div class="spin" aria-hidden="true"></div>
+                <div class="text-muted">Loading library…</div>
               </div>
-              <div style="font-size:12px; color:var(--muted-color);">${escapeHtml(String(it.refs.length))} ref(s)</div>
+            </div>
+
+              <div id="smLibEmpty" style="display:none;" class="text-muted small p-3;">No library items found for this batch.</div>
+
+              <div id="smLibSearchContainer" class="mb-3" style="display:none;">
+                <div class="input-group input-group-sm">
+                  <span class="input-group-text" id="search-addon">
+                    <i class="fa fa-search"></i>
+                  </span>
+                  <input
+                    type="text"
+                    id="smLibSearch"
+                    class="form-control"
+                    placeholder="Search documents by name or reference..."
+                    aria-label="Search"
+                    aria-describedby="search-addon"
+                  />
+                  <button id="smLibClearSearch" class="btn btn-outline-secondary" type="button" style="display:none;">
+                    <i class="fa fa-times"></i>
+                  </button>
+                </div>
+                <div id="smLibSearchResults" class="small text-muted mt-2" style="display:none;"></div>
+              </div>
+
+              <div id="smLibList" style="display:none;"></div>
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+              <button id="smLibConfirm" type="button" class="btn btn-primary">Add selected</button>
             </div>
           </div>
-        `;
-      }).join('');
+        </div>
+      `;
+      document.body.appendChild(m);
+      _libModal = m;
+      return _libModal;
+    }
 
-      libList.innerHTML = `<div class="sm-lib-grid">${cardHtml}</div>`;
-      libList.style.display = '';
+    async function openLibraryPicker() {
+      const modalEl = ensureLibraryModal();
+      const libList = modalEl.querySelector('#smLibList');
+      const libLoader = modalEl.querySelector('#smLibLoader');
+      const libEmpty = modalEl.querySelector('#smLibEmpty');
+      const libConfirm = modalEl.querySelector('#smLibConfirm');
+      const searchContainer = modalEl.querySelector('#smLibSearchContainer');
+      const searchInput = modalEl.querySelector('#smLibSearch');
+      const clearSearchBtn = modalEl.querySelector('#smLibClearSearch');
+      const searchResults = modalEl.querySelector('#smLibSearchResults');
+
+      libList.innerHTML = '';
+      libLoader.style.display = '';
+      libList.style.display = 'none';
       libEmpty.style.display = 'none';
-
-      // Update search results counter
-      if (searchTerm) {
-        searchResults.style.display = '';
-        searchResults.textContent = `Found ${filteredItems.length} of ${items.length} items`;
-      } else {
-        searchResults.style.display = 'none';
-      }
-
-      // Wire up card interactions
-      wireCardInteractions();
-    }
-
-    // Function to wire up card interactions
-    function wireCardInteractions() {
-      const grid = libList.querySelector('.sm-lib-grid');
-      if (!grid) return;
-
-      // wire checkboxes
-      grid.querySelectorAll('.sm-lib-card').forEach(card => {
-        const cb = card.querySelector('.sm-lib-checkbox');
-        // card click toggles checkbox unless click on interactive element
-        card.addEventListener('click', (ev) => {
-          if (ev.target.closest('.sm-lib-preview-row') || 
-              ev.target.tagName === 'INPUT' || 
-              ev.target.closest('.overlay-checkbox')) return;
-          cb.checked = !cb.checked;
-          updateConfirmButtonState();
-        });
-        // also update confirm state when checkbox changed directly
-        cb.addEventListener('change', updateConfirmButtonState);
-      });
-
-      // wire preview buttons
-      libList.querySelectorAll('.sm-lib-preview-row').forEach(btn => {
-        btn.addEventListener('click', (ev) => {
-          ev.preventDefault();
-          ev.stopPropagation();
-          const u = btn.dataset.url;
-          if (!u) return;
-
-          // build attachment object consistent with your previewer
-          const at = { url: u, name: (u||'').split('/').pop() };
-          // close library modal for cleaner UX prior to preview
-          try { 
-            if (window.bootstrap && typeof window.bootstrap.Modal === 'function') {
-              bootstrap.Modal.getInstance(modalEl)?.hide(); 
-            } else { 
-              modalEl.classList.remove('show'); 
-              modalEl.style.display = 'none'; 
-              document.body.classList.remove('modal-open'); 
-            }
-          } catch(e){}
-          // open existing preview helper
-          openAttachmentPreview(at, at.name || 'Preview');
-        });
-      });
-    }
-
-    // Function to update confirm button state
-    function updateConfirmButtonState() {
-      const grid = libList.querySelector('.sm-lib-grid');
-      if (!grid) {
-        libConfirm.disabled = true;
-        return;
-      }
-      const any = Array.from(grid.querySelectorAll('.sm-lib-checkbox')).some(n => n.checked);
-      libConfirm.disabled = !any;
-    }
-
-    // Initial render
-    renderLibraryItems(items);
-
-    // Search functionality
-    let searchTimeout;
-    searchInput.addEventListener('input', function(e) {
-      clearTimeout(searchTimeout);
-      
-      const searchTerm = e.target.value.trim().toLowerCase();
-      
-      // Show/hide clear button
-      if (searchTerm) {
-        clearSearchBtn.style.display = 'block';
-      } else {
-        clearSearchBtn.style.display = 'none';
-        searchResults.style.display = 'none';
-        renderLibraryItems(items, '');
-        return;
-      }
-
-      // Debounce search
-      searchTimeout = setTimeout(() => {
-        const filtered = items.filter(item => {
-          // Search in name, material title, module title, and URL
-          return item.searchText.toLowerCase().includes(searchTerm);
-        });
-
-        renderLibraryItems(filtered, searchTerm);
-      }, 300);
-    });
-
-    // Clear search button
-    clearSearchBtn.addEventListener('click', function() {
+      searchContainer.style.display = 'none';
       searchInput.value = '';
       clearSearchBtn.style.display = 'none';
       searchResults.style.display = 'none';
-      renderLibraryItems(items, '');
-      searchInput.focus();
-    });
+      libConfirm.disabled = true;
 
-    // Keyboard shortcuts for search
-    searchInput.addEventListener('keydown', function(e) {
-      if (e.key === 'Escape') {
-        if (this.value) {
-          this.value = '';
+      try {
+        if (window.bootstrap && typeof window.bootstrap.Modal === 'function') {
+          bootstrap.Modal.getOrCreateInstance(modalEl).show();
+        } else {
+          modalEl.style.display = 'block';
+          modalEl.classList.add('show');
+          document.body.classList.add('modal-open');
+        }
+      } catch (e) {}
+
+      if (!document.getElementById('sm-lib-card-styles')) {
+        const style = document.createElement('style');
+        style.id = 'sm-lib-card-styles';
+        style.textContent = `
+          #smLibList .sm-lib-grid { display: grid; gap: 12px; grid-template-columns: repeat(3, 1fr); }
+          @media (max-width: 1024px) { #smLibList .sm-lib-grid { grid-template-columns: repeat(2, 1fr); } }
+          @media (max-width: 640px) { #smLibList .sm-lib-grid { grid-template-columns: repeat(1, 1fr); } }
+
+          .sm-lib-card { display:flex; flex-direction:column; gap:8px; padding:10px; border-radius:10px; border:1px solid rgba(0,0,0,0.06); background:#fff; min-height:160px; position:relative; overflow:hidden; }
+          .sm-lib-thumb { height:120px; display:block; width:100%; object-fit:cover; border-radius:8px; background: linear-gradient(180deg,#f7f7f7,#fff); box-shadow: inset 0 0 0 1px rgba(0,0,0,0.02); }
+          .sm-lib-placeholder-icon { width:100%; height:120px; display:flex; align-items:center; justify-content:center; font-size:36px; color:rgba(0,0,0,0.35); border-radius:8px; background: linear-gradient(180deg,#fafafa,#fff); }
+          .sm-lib-card .overlay-checkbox { position:absolute; top:10px; left:10px; z-index:5; background:rgba(255,255,255,0.9); padding:6px; border-radius:6px; box-shadow:0 1px 3px rgba(0,0,0,0.06); }
+          .sm-lib-card .card-refs { font-size:12px; color:var(--muted-color); margin-top:6px; max-height:3.6em; overflow:hidden; }
+          .sm-lib-card .card-actions { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-top:auto; }
+          .sm-lib-card .card-name { margin-top:6px; font-weight:600; font-size:13px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+          .highlight { background-color: rgba(255, 255, 0, 0.3); padding: 0 1px; border-radius: 2px; }
+        `;
+        document.head.appendChild(style);
+      }
+
+      try {
+        const ctx = readContext();
+        if (!ctx || !ctx.batch_id) throw new Error('Missing batch context');
+
+        const url = `${apiBase}/batch/${encodeURIComponent(ctx.batch_id)}`;
+        const res = await apiFetch(url);
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const json = await res.json().catch(() => null);
+        if (!json || !json.data) throw new Error('Invalid response');
+
+        const modulesWithMaterials = json.data.modules_with_materials || [];
+
+        const docMap = new Map();
+        modulesWithMaterials.forEach(mg => {
+          const moduleTitle = mg.module?.title || '';
+          (mg.materials || []).forEach(mat => {
+            const materialTitle = mat.title || 'Untitled';
+            const materialId = mat.id || mat.uuid || '';
+            const atts = Array.isArray(mat.attachment) ? mat.attachment : (mat.attachments || []);
+            (atts || []).forEach(a => {
+              const normalized = (typeof a === 'string') ? { url: a, name: (a||'').split('/').pop() } : a;
+              const urlCandidate = (normalized.signed_url || normalized.url || normalized.path || '') + '';
+              if (!urlCandidate) return;
+              const key = urlCandidate.split('?')[0];
+              if (!docMap.has(key)) {
+                docMap.set(key, {
+                  url: urlCandidate,
+                  name: normalized.name || (urlCandidate.split('/').pop() || 'file'),
+                  refs: [{ materialTitle, moduleTitle, materialId }],
+                  sample: normalized,
+                  searchText: (normalized.name || '') + ' ' + (materialTitle || '') + ' ' + (moduleTitle || '') + ' ' + (urlCandidate || '')
+                });
+              } else {
+                const entry = docMap.get(key);
+                const hasRef = entry.refs.some(r => String(r.materialId) === String(materialId) && r.materialTitle === materialTitle);
+                if (!hasRef) {
+                  entry.refs.push({ materialTitle, moduleTitle, materialId });
+                  entry.searchText += ' ' + (materialTitle || '') + ' ' + (moduleTitle || '');
+                }
+              }
+            });
+          });
+        });
+
+        libLoader.style.display = 'none';
+
+        const items = Array.from(docMap.values());
+        if (!items.length) {
+          libEmpty.style.display = '';
+          libList.style.display = 'none';
+          searchContainer.style.display = 'none';
+          libConfirm.disabled = true;
+          return;
+        }
+
+        searchContainer.style.display = '';
+
+        function extOf(u){ try { return (u || '').split('?')[0].split('.').pop().toLowerCase(); } catch(e){ return ''; } }
+        function isImageExt(e){ return ['png','jpg','jpeg','webp','gif','svg'].includes(e); }
+        function isPdfExt(e){ return e === 'pdf'; }
+        function isVideoExt(e){ return ['mp4','webm','ogg','mov'].includes(e); }
+
+        function highlightText(text, searchTerm) {
+          if (!searchTerm || !text) return escapeHtml(text);
+          const escapedText = escapeHtml(text);
+          const regex = new RegExp(`(${searchTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+          return escapedText.replace(regex, '<span class="highlight">$1</span>');
+        }
+
+        function renderLibraryItems(filteredItems = items, searchTerm = '') {
+          const selectedSet = new Set((createModalEl._selectedLibraryUrls || []).map(u => String(u)));
+
+          const cardHtml = filteredItems.map((it, idx) => {
+            const url = it.url || '';
+            const name = it.name || (url||'').split('/').pop() || `file-${idx+1}`;
+            const ext = extOf(url);
+            const isImg = isImageExt(ext);
+            const isPdf = isPdfExt(ext);
+            const isVid = isVideoExt(ext);
+            const refs = it.refs.map(r => (r.moduleTitle ? `${r.materialTitle} • ${r.moduleTitle}` : r.materialTitle));
+            const refsShort = refs.slice(0,3).join(', ');
+            const more = Math.max(0, refs.length - 3);
+            const refsDisplay = refsShort + (more ? `, +${more} more` : '');
+            const checked = selectedSet.has(url) ? 'checked' : '';
+
+            const highlightedName = searchTerm ? highlightText(name, searchTerm) : escapeHtml(name);
+            const highlightedRefs = searchTerm ? highlightText(refsDisplay, searchTerm) : escapeHtml(refsDisplay);
+
+            let thumbHtml = '';
+            if (isImg) {
+              thumbHtml = `<img loading="lazy" class="sm-lib-thumb" src="${escapeHtml(url)}" alt="${escapeHtml(name)}" />`;
+            } else if (isPdf) {
+              thumbHtml = `<div class="sm-lib-placeholder-icon"><i class="fa fa-file-pdf"></i></div>`;
+            } else if (isVid) {
+              thumbHtml = `<div class="sm-lib-placeholder-icon"><i class="fa fa-video"></i></div>`;
+            } else {
+              thumbHtml = `<div class="sm-lib-placeholder-icon"><i class="fa fa-file"></i></div>`;
+            }
+
+            return `
+              <div class="sm-lib-card" data-url="${escapeHtml(url)}" data-ext="${escapeHtml(ext)}" data-name="${escapeHtml(name)}">
+                <div class="overlay-checkbox">
+                  <input class="sm-lib-checkbox" type="checkbox" data-url="${escapeHtml(url)}" ${checked} />
+                </div>
+
+                <div class="thumb-wrap">${thumbHtml}</div>
+
+                <div class="card-name" title="${escapeHtml(name)}">${highlightedName}</div>
+                <div class="card-refs" title="${escapeHtml(refs.join(' • '))}">${highlightedRefs}</div>
+
+                <div class="card-actions">
+                  <div style="display:flex; gap:8px; align-items:center;">
+                    <button type="button" class="sm-lib-preview-row btn btn-sm btn-outline-primary" data-url="${escapeHtml(url)}" title="Preview"><i class="fa fa-eye"></i> Preview</button>
+                  </div>
+                  <div style="font-size:12px; color:var(--muted-color);">${escapeHtml(String(it.refs.length))} ref(s)</div>
+                </div>
+              </div>
+            `;
+          }).join('');
+
+          libList.innerHTML = `<div class="sm-lib-grid">${cardHtml}</div>`;
+          libList.style.display = '';
+          libEmpty.style.display = 'none';
+
+          if (searchTerm) {
+            searchResults.style.display = '';
+            searchResults.textContent = `Found ${filteredItems.length} of ${items.length} items`;
+          } else {
+            searchResults.style.display = 'none';
+          }
+
+          wireCardInteractions();
+        }
+
+        function wireCardInteractions() {
+          const grid = libList.querySelector('.sm-lib-grid');
+          if (!grid) return;
+
+          grid.querySelectorAll('.sm-lib-card').forEach(card => {
+            const cb = card.querySelector('.sm-lib-checkbox');
+            card.addEventListener('click', (ev) => {
+              if (ev.target.closest('.sm-lib-preview-row') || ev.target.tagName === 'INPUT' || ev.target.closest('.overlay-checkbox')) return;
+              cb.checked = !cb.checked;
+              updateConfirmButtonState();
+            });
+            cb.addEventListener('change', updateConfirmButtonState);
+          });
+
+          libList.querySelectorAll('.sm-lib-preview-row').forEach(btn => {
+            btn.addEventListener('click', (ev) => {
+              ev.preventDefault();
+              ev.stopPropagation();
+              const u = btn.dataset.url;
+              if (!u) return;
+
+              const at = { url: u, name: (u||'').split('/').pop() };
+              try {
+                if (window.bootstrap && typeof window.bootstrap.Modal === 'function') {
+                  bootstrap.Modal.getInstance(modalEl)?.hide();
+                } else {
+                  modalEl.classList.remove('show');
+                  modalEl.style.display = 'none';
+                  document.body.classList.remove('modal-open');
+                }
+              } catch(e){}
+              openAttachmentPreview(at, at.name || 'Preview');
+            });
+          });
+        }
+
+        function updateConfirmButtonState() {
+          const grid = libList.querySelector('.sm-lib-grid');
+          if (!grid) { libConfirm.disabled = true; return; }
+          const any = Array.from(grid.querySelectorAll('.sm-lib-checkbox')).some(n => n.checked);
+          libConfirm.disabled = !any;
+        }
+
+        renderLibraryItems(items);
+
+        let searchTimeout;
+        searchInput.addEventListener('input', function(e) {
+          clearTimeout(searchTimeout);
+
+          const searchTerm = e.target.value.trim().toLowerCase();
+
+          if (searchTerm) {
+            clearSearchBtn.style.display = 'block';
+          } else {
+            clearSearchBtn.style.display = 'none';
+            searchResults.style.display = 'none';
+            renderLibraryItems(items, '');
+            return;
+          }
+
+          searchTimeout = setTimeout(() => {
+            const filtered = items.filter(item => item.searchText.toLowerCase().includes(searchTerm));
+            renderLibraryItems(filtered, searchTerm);
+          }, 300);
+        });
+
+        clearSearchBtn.addEventListener('click', function() {
+          searchInput.value = '';
           clearSearchBtn.style.display = 'none';
           searchResults.style.display = 'none';
           renderLibraryItems(items, '');
-        } else {
-          // Close modal on second escape if search is empty
+          searchInput.focus();
+        });
+
+        searchInput.addEventListener('keydown', function(e) {
+          if (e.key === 'Escape') {
+            if (this.value) {
+              this.value = '';
+              clearSearchBtn.style.display = 'none';
+              searchResults.style.display = 'none';
+              renderLibraryItems(items, '');
+            } else {
+              try {
+                if (window.bootstrap && typeof window.bootstrap.Modal === 'function') {
+                  bootstrap.Modal.getInstance(modalEl)?.hide();
+                }
+              } catch(e) {}
+            }
+          }
+        });
+
+        libConfirm.onclick = () => {
+          const checked = Array.from(libList.querySelectorAll('.sm-lib-checkbox'))
+            .filter(n => n.checked)
+            .map(n => n.dataset.url);
+          const exist = createModalEl._selectedLibraryUrls || [];
+          const set = new Set(exist.concat([]));
+          checked.forEach(u => { if (u && !set.has(u)) set.add(u); });
+          createModalEl._selectedLibraryUrls = Array.from(set);
+          renderFileList();
           try {
             if (window.bootstrap && typeof window.bootstrap.Modal === 'function') {
               bootstrap.Modal.getInstance(modalEl)?.hide();
+            } else {
+              modalEl.classList.remove('show');
+              modalEl.style.display = 'none';
+              document.body.classList.remove('modal-open');
             }
-          } catch(e) {}
-        }
-      }
-    });
+          } catch (e) {}
+        };
 
-    // final confirm: collect selected card urls
-    libConfirm.onclick = () => {
-      const checked = Array.from(libList.querySelectorAll('.sm-lib-checkbox'))
-        .filter(n => n.checked)
-        .map(n => n.dataset.url);
-      const exist = createModalEl._selectedLibraryUrls || [];
-      const set = new Set(exist.concat([]));
-      checked.forEach(u => { if (u && !set.has(u)) set.add(u); });
-      createModalEl._selectedLibraryUrls = Array.from(set);
-      renderFileList();
-      // close modal
+      } catch (err) {
+        console.error('Library picker error', err);
+        libLoader.style.display = 'none';
+        libList.style.display = 'none';
+        libEmpty.style.display = '';
+        libEmpty.textContent = 'Unable to load library items.';
+        searchContainer.style.display = 'none';
+      }
+    }
+  })();
+
+  // -------------------------
+  // ✅ Detect URL changes (SPA) and reload correct module
+  // -------------------------
+  (function watchUrlChanges(){
+    let lastHref = String(location.href);
+
+    function handlePossibleChange(){
+      const now = String(location.href);
+      if (now === lastHref) return;
+      lastHref = now;
+
+      // resync DOM from URL
       try {
-        if (window.bootstrap && typeof window.bootstrap.Modal === 'function') {
-          bootstrap.Modal.getInstance(modalEl)?.hide();
-        } else {
-          modalEl.classList.remove('show'); 
-          modalEl.style.display = 'none'; 
-          document.body.classList.remove('modal-open');
+        const host = document.querySelector('.crs-wrap');
+        const qModule = deriveModuleUuid();
+        if (host && qModule) {
+          host.dataset.moduleId = String(qModule);
+          host.dataset.module_id = String(qModule);
         }
-      } catch (e) {}
+      } catch(e){}
+
+      try { updateContextDisplay(); } catch(e){}
+      loadMaterials();
+    }
+
+    // back/forward
+    window.addEventListener('popstate', handlePossibleChange);
+
+    // patch pushState/replaceState
+    const _ps = history.pushState;
+    const _rs = history.replaceState;
+
+    history.pushState = function(){
+      const r = _ps.apply(this, arguments);
+      setTimeout(handlePossibleChange, 0);
+      return r;
+    };
+    history.replaceState = function(){
+      const r = _rs.apply(this, arguments);
+      setTimeout(handlePossibleChange, 0);
+      return r;
     };
 
-  } catch (err) {
-    console.error('Library picker error', err);
-    libLoader.style.display = 'none';
-    libList.style.display = 'none';
-    libEmpty.style.display = '';
-    libEmpty.textContent = 'Unable to load library items.';
-    searchContainer.style.display = 'none';
-  }
-}
+    // fallback poll (very light)
+    setInterval(handlePossibleChange, 500);
   })();
 
   // initial UI and data load

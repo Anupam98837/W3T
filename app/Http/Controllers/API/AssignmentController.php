@@ -675,6 +675,13 @@ public function restore(Request $r, string $assignment)
 /**
  * View assignments for a batch (RBAC aware)
  * Route example: GET /api/batches/{batchKey}/assignments
+ *
+ * ✅ Added module filtering (like study material):
+ *   - Supports ?module_uuid=<uuid>  (preferred)
+ *   - Also supports ?module_id=<id> (fallback)
+ *   - URL filter applies to:
+ *       1) modules list (modules_with_assignments + all_modules)
+ *       2) assignments query
  */
 public function viewAssignmentByBatch(Request $r, string $batchKey)
 {
@@ -685,9 +692,9 @@ public function viewAssignmentByBatch(Request $r, string $batchKey)
         return response()->json(['error'=>'Unauthorized Access'], 403);
     }
 
-    $isAdminLike = in_array($role, ['super_admin','admin'], true);
+    $isAdminLike  = in_array($role, ['super_admin','admin'], true);
     $isInstructor = $role === 'instructor';
-    $isStudent = $role === 'student';
+    $isStudent    = $role === 'student';
 
     // resolve batch (id | uuid | slug)
     $bq = DB::table('batches')->whereNull('deleted_at');
@@ -717,31 +724,102 @@ public function viewAssignmentByBatch(Request $r, string $batchKey)
         if (!$biUserCol) {
             return response()->json(['error'=>'Schema issue: batch_instructors needs user_id OR instructor_id'], 500);
         }
-        $assigned = DB::table('batch_instructors')->where('batch_id', $batch->id)->whereNull('deleted_at')->where($biUserCol, $uid)->exists();
+        $assigned = DB::table('batch_instructors')
+            ->where('batch_id', $batch->id)
+            ->whereNull('deleted_at')
+            ->where($biUserCol, $uid)
+            ->exists();
         if (!$assigned) return response()->json(['error'=>'Forbidden'], 403);
     }
     if ($isStudent) {
         if (!$bsUserCol) {
             return response()->json(['error'=>'Schema issue: batch_students needs user_id OR student_id'], 500);
         }
-        $enrolled = DB::table('batch_students')->where('batch_id', $batch->id)->whereNull('deleted_at')->where($bsUserCol, $uid)->exists();
+        $enrolled = DB::table('batch_students')
+            ->where('batch_id', $batch->id)
+            ->whereNull('deleted_at')
+            ->where($bsUserCol, $uid)
+            ->exists();
         if (!$enrolled) return response()->json(['error'=>'Forbidden'], 403);
     }
 
     // load course
-    $course = DB::table('courses')->where('id', $batch->course_id)->whereNull('deleted_at')->first();
+    $course = DB::table('courses')
+        ->where('id', $batch->course_id)
+        ->whereNull('deleted_at')
+        ->first();
     if (!$course) return response()->json(['error'=>'Course not found for this batch'], 404);
+
+    // ===========================
+    // ✅ Module filter (UUID-first)
+    // ===========================
+    $moduleUuid = trim((string) $r->query('module_uuid', ''));
+    $moduleId   = trim((string) $r->query('module_id', ''));
+
+    // normalize: if module_uuid not given but module_id is actually a uuid
+    if ($moduleUuid === '' && $moduleId !== '' && \Illuminate\Support\Str::isUuid($moduleId)) {
+        $moduleUuid = $moduleId;
+        $moduleId = '';
+    }
+
+    // resolve module id from uuid if provided
+    $resolvedModuleId = null;
+    if ($moduleUuid !== '') {
+        if (!\Illuminate\Support\Str::isUuid($moduleUuid)) {
+            return response()->json(['error' => 'Invalid module_uuid'], 422);
+        }
+
+        $resolvedModuleId = DB::table('course_modules')
+            ->where('course_id', $course->id)
+            ->whereNull('deleted_at')
+            ->where('uuid', $moduleUuid)
+            ->value('id');
+
+        if (!$resolvedModuleId) {
+            return response()->json(['error' => 'Module not found for this course'], 404);
+        }
+    } elseif ($moduleId !== '') {
+        if (!ctype_digit($moduleId)) {
+            return response()->json(['error' => 'Invalid module_id'], 422);
+        }
+        $resolvedModuleId = (int) $moduleId;
+
+        $exists = DB::table('course_modules')
+            ->where('course_id', $course->id)
+            ->whereNull('deleted_at')
+            ->where('id', $resolvedModuleId)
+            ->exists();
+
+        if (!$exists) {
+            return response()->json(['error' => 'Module not found for this course'], 404);
+        }
+    }
 
     // load modules for the course (students see only published)
     $isStaff = $isAdminLike || $isInstructor;
-    $modQ = DB::table('course_modules')->where('course_id', $course->id)->whereNull('deleted_at')->orderBy('order_no')->orderBy('id');
+
+    $modQ = DB::table('course_modules')
+        ->where('course_id', $course->id)
+        ->whereNull('deleted_at')
+        ->orderBy('order_no')
+        ->orderBy('id');
+
     if (!$isStaff) $modQ->where('status', 'published');
+
+    // ✅ apply module filter to modules list
+    if ($resolvedModuleId) $modQ->where('id', $resolvedModuleId);
+
     $modules = $modQ->get();
+
+    // if filtered and no module returned due to unpublished restriction for student
+    if ($resolvedModuleId && !$isStaff && $modules->count() === 0) {
+        return response()->json(['error' => 'Module is not available'], 403);
+    }
 
     // load assignments for batch (join modules for context and creator info)
     $aq = DB::table('assignments as a')
         ->leftJoin('course_modules as cm', 'cm.id', '=', 'a.course_module_id')
-        ->leftJoin('users as creator', 'creator.id', '=', 'a.created_by') // Join with users table for creator info
+        ->leftJoin('users as creator', 'creator.id', '=', 'a.created_by')
         ->where('a.batch_id', $batch->id)
         ->whereNull('a.deleted_at')
         ->whereNull('cm.deleted_at')
@@ -749,13 +827,18 @@ public function viewAssignmentByBatch(Request $r, string $batchKey)
             'a.id','a.uuid','a.title','a.slug','a.instruction','a.status','a.attachments_json',
             'a.course_module_id','cm.title as module_title','cm.uuid as module_uuid','cm.status as module_status',
             'a.created_at','a.updated_at',
-            'creator.name as created_by_name' // Get creator's name
+            'creator.name as created_by_name'
         )
         ->orderBy('cm.order_no')
         ->orderBy('a.created_at', 'desc');
 
     if (!$isStaff) {
         $aq->where('cm.status', 'published');
+    }
+
+    // ✅ apply module filter to assignments (uuid-first resolved to id)
+    if ($resolvedModuleId) {
+        $aq->where('a.course_module_id', $resolvedModuleId);
     }
 
     $assignments = $aq->get();
@@ -778,7 +861,13 @@ public function viewAssignmentByBatch(Request $r, string $batchKey)
 
         $attachments = [];
         if (!empty($as->attachments_json)) {
-            try { $attachments = is_string($as->attachments_json) ? json_decode($as->attachments_json, true) : $as->attachments_json; } catch (\Throwable $e) { $attachments = []; }
+            try {
+                $attachments = is_string($as->attachments_json)
+                    ? json_decode($as->attachments_json, true)
+                    : $as->attachments_json;
+            } catch (\Throwable $e) {
+                $attachments = [];
+            }
         }
 
         $byModule[$mid]['assignments'][] = [
@@ -791,7 +880,7 @@ public function viewAssignmentByBatch(Request $r, string $batchKey)
             'attachments' => $attachments,
             'created_at' => $as->created_at,
             'updated_at' => $as->updated_at,
-            'created_by_name' => $as->created_by_name, // Include creator's name
+            'created_by_name' => $as->created_by_name,
         ];
     }
 
@@ -816,8 +905,15 @@ public function viewAssignmentByBatch(Request $r, string $batchKey)
             ])->values();
     }
 
-    $studentsCount = DB::table('batch_students')->where('batch_id', $batch->id)->whereNull('deleted_at')->count();
-    $assignmentsCount = DB::table('assignments')->where('batch_id', $batch->id)->whereNull('deleted_at')->count();
+    $studentsCount = DB::table('batch_students')
+        ->where('batch_id', $batch->id)
+        ->whereNull('deleted_at')
+        ->count();
+
+    // ✅ count only filtered assignments if module filter applied
+    $assignmentsCountQ = DB::table('assignments')->where('batch_id', $batch->id)->whereNull('deleted_at');
+    if ($resolvedModuleId) $assignmentsCountQ->where('course_module_id', $resolvedModuleId);
+    $assignmentsCount = $assignmentsCountQ->count();
 
     $payload = [
         'batch' => (array)$batch,
@@ -829,13 +925,17 @@ public function viewAssignmentByBatch(Request $r, string $batchKey)
         ],
         'modules_with_assignments' => array_values($byModule),
         'all_modules' => $modules->map(fn($m) => [
-            'id' => (int)$m->id, 'uuid' => $m->uuid, 'title' => $m->title, 'status' => $m->status, 'order_no' => (int)$m->order_no
+            'id' => (int)$m->id,
+            'uuid' => $m->uuid,
+            'title' => $m->title,
+            'status' => $m->status,
+            'order_no' => (int)$m->order_no
         ])->values(),
         'instructors' => $instructors,
         'stats' => [
             'students_count' => (int)$studentsCount,
             'assignments_count' => (int)$assignmentsCount,
-            'modules_count' => count($modules),
+            'modules_count' => (int)$modules->count(),
             'you_are_instructor' => $isInstructor,
             'you_are_student' => $isStudent,
         ],
@@ -843,16 +943,21 @@ public function viewAssignmentByBatch(Request $r, string $batchKey)
             'can_create_assignment' => $isAdminLike || $isInstructor,
             'can_view_unpublished_modules' => $isAdminLike || $isInstructor,
         ],
+        // ✅ help frontend debug
+        'filters' => [
+            'module_uuid' => $moduleUuid ?: null,
+            'module_id'   => $resolvedModuleId ? (int)$resolvedModuleId : null,
+        ],
     ];
 
-    $this->logWithActor('[Assignments] view by batch', $r, ['batch_id' => $batch->id, 'assignments_count' => $assignmentsCount]);
+    $this->logWithActor('[Assignments] view by batch', $r, [
+        'batch_id' => $batch->id,
+        'assignments_count' => $assignmentsCount,
+        'module_filter' => $resolvedModuleId ? (int)$resolvedModuleId : null,
+    ]);
 
     return response()->json(['data' => $payload]);
 }
-/**
- * Create assignment for a batch (resolve batch by id|uuid|slug).
- * Delegates to store() after injecting course_id, batch_id, course_module_id.
- */
 public function storeByBatch(Request $r, string $batchKey)
 {
     if ($res = $this->requireRole($r, ['admin','super_admin','instructor'])) return $res;
@@ -914,10 +1019,11 @@ public function storeByBatch(Request $r, string $batchKey)
     $courseId = (int) ($batch->course_id ?? 0);
 
     /* =========================
-       Resolve course_module_id
+       ✅ FIX: Resolve course_module_id from BOTH module_uuid AND course_module_id
        ========================= */
     $moduleId = null;
 
+    // Priority 1: Try course_module_id (numeric ID)
     if ($r->filled('course_module_id')) {
         $module = DB::table('course_modules')
             ->where('id', (int)$r->input('course_module_id'))
@@ -935,7 +1041,38 @@ public function storeByBatch(Request $r, string $batchKey)
         }
 
         $moduleId = (int)$module->id;
-    } else {
+    }
+    // Priority 2: Try module_uuid (UUID format) ✅ NEW
+    elseif ($r->filled('module_uuid')) {
+        $moduleUuid = $r->input('module_uuid');
+        
+        $module = DB::table('course_modules')
+            ->where('uuid', $moduleUuid)
+            ->whereNull('deleted_at')
+            ->first();
+
+        if (!$module) {
+            return response()->json([
+                'errors' => [
+                    'module_uuid' => ['Course module not found with UUID: ' . $moduleUuid]
+                ]
+            ], 422);
+        }
+
+        if ((int)$module->course_id !== $courseId) {
+            return response()->json([
+                'errors' => [
+                    'module_uuid' => [
+                        'Course module does not belong to this batch\'s course'
+                    ]
+                ]
+            ], 422);
+        }
+
+        $moduleId = (int)$module->id;
+    }
+    // Priority 3: Fallback to first/published module
+    else {
         $modules = DB::table('course_modules')
             ->where('course_id', $courseId)
             ->whereNull('deleted_at')
@@ -955,7 +1092,7 @@ public function storeByBatch(Request $r, string $batchKey)
                 return response()->json([
                     'errors' => [
                         'course_module_id' => [
-                            'Unable to infer course_module_id from batch — please provide course_module_id'
+                            'Unable to infer course_module_id from batch — please provide course_module_id or module_uuid'
                         ]
                     ]
                 ], 422);
@@ -988,8 +1125,6 @@ public function storeByBatch(Request $r, string $batchKey)
 
     return $this->store($r, $courseId);
 }
-
-
 /**
  * Bin (deleted items) by batch — admin/instructor (instructor must be assigned)
  */
