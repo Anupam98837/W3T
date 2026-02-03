@@ -630,7 +630,7 @@
           @endphp
 
           <ul class="nav tabbar" id="vcTabs">
-            <li class="nav-item">
+            <li class="nav-item d-none">
               <a class="nav-link {{ $tabKey==='recorded'?'active':'' }}"
                  data-tab="recorded"
                  href="{{ $self }}?tab=recorded{{ $mParam }}">

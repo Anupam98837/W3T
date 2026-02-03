@@ -186,12 +186,15 @@ class BatchCodingQuestionController extends Controller
     /* ============================================
      | API
      |============================================ */
-
-    /**
-     * GET /api/batches/{batch}/coding-questions
-     * - Students: returns assigned questions + attempts info + can_start
-     * - Staff: returns assigned questions (or all if ?mode=all) with assigned flag
-     */
+/**
+ * GET /api/batches/{batch}/coding-questions
+ * - Students: returns assigned questions + attempts info + can_start
+ * - Staff: returns assigned questions (or all if ?mode=all) with assigned flag
+ *
+ * ✅ Filter by module (course-scoped):
+ *   ?course_module_id=ID   OR ?module_id=ID
+ *   ?course_module_uuid=UUID OR ?module_uuid=UUID
+ */
 public function index(Request $r, $batch)
 {
     [$mapTable, $questionTable, $attemptTable] = $this->detectTables();
@@ -224,6 +227,82 @@ public function index(Request $r, $batch)
     $useQuestionIdJoin = preg_match('/_id$/', $mapQCol);
     $questionJoinCol   = $useQuestionIdJoin ? 'id' : ($qPkCol ?? 'uuid');
 
+    /* =========================================================
+     * ✅ Proper module filter resolve (course-scoped via batch->course_id)
+     * ========================================================= */
+
+    // detect module columns on mapping table (bcq)
+    $mapModuleIdCol   = null;
+    $mapModuleUuidCol = null;
+
+    if ($this->tableHasColumn($mapTable, 'course_module_id')) $mapModuleIdCol = 'course_module_id';
+    elseif ($this->tableHasColumn($mapTable, 'module_id'))    $mapModuleIdCol = 'module_id';
+
+    if ($this->tableHasColumn($mapTable, 'course_module_uuid')) $mapModuleUuidCol = 'course_module_uuid';
+    elseif ($this->tableHasColumn($mapTable, 'module_uuid'))    $mapModuleUuidCol = 'module_uuid';
+
+    // raw params
+    $moduleIdRaw   = $r->query('course_module_id', $r->query('module_id'));
+    $moduleUuidRaw = $r->query('course_module_uuid', $r->query('module_uuid'));
+
+    $wantModuleId   = (is_string($moduleIdRaw) || is_numeric($moduleIdRaw)) && (string)$moduleIdRaw !== '' && ctype_digit((string)$moduleIdRaw);
+    $wantModuleUuid = is_string($moduleUuidRaw) && $moduleUuidRaw !== '' && \Illuminate\Support\Str::isUuid($moduleUuidRaw);
+
+    $moduleId   = $wantModuleId ? (int)$moduleIdRaw : null;
+    $moduleUuid = $wantModuleUuid ? (string)$moduleUuidRaw : null;
+
+    $moduleFilterRequested = ($moduleId !== null) || ($moduleUuid !== null);
+
+    if ($moduleFilterRequested && !$mapModuleIdCol && !$mapModuleUuidCol) {
+        return response()->json([
+            'ok' => false,
+            'error' => "Schema issue: {$mapTable} needs course_module_id/module_id or *_uuid to filter by module"
+        ], 500);
+    }
+
+    // ✅ resolve batch->course_id (for course-scoped module validation)
+    $batchRow = DB::table('batches')
+        ->when($this->tableHasColumn('batches','deleted_at'), fn($q)=>$q->whereNull('deleted_at'))
+        ->where('id', $batchId)
+        ->select('id','course_id')
+        ->first();
+
+    $courseId = (int)($batchRow->course_id ?? 0);
+    if ($courseId <= 0) {
+        // if your batches schema differs, adjust here
+        return response()->json(['ok'=>false,'error'=>'Batch course not found'], 404);
+    }
+
+    // ✅ normalize requested module to BOTH id+uuid (course-scoped)
+    // so we can filter regardless of whether mapping stores id or uuid.
+    if ($moduleFilterRequested) {
+        $mq = DB::table('course_modules')
+            ->where('course_id', $courseId)
+            ->when($this->tableHasColumn('course_modules','deleted_at'), fn($q)=>$q->whereNull('deleted_at'));
+
+        if ($moduleId !== null) {
+            $mq->where('id', $moduleId);
+        } elseif ($moduleUuid !== null) {
+            // if course_modules.uuid missing, this will throw; so guard
+            if (!$this->tableHasColumn('course_modules','uuid')) {
+                return response()->json(['ok'=>false,'error'=>'Schema issue: course_modules.uuid missing'], 500);
+            }
+            $mq->where('uuid', $moduleUuid);
+        }
+
+        $mrow = $mq->select(
+            'id',
+            $this->tableHasColumn('course_modules','uuid') ? 'uuid' : DB::raw('NULL as uuid')
+        )->first();
+
+        if (!$mrow) {
+            return response()->json(['ok'=>false,'error'=>'Course module not found for this batch/course'], 404);
+        }
+
+        $moduleId   = (int)$mrow->id;
+        $moduleUuid = $mrow->uuid ? (string)$mrow->uuid : $moduleUuid; // keep if null in schema
+    }
+
     /* ================= ASSIGNED QUERY ================= */
     $assignedQ = DB::table($mapTable.' as bcq')
         ->join($questionTable.' as cq', "cq.$questionJoinCol", '=', "bcq.$mapQCol")
@@ -232,13 +311,23 @@ public function index(Request $r, $batch)
     if ($this->tableHasColumn($mapTable,'deleted_at')) $assignedQ->whereNull('bcq.deleted_at');
     if ($this->tableHasColumn($questionTable,'deleted_at')) $assignedQ->whereNull('cq.deleted_at');
 
+    // ✅ apply module filter (prefers id column; falls back to uuid column)
+    if ($moduleFilterRequested) {
+        if ($mapModuleIdCol) {
+            $assignedQ->where("bcq.$mapModuleIdCol", $moduleId);
+        } elseif ($mapModuleUuidCol) {
+            // moduleUuid can be null if course_modules.uuid doesn't exist; in that case module filter isn't possible via uuid
+            if (!$moduleUuid) {
+                return response()->json(['ok'=>false,'error'=>'Module uuid filter not supported (course_modules.uuid missing)'], 500);
+            }
+            $assignedQ->where("bcq.$mapModuleUuidCol", $moduleUuid);
+        }
+    }
+
     $selectAssigned = [
         'cq.uuid as question_key',
         'cq.uuid',
-
-        // ✅ ADD ONLY THIS (name unchanged)
         'cq.total_attempts',
-
         DB::raw('1 as is_assigned'),
     ];
 
@@ -252,6 +341,9 @@ public function index(Request $r, $batch)
     if ($startCol) $selectAssigned[] = "bcq.$startCol as available_from";
     if ($endCol)   $selectAssigned[] = "bcq.$endCol as available_to";
 
+    if ($mapModuleIdCol)   $selectAssigned[] = "bcq.$mapModuleIdCol as course_module_id";
+    if ($mapModuleUuidCol) $selectAssigned[] = "bcq.$mapModuleUuidCol as course_module_uuid";
+
     $selectAssigned[] = 'bcq.id as map_id';
     $selectAssigned[] = 'bcq.uuid as map_uuid';
 
@@ -261,20 +353,32 @@ public function index(Request $r, $batch)
     if (!$isStudent && strtolower($r->query('mode')) === 'all') {
 
         $allQ = DB::table($questionTable.' as cq')
-            ->leftJoin($mapTable.' as bcq', function ($j) use ($mapQCol, $mapBatchCol, $batchId, $questionJoinCol, $mapTable) {
+            ->leftJoin($mapTable.' as bcq', function ($j) use (
+                $mapQCol, $mapBatchCol, $batchId, $questionJoinCol, $mapTable,
+                $moduleId, $moduleUuid, $mapModuleIdCol, $mapModuleUuidCol, $moduleFilterRequested
+            ) {
                 $j->on("bcq.$mapQCol", '=', "cq.$questionJoinCol")
                   ->where("bcq.$mapBatchCol", $batchId);
 
                 if (Schema::hasColumn($mapTable,'deleted_at')) {
                     $j->whereNull('bcq.deleted_at');
                 }
+
+                // ✅ module-aware join (assignment should be per-module)
+                if ($moduleFilterRequested) {
+                    if ($mapModuleIdCol) {
+                        $j->where("bcq.$mapModuleIdCol", $moduleId);
+                    } elseif ($mapModuleUuidCol) {
+                        $j->where("bcq.$mapModuleUuidCol", $moduleUuid);
+                    }
+                }
             });
+
+        if ($this->tableHasColumn($questionTable,'deleted_at')) $allQ->whereNull('cq.deleted_at');
 
         $selectAll = [
             'cq.uuid as question_key',
             'cq.uuid',
-
-            // ✅ ADD ONLY THIS (name unchanged)
             'cq.total_attempts',
         ];
 
@@ -284,16 +388,15 @@ public function index(Request $r, $batch)
             }
         }
 
-        $selectAll[] = DB::raw("
-            CASE
-                WHEN bcq.assign_status = 1 THEN 1
-                ELSE 0
-            END as is_assigned
-        ");
+        // ✅ robust assignment flag (does not require assign_status column)
+        $selectAll[] = DB::raw("CASE WHEN bcq.id IS NULL THEN 0 ELSE 1 END as is_assigned");
 
         if ($attemptAllowedCol) $selectAll[] = "bcq.$attemptAllowedCol as attempt_allowed";
         if ($startCol) $selectAll[] = "bcq.$startCol as available_from";
         if ($endCol)   $selectAll[] = "bcq.$endCol as available_to";
+
+        if ($mapModuleIdCol)   $selectAll[] = "bcq.$mapModuleIdCol as course_module_id";
+        if ($mapModuleUuidCol) $selectAll[] = "bcq.$mapModuleUuidCol as course_module_uuid";
 
         $selectAll[] = 'bcq.id as map_id';
         $selectAll[] = 'bcq.uuid as map_uuid';
@@ -307,6 +410,10 @@ public function index(Request $r, $batch)
             'ok' => true,
             'batch_id' => $batchId,
             'mode' => 'all',
+            'module' => [
+                'course_module_id' => $moduleId,
+                'course_module_uuid' => $moduleUuid,
+            ],
             'items' => $rows
         ]);
     }
@@ -316,6 +423,10 @@ public function index(Request $r, $batch)
         'ok' => true,
         'batch_id' => $batchId,
         'mode' => $isStudent ? 'student' : 'assigned',
+        'module' => [
+            'course_module_id' => $moduleId,
+            'course_module_uuid' => $moduleUuid,
+        ],
         'items' => $assignedQ->get()
     ]);
 }
@@ -345,11 +456,33 @@ public function assign(Request $r, $batch)
         return response()->json(['ok' => false, 'error' => 'Batch not found/invalid.'], 404);
     }
 
+    // ===========================
+    // ✅ Detect module columns on map table
+    // ===========================
+    $mapModuleIdCol = null;
+    $mapModuleUuidCol = null;
+
+    if ($this->tableHasColumn($mapTable, 'course_module_id')) $mapModuleIdCol = 'course_module_id';
+    elseif ($this->tableHasColumn($mapTable, 'module_id'))    $mapModuleIdCol = 'module_id';
+
+    if ($this->tableHasColumn($mapTable, 'course_module_uuid')) $mapModuleUuidCol = 'course_module_uuid';
+    elseif ($this->tableHasColumn($mapTable, 'module_uuid'))    $mapModuleUuidCol = 'module_uuid';
+
+    // ===========================
+    // ✅ Validation (module is REQUIRED if map has module column to avoid default 1)
+    // ===========================
     $v = Validator::make($r->all(), [
-        'question_uuid'   => 'required|string',
-        'attempt_allowed' => 'nullable|integer|min:1|max:50',
-        'start_at'        => 'nullable|date',
-        'end_at'          => 'nullable|date|after_or_equal:start_at',
+        'question_uuid'       => 'required|string',
+
+        // module context keys (frontend should send from URL)
+        'module_uuid'         => 'nullable|string',
+        'course_module_uuid'  => 'nullable|string',
+        'module_id'           => 'nullable|integer|min:1',
+        'course_module_id'    => 'nullable|integer|min:1',
+
+        'attempt_allowed'     => 'nullable|integer|min:1|max:50',
+        'start_at'            => 'nullable|date',
+        'end_at'              => 'nullable|date|after_or_equal:start_at',
     ]);
 
     if ($v->fails()) {
@@ -365,7 +498,46 @@ public function assign(Request $r, $batch)
         return response()->json(['ok' => false, 'error' => 'Cannot detect required FK columns.'], 500);
     }
 
-    // ===== Resolve UUID → numeric ID (and keep both forms) =====
+    // ===========================
+    // ✅ Resolve module_uuid -> module_id (NO DEFAULT 1)
+    // ===========================
+    $moduleId = null;
+    $moduleUuid = null;
+
+    // accept multiple param names
+    $moduleIdRaw = $r->input('course_module_id', $r->input('module_id'));
+    if ($moduleIdRaw !== null && $moduleIdRaw !== '' && is_numeric($moduleIdRaw) && (int)$moduleIdRaw > 0) {
+        $moduleId = (int)$moduleIdRaw;
+    }
+
+    $moduleUuidRaw = $r->input('course_module_uuid', $r->input('module_uuid'));
+    if ($moduleUuidRaw && Str::isUuid($moduleUuidRaw)) {
+        $moduleUuid = (string)$moduleUuidRaw;
+    }
+
+    // If map table expects module info, enforce it
+    if (($mapModuleIdCol || $mapModuleUuidCol) && !$moduleId && !$moduleUuid) {
+        return response()->json([
+            'ok' => false,
+            'error' => 'Module context required. Send module_uuid (preferred) or module_id.'
+        ], 422);
+    }
+
+    // If uuid provided and we need/store module_id, resolve uuid -> id
+    if (!$moduleId && $moduleUuid && $mapModuleIdCol) {
+        $moduleId = DB::table('course_modules')
+            ->when($this->tableHasColumn('course_modules', 'deleted_at'), fn($q) => $q->whereNull('deleted_at'))
+            ->where('uuid', $moduleUuid)
+            ->value('id');
+
+        if (!$moduleId) {
+            return response()->json(['ok' => false, 'error' => 'Course module not found.'], 404);
+        }
+    }
+
+    // ===========================
+    // ✅ Resolve UUID → numeric ID (question)
+    // ===========================
     $questionUuid = (string)$r->input('question_uuid');
 
     $questionId = DB::table($questionTable)
@@ -387,12 +559,23 @@ public function assign(Request $r, $batch)
         $payload['uuid'] = (string) Str::uuid();
     }
 
-    // Required keys (STORE the correct form based on map column)
+    // Required keys
     $payload[$mapBatchCol] = $batchId;
+
     if ($mapStoresId) {
         $payload[$mapQCol] = (int) $questionId;
     } else {
         $payload[$mapQCol] = $questionUuid;
+    }
+
+    // ✅ STORE module into map table (id + uuid if available)
+    if ($mapModuleIdCol) {
+        // if moduleId still missing but uuid exists, above resolver would have fetched it
+        $payload[$mapModuleIdCol] = $moduleId; // may be null only if map doesn't require module
+    }
+    if ($mapModuleUuidCol) {
+        // keep uuid too (optional but useful for debugging)
+        $payload[$mapModuleUuidCol] = $moduleUuid ?: null;
     }
 
     // Attempts
@@ -439,6 +622,13 @@ public function assign(Request $r, $batch)
             ->where($mapBatchCol, $batchId)
             ->where($mapQCol, $payload[$mapQCol]);
 
+        // ✅ IMPORTANT: include module in selector so one module doesn’t overwrite another
+        if ($mapModuleIdCol && array_key_exists($mapModuleIdCol, $payload)) {
+            $existing->where($mapModuleIdCol, $payload[$mapModuleIdCol]);
+        } elseif ($mapModuleUuidCol && array_key_exists($mapModuleUuidCol, $payload)) {
+            $existing->where($mapModuleUuidCol, $payload[$mapModuleUuidCol]);
+        }
+
         if ($this->tableHasColumn($mapTable, 'deleted_at')) {
             $payload['deleted_at'] = null;
         }
@@ -464,6 +654,8 @@ public function assign(Request $r, $batch)
             'batch'    => $batch,
             'batchId'  => $batchId,
             'question' => $questionUuid,
+            'moduleId' => $moduleId,
+            'moduleUuid' => $moduleUuid,
         ]);
 
         return response()->json(['ok' => false, 'error' => 'Assign failed.'], 500);

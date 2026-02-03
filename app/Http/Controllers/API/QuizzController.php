@@ -637,7 +637,6 @@ class QuizzController extends Controller
  
         return response()->json(['status'=>'success','message'=>'Note added','data'=>$note]);
     }
- 
  public function viewQuizzesByBatch(Request $r, string $batchKey)
 {
     $role = (string) ($r->attributes->get('auth_role') ?? '');
@@ -691,24 +690,20 @@ class QuizzController extends Controller
     // ✅ Module filter resolve
     // ===========================
     $moduleId = null;
+    $moduleUuidRaw = null;
 
-    // read module id from query (supports multiple keys)
     $moduleIdRaw = $r->query('course_module_id', $r->query('module_id'));
     if ($moduleIdRaw !== null && $moduleIdRaw !== '' && ctype_digit((string)$moduleIdRaw)) {
         $moduleId = (int) $moduleIdRaw;
     }
 
-    // read module uuid from query (supports multiple keys)
     $moduleUuidRaw = $r->query('course_module_uuid', $r->query('module_uuid'));
     if (!$moduleId && $moduleUuidRaw && Str::isUuid($moduleUuidRaw)) {
-        // If batch_quizzes has course_module_uuid, we can filter directly.
-        // But your ask is: "filter by course_module_id", so resolve to ID.
         $moduleId = DB::table('course_modules')
             ->whereNull('deleted_at')
             ->where('uuid', $moduleUuidRaw)
             ->value('id');
 
-        // If uuid given but not found -> return clean error
         if (!$moduleId) {
             return response()->json(['error' => 'Course module not found'], 404);
         }
@@ -718,13 +713,15 @@ class QuizzController extends Controller
     $query = DB::table('batch_quizzes as bq')
         ->join('quizz as q', 'q.id', '=', 'bq.quiz_id')
         ->leftJoin('users as creator', 'creator.id', '=', 'q.created_by')
+        // ✅ ADDED: join module to return uuid back to frontend
+        ->leftJoin('course_modules as cm', 'cm.id', '=', 'bq.course_module_id')
         ->where('bq.batch_id', $batch->id)
         ->whereNull('bq.deleted_at')
         ->whereNull('q.deleted_at')
         ->where('bq.status', 'active')
         ->where('bq.assign_status', 1);
 
-    // ✅ Apply module filter (course_module_id)
+    // ✅ Apply module filter
     if ($moduleId !== null) {
         if (!Schema::hasColumn('batch_quizzes', 'course_module_id')) {
             return response()->json([
@@ -732,6 +729,9 @@ class QuizzController extends Controller
             ], 500);
         }
         $query->where('bq.course_module_id', $moduleId);
+    } else if ($moduleUuidRaw && Schema::hasColumn('batch_quizzes', 'course_module_uuid')) {
+        // optional fallback if you ever store uuid directly
+        $query->where('bq.course_module_uuid', $moduleUuidRaw);
     }
 
     // student visibility rules
@@ -750,7 +750,6 @@ class QuizzController extends Controller
         });
     }
 
-    // select fields (removed duplicates)
     $select = [
         // Quiz
         'q.id as id',
@@ -784,13 +783,16 @@ class QuizzController extends Controller
         'bq.attempt_allowed',
         'bq.status as batch_status',
         'bq.assign_status as assign_status_flag',
+
+        // ✅ ADDED: module fields so frontend filter won’t kill items
+        'bq.course_module_id as course_module_id',
+        'cm.uuid as course_module_uuid',
     ];
 
     $query->select($select)
         ->orderBy('bq.display_order', 'asc')
         ->orderBy('bq.assigned_at', 'desc');
 
-    // pagination
     $perPage = (int) $r->query('per_page', 20);
     $page    = (int) max(1, $r->query('page', 1));
 
@@ -798,9 +800,6 @@ class QuizzController extends Controller
 
     $rawItems = collect($paginator->items());
 
-    // =======================
-    // attempt usage maps
-    // =======================
     $attemptUsageByBatchQuiz  = [];
 
     if ($isStudent && $rawItems->isNotEmpty()) {
@@ -818,7 +817,6 @@ class QuizzController extends Controller
         }
     }
 
-    // Map items
     $items = $rawItems->map(function ($quiz) use ($isStudent, $attemptUsageByBatchQuiz) {
 
         $attemptAllowed   = null;
@@ -826,9 +824,7 @@ class QuizzController extends Controller
         $attemptRemaining = null;
 
         if ($isStudent) {
-            $configuredAllowed = $quiz->attempt_allowed !== null
-                ? (int) $quiz->attempt_allowed
-                : 0;
+            $configuredAllowed = $quiz->attempt_allowed !== null ? (int) $quiz->attempt_allowed : 0;
 
             $attemptUsed = isset($attemptUsageByBatchQuiz[$quiz->batch_quiz_id])
                 ? (int) $attemptUsageByBatchQuiz[$quiz->batch_quiz_id]
@@ -838,14 +834,11 @@ class QuizzController extends Controller
                 $attemptAllowed   = $configuredAllowed;
                 $attemptRemaining = max(0, $attemptAllowed - $attemptUsed);
             } else {
-                // 0 / null => unlimited
                 $attemptAllowed   = null;
                 $attemptRemaining = null;
             }
         } else {
-            $attemptAllowed = $quiz->attempt_allowed !== null
-                ? (int) $quiz->attempt_allowed
-                : null;
+            $attemptAllowed = $quiz->attempt_allowed !== null ? (int) $quiz->attempt_allowed : null;
         }
 
         return [
@@ -859,9 +852,7 @@ class QuizzController extends Controller
             'note'               => $quiz->note,
             'is_public'          => $quiz->is_public === 'yes' || $quiz->is_public === 1 || $quiz->is_public === true,
             'result_set_up_type' => $quiz->result_set_up_type,
-            'result_release_date'=> $quiz->result_release_date
-                ? \Carbon\Carbon::parse($quiz->result_release_date)->toDateTimeString()
-                : null,
+            'result_release_date'=> $quiz->result_release_date ? \Carbon\Carbon::parse($quiz->result_release_date)->toDateTimeString() : null,
             'total_time'         => $quiz->total_time !== null ? (int)$quiz->total_time : null,
             'total_questions'    => $quiz->total_questions !== null ? (int)$quiz->total_questions : null,
             'is_question_random' => isset($quiz->is_question_random) ? (bool)$quiz->is_question_random : null,
@@ -884,6 +875,10 @@ class QuizzController extends Controller
             'attempt_allowed'   => $attemptAllowed,
             'attempt_used'      => $attemptUsed,
             'attempt_remaining' => $attemptRemaining,
+
+            // ✅ ADDED: module info for frontend
+            'course_module_id'   => $quiz->course_module_id !== null ? (int)$quiz->course_module_id : null,
+            'course_module_uuid' => isset($quiz->course_module_uuid) ? (string)$quiz->course_module_uuid : null,
         ];
     });
 
@@ -898,6 +893,7 @@ class QuizzController extends Controller
         ],
     ]);
 }
+
 
 /**
  * DELETED INDEX (GET /api/quizz/deleted)

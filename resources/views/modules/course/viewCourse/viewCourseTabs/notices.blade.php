@@ -405,104 +405,195 @@ html.theme-dark .rte-ph {
     </div>
   </div>
 </div>
-
 <script>
 (function(){
   const TOKEN = localStorage.getItem('token') || sessionStorage.getItem('token') || '';
-if (!TOKEN) {
-  Swal.fire({ icon: 'warning', title: 'Login required', text: 'Please sign in to continue.', allowOutsideClick: false })
-    .then(()=>{ window.location.href = '/'; });
-  return;
-}
-
-// ===== In-memory role (cache + async event), SAME as chat =====
-let role = '';
-const getRoleNow = () => {
-  if (window.__AUTH_CACHE__ && typeof window.__AUTH_CACHE__.role === 'string') {
-    return window.__AUTH_CACHE__.role;
+  if (!TOKEN) {
+    Swal.fire({ icon: 'warning', title: 'Login required', text: 'Please sign in to continue.', allowOutsideClick: false })
+      .then(()=>{ window.location.href = '/'; });
+    return;
   }
-  return '';
-};
-role = String(getRoleNow() || '').trim().toLowerCase();
 
-  const isAdmin      = role.includes('admin')|| role.includes('superadmin');
-  const isSuperAdmin = role.includes('super_admin') || role.includes('superadmin');
-  const isInstructor = role.includes('instructor');
+  // ===== In-memory role (cache + async event), SAME as chat =====
+  let role = '';
+  const getRoleNow = () => {
+    if (window.__AUTH_CACHE__ && typeof window.__AUTH_CACHE__.role === 'string') {
+      return window.__AUTH_CACHE__.role;
+    }
+    return '';
+  };
+  role = String(getRoleNow() || '').trim().toLowerCase();
 
-  const canCreate = isAdmin || isSuperAdmin || isInstructor;
-  const canEdit   = isAdmin || isSuperAdmin || isInstructor;
-  const canDelete = isAdmin || isSuperAdmin || isInstructor;
+  const isAdmin       = role.includes('admin')|| role.includes('superadmin');
+  const isSuperAdmin  = role.includes('super_admin') || role.includes('superadmin');
+  const isInstructor  = role.includes('instructor');
+
+  const canCreate  = isAdmin || isSuperAdmin || isInstructor;
+  const canEdit    = isAdmin || isSuperAdmin || isInstructor;
+  const canDelete  = isAdmin || isSuperAdmin || isInstructor;
   const canViewBin = isAdmin || isSuperAdmin;
 
   const apiBase = '/api/notices';
   const defaultHeaders = { 'Authorization': 'Bearer ' + TOKEN, 'Accept': 'application/json' };
 
   // DOM refs
-  const $loader = document.getElementById('notice-loader');
-  const $empty  = document.getElementById('notice-empty');
-  const $items  = document.getElementById('notice-items');
-  const $search = document.getElementById('notice-search');
-  const $sort   = document.getElementById('notice-sort');
+  const $loader  = document.getElementById('notice-loader');
+  const $empty   = document.getElementById('notice-empty');
+  const $items   = document.getElementById('notice-items');
+  const $search  = document.getElementById('notice-search');
+  const $sort    = document.getElementById('notice-sort');
   const $refresh = document.getElementById('btn-refresh');
   const $uploadBtn = document.getElementById('btn-upload');
-  const $btnBin = document.getElementById('btn-bin');
+  const $btnBin  = document.getElementById('btn-bin');
 
-  const detailsModal = document.getElementById('notice-details-modal');
-  const detailsBody = document.getElementById('notice-details-body');
-  const detailsClose = document.getElementById('notice-details-close');
+  const detailsModal  = document.getElementById('notice-details-modal');
+  const detailsBody   = document.getElementById('notice-details-body');
+  const detailsClose  = document.getElementById('notice-details-close');
   const detailsFooter = document.getElementById('notice-details-footer');
 
   const createModalEl = document.getElementById('createNoticeModal');
 
-  const noticeIdInput = document.getElementById('notice_id');
-  const noticeMethodInput = document.getElementById('notice__method');
-  const noticeTitleInput = document.getElementById('notice_title');
+  const noticeIdInput      = document.getElementById('notice_id');
+  const noticeMethodInput  = document.getElementById('notice__method');
+  const noticeTitleInput   = document.getElementById('notice_title');
   const noticeMessageInput = document.getElementById('notice_message_html'); // hidden textarea (kept for compatibility)
-  const noticeVisibility = document.getElementById('notice_visibility');
+  const noticeVisibility   = document.getElementById('notice_visibility');
   const noticeAttachmentsInput = document.getElementById('notice_attachments');
   const noticeExistingWrap = document.getElementById('notice_existing_attachments_wrap');
   const noticeExistingList = document.getElementById('notice_existing_attachments');
   const noticeCreateSubmitBtn = document.getElementById('noticeCreateSubmit');
-  const noticeCreateFormEl = document.getElementById('noticeCreateForm');
+  const noticeCreateFormEl    = document.getElementById('noticeCreateForm');
   const noticePriority = document.getElementById('notice_priority');
-  const noticeStatus = document.getElementById('notice_status');
+  const noticeStatus   = document.getElementById('notice_status');
 
   // RTE elements
-  const noticeRte = document.getElementById('notice_message_rte');
+  const noticeRte        = document.getElementById('notice_message_rte');
   const noticeRteToolbar = document.getElementById('notice_rte_toolbar');
-  const btnLinkNotice = document.getElementById('btnLinkNotice');
+  const btnLinkNotice    = document.getElementById('btnLinkNotice');
+
+  function getQueryParam(name) {
+    try { return (new URL(window.location.href)).searchParams.get(name); }
+    catch(e){ return null; }
+  }
 
   function deriveCourseKey() {
     const parts = location.pathname.split('/').filter(Boolean);
-    const last = parts.at(-1)?.toLowerCase();
+    const last  = parts.at(-1)?.toLowerCase();
     if (last === 'view' && parts.length >= 2) return parts.at(-2);
     return parts.at(-1);
   }
-  function getQueryParam(name) { try { return (new URL(window.location.href)).searchParams.get(name); } catch(e){ return null; } }
+
+  /**
+   * ✅ deriveModuleKey logic (UUID or numeric) — robust, "study-material like"
+   * Priority order:
+   *  1) explicit query params
+   *  2) common route patterns in pathname
+   *  3) dataset already present (handled in readContext)
+   */
+  function deriveModuleKey() {
+    // 1) Query params (most reliable)
+    const qp =
+      getQueryParam('module_uuid') ||
+      getQueryParam('module') ||
+      getQueryParam('course_module_id') ||
+      getQueryParam('module_id') ||
+      getQueryParam('moduleId') ||
+      getQueryParam('course_module_uuid');
+
+    if (qp && String(qp).trim() !== '') return String(qp).trim();
+
+    // 2) Pathname patterns: .../modules/{idOrUuid}/... OR .../module/{idOrUuid}/...
+    const parts = location.pathname.split('/').filter(Boolean);
+    const idxModules = parts.findIndex(p => String(p).toLowerCase() === 'modules');
+    if (idxModules !== -1 && parts[idxModules + 1]) return String(parts[idxModules + 1]).trim();
+
+    const idxModule = parts.findIndex(p => String(p).toLowerCase() === 'module');
+    if (idxModule !== -1 && parts[idxModule + 1]) return String(parts[idxModule + 1]).trim();
+
+    // 3) Some apps use .../course-module/{id} or .../course-modules/{id}
+    const idxCourseModules = parts.findIndex(p => ['course-modules','course_module','course-module','course_modules'].includes(String(p).toLowerCase()));
+    if (idxCourseModules !== -1 && parts[idxCourseModules + 1]) return String(parts[idxCourseModules + 1]).trim();
+
+    return null;
+  }
 
   (function ensureBatchInDomFromUrl() {
     const host = document.querySelector('.crs-wrap');
     if (!host) return;
-    const existing = host.dataset.batchId ?? host.dataset.batch_id ?? '';
-    if (!existing || String(existing).trim() === '') {
+
+    // batch
+    const existingBatch = host.dataset.batchId ?? host.dataset.batch_id ?? '';
+    if (!existingBatch || String(existingBatch).trim() === '') {
       const pathKey = deriveCourseKey();
-      if (pathKey) { host.dataset.batchId = String(pathKey); host.dataset.batch_id = String(pathKey); }
-      const qModule = getQueryParam('module') || getQueryParam('course_module_id');
-      if (qModule) { host.dataset.moduleId = String(qModule); host.dataset.module_id = String(qModule); }
+      if (pathKey) {
+        host.dataset.batchId = String(pathKey);
+        host.dataset.batch_id = String(pathKey);
+      }
+    }
+
+    // ✅ module (always attempt to derive if missing)
+    const existingMod = host.dataset.moduleId ?? host.dataset.module_id ?? '';
+    if (!existingMod || String(existingMod).trim() === '') {
+      const mk = deriveModuleKey();
+      if (mk) {
+        host.dataset.moduleId = String(mk);
+        host.dataset.module_id = String(mk);
+      }
     }
   })();
 
   function readContext() {
-    const host = document.querySelector('.crs-wrap');
-    if (host) {
-      const batchId = host.dataset.batchId ?? host.dataset.batch_id ?? '';
-      const moduleId = host.dataset.moduleId ?? host.dataset.module_id ?? '';
-      if (batchId) return { batch_id: String(batchId) || null, module_id: moduleId || null };
+  const host = document.querySelector('.crs-wrap');
+
+  // Always prefer URL module (current module) over dataset
+  const urlModule = deriveModuleKey(); // reads CURRENT URL
+
+  // batch from dataset OR URL-derived
+  let batchId = '';
+  if (host) batchId = host.dataset.batchId ?? host.dataset.batch_id ?? '';
+  if (!batchId || String(batchId).trim() === '') batchId = deriveCourseKey() || '';
+
+  // module: URL wins. If URL has module, update dataset too (keeps UI consistent)
+  let moduleKey = urlModule || '';
+  if (!moduleKey && host) moduleKey = host.dataset.moduleId ?? host.dataset.module_id ?? '';
+
+  if (host) {
+    if (batchId) {
+      host.dataset.batchId = String(batchId);
+      host.dataset.batch_id = String(batchId);
     }
-    const pathBatch = deriveCourseKey() || null;
-    const qModule = getQueryParam('module') || getQueryParam('course_module_id') || null;
-    return { batch_id: pathBatch || null, module_id: qModule || null };
+    if (moduleKey) {
+      host.dataset.moduleId = String(moduleKey);
+      host.dataset.module_id = String(moduleKey);
+    }
   }
+
+  return {
+    batch_id: batchId ? String(batchId) : null,
+    module_id: moduleKey ? String(moduleKey) : null
+  };
+}
+
+function isNumericId(v){ return /^\d+$/.test(String(v||'').trim()); }
+function isUuid(v){ return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(v||'').trim()); }
+
+function appendModuleFilter(url, moduleKey){
+  const mk = String(moduleKey || '').trim();
+  if (!mk) return url;
+
+  // uuid => module_uuid
+  if (isUuid(mk)) {
+    return url + (url.includes('?') ? '&' : '?') + 'module_uuid=' + encodeURIComponent(mk);
+  }
+
+  // numeric => course_module_id
+  if (isNumericId(mk)) {
+    return url + (url.includes('?') ? '&' : '?') + 'course_module_id=' + encodeURIComponent(mk);
+  }
+
+  // unknown => still try uuid param (safe)
+  return url + (url.includes('?') ? '&' : '?') + 'module_uuid=' + encodeURIComponent(mk);
+}
 
   function showOk(msg){ Swal.fire({ toast:true, position:'top-end', icon:'success', title: msg || 'Done', showConfirmButton:false, timer:2500, timerProgressBar:true }); }
   function showErr(msg){ Swal.fire({ toast:true, position:'top-end', icon:'error', title: msg || 'Something went wrong', showConfirmButton:false, timer:3500, timerProgressBar:true }); }
@@ -514,12 +605,22 @@ role = String(getRoleNow() || '').trim().toLowerCase();
   async function apiFetch(url, opts = {}) {
     opts.headers = Object.assign({}, opts.headers || {}, defaultHeaders);
     const res = await fetch(url, opts);
-    if (res.status === 401) { try { await Swal.fire({ icon: 'warning', title: 'Session expired', text: 'Please login again.', allowOutsideClick: false }); } catch(e){} location.href = '/'; throw new Error('Unauthorized'); }
+    if (res.status === 401) {
+      try { await Swal.fire({ icon: 'warning', title: 'Session expired', text: 'Please login again.', allowOutsideClick: false }); } catch(e){}
+      location.href = '/';
+      throw new Error('Unauthorized');
+    }
     return res;
   }
 
-  function closeAllDropdowns(){ document.querySelectorAll('.sm-more .sm-dd.show').forEach(d => { d.classList.remove('show'); d.setAttribute('aria-hidden', 'true'); }); }
-  document.addEventListener('click', () => closeAllDropdowns()); document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeAllDropdowns(); });
+  function closeAllDropdowns(){
+    document.querySelectorAll('.sm-more .sm-dd.show').forEach(d => {
+      d.classList.remove('show');
+      d.setAttribute('aria-hidden', 'true');
+    });
+  }
+  document.addEventListener('click', () => closeAllDropdowns());
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeAllDropdowns(); });
 
   /* -----------------------------
      RTE wiring (execCommand-based) — mirrors your previous editor
@@ -529,7 +630,6 @@ role = String(getRoleNow() || '').trim().toLowerCase();
   function wireNoticeRTE(){
     if (!noticeRte) return;
     const el = noticeRte;
-    const ph = el.nextElementSibling;
     const hasContent = () => (el.textContent || '').trim().length > 0 || (el.innerHTML||'').trim().length > 0;
     function togglePh(){ el.classList.toggle('has-content', hasContent()); }
     ['input','keyup','paste','blur'].forEach(ev => el.addEventListener(ev, togglePh));
@@ -542,7 +642,8 @@ role = String(getRoleNow() || '').trim().toLowerCase();
     }
     if (btnLinkNotice) {
       btnLinkNotice.addEventListener('click', ()=> {
-        const u = prompt('Enter URL (https://…)'); if(u && /^https?:\/\//i.test(u)){ document.execCommand('createLink',false,u); el.focus(); }
+        const u = prompt('Enter URL (https://…)');
+        if(u && /^https?:\/\//i.test(u)){ document.execCommand('createLink',false,u); el.focus(); }
       });
     }
   }
@@ -552,8 +653,7 @@ role = String(getRoleNow() || '').trim().toLowerCase();
   function syncRTEtoTextarea(){
     try {
       if (noticeMessageInput && noticeRte) {
-        // preserve innerHTML exactly
-        noticeMessageInput.value = (noticeRte.innerHTML || '').trim();
+        noticeMessageInput.value = (noticeRte.innerHTML || '').trim(); // preserve innerHTML exactly
       }
     } catch(e){ console.warn('syncRTEtoTextarea error', e); }
   }
@@ -562,45 +662,65 @@ role = String(getRoleNow() || '').trim().toLowerCase();
   try {
     if (createModalEl) {
       createModalEl.addEventListener('show.bs.modal', function(){
-        // populate RTE from hidden textarea value
-        try { if (noticeRte && noticeMessageInput) { noticeRte.innerHTML = noticeMessageInput.value || ''; noticeRte.classList.toggle('has-content', (noticeRte.innerHTML||'').trim().length>0); } } catch(e){}
+        try {
+          if (noticeRte && noticeMessageInput) {
+            noticeRte.innerHTML = noticeMessageInput.value || '';
+            noticeRte.classList.toggle('has-content', (noticeRte.innerHTML||'').trim().length>0);
+          }
+        } catch(e){}
       });
     }
-  } catch(e){ /* ignore if bootstrap not present */ }
+  } catch(e){}
 
   /* -------------- rest of your existing code (unchanged) -------------- */
   function normalizeAttachments(row) {
     let raw = row.attachment ?? row.attachments ?? row.attachments_json ?? [];
     if (typeof raw === 'string' && raw.trim() !== '') {
-      try { raw = JSON.parse(raw); } catch (e) { const possibleUrls = raw.split(/\s*,\s*|\s*\|\|\s*/).filter(Boolean); if (possibleUrls.length) raw = possibleUrls; else raw = []; }
+      try { raw = JSON.parse(raw); }
+      catch (e) {
+        const possibleUrls = raw.split(/\s*,\s*|\s*\|\|\s*/).filter(Boolean);
+        if (possibleUrls.length) raw = possibleUrls; else raw = [];
+      }
     }
     if (raw && !Array.isArray(raw)) raw = [raw];
     const arr = (raw || []).map((a, idx) => {
-      if (typeof a === 'string') { const url = a; const ext = (url.split('?')[0].split('.').pop() || '').toLowerCase(); return { id: `s-${idx}`, url, path: url, name: url.split('/').pop(), mime: '', ext }; }
+      if (typeof a === 'string') {
+        const url = a;
+        const ext = (url.split('?')[0].split('.').pop() || '').toLowerCase();
+        return { id: `s-${idx}`, url, path: url, name: url.split('/').pop(), mime: '', ext };
+      }
       const url = a.signed_url || a.url || a.path || a.file_url || a.storage_url || null;
       const name = a.name || a.label || (url ? url.split('/').pop() : (a.original_name || `file-${idx}`));
       const mime = a.mime || a.content_type || a.contentType || '';
-      let ext = (a.ext || a.extension || '').toLowerCase(); if (!ext && url) ext = (url.split('?')[0].split('.').pop() || '').toLowerCase();
+      let ext = (a.ext || a.extension || '').toLowerCase();
+      if (!ext && url) ext = (url.split('?')[0].split('.').pop() || '').toLowerCase();
       return { id: a.id || a.attachment_id || a.file_id || a.storage_key || (`o-${idx}`), url, signed_url: a.signed_url, path: a.path, name, mime, ext, size: a.size || a.file_size || a.filesize || 0, raw: a };
     });
     return arr.filter(it => it && (it.url || it.path || it.signed_url));
   }
 
- function createItemRow(row) {
+  function createItemRow(row) {
     const attachments = normalizeAttachments(row);
     row.attachment = attachments;
     if (typeof row.attachment_count === 'undefined') row.attachment_count = attachments.length;
 
     const wrapper = document.createElement('div'); wrapper.className = 'sm-item';
     const left = document.createElement('div'); left.className = 'left';
-    const icon = document.createElement('div'); icon.className = 'icon'; icon.style.width='44px'; icon.style.height='44px'; icon.style.borderRadius='10px'; icon.style.display='flex'; icon.style.alignItems='center'; icon.style.justifyContent='center'; icon.style.border='1px solid var(--line-strong)'; icon.style.background='linear-gradient(180deg, rgba(0,0,0,0.02), transparent)'; icon.innerHTML = '<i class="fa fa-bullhorn" style="color:var(--secondary-color)"></i>';
-    
-    const meta = document.createElement('div'); meta.className='meta'; 
-    const title = document.createElement('div'); title.className='title'; title.textContent = row.title || 'Untitled'; 
-    const sub = document.createElement('div'); sub.className='sub'; sub.textContent = row.message_html ? 'Has message' : (row.attachment_count ? `${row.attachment_count} attachment(s)` : '—'); 
-    
+
+    const icon = document.createElement('div');
+    icon.className = 'icon';
+    icon.style.width='44px'; icon.style.height='44px'; icon.style.borderRadius='10px';
+    icon.style.display='flex'; icon.style.alignItems='center'; icon.style.justifyContent='center';
+    icon.style.border='1px solid var(--line-strong)';
+    icon.style.background='linear-gradient(180deg, rgba(0,0,0,0.02), transparent)';
+    icon.innerHTML = '<i class="fa fa-bullhorn" style="color:var(--secondary-color)"></i>';
+
+    const meta = document.createElement('div'); meta.className='meta';
+    const title = document.createElement('div'); title.className='title'; title.textContent = row.title || 'Untitled';
+    const sub = document.createElement('div'); sub.className='sub'; sub.textContent = row.message_html ? 'Has message' : (row.attachment_count ? `${row.attachment_count} attachment(s)` : '—');
+
     // ADD CREATOR INFO HERE
-    const creatorInfo = document.createElement('div'); 
+    const creatorInfo = document.createElement('div');
     creatorInfo.className = 'creator-info';
     creatorInfo.style.fontSize = '12px';
     creatorInfo.style.color = 'var(--muted-color)';
@@ -609,19 +729,27 @@ role = String(getRoleNow() || '').trim().toLowerCase();
     creatorInfo.style.alignItems = 'center';
     creatorInfo.style.gap = '6px';
     creatorInfo.innerHTML = `
-        <i class="fa fa-user" style="font-size:10px;"></i>
-        <span>${escapeHtml(row.created_by_name || 'Unknown')}</span>
+      <i class="fa fa-user" style="font-size:10px;"></i>
+      <span>${escapeHtml(row.created_by_name || 'Unknown')}</span>
     `;
-    
-    meta.appendChild(title); 
+
+    meta.appendChild(title);
     meta.appendChild(sub);
-    meta.appendChild(creatorInfo); // Add creator info to meta section
-    
-    left.appendChild(icon); 
+    meta.appendChild(creatorInfo);
+
+    left.appendChild(icon);
     left.appendChild(meta);
 
-    const right = document.createElement('div'); right.className='right'; right.style.display='flex'; right.style.alignItems='center'; right.style.gap='8px';
-    const datePill = document.createElement('div'); datePill.className='duration-pill'; datePill.textContent = row.created_at ? new Date(row.created_at).toLocaleDateString() : ''; right.appendChild(datePill);
+    const right = document.createElement('div');
+    right.className='right';
+    right.style.display='flex';
+    right.style.alignItems='center';
+    right.style.gap='8px';
+
+    const datePill = document.createElement('div');
+    datePill.className='duration-pill';
+    datePill.textContent = row.created_at ? new Date(row.created_at).toLocaleDateString() : '';
+    right.appendChild(datePill);
 
     // --- Preview button (show only when attachments exist) ---
     const previewBtn = document.createElement('button');
@@ -630,219 +758,771 @@ role = String(getRoleNow() || '').trim().toLowerCase();
     previewBtn.type = 'button';
     previewBtn.textContent = 'Preview';
 
-    // normalize attachments for this row
     const attachmentsArr = Array.isArray(row.attachment) ? row.attachment : [];
 
     if (attachmentsArr.length > 0) {
-        // show the button and wire preview
-        previewBtn.style.display = 'inline-flex';
-        previewBtn.addEventListener('click', () => openFullscreenPreview(row, attachmentsArr, 0));
+      previewBtn.style.display = 'inline-flex';
+      previewBtn.addEventListener('click', () => openFullscreenPreview(row, attachmentsArr, 0));
 
-        // show count badge when multiple attachments
-        if (attachmentsArr.length > 1) {
-            const badge = document.createElement('span');
-            badge.className = 'small text-muted';
-            badge.style.marginLeft = '6px';
-            badge.textContent = `(${attachmentsArr.length})`;
-            previewBtn.appendChild(badge);
-        }
+      if (attachmentsArr.length > 1) {
+        const badge = document.createElement('span');
+        badge.className = 'small text-muted';
+        badge.style.marginLeft = '6px';
+        badge.textContent = `(${attachmentsArr.length})`;
+        previewBtn.appendChild(badge);
+      }
     } else {
-        // hide the preview button when zero attachments
-        previewBtn.style.display = 'none';
+      previewBtn.style.display = 'none';
     }
 
     right.appendChild(previewBtn);
-    
+
     const moreWrap = document.createElement('div'); moreWrap.className='sm-more';
     moreWrap.innerHTML = `
-        <button class="sm-dd-btn" aria-haspopup="true" aria-expanded="false" title="More">⋮</button>
-        <div class="sm-dd" role="menu" aria-hidden="true">
+      <button class="sm-dd-btn" aria-haspopup="true" aria-expanded="false" title="More">⋮</button>
+      <div class="sm-dd" role="menu" aria-hidden="true">
         <a href="#" data-action="view"><i class="fa fa-eye sm-icon-purple"></i><span>View</span></a>
         ${canEdit ? `<a href="#" data-action="edit"><i class="fa fa-pen sm-icon-black"></i><span>Edit</span></a>` : ''}
         ${canDelete ? `<div class="divider"></div><a href="#" data-action="delete" class="text-danger"><i class="fa fa-trash sm-icon-red"></i><span>Delete</span></a>` : ''}
-        </div>
+      </div>
     `;
     right.appendChild(moreWrap);
 
-    wrapper.appendChild(left); wrapper.appendChild(right);
+    wrapper.appendChild(left);
+    wrapper.appendChild(right);
 
-    const ddBtn = moreWrap.querySelector('.sm-dd-btn'); const dd = moreWrap.querySelector('.sm-dd');
-    if (ddBtn && dd) { ddBtn.addEventListener('click', (ev)=>{ ev.stopPropagation(); const isOpen = dd.classList.contains('show'); closeAllDropdowns(); if (!isOpen) { dd.classList.add('show'); dd.setAttribute('aria-hidden','false'); ddBtn.setAttribute('aria-expanded','true'); } }); }
-
-    const viewBtn = moreWrap.querySelector('[data-action="view"]'); if (viewBtn) viewBtn.addEventListener('click', (ev) => { ev.preventDefault(); ev.stopPropagation(); openDetailsModal(row); closeAllDropdowns(); });
-    const editBtn = moreWrap.querySelector('[data-action="edit"]'); if (editBtn) editBtn.addEventListener('click', (ev)=>{ ev.preventDefault(); ev.stopPropagation(); enterEditMode(row); closeAllDropdowns(); });
-
-    const delBtn = moreWrap.querySelector('[data-action="delete"]'); if (delBtn) { delBtn.addEventListener('click', async (ev)=>{ ev.preventDefault(); ev.stopPropagation(); const r = await Swal.fire({ title: 'Move to Bin?', text: `Move "${row.title || 'this notice'}" to Bin?`, icon: 'warning', showCancelButton: true, confirmButtonText: 'Yes, move it', cancelButtonText: 'Cancel' }); if (!r.isConfirmed){ closeAllDropdowns(); return; } try { const res = await apiFetch(`${apiBase}/${encodeURIComponent(row.id)}`, { method: 'DELETE' }); if (!res.ok) throw new Error('Delete failed: '+res.status); showOk('Moved to Bin'); await loadNotices(); } catch(e){ console.error(e); showErr('Delete failed'); } finally { closeAllDropdowns(); } }); }
-
-    return wrapper;
-}
-  function renderList(items){ if (!$items) return; $items.innerHTML=''; if (!items || items.length===0){ showItems(false); showEmpty(true); return; } showEmpty(false); showItems(true); items.forEach(it => $items.appendChild(createItemRow(it))); }
-function openDetailsModal(row){
-  detailsModal.style.display='block';
-  detailsModal.classList.add('show');
-  detailsModal.setAttribute('aria-hidden','false');
-  const backdrop = document.createElement('div');
-  backdrop.className='modal-backdrop fade show';
-  backdrop.id='detailsBackdrop';
-  document.body.appendChild(backdrop);
-  document.body.classList.add('modal-open');
-  backdrop.addEventListener('click', closeDetailsModal);
-
-  const attachments = row.attachment && Array.isArray(row.attachment) ? row.attachment : [];
-  const attachList = attachments.length ? attachments.map(a=>{
-    const name = a.name || (a.url||a.path||'').split('/').pop();
-    const size = a.size ? ` (${formatSize(a.size)})` : '';
-    return `<div style="display:flex; justify-content:space-between; gap:8px;"><div>${escapeHtml(name)}</div><div style="color:var(--muted-color); font-size:13px;">${escapeHtml(a.mime||a.ext||'')}${size}</div></div>`;
-  }).join('') : '<div style="color:var(--muted-color)">No attachments</div>';
-
-  // --- SANITIZE message_html before injecting ---
-  let rawMessage = row.message_html || '';
-  let safeMessage = rawMessage;
-  if (window.DOMPurify && typeof DOMPurify.sanitize === 'function') {
-    safeMessage = DOMPurify.sanitize(rawMessage, {ALLOWED_ATTR: ['href','target','style','class'], ALLOWED_URI_REGEXP: /^(?:(?:https?|mailto|tel):|data:image\/)/i});
-    // adjust ALLOWED_ATTR / ALLOWED_URI_REGEXP to fit your needs
-  } else {
-    // Fallback: if DOMPurify not loaded and you trust the content, use rawMessage.
-    // Otherwise, escape as before.
-    // safeMessage = escapeHtml(rawMessage); // uncomment to fallback to escaped text
-  }
-
-  if (detailsBody) {
-    detailsBody.innerHTML = `
-      <div style="display:flex; flex-direction:column; gap:12px; font-size:15px;">
-        <div><strong>Title:</strong> ${escapeHtml(row.title||'Untitled')}</div>
-        <div><strong>Message:</strong></div>
-        <div style="padding:6px 0;">${safeMessage || '<span style="color:var(--muted-color)">—</span>'}</div>
-        <div><strong>Created At:</strong> ${row.created_at ? new Date(row.created_at).toLocaleString() : '—'}</div>
-        <div><strong>Created By:</strong> ${escapeHtml(row.creator_name || row.created_by_name || '—')}</div>
-        <div><strong>Attachments:</strong> ${attachments.length} file(s)</div>
-        <div style="margin-top:6px;">${attachList}</div>
-        <div style="color:var(--muted-color); font-size:13px; margin-top:6px;"><strong>ID:</strong> ${escapeHtml(String(row.id||''))}</div>
-      </div>
-    `;
-  }
-    if (detailsFooter) { detailsFooter.innerHTML=''; const close = document.createElement('button'); close.className='btn btn-light'; close.textContent='Close'; close.addEventListener('click', closeDetailsModal); detailsFooter.appendChild(close); if (canCreate || canEdit){ const edit = document.createElement('button'); edit.className='btn btn-primary'; edit.textContent='Edit'; edit.addEventListener('click', ()=>{ enterEditMode(row); closeDetailsModal(); }); detailsFooter.appendChild(edit); } }
-  }
-  function closeDetailsModal(){ detailsModal.classList.remove('show'); detailsModal.style.display='none'; detailsModal.setAttribute('aria-hidden','true'); const bd = document.getElementById('detailsBackdrop'); if (bd) bd.remove(); document.body.classList.remove('modal-open'); if (detailsBody) detailsBody.innerHTML=''; if (detailsFooter) detailsFooter.innerHTML=''; }
-  if (detailsClose) detailsClose.addEventListener('click', closeDetailsModal);
-
-  function closeFullscreenPreview(){ const existing = document.querySelector('.sm-fullscreen'); if (!existing) return; const blobUrl = existing.dataset.blobUrl; if (blobUrl) try{ URL.revokeObjectURL(blobUrl); }catch(e){} existing.remove(); document.documentElement.style.overflow=''; document.body.style.overflow=''; }
-  function suppressContextMenuWhileOverlay(e){ e.preventDefault(); }
-
-  async function fetchProtectedBlob(url){ const res = await apiFetch(url, { method: 'GET', headers: { 'Authorization': 'Bearer ' + TOKEN, 'Accept': '*/*' } }); if (!res.ok) throw new Error('Failed to fetch file: ' + res.status); return await res.blob(); }
-
-  async function isUrlPublic(url){ try{ const res = await fetch(url, { method: 'HEAD', mode: 'cors' }); return res.ok; } catch(e){ try{ const res2 = await fetch(url, { method: 'GET', headers: { 'Range': 'bytes=0-0' }, mode: 'cors' }); return res2.ok; } catch(err){ return false; } } }
-
-  async function openFullscreenPreview(row, attachments = [], startIndex = 0){ closeFullscreenPreview(); if (!Array.isArray(attachments) || attachments.length===0) return; attachments = attachments.map(a => (typeof a === 'string' ? { url: a } : a || {})); let currentIndex = Math.max(0, Math.min(startIndex||0, attachments.length-1)); const wrap = document.createElement('div'); wrap.className='sm-fullscreen'; wrap.setAttribute('role','dialog'); wrap.setAttribute('aria-modal','true'); wrap.dataset.blobUrl = ''; wrap.dataset.currentIndex = String(currentIndex);
-    const inner = document.createElement('div'); inner.className='fs-inner'; const header = document.createElement('div'); header.className='fs-header'; const title = document.createElement('div'); title.className='fs-title'; title.textContent = row.title || ''; const controls = document.createElement('div'); controls.style.display='flex'; controls.style.alignItems='center'; controls.style.gap='8px';
-    const prevBtn = document.createElement('button'); prevBtn.className='fs-close btn btn-sm'; prevBtn.type='button'; prevBtn.title='Previous'; prevBtn.innerHTML='◀'; const nextBtn = document.createElement('button'); nextBtn.className='fs-close btn btn-sm'; nextBtn.type='button'; nextBtn.title='Next'; nextBtn.innerHTML='▶'; const idxIndicator = document.createElement('div'); idxIndicator.style.fontSize='13px'; idxIndicator.style.color='var(--muted-color)'; idxIndicator.textContent = `${currentIndex+1} / ${attachments.length}`;
-    const closeBtn = document.createElement('button'); closeBtn.className='fs-close'; closeBtn.innerHTML='✕'; closeBtn.setAttribute('aria-label','Close preview'); controls.appendChild(prevBtn); controls.appendChild(idxIndicator); controls.appendChild(nextBtn); header.appendChild(title); header.appendChild(controls); header.appendChild(closeBtn);
-    const body = document.createElement('div'); body.className='fs-body'; inner.appendChild(header); inner.appendChild(body); wrap.appendChild(inner); document.body.appendChild(wrap); document.documentElement.style.overflow='hidden'; document.body.style.overflow='hidden'; document.addEventListener('contextmenu', suppressContextMenuWhileOverlay);
-
-    async function renderAt(index){ index = Math.max(0, Math.min(index, attachments.length-1)); currentIndex = index; wrap.dataset.currentIndex = index; idxIndicator.textContent = `${currentIndex+1} / ${attachments.length}`; const prevBlob = wrap.dataset.blobUrl; if (prevBlob) { try{ URL.revokeObjectURL(prevBlob);}catch(e){} wrap.dataset.blobUrl=''; }
-      const attachment = attachments[currentIndex] || {}; const urlCandidate = attachment.signed_url || attachment.url || attachment.path || null; const mime = (attachment.mime || ''); const ext = ((attachment.ext||'')).toLowerCase(); body.innerHTML='';
-      try{
-        if (urlCandidate){ const publicOk = await isUrlPublic(urlCandidate); if (publicOk){ if (mime.startsWith('image/') || ['png','jpg','jpeg','gif','webp'].includes(ext)){ const img=document.createElement('img'); img.src=urlCandidate; img.alt=attachment.name||row.title||'image'; img.style.maxWidth='100%'; img.style.maxHeight='100%'; img.style.objectFit='contain'; body.appendChild(img); return; }
-            if (mime==='application/pdf' || ext==='pdf'){ const iframe=document.createElement('iframe'); iframe.src = urlCandidate + (urlCandidate.indexOf('#')===-1 ? '#toolbar=0&navpanes=0&scrollbar=0' : '&toolbar=0&navpanes=0&scrollbar=0'); iframe.setAttribute('aria-label', row.title || 'PDF preview'); iframe.style.width='100%'; iframe.style.height='100%'; body.appendChild(iframe); return; }
-            if (mime.startsWith('video/') || ['mp4','webm','ogg'].includes(ext)){ const v=document.createElement('video'); v.controls=true; v.style.width='100%'; const s=document.createElement('source'); s.src=urlCandidate; s.type=mime||'video/mp4'; v.appendChild(s); body.appendChild(v); return; }
-            const iframe=document.createElement('iframe'); iframe.src=urlCandidate; iframe.setAttribute('aria-label', row.title || 'Preview'); iframe.style.width='100%'; iframe.style.height='100%'; body.appendChild(iframe); return; }
+    const ddBtn = moreWrap.querySelector('.sm-dd-btn');
+    const dd    = moreWrap.querySelector('.sm-dd');
+    if (ddBtn && dd) {
+      ddBtn.addEventListener('click', (ev)=>{
+        ev.stopPropagation();
+        const isOpen = dd.classList.contains('show');
+        closeAllDropdowns();
+        if (!isOpen) {
+          dd.classList.add('show');
+          dd.setAttribute('aria-hidden','false');
+          ddBtn.setAttribute('aria-expanded','true');
         }
-        if (!urlCandidate){ body.innerHTML = '<div>No preview available for this file.</div>'; return; }
-        const blob = await fetchProtectedBlob(urlCandidate); const blobUrl = URL.createObjectURL(blob); wrap.dataset.blobUrl = blobUrl;
-        if (mime.startsWith('image/') || ['png','jpg','jpeg','gif','webp'].includes(ext)){ const img=document.createElement('img'); img.src=blobUrl; img.alt=attachment.name||row.title||'image'; img.style.maxWidth='100%'; img.style.maxHeight='100%'; img.style.objectFit='contain'; body.appendChild(img); return; }
-        if (mime==='application/pdf' || ext==='pdf'){ const iframe=document.createElement('iframe'); iframe.src = blobUrl + '#toolbar=0&navpanes=0&scrollbar=0'; iframe.setAttribute('aria-label', row.title || 'PDF preview'); iframe.style.width='100%'; iframe.style.height='100%'; body.appendChild(iframe); return; }
-        if (mime.startsWith('video/') || ['mp4','webm','ogg'].includes(ext)){ const v=document.createElement('video'); v.controls=true; v.style.width='100%'; v.src=blobUrl; body.appendChild(v); return; }
-        const iframe=document.createElement('iframe'); iframe.src=blobUrl; iframe.style.width='100%'; iframe.style.height='100%'; body.appendChild(iframe); return;
-      } catch(err){ console.error('Preview error', err); body.innerHTML = '<div>Unable to preview this file (permission denied or unsupported).</div>'; }
+      });
     }
 
-    prevBtn.addEventListener('click', ()=>{ if (currentIndex>0) renderAt(currentIndex-1); }); nextBtn.addEventListener('click', ()=>{ if (currentIndex<attachments.length-1) renderAt(currentIndex+1); });
-    const keyHandler = (e)=>{ if (e.key === 'Escape') { closeFullscreenPreview(); } if (e.key === 'ArrowLeft'){ if (currentIndex>0) renderAt(currentIndex-1); } if (e.key === 'ArrowRight'){ if (currentIndex<attachments.length-1) renderAt(currentIndex+1); } };
+    const viewBtn = moreWrap.querySelector('[data-action="view"]');
+    if (viewBtn) viewBtn.addEventListener('click', (ev) => { ev.preventDefault(); ev.stopPropagation(); openDetailsModal(row); closeAllDropdowns(); });
+
+    const editBtn = moreWrap.querySelector('[data-action="edit"]');
+    if (editBtn) editBtn.addEventListener('click', (ev)=>{ ev.preventDefault(); ev.stopPropagation(); enterEditMode(row); closeAllDropdowns(); });
+
+    const delBtn = moreWrap.querySelector('[data-action="delete"]');
+    if (delBtn) {
+      delBtn.addEventListener('click', async (ev)=>{
+        ev.preventDefault(); ev.stopPropagation();
+        const r = await Swal.fire({ title: 'Move to Bin?', text: `Move "${row.title || 'this notice'}" to Bin?`, icon: 'warning', showCancelButton: true, confirmButtonText: 'Yes, move it', cancelButtonText: 'Cancel' });
+        if (!r.isConfirmed){ closeAllDropdowns(); return; }
+        try {
+          const res = await apiFetch(`${apiBase}/${encodeURIComponent(row.id)}`, { method: 'DELETE' });
+          if (!res.ok) throw new Error('Delete failed: '+res.status);
+          showOk('Moved to Bin');
+          await loadNotices();
+        } catch(e){
+          console.error(e);
+          showErr('Delete failed');
+        } finally {
+          closeAllDropdowns();
+        }
+      });
+    }
+
+    return wrapper;
+  }
+
+  function renderList(items){
+    if (!$items) return;
+    $items.innerHTML='';
+    if (!items || items.length===0){
+      showItems(false); showEmpty(true);
+      return;
+    }
+    showEmpty(false); showItems(true);
+    items.forEach(it => $items.appendChild(createItemRow(it)));
+  }
+
+  function openDetailsModal(row){
+    detailsModal.style.display='block';
+    detailsModal.classList.add('show');
+    detailsModal.setAttribute('aria-hidden','false');
+
+    const backdrop = document.createElement('div');
+    backdrop.className='modal-backdrop fade show';
+    backdrop.id='detailsBackdrop';
+    document.body.appendChild(backdrop);
+    document.body.classList.add('modal-open');
+    backdrop.addEventListener('click', closeDetailsModal);
+
+    const attachments = row.attachment && Array.isArray(row.attachment) ? row.attachment : [];
+    const attachList = attachments.length ? attachments.map(a=>{
+      const name = a.name || (a.url||a.path||'').split('/').pop();
+      const size = a.size ? ` (${formatSize(a.size)})` : '';
+      return `<div style="display:flex; justify-content:space-between; gap:8px;"><div>${escapeHtml(name)}</div><div style="color:var(--muted-color); font-size:13px;">${escapeHtml(a.mime||a.ext||'')}${size}</div></div>`;
+    }).join('') : '<div style="color:var(--muted-color)">No attachments</div>';
+
+    // --- SANITIZE message_html before injecting ---
+    let rawMessage = row.message_html || '';
+    let safeMessage = rawMessage;
+    if (window.DOMPurify && typeof DOMPurify.sanitize === 'function') {
+      safeMessage = DOMPurify.sanitize(rawMessage, {
+        ALLOWED_ATTR: ['href','target','style','class'],
+        ALLOWED_URI_REGEXP: /^(?:(?:https?|mailto|tel):|data:image\/)/i
+      });
+    } else {
+      // fallback: keep rawMessage if you trust it
+      // safeMessage = escapeHtml(rawMessage);
+    }
+
+    if (detailsBody) {
+      detailsBody.innerHTML = `
+        <div style="display:flex; flex-direction:column; gap:12px; font-size:15px;">
+          <div><strong>Title:</strong> ${escapeHtml(row.title||'Untitled')}</div>
+          <div><strong>Message:</strong></div>
+          <div style="padding:6px 0;">${safeMessage || '<span style="color:var(--muted-color)">—</span>'}</div>
+          <div><strong>Created At:</strong> ${row.created_at ? new Date(row.created_at).toLocaleString() : '—'}</div>
+          <div><strong>Created By:</strong> ${escapeHtml(row.creator_name || row.created_by_name || '—')}</div>
+          <div><strong>Attachments:</strong> ${attachments.length} file(s)</div>
+          <div style="margin-top:6px;">${attachList}</div>
+          <div style="color:var(--muted-color); font-size:13px; margin-top:6px;"><strong>ID:</strong> ${escapeHtml(String(row.id||''))}</div>
+        </div>
+      `;
+    }
+
+    if (detailsFooter) {
+      detailsFooter.innerHTML='';
+      const close = document.createElement('button');
+      close.className='btn btn-light';
+      close.textContent='Close';
+      close.addEventListener('click', closeDetailsModal);
+      detailsFooter.appendChild(close);
+
+      if (canCreate || canEdit){
+        const edit = document.createElement('button');
+        edit.className='btn btn-primary';
+        edit.textContent='Edit';
+        edit.addEventListener('click', ()=>{ enterEditMode(row); closeDetailsModal(); });
+        detailsFooter.appendChild(edit);
+      }
+    }
+  }
+
+  function closeDetailsModal(){
+    detailsModal.classList.remove('show');
+    detailsModal.style.display='none';
+    detailsModal.setAttribute('aria-hidden','true');
+    const bd = document.getElementById('detailsBackdrop');
+    if (bd) bd.remove();
+    document.body.classList.remove('modal-open');
+    if (detailsBody) detailsBody.innerHTML='';
+    if (detailsFooter) detailsFooter.innerHTML='';
+  }
+  if (detailsClose) detailsClose.addEventListener('click', closeDetailsModal);
+
+  function closeFullscreenPreview(){
+    const existing = document.querySelector('.sm-fullscreen');
+    if (!existing) return;
+    const blobUrl = existing.dataset.blobUrl;
+    if (blobUrl) try{ URL.revokeObjectURL(blobUrl); }catch(e){}
+    existing.remove();
+    document.documentElement.style.overflow='';
+    document.body.style.overflow='';
+  }
+  function suppressContextMenuWhileOverlay(e){ e.preventDefault(); }
+
+  async function fetchProtectedBlob(url){
+    const res = await apiFetch(url, { method: 'GET', headers: { 'Authorization': 'Bearer ' + TOKEN, 'Accept': '*/*' } });
+    if (!res.ok) throw new Error('Failed to fetch file: ' + res.status);
+    return await res.blob();
+  }
+
+  async function isUrlPublic(url){
+    try{
+      const res = await fetch(url, { method: 'HEAD', mode: 'cors' });
+      return res.ok;
+    } catch(e){
+      try{
+        const res2 = await fetch(url, { method: 'GET', headers: { 'Range': 'bytes=0-0' }, mode: 'cors' });
+        return res2.ok;
+      } catch(err){
+        return false;
+      }
+    }
+  }
+
+  async function openFullscreenPreview(row, attachments = [], startIndex = 0){
+    closeFullscreenPreview();
+    if (!Array.isArray(attachments) || attachments.length===0) return;
+
+    attachments = attachments.map(a => (typeof a === 'string' ? { url: a } : a || {}));
+    let currentIndex = Math.max(0, Math.min(startIndex||0, attachments.length-1));
+
+    const wrap = document.createElement('div');
+    wrap.className='sm-fullscreen';
+    wrap.setAttribute('role','dialog');
+    wrap.setAttribute('aria-modal','true');
+    wrap.dataset.blobUrl = '';
+    wrap.dataset.currentIndex = String(currentIndex);
+
+    const inner = document.createElement('div'); inner.className='fs-inner';
+    const header = document.createElement('div'); header.className='fs-header';
+    const title = document.createElement('div'); title.className='fs-title'; title.textContent = row.title || '';
+    const controls = document.createElement('div'); controls.style.display='flex'; controls.style.alignItems='center'; controls.style.gap='8px';
+
+    const prevBtn = document.createElement('button');
+    prevBtn.className='fs-close btn btn-sm';
+    prevBtn.type='button';
+    prevBtn.title='Previous';
+    prevBtn.innerHTML='◀';
+
+    const nextBtn = document.createElement('button');
+    nextBtn.className='fs-close btn btn-sm';
+    nextBtn.type='button';
+    nextBtn.title='Next';
+    nextBtn.innerHTML='▶';
+
+    const idxIndicator = document.createElement('div');
+    idxIndicator.style.fontSize='13px';
+    idxIndicator.style.color='var(--muted-color)';
+    idxIndicator.textContent = `${currentIndex+1} / ${attachments.length}`;
+
+    const closeBtn = document.createElement('button');
+    closeBtn.className='fs-close';
+    closeBtn.innerHTML='✕';
+    closeBtn.setAttribute('aria-label','Close preview');
+
+    controls.appendChild(prevBtn);
+    controls.appendChild(idxIndicator);
+    controls.appendChild(nextBtn);
+
+    header.appendChild(title);
+    header.appendChild(controls);
+    header.appendChild(closeBtn);
+
+    const body = document.createElement('div'); body.className='fs-body';
+    inner.appendChild(header);
+    inner.appendChild(body);
+    wrap.appendChild(inner);
+    document.body.appendChild(wrap);
+
+    document.documentElement.style.overflow='hidden';
+    document.body.style.overflow='hidden';
+    document.addEventListener('contextmenu', suppressContextMenuWhileOverlay);
+
+    async function renderAt(index){
+      index = Math.max(0, Math.min(index, attachments.length-1));
+      currentIndex = index;
+      wrap.dataset.currentIndex = index;
+      idxIndicator.textContent = `${currentIndex+1} / ${attachments.length}`;
+
+      const prevBlob = wrap.dataset.blobUrl;
+      if (prevBlob) { try{ URL.revokeObjectURL(prevBlob);}catch(e){} wrap.dataset.blobUrl=''; }
+
+      const attachment = attachments[currentIndex] || {};
+      const urlCandidate = attachment.signed_url || attachment.url || attachment.path || null;
+      const mime = (attachment.mime || '');
+      const ext = ((attachment.ext||'')).toLowerCase();
+
+      body.innerHTML='';
+
+      try{
+        if (urlCandidate){
+          const publicOk = await isUrlPublic(urlCandidate);
+          if (publicOk){
+            if (mime.startsWith('image/') || ['png','jpg','jpeg','gif','webp'].includes(ext)){
+              const img=document.createElement('img');
+              img.src=urlCandidate;
+              img.alt=attachment.name||row.title||'image';
+              img.style.maxWidth='100%';
+              img.style.maxHeight='100%';
+              img.style.objectFit='contain';
+              body.appendChild(img);
+              return;
+            }
+            if (mime==='application/pdf' || ext==='pdf'){
+              const iframe=document.createElement('iframe');
+              iframe.src = urlCandidate + (urlCandidate.indexOf('#')===-1 ? '#toolbar=0&navpanes=0&scrollbar=0' : '&toolbar=0&navpanes=0&scrollbar=0');
+              iframe.setAttribute('aria-label', row.title || 'PDF preview');
+              iframe.style.width='100%';
+              iframe.style.height='100%';
+              body.appendChild(iframe);
+              return;
+            }
+            if (mime.startsWith('video/') || ['mp4','webm','ogg'].includes(ext)){
+              const v=document.createElement('video');
+              v.controls=true;
+              v.style.width='100%';
+              const s=document.createElement('source');
+              s.src=urlCandidate;
+              s.type=mime||'video/mp4';
+              v.appendChild(s);
+              body.appendChild(v);
+              return;
+            }
+            const iframe=document.createElement('iframe');
+            iframe.src=urlCandidate;
+            iframe.setAttribute('aria-label', row.title || 'Preview');
+            iframe.style.width='100%';
+            iframe.style.height='100%';
+            body.appendChild(iframe);
+            return;
+          }
+        }
+
+        if (!urlCandidate){
+          body.innerHTML = '<div>No preview available for this file.</div>';
+          return;
+        }
+
+        const blob = await fetchProtectedBlob(urlCandidate);
+        const blobUrl = URL.createObjectURL(blob);
+        wrap.dataset.blobUrl = blobUrl;
+
+        if (mime.startsWith('image/') || ['png','jpg','jpeg','gif','webp'].includes(ext)){
+          const img=document.createElement('img');
+          img.src=blobUrl;
+          img.alt=attachment.name||row.title||'image';
+          img.style.maxWidth='100%';
+          img.style.maxHeight='100%';
+          img.style.objectFit='contain';
+          body.appendChild(img);
+          return;
+        }
+        if (mime==='application/pdf' || ext==='pdf'){
+          const iframe=document.createElement('iframe');
+          iframe.src = blobUrl + '#toolbar=0&navpanes=0&scrollbar=0';
+          iframe.setAttribute('aria-label', row.title || 'PDF preview');
+          iframe.style.width='100%';
+          iframe.style.height='100%';
+          body.appendChild(iframe);
+          return;
+        }
+        if (mime.startsWith('video/') || ['mp4','webm','ogg'].includes(ext)){
+          const v=document.createElement('video');
+          v.controls=true;
+          v.style.width='100%';
+          v.src=blobUrl;
+          body.appendChild(v);
+          return;
+        }
+
+        const iframe=document.createElement('iframe');
+        iframe.src=blobUrl;
+        iframe.style.width='100%';
+        iframe.style.height='100%';
+        body.appendChild(iframe);
+        return;
+
+      } catch(err){
+        console.error('Preview error', err);
+        body.innerHTML = '<div>Unable to preview this file (permission denied or unsupported).</div>';
+      }
+    }
+
+    prevBtn.addEventListener('click', ()=>{ if (currentIndex>0) renderAt(currentIndex-1); });
+    nextBtn.addEventListener('click', ()=>{ if (currentIndex<attachments.length-1) renderAt(currentIndex+1); });
+
+    const keyHandler = (e)=>{
+      if (e.key === 'Escape') closeFullscreenPreview();
+      if (e.key === 'ArrowLeft'){ if (currentIndex>0) renderAt(currentIndex-1); }
+      if (e.key === 'ArrowRight'){ if (currentIndex<attachments.length-1) renderAt(currentIndex+1); }
+    };
     document.addEventListener('keydown', keyHandler);
-    function cleanupOnClose(){ try{ const b = wrap.dataset.blobUrl; if (b) URL.revokeObjectURL(b); }catch(e){} document.removeEventListener('keydown', keyHandler); document.removeEventListener('contextmenu', suppressContextMenuWhileOverlay); }
+
+    function cleanupOnClose(){
+      try{ const b = wrap.dataset.blobUrl; if (b) URL.revokeObjectURL(b); }catch(e){}
+      document.removeEventListener('keydown', keyHandler);
+      document.removeEventListener('contextmenu', suppressContextMenuWhileOverlay);
+    }
     function wrappedClose(){ cleanupOnClose(); closeFullscreenPreview(); }
+
     try{ closeBtn.removeEventListener('click', closeFullscreenPreview); }catch(e){}
     closeBtn.addEventListener('click', wrappedClose);
+
     window._sm_close_fullscreen_preview = ()=>{ cleanupOnClose(); };
+
     await renderAt(currentIndex);
   }
 
-  function formatSize(bytes){ if (bytes==null) return ''; const units=['B','KB','MB','GB']; let i=0; let b=Number(bytes); while(b>=1024 && i<units.length-1){ b/=1024; i++; } return `${b.toFixed(b<10 && i>0 ? 1 : 0)} ${units[i]}`; }
+  function formatSize(bytes){
+    if (bytes==null) return '';
+    const units=['B','KB','MB','GB'];
+    let i=0; let b=Number(bytes);
+    while(b>=1024 && i<units.length-1){ b/=1024; i++; }
+    return `${b.toFixed(b<10 && i>0 ? 1 : 0)} ${units[i]}`;
+  }
+// Add these variables at the top of your IIFE (after const declarations)
+let currentLoadRequest = null;
+let isLoadingNotices = false;
+let lastLoadedModuleNotices = null;
+  async function loadNotices(){
+  // Get current module to check if we need to reload
+  const currentModule = deriveModuleKey();
+  
+  // Skip if already loading the same module
+  if (isLoadingNotices && lastLoadedModuleNotices === currentModule) {
+    console.debug('Notices load already in progress for this module, skipping...');
+    return;
+  }
+  
+  // Cancel previous request if loading different module
+  if (currentLoadRequest) {
+    console.debug('Cancelling previous notices load request');
+    currentLoadRequest.abort();
+    currentLoadRequest = null;
+  }
+  
+  // Mark as loading
+  isLoadingNotices = true;
+  currentLoadRequest = new AbortController();
+  
+  showLoader(true); 
+  showItems(false); 
+  showEmpty(false);
+  
+  try{
+    const ctx = readContext();
+    if (!ctx || !ctx.batch_id) throw new Error('Batch context required');
 
-  async function loadNotices(){ showLoader(true); showItems(false); showEmpty(false); try{ const ctx=readContext(); if (!ctx || !ctx.batch_id) { throw new Error('Batch context required'); }
-      const url = `${apiBase}/batch/${encodeURIComponent(ctx.batch_id)}`;
-      const res = await apiFetch(url); if (!res.ok) throw new Error('HTTP '+res.status); const json = await res.json().catch(()=>null);
-      if (!json || !json.data) throw new Error('Invalid response format');
-      const modulesWithNotices = json.data.modules_with_notices || [];
-      let allNotices = [];
-      modulesWithNotices.forEach(moduleGroup => { if (moduleGroup.notices && Array.isArray(moduleGroup.notices)) { moduleGroup.notices.forEach(notice => { notice.module_title = moduleGroup.module?.title || 'Unknown Module'; notice.module_uuid = moduleGroup.module?.uuid || ''; allNotices.push(notice); }); } });
-      const sortVal = $sort ? $sort.value : 'created_desc';
-      allNotices.sort((a,b)=>{ const da = a.created_at ? new Date(a.created_at) : new Date(0); const db = b.created_at ? new Date(b.created_at) : new Date(0); if (sortVal === 'created_desc') return db-da; if (sortVal === 'created_asc') return da-db; if (sortVal==='title_asc') return (a.title||'').localeCompare(b.title||''); return 0; });
-      renderList(allNotices);
-      if (json.data.batch) window.currentBatchContext = json.data.batch;
-  } catch(e){ console.error('Load notices error:', e); if ($items) $items.innerHTML = '<div class="sm-empty">Unable to load notices — please refresh.</div>'; showItems(true); showErr('Failed to load notices: ' + (e.message || 'Unknown error')); } finally { showLoader(false); } }
+    // Update last loaded module
+    lastLoadedModuleNotices = currentModule;
 
-  if ($refresh) $refresh.addEventListener('click', loadNotices); if ($search) $search.addEventListener('keyup', (e)=>{ if (e.key === 'Enter') loadNotices(); }); if ($sort) $sort.addEventListener('change', loadNotices);
+    // ✅ include module filter if present (safe even if backend ignores)
+    let url = `${apiBase}/batch/${encodeURIComponent(ctx.batch_id)}`;
+    url = appendModuleFilter(url, ctx.module_id);
 
-  let createModalInstance = null; try { if (window.bootstrap && typeof window.bootstrap.Modal === 'function' && createModalEl) createModalInstance = new bootstrap.Modal(createModalEl); } catch(e){ createModalInstance = null; }
+    const res = await apiFetch(url, {
+      signal: currentLoadRequest.signal
+    });
+    
+    if (!res.ok) throw new Error('HTTP '+res.status);
 
-  if ($uploadBtn) { $uploadBtn.type='button'; if (canCreate) { $uploadBtn.style.display='inline-block'; const cleanBtn = $uploadBtn.cloneNode(true); $uploadBtn.parentNode.replaceChild(cleanBtn, $uploadBtn); cleanBtn.addEventListener('click', (ev)=>{ ev.preventDefault(); showCreateModal(); }); } else { $uploadBtn.style.display='none'; } }
+    const json = await res.json().catch(()=>null);
+    if (!json || !json.data) throw new Error('Invalid response format');
+
+    const modulesWithNotices = json.data.modules_with_notices || [];
+    let allNotices = [];
+
+    modulesWithNotices.forEach(moduleGroup => {
+      if (moduleGroup.notices && Array.isArray(moduleGroup.notices)) {
+        moduleGroup.notices.forEach(notice => {
+          notice.module_title = moduleGroup.module?.title || 'Unknown Module';
+          notice.module_uuid  = moduleGroup.module?.uuid  || '';
+          allNotices.push(notice);
+        });
+      }
+    });
+
+    const sortVal = $sort ? $sort.value : 'created_desc';
+    allNotices.sort((a,b)=>{
+      const da = a.created_at ? new Date(a.created_at) : new Date(0);
+      const db = b.created_at ? new Date(b.created_at) : new Date(0);
+      if (sortVal === 'created_desc') return db-da;
+      if (sortVal === 'created_asc') return da-db;
+      if (sortVal === 'title_asc') return (a.title||'').localeCompare(b.title||'');
+      return 0;
+    });
+
+    renderList(allNotices);
+    if (json.data.batch) window.currentBatchContext = json.data.batch;
+
+  } catch(e){
+    // Ignore aborted requests
+    if (e.name === 'AbortError') {
+      console.debug('Notices load request was aborted');
+      return;
+    }
+    
+    console.error('Load notices error:', e);
+    if ($items) $items.innerHTML = '<div class="sm-empty">Unable to load notices — please refresh.</div>';
+    showItems(true);
+    showErr('Failed to load notices: ' + (e.message || 'Unknown error'));
+  } finally {
+    isLoadingNotices = false;
+    currentLoadRequest = null;
+    showLoader(false);
+  }
+}
+// -------------------------
+// ✅ Detect URL changes (SPA) and reload correct module
+// -------------------------
+(function watchUrlChanges(){
+  let lastHref = String(location.href);
+  let urlChangeDebounce = null;
+
+  function handlePossibleChange(){
+    const now = String(location.href);
+    if (now === lastHref) return;
+    lastHref = now;
+
+    // Debounce to prevent rapid-fire calls
+    clearTimeout(urlChangeDebounce);
+    
+    urlChangeDebounce = setTimeout(() => {
+      // resync DOM from URL
+      try {
+        const host = document.querySelector('.crs-wrap');
+        const mk = deriveModuleKey();
+        if (host && mk) {
+          host.dataset.moduleId = String(mk);
+          host.dataset.module_id = String(mk);
+        }
+      } catch(e){}
+
+      try { updateContextDisplay(); } catch(e){}
+      loadNotices();
+    }, 200); // Wait 200ms for URL changes to settle
+  }
+
+  // back/forward
+  window.addEventListener('popstate', handlePossibleChange);
+
+  // patch pushState/replaceState
+  const _ps = history.pushState;
+  const _rs = history.replaceState;
+
+  history.pushState = function(){
+    const r = _ps.apply(this, arguments);
+    setTimeout(handlePossibleChange, 0);
+    return r;
+  };
+  history.replaceState = function(){
+    const r = _rs.apply(this, arguments);
+    setTimeout(handlePossibleChange, 0);
+    return r;
+  };
+
+  // fallback poll (reduced frequency)
+  setInterval(handlePossibleChange, 2000); // Changed from potential faster polling to 2000ms
+})();
+  if ($refresh) $refresh.addEventListener('click', loadNotices);
+  if ($search)  $search.addEventListener('keyup', (e)=>{ if (e.key === 'Enter') loadNotices(); });
+  if ($sort)    $sort.addEventListener('change', loadNotices);
+
+  let createModalInstance = null;
+  try {
+    if (window.bootstrap && typeof window.bootstrap.Modal === 'function' && createModalEl) {
+      createModalInstance = new bootstrap.Modal(createModalEl);
+    }
+  } catch(e){ createModalInstance = null; }
+
+  if ($uploadBtn) {
+    $uploadBtn.type='button';
+    if (canCreate) {
+      $uploadBtn.style.display='inline-block';
+      const cleanBtn = $uploadBtn.cloneNode(true);
+      $uploadBtn.parentNode.replaceChild(cleanBtn, $uploadBtn);
+      cleanBtn.addEventListener('click', (ev)=>{ ev.preventDefault(); showCreateModal(); });
+    } else {
+      $uploadBtn.style.display='none';
+    }
+  }
 
   let _manualBackdrop = null;
-  function showCreateModal(){ const nFormEl = document.getElementById('noticeCreateForm'); if (nFormEl) { const isEditing = (noticeIdInput && noticeIdInput.value && noticeIdInput.value.trim() !== ''); if (!isEditing) { nFormEl.reset(); nFormEl.classList.remove('was-validated'); } else { nFormEl.classList.remove('was-validated'); } }
-    const nAlert = document.getElementById('noticeCreateAlert'); if (nAlert) nAlert.style.display='none'; updateContextDisplay();
-     if (createModalInstance && typeof createModalInstance.show === 'function') { createModalInstance.show(); return; } if (!createModalEl) return; _manualBackdrop = document.createElement('div'); _manualBackdrop.className='modal-backdrop fade show'; document.body.appendChild(_manualBackdrop); createModalEl.classList.add('show'); createModalEl.style.display='block'; createModalEl.setAttribute('aria-hidden','false'); document.body.classList.add('modal-open'); document.documentElement.style.overflow='hidden'; if (!createModalEl._fallbackHooksAdded) { createModalEl.querySelectorAll('[data-bs-dismiss], .btn-close').forEach(btn => btn.addEventListener('click', hideCreateModal)); _manualBackdrop.addEventListener('click', hideCreateModal); document.addEventListener('keydown', _fallbackEscHandler); createModalEl._fallbackHooksAdded = true; } }
+
+  function showCreateModal(){
+    const nFormEl = document.getElementById('noticeCreateForm');
+    if (nFormEl) {
+      const isEditing = (noticeIdInput && noticeIdInput.value && noticeIdInput.value.trim() !== '');
+      if (!isEditing) { nFormEl.reset(); nFormEl.classList.remove('was-validated'); }
+      else { nFormEl.classList.remove('was-validated'); }
+    }
+
+    const nAlert = document.getElementById('noticeCreateAlert');
+    if (nAlert) nAlert.style.display='none';
+  try { readContext(); } catch(e){}
+
+    updateContextDisplay();
+
+    if (createModalInstance && typeof createModalInstance.show === 'function') {
+      createModalInstance.show();
+      return;
+    }
+    if (!createModalEl) return;
+
+    _manualBackdrop = document.createElement('div');
+    _manualBackdrop.className='modal-backdrop fade show';
+    document.body.appendChild(_manualBackdrop);
+
+    createModalEl.classList.add('show');
+    createModalEl.style.display='block';
+    createModalEl.setAttribute('aria-hidden','false');
+
+    document.body.classList.add('modal-open');
+    document.documentElement.style.overflow='hidden';
+
+    if (!createModalEl._fallbackHooksAdded) {
+      createModalEl.querySelectorAll('[data-bs-dismiss], .btn-close').forEach(btn => btn.addEventListener('click', hideCreateModal));
+      _manualBackdrop.addEventListener('click', hideCreateModal);
+      document.addEventListener('keydown', _fallbackEscHandler);
+      createModalEl._fallbackHooksAdded = true;
+    }
+  }
 
   function cleanupModalBackdrops() {
-    // remove any stray backdrops
     document.querySelectorAll('.modal-backdrop').forEach(b => { try { b.remove(); } catch(e){} });
-    // remove modal-open class and restore overflow
     document.body.classList.remove('modal-open');
     try { document.documentElement.style.overflow = ''; document.body.style.overflow = ''; } catch(e){}
   }
 
   function hideCreateModal(){
-    // Prefer bootstrap instance hide if available
     if (createModalInstance && typeof createModalInstance.hide === 'function') {
-      try {
-        createModalInstance.hide();
-      } catch(e) {
-        // fall through to manual cleanup
-      }
-      // ensure any leftover backdrop is removed (bootstrap sometimes leaves it if operations overlap)
+      try { createModalInstance.hide(); } catch(e){}
       setTimeout(cleanupModalBackdrops, 50);
-      // also exit edit mode/state
       exitEditMode();
       return;
     }
-    // manual fallback removal (existing logic)
     if (!createModalEl) return;
+
     createModalEl.classList.remove('show');
     createModalEl.style.display='none';
     createModalEl.setAttribute('aria-hidden','true');
+
     cleanupModalBackdrops();
-    if (_manualBackdrop && _manualBackdrop.parentNode) { _manualBackdrop.parentNode.removeChild(_manualBackdrop); _manualBackdrop = null; }
+
+    if (_manualBackdrop && _manualBackdrop.parentNode) {
+      _manualBackdrop.parentNode.removeChild(_manualBackdrop);
+      _manualBackdrop = null;
+    }
     try { document.removeEventListener('keydown', _fallbackEscHandler); } catch(e){}
     exitEditMode();
   }
+
   function _fallbackEscHandler(e){ if (e.key === 'Escape') hideCreateModal(); }
 
-  function enterEditMode(row){ if (noticeIdInput) noticeIdInput.value = row.id || ''; if (noticeMethodInput) noticeMethodInput.value = 'PATCH'; if (noticeTitleInput) noticeTitleInput.value = row.title || ''; 
-    // Write into the hidden textarea (existing code uses .value) then sync into RTE
-    if (noticeMessageInput) noticeMessageInput.value = row.message_html || '';
-    if (noticeRte) { try { noticeRte.innerHTML = row.message_html || ''; noticeRte.classList.toggle('has-content', (noticeRte.innerHTML||'').trim().length>0); } catch(e){} }
-    if (noticeVisibility) noticeVisibility.value = row.visibility_scope || 'batch'; if (noticeAttachmentsInput) noticeAttachmentsInput.value=''; if (noticeExistingWrap && noticeExistingList){ const attachments = row.attachment && Array.isArray(row.attachment) ? row.attachment : []; noticeExistingList.innerHTML=''; if (attachments.length){ attachments.forEach((a, idx)=>{ const id = a.id || a.attachment_id || a.file_id || a.storage_key || a.key || (a.url||a.path||'').split('/').pop() || (`file-${idx}`); const name = a.name || (a.url||a.path||'').split('/').pop() || `(attachment ${idx+1})`; const size = a.size ? ` (${formatSize(a.size)})` : ''; const mime = a.mime || a.ext || '';
-      const rowEl = document.createElement('div'); rowEl.style.display='flex'; rowEl.style.alignItems='center'; rowEl.style.justifyContent='space-between'; rowEl.style.gap='8px'; rowEl.style.padding='8px'; rowEl.style.borderRadius='6px'; rowEl.style.border='1px dashed var(--line-strong)'; rowEl.style.background='#fbfbfb'; const left = document.createElement('div'); left.style.display='flex'; left.style.flexDirection='column'; left.innerHTML = `<div style="font-weight:600">${escapeHtml(name)}${escapeHtml(size)}</div><div class="small text-muted" style="margin-top:4px;">${escapeHtml(mime)}</div>`; const right = document.createElement('div'); right.style.display='flex'; right.style.alignItems='center'; right.style.gap='8px'; const chk = document.createElement('input'); chk.type='checkbox'; chk.name='remove_attachments[]'; chk.value = id; chk.style.display='none'; chk.title='Marked for removal'; const removeBtn = document.createElement('button'); removeBtn.type='button'; removeBtn.className='btn btn-sm btn-outline-danger'; removeBtn.innerHTML = '<i class="fa fa-trash"></i> Remove'; removeBtn.title='Remove this file on update'; const undoBtn = document.createElement('button'); undoBtn.type='button'; undoBtn.className='btn btn-sm btn-outline-secondary'; undoBtn.style.display='none'; undoBtn.innerHTML = '<i class="fa fa-undo"></i> Undo'; if (a.url || a.signed_url || a.path) { const previewLink = document.createElement('a'); previewLink.href = a.signed_url || a.url || a.path; previewLink.target='_blank'; previewLink.className='small text-primary'; previewLink.style.display='none'; previewLink.style.marginRight='8px'; previewLink.textContent='Preview'; right.appendChild(previewLink); }
-      removeBtn.addEventListener('click', ()=>{ chk.checked = true; rowEl.style.opacity='0.45'; rowEl.style.filter='grayscale(0.4)'; removeBtn.style.display='none'; undoBtn.style.display=''; });
-      undoBtn.addEventListener('click', ()=>{ chk.checked = false; rowEl.style.opacity=''; rowEl.style.filter=''; removeBtn.style.display=''; undoBtn.style.display='none'; });
-      right.appendChild(chk); right.appendChild(removeBtn); right.appendChild(undoBtn); rowEl.appendChild(left); rowEl.appendChild(right); noticeExistingList.appendChild(rowEl); }); } else { noticeExistingList.innerHTML = '<div class="text-muted small">No existing attachments</div>'; } noticeExistingWrap.style.display=''; }
-    const modalTitle = createModalEl.querySelector('.modal-title'); if (modalTitle) modalTitle.innerHTML = '<i class="fa fa-pen me-2"></i> Edit Notice'; if (noticeCreateSubmitBtn) noticeCreateSubmitBtn.innerHTML = '<i class="fa fa-save me-1"></i> Update'; updateContextDisplay(); 
-    if (createModalInstance && typeof createModalInstance.show === 'function') createModalInstance.show(); else showCreateModal(); }
+  function enterEditMode(row){
+    if (noticeIdInput) noticeIdInput.value = row.id || '';
+    if (noticeMethodInput) noticeMethodInput.value = 'PATCH';
+    if (noticeTitleInput) noticeTitleInput.value = row.title || '';
 
-  function exitEditMode(){ if (noticeIdInput) noticeIdInput.value=''; if (noticeMethodInput) noticeMethodInput.value=''; if (noticeCreateFormEl) noticeCreateFormEl.reset(); if (noticeExistingList) noticeExistingList.innerHTML=''; if (noticeExistingWrap) noticeExistingWrap.style.display='none'; const modalTitle = createModalEl.querySelector('.modal-title'); if (modalTitle) modalTitle.innerHTML = '<i class="fa fa-plus me-2"></i> Add Notice'; if (noticeCreateSubmitBtn) noticeCreateSubmitBtn.innerHTML = '<i class="fa fa-save me-1"></i> Create'; }
+    if (noticeMessageInput) noticeMessageInput.value = row.message_html || '';
+    if (noticeRte) {
+      try {
+        noticeRte.innerHTML = row.message_html || '';
+        noticeRte.classList.toggle('has-content', (noticeRte.innerHTML||'').trim().length>0);
+      } catch(e){}
+    }
+
+    if (noticeVisibility) noticeVisibility.value = row.visibility_scope || 'batch';
+    if (noticeAttachmentsInput) noticeAttachmentsInput.value='';
+
+    if (noticeExistingWrap && noticeExistingList){
+      const attachments = row.attachment && Array.isArray(row.attachment) ? row.attachment : [];
+      noticeExistingList.innerHTML='';
+      if (attachments.length){
+        attachments.forEach((a, idx)=>{
+          const id = a.id || a.attachment_id || a.file_id || a.storage_key || a.key || (a.url||a.path||'').split('/').pop() || (`file-${idx}`);
+          const name = a.name || (a.url||a.path||'').split('/').pop() || `(attachment ${idx+1})`;
+          const size = a.size ? ` (${formatSize(a.size)})` : '';
+          const mime = a.mime || a.ext || '';
+
+          const rowEl = document.createElement('div');
+          rowEl.style.display='flex';
+          rowEl.style.alignItems='center';
+          rowEl.style.justifyContent='space-between';
+          rowEl.style.gap='8px';
+          rowEl.style.padding='8px';
+          rowEl.style.borderRadius='6px';
+          rowEl.style.border='1px dashed var(--line-strong)';
+          rowEl.style.background='#fbfbfb';
+
+          const left = document.createElement('div');
+          left.style.display='flex';
+          left.style.flexDirection='column';
+          left.innerHTML = `<div style="font-weight:600">${escapeHtml(name)}${escapeHtml(size)}</div><div class="small text-muted" style="margin-top:4px;">${escapeHtml(mime)}</div>`;
+
+          const right = document.createElement('div');
+          right.style.display='flex';
+          right.style.alignItems='center';
+          right.style.gap='8px';
+
+          const chk = document.createElement('input');
+          chk.type='checkbox';
+          chk.name='remove_attachments[]';
+          chk.value = id;
+          chk.style.display='none';
+          chk.title='Marked for removal';
+
+          const removeBtn = document.createElement('button');
+          removeBtn.type='button';
+          removeBtn.className='btn btn-sm btn-outline-danger';
+          removeBtn.innerHTML = '<i class="fa fa-trash"></i> Remove';
+          removeBtn.title='Remove this file on update';
+
+          const undoBtn = document.createElement('button');
+          undoBtn.type='button';
+          undoBtn.className='btn btn-sm btn-outline-secondary';
+          undoBtn.style.display='none';
+          undoBtn.innerHTML = '<i class="fa fa-undo"></i> Undo';
+
+          if (a.url || a.signed_url || a.path) {
+            const previewLink = document.createElement('a');
+            previewLink.href = a.signed_url || a.url || a.path;
+            previewLink.target='_blank';
+            previewLink.className='small text-primary';
+            previewLink.style.display = 'none';
+            previewLink.style.marginRight='8px';
+            previewLink.textContent='Preview';
+            right.appendChild(previewLink);
+          }
+
+          removeBtn.addEventListener('click', ()=>{
+            chk.checked = true;
+            rowEl.style.opacity='0.45';
+            rowEl.style.filter='grayscale(0.4)';
+            removeBtn.style.display='none';
+            undoBtn.style.display='';
+          });
+
+          undoBtn.addEventListener('click', ()=>{
+            chk.checked = false;
+            rowEl.style.opacity='';
+            rowEl.style.filter='';
+            removeBtn.style.display='';
+            undoBtn.style.display='none';
+          });
+
+          right.appendChild(chk);
+          right.appendChild(removeBtn);
+          right.appendChild(undoBtn);
+
+          rowEl.appendChild(left);
+          rowEl.appendChild(right);
+          noticeExistingList.appendChild(rowEl);
+        });
+      } else {
+        noticeExistingList.innerHTML = '<div class="text-muted small">No existing attachments</div>';
+      }
+      noticeExistingWrap.style.display='';
+    }
+
+    const modalTitle = createModalEl.querySelector('.modal-title');
+    if (modalTitle) modalTitle.innerHTML = '<i class="fa fa-pen me-2"></i> Edit Notice';
+    if (noticeCreateSubmitBtn) noticeCreateSubmitBtn.innerHTML = '<i class="fa fa-save me-1"></i> Update';
+
+    updateContextDisplay();
+
+    if (createModalInstance && typeof createModalInstance.show === 'function') createModalInstance.show();
+    else showCreateModal();
+  }
+
+  function exitEditMode(){
+    if (noticeIdInput) noticeIdInput.value='';
+    if (noticeMethodInput) noticeMethodInput.value='';
+    if (noticeCreateFormEl) noticeCreateFormEl.reset();
+    if (noticeExistingList) noticeExistingList.innerHTML='';
+    if (noticeExistingWrap) noticeExistingWrap.style.display='none';
+    const modalTitle = createModalEl.querySelector('.modal-title');
+    if (modalTitle) modalTitle.innerHTML = '<i class="fa fa-plus me-2"></i> Add Notice';
+    if (noticeCreateSubmitBtn) noticeCreateSubmitBtn.innerHTML = '<i class="fa fa-save me-1"></i> Create';
+  }
   try{ if (createModalEl) createModalEl.addEventListener('hidden.bs.modal', exitEditMode); }catch(e){}
 
-    (function initCreateForm(){
+  (function initCreateForm(){
     const nForm   = noticeCreateFormEl;
     if (!nForm) return;
 
@@ -882,11 +1562,11 @@ function openDetailsModal(row){
         else fd.append('module_uuid', mod);
       }
 
-      fd.append('title',           noticeTitleInput   ? noticeTitleInput.value.trim()   : '');
-      fd.append('message_html',    noticeMessageInput ? noticeMessageInput.value.trim() : '');
-      fd.append('visibility_scope', noticeVisibility  ? noticeVisibility.value          : 'batch');
-      fd.append('priority',         noticePriority    ? noticePriority.value            : 'normal');
-      fd.append('status',           noticeStatus      ? noticeStatus.value              : 'draft');
+      fd.append('title',            noticeTitleInput   ? noticeTitleInput.value.trim()   : '');
+      fd.append('message_html',     noticeMessageInput ? noticeMessageInput.value.trim() : '');
+      fd.append('visibility_scope', noticeVisibility   ? noticeVisibility.value          : 'batch');
+      fd.append('priority',         noticePriority     ? noticePriority.value            : 'normal');
+      fd.append('status',           noticeStatus       ? noticeStatus.value              : 'draft');
 
       // LOCAL FILES
       const files = noticeAttachmentsInput && noticeAttachmentsInput.files
@@ -896,7 +1576,7 @@ function openDetailsModal(row){
         fd.append('attachments[]', files[i]);
       }
 
-      // LIBRARY URLS (from Choose from Library)
+      // LIBRARY URLS
       const libUrls = (createModalEl && Array.isArray(createModalEl._selectedNoticeLibraryUrls))
         ? createModalEl._selectedNoticeLibraryUrls
         : [];
@@ -971,11 +1651,8 @@ function openDetailsModal(row){
 
         // success
         try {
-          if (createModalInstance && typeof createModalInstance.hide === 'function') {
-            createModalInstance.hide();
-          } else {
-            hideCreateModal();
-          }
+          if (createModalInstance && typeof createModalInstance.hide === 'function') createModalInstance.hide();
+          else hideCreateModal();
         } catch (e) {
           hideCreateModal();
         }
@@ -997,9 +1674,7 @@ function openDetailsModal(row){
 
     // keep context text fresh whenever modal shows
     if (createModalEl) {
-      try {
-        createModalEl.addEventListener('show.bs.modal', () => updateContextDisplay());
-      } catch (e) {}
+      try { createModalEl.addEventListener('show.bs.modal', () => updateContextDisplay()); } catch (e) {}
     }
   })();
 
@@ -1030,33 +1705,207 @@ function openDetailsModal(row){
     }
   }
 
-  (function initBin(){ if (!$btnBin) return; if (!canViewBin) { $btnBin.style.display='none'; return; } else { $btnBin.style.display='inline-block'; }
+  (function initBin(){
+    if (!$btnBin) return;
+    if (!canViewBin) { $btnBin.style.display='none'; return; }
+    else { $btnBin.style.display='inline-block'; }
+
     async function fetchDeletedNotices(params=''){
-      try{ const ctx = readContext(); let url; if (ctx && ctx.batch_id){ url = `${apiBase}/bin/batch/${encodeURIComponent(ctx.batch_id)}`; if (ctx.module_id) url += `?module_uuid=${encodeURIComponent(ctx.module_id)}`; } else { url = '/api/notices/deleted' + (params ? ('?'+params) : ''); }
-        const r = await apiFetch(url); if (!r.ok) throw new Error('HTTP '+r.status); const j = await r.json().catch(()=>null); const items = j && (j.data || j.items) ? (j.data || j.items) : (Array.isArray(j) ? j : []);
-        return (items || []).map(it => { if (typeof it.attachments === 'string' && it.attachments) { try { it.attachments = JSON.parse(it.attachments); } catch { /* leave */ } } if (typeof it.attachments_json === 'string' && it.attachments_json){ try { it.attachments = JSON.parse(it.attachments_json); } catch {} } return it; }).filter(it => !!(it && (it.deleted_at || it.deletedAt)));
-      } catch(e){ console.error('fetchDeletedNotices failed', e); return []; }
+      try{
+        const ctx = readContext();
+        let url;
+
+        if (ctx && ctx.batch_id){
+          url = `${apiBase}/bin/batch/${encodeURIComponent(ctx.batch_id)}`;
+          if (ctx.module_id) url += `?module_uuid=${encodeURIComponent(ctx.module_id)}`;
+        } else {
+          url = '/api/notices/deleted' + (params ? ('?'+params) : '');
+        }
+
+        const r = await apiFetch(url);
+        if (!r.ok) throw new Error('HTTP '+r.status);
+        const j = await r.json().catch(()=>null);
+        const items = j && (j.data || j.items) ? (j.data || j.items) : (Array.isArray(j) ? j : []);
+        return (items || []).map(it => {
+          if (typeof it.attachments === 'string' && it.attachments) { try { it.attachments = JSON.parse(it.attachments); } catch { } }
+          if (typeof it.attachments_json === 'string' && it.attachments_json){ try { it.attachments = JSON.parse(it.attachments_json); } catch {} }
+          return it;
+        }).filter(it => !!(it && (it.deleted_at || it.deletedAt)));
+      } catch(e){
+        console.error('fetchDeletedNotices failed', e);
+        return [];
+      }
     }
 
-    function buildBinTable(items){ if (!document.getElementById('bin-overflow-css')){ const s=document.createElement('style'); s.id='bin-overflow-css'; s.textContent = `.dropdown-menu { overflow: visible !important; white-space: nowrap; } .table-responsive { overflow: visible !important; }`; document.head.appendChild(s); }
-      const wrap = document.createElement('div'); wrap.className='sm-card p-3'; const heading = document.createElement('div'); heading.className='d-flex align-items-center justify-content-between mb-2'; heading.innerHTML = `<div class="fw-semibold" style="font-size:15px">Deleted Notices</div><div class="d-flex gap-2"><button id="bin-refresh" class="btn btn-sm btn-primary"><i class="fa fa-rotate-right me-1"></i></button><button id="bin-back" class="btn btn-sm btn-outline-primary"> <i class="fa fa-arrow-left me-1"></i> Back</button></div>`; wrap.appendChild(heading);
-      const resp = document.createElement('div'); resp.className='table-responsive'; const table = document.createElement('table'); table.className='table table-hover table-borderless table-sm mb-0'; table.style.fontSize='13px'; table.innerHTML = `<thead class="text-muted" style="font-weight:600; font-size:var(--fs-14);"><tr><th class="text-start">Notice</th><th style="width:140px">Created</th><th style="width:160px">Deleted At</th><th style="width:120px">Attachments</th><th style="width:120px" class="text-end">Actions</th></tr></thead><tbody></tbody>`; const tbody = table.querySelector('tbody'); if (!items || items.length===0){ tbody.innerHTML = `<tr><td colspan="5" class="text-center py-3 text-muted small">No deleted items.</td></tr>`; } else { items.forEach((it, idx)=>{ if (typeof it.attachments === 'string' && it.attachments){ try { it.attachments = JSON.parse(it.attachments); } catch { it.attachments = []; } } if (typeof it.attachments_json === 'string' && it.attachments_json){ try { it.attachments = JSON.parse(it.attachments_json); } catch {} }
-            const attCount = Array.isArray(it.attachments) ? it.attachments.length : (it.attachment_count || 0);
-            const tr = document.createElement('tr'); tr.style.borderTop = '1px solid var(--line-soft)'; const titleTd = document.createElement('td'); titleTd.innerHTML = `<div class="fw-semibold" style="line-height:1.1;">${escapeHtml(it.title || 'Untitled')}</div><div class="small text-muted mt-1">${escapeHtml(it.slug || '')}</div>`; const createdTd = document.createElement('td'); createdTd.textContent = it.created_at ? new Date(it.created_at).toLocaleString() : '-'; const deletedTd = document.createElement('td'); deletedTd.textContent = it.deleted_at ? new Date(it.deleted_at).toLocaleString() : '-'; const attachTd = document.createElement('td'); attachTd.textContent = `${attCount} file(s)`; const actionsTd = document.createElement('td'); actionsTd.className='text-end'; const dd = document.createElement('div'); dd.className='dropdown d-inline-block'; dd.innerHTML = ` <button class="btn btn-sm btn-light" type="button" id="binDdBtn${idx}" data-bs-toggle="dropdown" aria-expanded="false"><span style="font-size:18px; line-height:1;">⋮</span></button><ul class="dropdown-menu dropdown-menu-end" aria-labelledby="binDdBtn${idx}" style="min-width:160px;"><li><button class="dropdown-item restore-action" type="button"><i class="fa fa-rotate-left me-2"></i> Restore</button></li><li><hr class="dropdown-divider"></li><li><button class="dropdown-item text-danger force-action" type="button"><i class="fa fa-skull-crossbones me-2"></i> Delete permanently</button></li></ul>`; actionsTd.appendChild(dd); tr.appendChild(titleTd); tr.appendChild(createdTd); tr.appendChild(deletedTd); tr.appendChild(attachTd); tr.appendChild(actionsTd); tbody.appendChild(tr);
-            const restoreBtn = dd.querySelector('.restore-action'); const forceBtn = dd.querySelector('.force-action'); restoreBtn.addEventListener('click', ()=>{ try{ bootstrap.Dropdown.getOrCreateInstance(dd.querySelector('[data-bs-toggle="dropdown"]')).hide(); }catch{} restoreItem(it); }); forceBtn.addEventListener('click', ()=>{ try{ bootstrap.Dropdown.getOrCreateInstance(dd.querySelector('[data-bs-toggle="dropdown"]')).hide(); }catch{} forceDeleteItem(it); }); }); }
-      resp.appendChild(table); wrap.appendChild(resp); setTimeout(()=>{ wrap.querySelector('#bin-refresh')?.addEventListener('click', ()=> openBin()); wrap.querySelector('#bin-back')?.addEventListener('click', ()=> loadNotices()); },0); return wrap; }
+    function buildBinTable(items){
+      if (!document.getElementById('bin-overflow-css')){
+        const s=document.createElement('style');
+        s.id='bin-overflow-css';
+        s.textContent = `.dropdown-menu { overflow: visible !important; white-space: nowrap; } .table-responsive { overflow: visible !important; }`;
+        document.head.appendChild(s);
+      }
 
-    async function restoreItem(item){ const r = await Swal.fire({ title: 'Restore item?', text: `Restore "${item.title || 'this item'}"?`, icon: 'question', showCancelButton: true, confirmButtonText: 'Yes, restore', cancelButtonText: 'Cancel' }); if (!r.isConfirmed) return; try{ const url = `/api/notices/${encodeURIComponent(item.id)}/restore`; const res = await apiFetch(url, { method: 'POST' }); if (!res.ok) throw new Error('Restore failed: '+res.status); showOk('Restored'); await openBin(); } catch(e){ console.error(e); showErr('Restore failed'); } }
+      const wrap = document.createElement('div');
+      wrap.className='sm-card p-3';
 
-    async function forceDeleteItem(item){ const r = await Swal.fire({ title: 'Permanently delete?', html: `Permanently delete "<strong>${escapeHtml(item.title || 'this item')}</strong>"?<br><strong>This cannot be undone.</strong>`, icon: 'warning', showCancelButton: true, confirmButtonText: 'Yes, delete permanently', cancelButtonText: 'Cancel', focusCancel: true }); if (!r.isConfirmed) return; try{ const url = `/api/notices/${encodeURIComponent(item.id)}/force`; const res = await apiFetch(url, { method: 'DELETE' }); if (!res.ok) throw new Error('Delete failed: '+res.status); showOk('Permanently deleted'); await openBin(); } catch(e){ console.error(e); showErr('Delete failed'); } }
+      const heading = document.createElement('div');
+      heading.className='d-flex align-items-center justify-content-between mb-2';
+      heading.innerHTML = `<div class="fw-semibold" style="font-size:15px">Deleted Notices</div><div class="d-flex gap-2"><button id="bin-refresh" class="btn btn-sm btn-primary"><i class="fa fa-rotate-right me-1"></i></button><button id="bin-back" class="btn btn-sm btn-outline-primary"> <i class="fa fa-arrow-left me-1"></i> Back</button></div>`;
+      wrap.appendChild(heading);
 
-    let _prevContent = null; async function openBin(){ if (!_prevContent && $items) _prevContent = $items.innerHTML; showLoader(true); showEmpty(false); showItems(false); try{ const host = document.querySelector('.crs-wrap'); const params = new URLSearchParams(); const ctx = readContext(); if (ctx && ctx.batch_id) params.set('batch_uuid', ctx.batch_id); if (ctx && ctx.module_id) params.set('module_uuid', ctx.module_id); const items = await fetchDeletedNotices(params.toString()); const tableEl = buildBinTable(items || []); if ($items) { $items.innerHTML = ''; $items.appendChild(tableEl); showItems(true); } const back = document.getElementById('bin-back'); if (back) back.addEventListener('click', (e)=>{ e.preventDefault(); restorePreviousList(); }); const refresh = document.getElementById('bin-refresh'); if (refresh) refresh.addEventListener('click', (e)=>{ e.preventDefault(); openBin(); }); } catch(e){ console.error(e); if ($items) $items.innerHTML = '<div class="sm-empty p-3">Unable to load bin. Try refreshing the page.</div>'; showItems(true); showErr('Failed to load bin'); } finally { showLoader(false); } }
+      const resp = document.createElement('div');
+      resp.className='table-responsive';
 
-    function restorePreviousList(){ if ($items) { if (_prevContent !== null) { $items.innerHTML = _prevContent; _prevContent = null; } else { if (typeof loadNotices === 'function') loadNotices(); } } }
+      const table = document.createElement('table');
+      table.className='table table-hover table-borderless table-sm mb-0';
+      table.style.fontSize='13px';
+      table.innerHTML = `<thead class="text-muted" style="font-weight:600; font-size:var(--fs-14);"><tr><th class="text-start">Notice</th><th style="width:140px">Created</th><th style="width:160px">Deleted At</th><th style="width:120px">Attachments</th><th style="width:120px" class="text-end">Actions</th></tr></thead><tbody></tbody>`;
+      const tbody = table.querySelector('tbody');
+
+      if (!items || items.length===0){
+        tbody.innerHTML = `<tr><td colspan="5" class="text-center py-3 text-muted small">No deleted items.</td></tr>`;
+      } else {
+        items.forEach((it, idx)=>{
+          if (typeof it.attachments === 'string' && it.attachments){ try { it.attachments = JSON.parse(it.attachments); } catch { it.attachments = []; } }
+          if (typeof it.attachments_json === 'string' && it.attachments_json){ try { it.attachments = JSON.parse(it.attachments_json); } catch {} }
+
+          const attCount = Array.isArray(it.attachments) ? it.attachments.length : (it.attachment_count || 0);
+
+          const tr = document.createElement('tr');
+          tr.style.borderTop = '1px solid var(--line-soft)';
+
+          const titleTd = document.createElement('td');
+          titleTd.innerHTML = `<div class="fw-semibold" style="line-height:1.1;">${escapeHtml(it.title || 'Untitled')}</div><div class="small text-muted mt-1">${escapeHtml(it.slug || '')}</div>`;
+
+          const createdTd = document.createElement('td');
+          createdTd.textContent = it.created_at ? new Date(it.created_at).toLocaleString() : '-';
+
+          const deletedTd = document.createElement('td');
+          deletedTd.textContent = it.deleted_at ? new Date(it.deleted_at).toLocaleString() : '-';
+
+          const attachTd = document.createElement('td');
+          attachTd.textContent = `${attCount} file(s)`;
+
+          const actionsTd = document.createElement('td');
+          actionsTd.className='text-end';
+
+          const dd = document.createElement('div');
+          dd.className='dropdown d-inline-block';
+          dd.innerHTML = ` <button class="btn btn-sm btn-light" type="button" id="binDdBtn${idx}" data-bs-toggle="dropdown" aria-expanded="false"><span style="font-size:18px; line-height:1;">⋮</span></button><ul class="dropdown-menu dropdown-menu-end" aria-labelledby="binDdBtn${idx}" style="min-width:160px;"><li><button class="dropdown-item restore-action" type="button"><i class="fa fa-rotate-left me-2"></i> Restore</button></li><li><hr class="dropdown-divider"></li><li><button class="dropdown-item text-danger force-action" type="button"><i class="fa fa-skull-crossbones me-2"></i> Delete permanently</button></li></ul>`;
+          actionsTd.appendChild(dd);
+
+          tr.appendChild(titleTd);
+          tr.appendChild(createdTd);
+          tr.appendChild(deletedTd);
+          tr.appendChild(attachTd);
+          tr.appendChild(actionsTd);
+          tbody.appendChild(tr);
+
+          const restoreBtn = dd.querySelector('.restore-action');
+          const forceBtn   = dd.querySelector('.force-action');
+
+          restoreBtn.addEventListener('click', ()=>{
+            try{ bootstrap.Dropdown.getOrCreateInstance(dd.querySelector('[data-bs-toggle="dropdown"]')).hide(); }catch{}
+            restoreItem(it);
+          });
+          forceBtn.addEventListener('click', ()=>{
+            try{ bootstrap.Dropdown.getOrCreateInstance(dd.querySelector('[data-bs-toggle="dropdown"]')).hide(); }catch{}
+            forceDeleteItem(it);
+          });
+        });
+      }
+
+      resp.appendChild(table);
+      wrap.appendChild(resp);
+
+      setTimeout(()=>{
+        wrap.querySelector('#bin-refresh')?.addEventListener('click', ()=> openBin());
+        wrap.querySelector('#bin-back')?.addEventListener('click', ()=> loadNotices());
+      },0);
+
+      return wrap;
+    }
+
+    async function restoreItem(item){
+      const r = await Swal.fire({ title: 'Restore item?', text: `Restore "${item.title || 'this item'}"?`, icon: 'question', showCancelButton: true, confirmButtonText: 'Yes, restore', cancelButtonText: 'Cancel' });
+      if (!r.isConfirmed) return;
+      try{
+        const url = `/api/notices/${encodeURIComponent(item.id)}/restore`;
+        const res = await apiFetch(url, { method: 'POST' });
+        if (!res.ok) throw new Error('Restore failed: '+res.status);
+        showOk('Restored');
+        await openBin();
+      } catch(e){
+        console.error(e);
+        showErr('Restore failed');
+      }
+    }
+
+    async function forceDeleteItem(item){
+      const r = await Swal.fire({ title: 'Permanently delete?', html: `Permanently delete "<strong>${escapeHtml(item.title || 'this item')}</strong>"?<br><strong>This cannot be undone.</strong>`, icon: 'warning', showCancelButton: true, confirmButtonText: 'Yes, delete permanently', cancelButtonText: 'Cancel', focusCancel: true });
+      if (!r.isConfirmed) return;
+      try{
+        const url = `/api/notices/${encodeURIComponent(item.id)}/force`;
+        const res = await apiFetch(url, { method: 'DELETE' });
+        if (!res.ok) throw new Error('Delete failed: '+res.status);
+        showOk('Permanently deleted');
+        await openBin();
+      } catch(e){
+        console.error(e);
+        showErr('Delete failed');
+      }
+    }
+
+    let _prevContent = null;
+
+    async function openBin(){
+      if (!_prevContent && $items) _prevContent = $items.innerHTML;
+      showLoader(true); showEmpty(false); showItems(false);
+      try{
+        const params = new URLSearchParams();
+        const ctx = readContext();
+        if (ctx && ctx.batch_id) params.set('batch_uuid', ctx.batch_id);
+        if (ctx && ctx.module_id) params.set('module_uuid', ctx.module_id);
+
+        const items = await fetchDeletedNotices(params.toString());
+        const tableEl = buildBinTable(items || []);
+        if ($items) {
+          $items.innerHTML = '';
+          $items.appendChild(tableEl);
+          showItems(true);
+        }
+
+        const back = document.getElementById('bin-back');
+        if (back) back.addEventListener('click', (e)=>{ e.preventDefault(); restorePreviousList(); });
+
+        const refresh = document.getElementById('bin-refresh');
+        if (refresh) refresh.addEventListener('click', (e)=>{ e.preventDefault(); openBin(); });
+
+      } catch(e){
+        console.error(e);
+        if ($items) $items.innerHTML = '<div class="sm-empty p-3">Unable to load bin. Try refreshing the page.</div>';
+        showItems(true);
+        showErr('Failed to load bin');
+      } finally {
+        showLoader(false);
+      }
+    }
+
+    function restorePreviousList(){
+      if ($items) {
+        if (_prevContent !== null) {
+          $items.innerHTML = _prevContent;
+          _prevContent = null;
+        } else {
+          if (typeof loadNotices === 'function') loadNotices();
+        }
+      }
+    }
 
     $btnBin.addEventListener('click', (ev)=>{ ev.preventDefault(); openBin(); });
   })();
-  /* ===== Attachments UI: filelist + drag/drop + clear/remove (paste before the final "})();" ) ===== */
+
+  /* ===== Attachments UI: filelist + drag/drop + clear/remove ===== */
   /* ===== Attachments UI + Library picker for Notices ===== */
   (function wireAttachmentsUI(){
     const dz          = document.getElementById('notice_dropzone');
@@ -1067,10 +1916,8 @@ function openDetailsModal(row){
     const chooseLibBtn= document.getElementById('notice_choose_from_library');
 
     if (!fileListEl) return;
-
-    // state: we still rely on fileInput.files for upload,
-    // but we maintain a separate list of library URLs
     if (!createModalEl) return;
+
     if (!Array.isArray(createModalEl._selectedNoticeLibraryUrls)) {
       createModalEl._selectedNoticeLibraryUrls = [];
     }
@@ -1084,12 +1931,9 @@ function openDetailsModal(row){
       createModalEl._selectedNoticeLibraryUrls = Array.from(new Set((arr || []).filter(Boolean)));
     }
 
-    // helpers
     function escapeHtmlLocal(s){
       return String(s || '').replace(/[&<>"'`=\/]/g, function(ch){
-        return {
-          '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;','/':'&#x2F;','`':'&#x60','=':'&#x3D;'
-        }[ch];
+        return { '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;','/':'&#x2F;','`':'&#x60','=':'&#x3D;' }[ch];
       });
     }
     function fmtSize(bytes){
@@ -1100,7 +1944,6 @@ function openDetailsModal(row){
       return `${b.toFixed(b < 10 && i > 0 ? 1 : 0)} ${units[i]}`;
     }
 
-    // re-render file list (local files + library URLs)
     function renderFileList(){
       fileListEl.innerHTML = '';
 
@@ -1113,7 +1956,7 @@ function openDetailsModal(row){
       }
       fileListEl.style.display = 'flex';
 
-      // 1) local files
+      // local files
       files.forEach((f, idx) => {
         const row = document.createElement('div');
         row.className = 'notice-file-item';
@@ -1130,7 +1973,7 @@ function openDetailsModal(row){
         fileListEl.appendChild(row);
       });
 
-      // 2) library URLs
+      // library URLs
       libs.forEach((u, idx) => {
         const name = (u || '').split('/').pop() || u;
         const row = document.createElement('div');
@@ -1148,7 +1991,6 @@ function openDetailsModal(row){
         fileListEl.appendChild(row);
       });
 
-      // wire local file remove / preview
       fileListEl.querySelectorAll('.notice-file-remove').forEach(btn => {
         btn.addEventListener('click', () => {
           const idx = Number(btn.dataset.idx);
@@ -1171,7 +2013,10 @@ function openDetailsModal(row){
         });
       });
 
-      // wire library remove / preview
+      // NOTE: these two helpers MUST exist in your page already (you had them before)
+      // - normalizeAttachmentForPreview(url)
+      // - openAttachmentPreview(attachmentObj, title)
+
       fileListEl.querySelectorAll('.notice-lib-remove').forEach(btn => {
         btn.addEventListener('click', () => {
           const idx = Number(btn.dataset.idx);
@@ -1196,7 +2041,6 @@ function openDetailsModal(row){
       });
     }
 
-    // clear all
     function clearAll(){
       if (fileInput) {
         fileInput.value = '';
@@ -1207,20 +2051,15 @@ function openDetailsModal(row){
     }
 
     if (fileInput){
-      fileInput.addEventListener('change', () => {
-        renderFileList();
-      });
+      fileInput.addEventListener('change', () => renderFileList());
     }
 
     if (clearBtn){
-      clearBtn.addEventListener('click', (e) => {
-        e.preventDefault();
-        clearAll();
-      });
+      clearBtn.addEventListener('click', (e) => { e.preventDefault(); clearAll(); });
     }
 
-    // drag & drop
     function prevent(ev){ ev.preventDefault(); ev.stopPropagation(); }
+
     if (dz){
       ['dragenter','dragover'].forEach(ev => {
         dz.addEventListener(ev, (e) => {
@@ -1248,405 +2087,383 @@ function openDetailsModal(row){
       });
     }
 
-    // keyboard access for Choose Files
     if (chooseLabel && fileInput){
       chooseLabel.addEventListener('keydown', (e) => {
         if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fileInput.click(); }
       });
     }
 
-    // NEW: “Choose from Library” button
     if (chooseLibBtn){
       chooseLibBtn.addEventListener('click', (e) => {
         e.preventDefault();
-        openNoticeLibraryPicker(() => {
-          // after library modal closes with selection, re-render
-          renderFileList();
-        });
+        openNoticeLibraryPicker(() => { renderFileList(); });
       });
     }
 
-    // reset library selections on fresh "Add Notice"
     try {
       createModalEl.addEventListener('show.bs.modal', () => {
         const isEditing = (noticeIdInput && noticeIdInput.value && noticeIdInput.value.trim() !== '');
-        if (!isEditing){
-          setLibUrls([]);
-        }
+        if (!isEditing) setLibUrls([]);
         renderFileList();
       });
     } catch(e){}
 
-    // initial
     renderFileList();
   })();
-  // ===== Library picker for Notices (reuses Study Materials as file library) =====
+
   // ===== Library picker for Notices (fetch attachments from /api/notices/batch/{batchKey}) =====
-(function(){
-  const libraryApiBase = '/api/notices';
-  let _noticeLibModal = null;
+  (function(){
+    const libraryApiBase = '/api/notices';
+    let _noticeLibModal = null;
 
-  function ensureNoticeLibraryModal(){
-    if (_noticeLibModal) return _noticeLibModal;
-    const m = document.createElement('div');
-    m.className = 'modal fade';
-    m.id = 'noticeLibraryModal';
-    m.tabIndex = -1;
-    m.innerHTML = `
-      <div class="modal-dialog modal-lg modal-dialog-scrollable">
-        <div class="modal-content">
-          <div class="modal-header">
-            <h5 class="modal-title"><i class="fa fa-book me-2"></i>Choose from Library</h5>
-            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-          </div>
-          <div class="modal-body" style="min-height:160px;">
-            <div id="noticeLibLoader" style="display:none; padding:18px;">
-              <div style="display:flex; align-items:center; gap:8px;">
-                <div class="spin" aria-hidden="true"></div>
-                <div class="text-muted">Loading library…</div>
-              </div>
+    function ensureNoticeLibraryModal(){
+      if (_noticeLibModal) return _noticeLibModal;
+      const m = document.createElement('div');
+      m.className = 'modal fade';
+      m.id = 'noticeLibraryModal';
+      m.tabIndex = -1;
+      m.innerHTML = `
+        <div class="modal-dialog modal-lg modal-dialog-scrollable">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h5 class="modal-title"><i class="fa fa-book me-2"></i>Choose from Library</h5>
+              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
-
-            <div id="noticeLibEmpty" style="display:none;" class="text-muted small p-3;">No library items found for this batch.</div>
-
-            <div id="noticeLibSearchContainer" class="mb-3" style="display:none;">
-              <div class="input-group input-group-sm">
-                <span class="input-group-text">
-                  <i class="fa fa-search"></i>
-                </span>
-                <input type="text" id="noticeLibSearch" class="form-control" placeholder="Search by file name, module or notice..." />
-                <button id="noticeLibClearSearch" class="btn btn-outline-secondary" type="button" style="display:none;">
-                  <i class="fa fa-times"></i>
-                </button>
+            <div class="modal-body" style="min-height:160px;">
+              <div id="noticeLibLoader" style="display:none; padding:18px;">
+                <div style="display:flex; align-items:center; gap:8px;">
+                  <div class="spin" aria-hidden="true"></div>
+                  <div class="text-muted">Loading library…</div>
+                </div>
               </div>
-              <div id="noticeLibSearchResults" class="small text-muted mt-2" style="display:none;"></div>
-            </div>
 
-            <div id="noticeLibList" style="display:none;"></div>
-          </div>
-          <div class="modal-footer">
-            <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
-            <button id="noticeLibConfirm" type="button" class="btn btn-primary">Add selected</button>
+              <div id="noticeLibEmpty" style="display:none;" class="text-muted small p-3;">No library items found for this batch.</div>
+
+              <div id="noticeLibSearchContainer" class="mb-3" style="display:none;">
+                <div class="input-group input-group-sm">
+                  <span class="input-group-text"><i class="fa fa-search"></i></span>
+                  <input type="text" id="noticeLibSearch" class="form-control" placeholder="Search by file name, module or notice..." />
+                  <button id="noticeLibClearSearch" class="btn btn-outline-secondary" type="button" style="display:none;">
+                    <i class="fa fa-times"></i>
+                  </button>
+                </div>
+                <div id="noticeLibSearchResults" class="small text-muted mt-2" style="display:none;"></div>
+              </div>
+
+              <div id="noticeLibList" style="display:none;"></div>
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+              <button id="noticeLibConfirm" type="button" class="btn btn-primary">Add selected</button>
+            </div>
           </div>
         </div>
-      </div>
-    `;
-    document.body.appendChild(m);
-    _noticeLibModal = m;
-
-    // shared card styles
-    if (!document.getElementById('notice-lib-card-styles')) {
-      const style = document.createElement('style');
-      style.id = 'notice-lib-card-styles';
-      style.textContent = `
-        #noticeLibList .notice-lib-grid { display:grid; gap:12px; grid-template-columns:repeat(3, 1fr); }
-        @media (max-width:1024px){ #noticeLibList .notice-lib-grid{ grid-template-columns:repeat(2, 1fr);} }
-        @media (max-width:640px){ #noticeLibList .notice-lib-grid{ grid-template-columns:repeat(1, 1fr);} }
-
-        .notice-lib-card{ display:flex; flex-direction:column; gap:8px; padding:10px; border-radius:10px; border:1px solid rgba(0,0,0,0.06); background:#fff; min-height:160px; position:relative; overflow:hidden; }
-        .notice-lib-thumb{ height:120px; width:100%; object-fit:cover; border-radius:8px; background:linear-gradient(180deg,#f7f7f7,#fff); box-shadow:inset 0 0 0 1px rgba(0,0,0,0.02); }
-        .notice-lib-placeholder-icon{ width:100%; height:120px; display:flex; align-items:center; justify-content:center; font-size:36px; color:rgba(0,0,0,0.35); border-radius:8px; background:linear-gradient(180deg,#fafafa,#fff); }
-
-        .notice-lib-card .overlay-checkbox{ position:absolute; top:10px; left:10px; z-index:5; background:rgba(255,255,255,0.9); padding:6px; border-radius:6px; box-shadow:0 1px 3px rgba(0,0,0,0.06); }
-        .notice-lib-card .card-name{ margin-top:6px; font-weight:600; font-size:13px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-        .notice-lib-card .card-refs{ font-size:12px; color:var(--muted-color); margin-top:6px; max-height:3.6em; overflow:hidden; }
-
-        .notice-lib-card .card-actions{ display:flex; align-items:center; justify-content:space-between; gap:8px; margin-top:auto; }
-        .notice-highlight{ background:rgba(255,255,0,0.3); padding:0 1px; border-radius:2px; }
       `;
-      document.head.appendChild(style);
-    }
+      document.body.appendChild(m);
+      _noticeLibModal = m;
 
-    return _noticeLibModal;
-  }
+      if (!document.getElementById('notice-lib-card-styles')) {
+        const style = document.createElement('style');
+        style.id = 'notice-lib-card-styles';
+        style.textContent = `
+          #noticeLibList .notice-lib-grid { display:grid; gap:12px; grid-template-columns:repeat(3, 1fr); }
+          @media (max-width:1024px){ #noticeLibList .notice-lib-grid{ grid-template-columns:repeat(2, 1fr);} }
+          @media (max-width:640px){ #noticeLibList .notice-lib-grid{ grid-template-columns:repeat(1, 1fr);} }
 
-  // main entry: called from attachments IIFE
-  window.openNoticeLibraryPicker = async function(onDone){
-    const modalEl   = ensureNoticeLibraryModal();
-    const libList   = modalEl.querySelector('#noticeLibList');
-    const libLoader = modalEl.querySelector('#noticeLibLoader');
-    const libEmpty  = modalEl.querySelector('#noticeLibEmpty');
-    const libConfirm= modalEl.querySelector('#noticeLibConfirm');
-    const searchContainer = modalEl.querySelector('#noticeLibSearchContainer');
-    const searchInput     = modalEl.querySelector('#noticeLibSearch');
-    const clearSearchBtn  = modalEl.querySelector('#noticeLibClearSearch');
-    const searchResults   = modalEl.querySelector('#noticeLibSearchResults');
+          .notice-lib-card{ display:flex; flex-direction:column; gap:8px; padding:10px; border-radius:10px; border:1px solid rgba(0,0,0,0.06); background:#fff; min-height:160px; position:relative; overflow:hidden; }
+          .notice-lib-thumb{ height:120px; width:100%; object-fit:cover; border-radius:8px; background:linear-gradient(180deg,#f7f7f7,#fff); box-shadow:inset 0 0 0 1px rgba(0,0,0,0.02); }
+          .notice-lib-placeholder-icon{ width:100%; height:120px; display:flex; align-items:center; justify-content:center; font-size:36px; color:rgba(0,0,0,0.35); border-radius:8px; background:linear-gradient(180deg,#fafafa,#fff); }
 
-    libList.innerHTML = '';
-    libLoader.style.display = '';
-    libEmpty.style.display  = 'none';
-    libList.style.display   = 'none';
-    searchContainer.style.display = 'none';
-    searchInput.value = '';
-    clearSearchBtn.style.display = 'none';
-    searchResults.style.display  = 'none';
-    libConfirm.disabled = true;
+          .notice-lib-card .overlay-checkbox{ position:absolute; top:10px; left:10px; z-index:5; background:rgba(255,255,255,0.9); padding:6px; border-radius:6px; box-shadow:0 1px 3px rgba(0,0,0,0.06); }
+          .notice-lib-card .card-name{ margin-top:6px; font-weight:600; font-size:13px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+          .notice-lib-card .card-refs{ font-size:12px; color:var(--muted-color); margin-top:6px; max-height:3.6em; overflow:hidden; }
 
-    // show modal
-    try {
-      if (window.bootstrap && typeof window.bootstrap.Modal === 'function') {
-        bootstrap.Modal.getOrCreateInstance(modalEl).show();
-      } else {
-        modalEl.style.display = 'block';
-        modalEl.classList.add('show');
-        document.body.classList.add('modal-open');
+          .notice-lib-card .card-actions{ display:flex; align-items:center; justify-content:space-between; gap:8px; margin-top:auto; }
+          .notice-highlight{ background:rgba(255,255,0,0.3); padding:0 1px; border-radius:2px; }
+        `;
+        document.head.appendChild(style);
       }
-    } catch(e){}
 
-    function esc(s){
-      return String(s || '').replace(/[&<>"'`=\/]/g, function(ch){
-        return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;','/':'&#x2F;','`':'&#x60','=':'&#x3D;'}[ch];
-      });
-    }
-    function extOf(u){ try { return (u || '').split('?')[0].split('.').pop().toLowerCase(); } catch(e){ return ''; } }
-    function isImg(e){ return ['png','jpg','jpeg','webp','gif','svg'].includes(e); }
-    function isPdf(e){ return e === 'pdf'; }
-    function isVid(e){ return ['mp4','webm','ogg','mov'].includes(e); }
-    function highlight(text, term){
-      if (!term || !text) return esc(text);
-      const escaped = esc(text);
-      const re = new RegExp('(' + term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')','gi');
-      return escaped.replace(re, '<span class="notice-highlight">$1</span>');
+      return _noticeLibModal;
     }
 
-    try {
-      const ctx = readContext();
-      if (!ctx || !ctx.batch_id) throw new Error('Missing batch context');
+    window.openNoticeLibraryPicker = async function(onDone){
+      const modalEl   = ensureNoticeLibraryModal();
+      const libList   = modalEl.querySelector('#noticeLibList');
+      const libLoader = modalEl.querySelector('#noticeLibLoader');
+      const libEmpty  = modalEl.querySelector('#noticeLibEmpty');
+      const libConfirm= modalEl.querySelector('#noticeLibConfirm');
+      const searchContainer = modalEl.querySelector('#noticeLibSearchContainer');
+      const searchInput     = modalEl.querySelector('#noticeLibSearch');
+      const clearSearchBtn  = modalEl.querySelector('#noticeLibClearSearch');
+      const searchResults   = modalEl.querySelector('#noticeLibSearchResults');
 
-      const url = `${libraryApiBase}/batch/${encodeURIComponent(ctx.batch_id)}`;
-      const res = await apiFetch(url);
-      if (!res.ok) throw new Error('HTTP ' + res.status);
-      const json = await res.json().catch(()=>null);
+      libList.innerHTML = '';
+      libLoader.style.display = '';
+      libEmpty.style.display  = 'none';
+      libList.style.display   = 'none';
+      searchContainer.style.display = 'none';
+      searchInput.value = '';
+      clearSearchBtn.style.display = 'none';
+      searchResults.style.display  = 'none';
+      libConfirm.disabled = true;
 
-      console.log('Notice library JSON:', json); // DEBUG: see actual shape
+      try {
+        if (window.bootstrap && typeof window.bootstrap.Modal === 'function') {
+          bootstrap.Modal.getOrCreateInstance(modalEl).show();
+        } else {
+          modalEl.style.display = 'block';
+          modalEl.classList.add('show');
+          document.body.classList.add('modal-open');
+        }
+      } catch(e){}
 
-      if (!json || !json.data) throw new Error('Invalid response');
-
-      const data = json.data;
-      let allNotices = [];
-
-      // 1) modules_with_notices -> notices[]
-      if (Array.isArray(data.modules_with_notices)) {
-        data.modules_with_notices.forEach(mg => {
-          const moduleTitle = mg.module?.title || '';
-          (mg.notices || []).forEach(n => {
-            n._moduleTitle = moduleTitle; // attach module title
-            allNotices.push(n);
-          });
+      function esc(s){
+        return String(s || '').replace(/[&<>"'`=\/]/g, function(ch){
+          return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;','/':'&#x2F;','`':'&#x60','=':'&#x3D;'}[ch];
         });
       }
-      // 2) data.notices[]
-      else if (Array.isArray(data.notices)) {
-        allNotices = data.notices;
-      }
-      // 3) data as array
-      else if (Array.isArray(data)) {
-        allNotices = data;
-      }
-
-      if (!allNotices.length) {
-        libLoader.style.display = 'none';
-        libEmpty.style.display  = '';
-        return;
+      function extOf(u){ try { return (u || '').split('?')[0].split('.').pop().toLowerCase(); } catch(e){ return ''; } }
+      function isImg(e){ return ['png','jpg','jpeg','webp','gif','svg'].includes(e); }
+      function isPdf(e){ return e === 'pdf'; }
+      function isVid(e){ return ['mp4','webm','ogg','mov'].includes(e); }
+      function highlight(text, term){
+        if (!term || !text) return esc(text);
+        const escaped = esc(text);
+        const re = new RegExp('(' + term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')','gi');
+        return escaped.replace(re, '<span class="notice-highlight">$1</span>');
       }
 
-      // Build docMap from notice attachments
-      const docMap = new Map();
+      try {
+        const ctx = readContext();
+        if (!ctx || !ctx.batch_id) throw new Error('Missing batch context');
 
-      allNotices.forEach(notice => {
-        const moduleTitle = notice._moduleTitle || '';
-        const noticeTitle = notice.title || 'Untitled';
-        const noticeId    = notice.id || notice.uuid || '';
+        // ✅ include module filter here too (optional)
+        let url = `${libraryApiBase}/batch/${encodeURIComponent(ctx.batch_id)}`;
+        if (ctx.module_id) url += `?module_uuid=${encodeURIComponent(ctx.module_id)}`;
 
-        let atts = Array.isArray(notice.attachment)
-          ? notice.attachment
-          : (notice.attachments || notice.attachments_json || []);
+        const res = await apiFetch(url);
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const json = await res.json().catch(()=>null);
 
-        if (typeof atts === 'string') {
-          try { atts = JSON.parse(atts); } catch(e){ atts = []; }
-        }
-        if (!Array.isArray(atts)) atts = atts ? [atts] : [];
+        if (!json || !json.data) throw new Error('Invalid response');
 
-        (atts || []).forEach(a => {
-          const normalized = (typeof a === 'string')
-            ? { url:a, name:(a||'').split('/').pop() }
-            : a;
+        const data = json.data;
+        let allNotices = [];
 
-          const urlCand = (normalized.signed_url || normalized.url || normalized.path || '') + '';
-          if (!urlCand) return;
-
-          const key = urlCand.split('?')[0];
-          if (!docMap.has(key)) {
-            docMap.set(key, {
-              url: urlCand,
-              name: normalized.name || (urlCand.split('/').pop() || 'file'),
-              refs: [{ noticeTitle, moduleTitle, noticeId }],
-              searchText:
-                (normalized.name || '') + ' ' +
-                (noticeTitle || '') + ' ' +
-                (moduleTitle || '') + ' ' +
-                urlCand
+        if (Array.isArray(data.modules_with_notices)) {
+          data.modules_with_notices.forEach(mg => {
+            const moduleTitle = mg.module?.title || '';
+            (mg.notices || []).forEach(n => {
+              n._moduleTitle = moduleTitle;
+              allNotices.push(n);
             });
-          } else {
-            const entry = docMap.get(key);
-            const exists = entry.refs.some(r => String(r.noticeId) === String(noticeId));
-            if (!exists) {
-              entry.refs.push({ noticeTitle, moduleTitle, noticeId });
-              entry.searchText += ' ' + (noticeTitle || '') + ' ' + (moduleTitle || '');
-            }
-          }
-        });
-      });
-
-      libLoader.style.display = 'none';
-      const items = Array.from(docMap.values());
-      if (!items.length) {
-        libEmpty.style.display = '';
-        return;
-      }
-
-      searchContainer.style.display = '';
-
-      function renderCards(list, term){
-        const selectedSet = new Set((createModalEl._selectedNoticeLibraryUrls || []).map(u => String(u)));
-        const cards = list.map((it, idx) => {
-          const url = it.url || '';
-          const name = it.name || (url||'').split('/').pop() || `file-${idx+1}`;
-          const ext = extOf(url);
-          const refs = it.refs.map(r => (r.moduleTitle ? `${r.noticeTitle} • ${r.moduleTitle}` : r.noticeTitle));
-          const refsShort = refs.slice(0,3).join(', ');
-          const more = Math.max(0, refs.length - 3);
-          const refsDisplay = refsShort + (more ? `, +${more} more` : '');
-          const checked = selectedSet.has(url) ? 'checked' : '';
-
-          let thumbHtml = '';
-          if (isImg(ext))      thumbHtml = `<img class="notice-lib-thumb" loading="lazy" src="${esc(url)}" alt="${esc(name)}" />`;
-          else if (isPdf(ext)) thumbHtml = `<div class="notice-lib-placeholder-icon"><i class="fa fa-file-pdf"></i></div>`;
-          else if (isVid(ext)) thumbHtml = `<div class="notice-lib-placeholder-icon"><i class="fa fa-video"></i></div>`;
-          else                 thumbHtml = `<div class="notice-lib-placeholder-icon"><i class="fa fa-file"></i></div>`;
-
-          return `
-            <div class="notice-lib-card" data-url="${esc(url)}">
-              <div class="overlay-checkbox">
-                <input type="checkbox" class="notice-lib-checkbox" data-url="${esc(url)}" ${checked} />
-              </div>
-              <div class="thumb-wrap">${thumbHtml}</div>
-              <div class="card-name" title="${esc(name)}">${term ? highlight(name, term) : esc(name)}</div>
-              <div class="card-refs" title="${esc(refs.join(' • '))}">
-                ${term ? highlight(refsDisplay, term) : esc(refsDisplay)}
-              </div>
-              <div class="card-actions">
-                <button type="button" class="btn btn-sm btn-outline-primary notice-lib-preview-row" data-url="${esc(url)}">
-                  <i class="fa fa-eye"></i> Preview
-                </button>
-                <div style="font-size:12px; color:var(--muted-color);">${esc(String(it.refs.length))} ref(s)</div>
-              </div>
-            </div>
-          `;
-        }).join('');
-
-        libList.innerHTML = `<div class="notice-lib-grid">${cards}</div>`;
-        libList.style.display = '';
-
-        const grid = libList.querySelector('.notice-lib-grid');
-        if (!grid) return;
-
-        function updateConfirm(){
-          const any = Array.from(grid.querySelectorAll('.notice-lib-checkbox')).some(n => n.checked);
-          libConfirm.disabled = !any;
+          });
+        } else if (Array.isArray(data.notices)) {
+          allNotices = data.notices;
+        } else if (Array.isArray(data)) {
+          allNotices = data;
         }
 
-        grid.querySelectorAll('.notice-lib-card').forEach(card => {
-          const cb = card.querySelector('.notice-lib-checkbox');
-          card.addEventListener('click', (ev) => {
-            if (ev.target.closest('.notice-lib-preview-row') || ev.target === cb) return;
-            cb.checked = !cb.checked;
-            updateConfirm();
-          });
-          cb.addEventListener('change', updateConfirm);
-        });
+        if (!allNotices.length) {
+          libLoader.style.display = 'none';
+          libEmpty.style.display  = '';
+          return;
+        }
 
-        grid.querySelectorAll('.notice-lib-preview-row').forEach(btn => {
-          btn.addEventListener('click', (ev) => {
-            ev.preventDefault();
-            ev.stopPropagation();
-            const u = btn.dataset.url;
-            if (!u) return;
-            const at = normalizeAttachmentForPreview(u);
-            try {
-              if (window.bootstrap && typeof window.bootstrap.Modal === 'function') {
-                bootstrap.Modal.getInstance(modalEl)?.hide();
-              } else {
-                modalEl.classList.remove('show'); modalEl.style.display='none'; document.body.classList.remove('modal-open');
+        const docMap = new Map();
+
+        allNotices.forEach(notice => {
+          const moduleTitle = notice._moduleTitle || '';
+          const noticeTitle = notice.title || 'Untitled';
+          const noticeId    = notice.id || notice.uuid || '';
+
+          let atts = Array.isArray(notice.attachment)
+            ? notice.attachment
+            : (notice.attachments || notice.attachments_json || []);
+
+          if (typeof atts === 'string') {
+            try { atts = JSON.parse(atts); } catch(e){ atts = []; }
+          }
+          if (!Array.isArray(atts)) atts = atts ? [atts] : [];
+
+          (atts || []).forEach(a => {
+            const normalized = (typeof a === 'string')
+              ? { url:a, name:(a||'').split('/').pop() }
+              : a;
+
+            const urlCand = (normalized.signed_url || normalized.url || normalized.path || '') + '';
+            if (!urlCand) return;
+
+            const key = urlCand.split('?')[0];
+            if (!docMap.has(key)) {
+              docMap.set(key, {
+                url: urlCand,
+                name: normalized.name || (urlCand.split('/').pop() || 'file'),
+                refs: [{ noticeTitle, moduleTitle, noticeId }],
+                searchText:
+                  (normalized.name || '') + ' ' +
+                  (noticeTitle || '') + ' ' +
+                  (moduleTitle || '') + ' ' +
+                  urlCand
+              });
+            } else {
+              const entry = docMap.get(key);
+              const exists = entry.refs.some(r => String(r.noticeId) === String(noticeId));
+              if (!exists) {
+                entry.refs.push({ noticeTitle, moduleTitle, noticeId });
+                entry.searchText += ' ' + (noticeTitle || '') + ' ' + (moduleTitle || '');
               }
-            } catch(e){}
-            openAttachmentPreview(at, at.name || 'Preview');
+            }
           });
         });
 
-        updateConfirm();
-      }
+        libLoader.style.display = 'none';
+        const items = Array.from(docMap.values());
+        if (!items.length) { libEmpty.style.display = ''; return; }
 
-      // initial render
-      renderCards(items, '');
+        searchContainer.style.display = '';
 
-      // search
-      let searchTimeout;
-      searchInput.addEventListener('input', () => {
-        clearTimeout(searchTimeout);
-        const term = searchInput.value.trim().toLowerCase();
-        if (!term){
+        function renderCards(list, term){
+          const selectedSet = new Set((createModalEl._selectedNoticeLibraryUrls || []).map(u => String(u)));
+          const cards = list.map((it, idx) => {
+            const url = it.url || '';
+            const name = it.name || (url||'').split('/').pop() || `file-${idx+1}`;
+            const ext = extOf(url);
+            const refs = it.refs.map(r => (r.moduleTitle ? `${r.noticeTitle} • ${r.moduleTitle}` : r.noticeTitle));
+            const refsShort = refs.slice(0,3).join(', ');
+            const more = Math.max(0, refs.length - 3);
+            const refsDisplay = refsShort + (more ? `, +${more} more` : '');
+            const checked = selectedSet.has(url) ? 'checked' : '';
+
+            let thumbHtml = '';
+            if (isImg(ext))      thumbHtml = `<img class="notice-lib-thumb" loading="lazy" src="${esc(url)}" alt="${esc(name)}" />`;
+            else if (isPdf(ext)) thumbHtml = `<div class="notice-lib-placeholder-icon"><i class="fa fa-file-pdf"></i></div>`;
+            else if (isVid(ext)) thumbHtml = `<div class="notice-lib-placeholder-icon"><i class="fa fa-video"></i></div>`;
+            else                 thumbHtml = `<div class="notice-lib-placeholder-icon"><i class="fa fa-file"></i></div>`;
+
+            return `
+              <div class="notice-lib-card" data-url="${esc(url)}">
+                <div class="overlay-checkbox">
+                  <input type="checkbox" class="notice-lib-checkbox" data-url="${esc(url)}" ${checked} />
+                </div>
+                <div class="thumb-wrap">${thumbHtml}</div>
+                <div class="card-name" title="${esc(name)}">${term ? highlight(name, term) : esc(name)}</div>
+                <div class="card-refs" title="${esc(refs.join(' • '))}">
+                  ${term ? highlight(refsDisplay, term) : esc(refsDisplay)}
+                </div>
+                <div class="card-actions">
+                  <button type="button" class="btn btn-sm btn-outline-primary notice-lib-preview-row" data-url="${esc(url)}">
+                    <i class="fa fa-eye"></i> Preview
+                  </button>
+                  <div style="font-size:12px; color:var(--muted-color);">${esc(String(it.refs.length))} ref(s)</div>
+                </div>
+              </div>
+            `;
+          }).join('');
+
+          libList.innerHTML = `<div class="notice-lib-grid">${cards}</div>`;
+          libList.style.display = '';
+
+          const grid = libList.querySelector('.notice-lib-grid');
+          if (!grid) return;
+
+          function updateConfirm(){
+            const any = Array.from(grid.querySelectorAll('.notice-lib-checkbox')).some(n => n.checked);
+            libConfirm.disabled = !any;
+          }
+
+          grid.querySelectorAll('.notice-lib-card').forEach(card => {
+            const cb = card.querySelector('.notice-lib-checkbox');
+            card.addEventListener('click', (ev) => {
+              if (ev.target.closest('.notice-lib-preview-row') || ev.target === cb) return;
+              cb.checked = !cb.checked;
+              updateConfirm();
+            });
+            cb.addEventListener('change', updateConfirm);
+          });
+
+          grid.querySelectorAll('.notice-lib-preview-row').forEach(btn => {
+            btn.addEventListener('click', (ev) => {
+              ev.preventDefault();
+              ev.stopPropagation();
+              const u = btn.dataset.url;
+              if (!u) return;
+              const at = normalizeAttachmentForPreview(u);
+              try {
+                if (window.bootstrap && typeof window.bootstrap.Modal === 'function') {
+                  bootstrap.Modal.getInstance(modalEl)?.hide();
+                } else {
+                  modalEl.classList.remove('show'); modalEl.style.display='none'; document.body.classList.remove('modal-open');
+                }
+              } catch(e){}
+              openAttachmentPreview(at, at.name || 'Preview');
+            });
+          });
+
+          updateConfirm();
+        }
+
+        renderCards(items, '');
+
+        let searchTimeout;
+        searchInput.addEventListener('input', () => {
+          clearTimeout(searchTimeout);
+          const term = searchInput.value.trim().toLowerCase();
+          if (!term){
+            clearSearchBtn.style.display = 'none';
+            searchResults.style.display  = 'none';
+            renderCards(items, '');
+            return;
+          }
+          clearSearchBtn.style.display = '';
+          searchTimeout = setTimeout(() => {
+            const filtered = items.filter(it => it.searchText.toLowerCase().includes(term));
+            searchResults.style.display = '';
+            searchResults.textContent = `Found ${filtered.length} of ${items.length} items`;
+            renderCards(filtered, term);
+          }, 250);
+        });
+
+        clearSearchBtn.addEventListener('click', () => {
+          searchInput.value = '';
           clearSearchBtn.style.display = 'none';
           searchResults.style.display  = 'none';
           renderCards(items, '');
-          return;
-        }
-        clearSearchBtn.style.display = '';
-        searchTimeout = setTimeout(() => {
-          const filtered = items.filter(it => it.searchText.toLowerCase().includes(term));
-          searchResults.style.display = '';
-          searchResults.textContent = `Found ${filtered.length} of ${items.length} items`;
-          renderCards(filtered, term);
-        }, 250);
-      });
+          searchInput.focus();
+        });
 
-      clearSearchBtn.addEventListener('click', () => {
-        searchInput.value = '';
-        clearSearchBtn.style.display = 'none';
-        searchResults.style.display  = 'none';
-        renderCards(items, '');
-        searchInput.focus();
-      });
+        libConfirm.onclick = () => {
+          const urls = Array.from(libList.querySelectorAll('.notice-lib-checkbox'))
+            .filter(n => n.checked)
+            .map(n => n.dataset.url);
 
-      // confirm
-      libConfirm.onclick = () => {
-        const urls = Array.from(libList.querySelectorAll('.notice-lib-checkbox'))
-          .filter(n => n.checked)
-          .map(n => n.dataset.url);
-        const existing = createModalEl._selectedNoticeLibraryUrls || [];
-        const set = new Set(existing);
-        urls.forEach(u => { if (u) set.add(u); });
-        createModalEl._selectedNoticeLibraryUrls = Array.from(set);
-        if (typeof onDone === 'function') onDone();
+          const existing = createModalEl._selectedNoticeLibraryUrls || [];
+          const set = new Set(existing);
+          urls.forEach(u => { if (u) set.add(u); });
+          createModalEl._selectedNoticeLibraryUrls = Array.from(set);
 
-        try {
-          if (window.bootstrap && typeof window.bootstrap.Modal === 'function') {
-            bootstrap.Modal.getInstance(modalEl)?.hide();
-          } else {
-            modalEl.classList.remove('show'); modalEl.style.display='none'; document.body.classList.remove('modal-open');
-          }
-        } catch(e){}
-      };
+          if (typeof onDone === 'function') onDone();
 
-    } catch(err){
-      console.error('Notice library picker error', err);
-      libLoader.style.display = 'none';
-      libEmpty.style.display  = '';
-      libEmpty.textContent = 'Unable to load library items.';
-    }
-  };
-})();
+          try {
+            if (window.bootstrap && typeof window.bootstrap.Modal === 'function') {
+              bootstrap.Modal.getInstance(modalEl)?.hide();
+            } else {
+              modalEl.classList.remove('show'); modalEl.style.display='none'; document.body.classList.remove('modal-open');
+            }
+          } catch(e){}
+        };
 
-  updateContextDisplay(); loadNotices();
+      } catch(err){
+        console.error('Notice library picker error', err);
+        libLoader.style.display = 'none';
+        libEmpty.style.display  = '';
+        libEmpty.textContent = 'Unable to load library items.';
+      }
+    };
+  })();
+
+  updateContextDisplay();
+  loadNotices();
 })();
 </script>

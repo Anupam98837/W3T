@@ -1050,83 +1050,121 @@
   // -------------------------
   // loadMaterials (FIXED: strict module from URL-first context)
   // -------------------------
-  async function loadMaterials() {
-    showLoader(true);
-    showItems(false);
-    showEmpty(false);
+  // Add these variables at the top of your IIFE (after const declarations)
+let currentLoadRequest = null;
+let isLoading = false;
+let lastLoadedModule = null;
 
-    try {
-      // always resync DOM context from URL before reading
-      try {
-        const host = document.querySelector('.crs-wrap');
-        const qModule = deriveModuleUuid();
-        if (host && qModule) {
-          host.dataset.moduleId = String(qModule);
-          host.dataset.module_id = String(qModule);
-        }
-      } catch(e){}
-
-      const ctx = await waitForModuleContext();
-
-      if (!ctx || !ctx.batch_id) {
-        throw new Error('Batch context required');
-      }
-
-      if (!ctx.module_id) {
-        console.warn('Module context missing – aborting material load');
-        showEmpty(true);
-        return;
-      }
-
-      // ALWAYS pass module_uuid (uuid)
-      const url =
-        `${apiBase}/batch/${encodeURIComponent(ctx.batch_id)}` +
-        `?module_uuid=${encodeURIComponent(ctx.module_id)}`;
-
-      console.debug('Loading materials with URL →', url);
-
-      const res = await apiFetch(url);
-      if (!res.ok) throw new Error('HTTP ' + res.status);
-
-      const json = await res.json().catch(() => null);
-      if (!json || !json.data) throw new Error('Invalid response format');
-
-      const modulesWithMaterials = json.data.modules_with_materials || [];
-
-      // SORT (per module)
-      const sortVal = $sort ? $sort.value : 'created_desc';
-
-      modulesWithMaterials.forEach(group => {
-        if (!Array.isArray(group.materials)) return;
-        group.materials.sort((a, b) => {
-          const da = a.created_at ? new Date(a.created_at) : new Date(0);
-          const db = b.created_at ? new Date(b.created_at) : new Date(0);
-          if (sortVal === 'created_desc') return db - da;
-          if (sortVal === 'created_asc') return da - db;
-          if (sortVal === 'title_asc') return (a.title || '').localeCompare(b.title || '');
-          return 0;
-        });
-      });
-
-      renderModules(modulesWithMaterials);
-
-      if (json.data.batch) {
-        window.currentBatchContext = json.data.batch;
-      }
-
-    } catch (e) {
-      console.error('Load materials error:', e);
-      if ($items) {
-        $items.innerHTML =
-          '<div class="sm-empty">Unable to load study materials — please refresh.</div>';
-      }
-      showItems(true);
-      showErr('Failed to load study materials');
-    } finally {
-      showLoader(false);
-    }
+async function loadMaterials() {
+  // Get current module to check if we need to reload
+  const currentModule = getStrictModuleFromContext();
+  
+  // Skip if already loading the same module
+  if (isLoading && lastLoadedModule === currentModule) {
+    console.debug('Load already in progress for this module, skipping...');
+    return;
   }
+  
+  // Cancel previous request if loading different module
+  if (currentLoadRequest) {
+    console.debug('Cancelling previous load request');
+    currentLoadRequest.abort();
+    currentLoadRequest = null;
+  }
+  
+  // Mark as loading
+  isLoading = true;
+  currentLoadRequest = new AbortController();
+  
+  showLoader(true);
+  showItems(false);
+  showEmpty(false);
 
+  try {
+    // always resync DOM context from URL before reading
+    try {
+      const host = document.querySelector('.crs-wrap');
+      const qModule = deriveModuleUuid();
+      if (host && qModule) {
+        host.dataset.moduleId = String(qModule);
+        host.dataset.module_id = String(qModule);
+      }
+    } catch(e){}
+
+    const ctx = await waitForModuleContext();
+
+    if (!ctx || !ctx.batch_id) {
+      throw new Error('Batch context required');
+    }
+
+    if (!ctx.module_id) {
+      console.warn('Module context missing – aborting material load');
+      showEmpty(true);
+      return;
+    }
+
+    // Update last loaded module
+    lastLoadedModule = ctx.module_id;
+
+    // ALWAYS pass module_uuid (uuid)
+    const url =
+      `${apiBase}/batch/${encodeURIComponent(ctx.batch_id)}` +
+      `?module_uuid=${encodeURIComponent(ctx.module_id)}`;
+
+    console.debug('Loading materials with URL →', url);
+
+    const res = await apiFetch(url, {
+      signal: currentLoadRequest.signal
+    });
+    
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+
+    const json = await res.json().catch(() => null);
+    if (!json || !json.data) throw new Error('Invalid response format');
+
+    const modulesWithMaterials = json.data.modules_with_materials || [];
+
+    // SORT (per module)
+    const sortVal = $sort ? $sort.value : 'created_desc';
+
+    modulesWithMaterials.forEach(group => {
+      if (!Array.isArray(group.materials)) return;
+      group.materials.sort((a, b) => {
+        const da = a.created_at ? new Date(a.created_at) : new Date(0);
+        const db = b.created_at ? new Date(b.created_at) : new Date(0);
+        if (sortVal === 'created_desc') return db - da;
+        if (sortVal === 'created_asc') return da - db;
+        if (sortVal === 'title_asc') return (a.title || '').localeCompare(b.title || '');
+        return 0;
+      });
+    });
+
+    renderModules(modulesWithMaterials);
+
+    if (json.data.batch) {
+      window.currentBatchContext = json.data.batch;
+    }
+
+  } catch (e) {
+    // Ignore aborted requests
+    if (e.name === 'AbortError') {
+      console.debug('Load request was aborted');
+      return;
+    }
+    
+    console.error('Load materials error:', e);
+    if ($items) {
+      $items.innerHTML =
+        '<div class="sm-empty">Unable to load study materials — please refresh.</div>';
+    }
+    showItems(true);
+    showErr('Failed to load study materials');
+  } finally {
+    isLoading = false;
+    currentLoadRequest = null;
+    showLoader(false);
+  }
+}
   if ($refresh) $refresh.addEventListener('click', loadMaterials);
   if ($search) $search.addEventListener('keyup', (e)=> { if (e.key === 'Enter') loadMaterials(); });
   if ($sort) $sort.addEventListener('change', loadMaterials);
@@ -2234,14 +2272,22 @@
   // -------------------------
   // ✅ Detect URL changes (SPA) and reload correct module
   // -------------------------
-  (function watchUrlChanges(){
-    let lastHref = String(location.href);
+  // -------------------------
+// ✅ Detect URL changes (SPA) and reload correct module
+// -------------------------
+(function watchUrlChanges(){
+  let lastHref = String(location.href);
+  let urlChangeDebounce = null;
 
-    function handlePossibleChange(){
-      const now = String(location.href);
-      if (now === lastHref) return;
-      lastHref = now;
+  function handlePossibleChange(){
+    const now = String(location.href);
+    if (now === lastHref) return;
+    lastHref = now;
 
+    // Debounce to prevent rapid-fire calls
+    clearTimeout(urlChangeDebounce);
+    
+    urlChangeDebounce = setTimeout(() => {
       // resync DOM from URL
       try {
         const host = document.querySelector('.crs-wrap');
@@ -2254,30 +2300,30 @@
 
       try { updateContextDisplay(); } catch(e){}
       loadMaterials();
-    }
+    }, 200); // Wait 200ms for URL changes to settle
+  }
 
-    // back/forward
-    window.addEventListener('popstate', handlePossibleChange);
+  // back/forward
+  window.addEventListener('popstate', handlePossibleChange);
 
-    // patch pushState/replaceState
-    const _ps = history.pushState;
-    const _rs = history.replaceState;
+  // patch pushState/replaceState
+  const _ps = history.pushState;
+  const _rs = history.replaceState;
 
-    history.pushState = function(){
-      const r = _ps.apply(this, arguments);
-      setTimeout(handlePossibleChange, 0);
-      return r;
-    };
-    history.replaceState = function(){
-      const r = _rs.apply(this, arguments);
-      setTimeout(handlePossibleChange, 0);
-      return r;
-    };
+  history.pushState = function(){
+    const r = _ps.apply(this, arguments);
+    setTimeout(handlePossibleChange, 0);
+    return r;
+  };
+  history.replaceState = function(){
+    const r = _rs.apply(this, arguments);
+    setTimeout(handlePossibleChange, 0);
+    return r;
+  };
 
-    // fallback poll (very light)
-    setInterval(handlePossibleChange, 500);
-  })();
-
+  // fallback poll (reduced frequency)
+  setInterval(handlePossibleChange, 2000); // Changed from 500ms to 2000ms
+})();
   // initial UI and data load
   updateContextDisplay();
   loadMaterials();

@@ -1628,7 +1628,31 @@ wrap.addEventListener('contextmenu', (e) => {
     closeBtn.addEventListener('click',()=>{cleanupOnClose();closeFullscreenPreview();});
     await renderAt(currentIndex);
   }
+  // Add these variables at the top of your IIFE (after `const apiBase='/api/assignments';`)
+let currentLoadRequest = null;
+let isLoadingAssignments = false;
+let lastLoadedModuleAssignments = null;
 async function loadAssignments(){
+  // Get current module to check if we need to reload
+  const currentModule = (typeof getActiveModuleUuid === 'function') ? getActiveModuleUuid() : null;
+  
+  // Skip if already loading the same module
+  if (isLoadingAssignments && lastLoadedModuleAssignments === currentModule) {
+    console.debug('Assignments load already in progress for this module, skipping...');
+    return;
+  }
+  
+  // Cancel previous request if loading different module
+  if (currentLoadRequest) {
+    console.debug('Cancelling previous assignments load request');
+    currentLoadRequest.abort();
+    currentLoadRequest = null;
+  }
+  
+  // Mark as loading
+  isLoadingAssignments = true;
+  currentLoadRequest = new AbortController();
+  
   showLoader(true);
   showItems(false);
   showEmpty(false);
@@ -1643,19 +1667,25 @@ async function loadAssignments(){
       || (typeof getActiveModuleUuid === 'function' ? getActiveModuleUuid() : '')
       || (typeof deriveModuleUuid === 'function' ? deriveModuleUuid() : '');
 
-    // If you want to allow “show all modules” when missing, set `allowAllWhenNoModule = true`
+    // If you want to allow "show all modules" when missing, set `allowAllWhenNoModule = true`
     const allowAllWhenNoModule = false;
 
     if(!moduleUuid && !allowAllWhenNoModule){
       throw new Error('Module UUID missing in URL (module_uuid/module/etc).');
     }
 
+    // Update last loaded module
+    lastLoadedModuleAssignments = moduleUuid;
+
     // ✅ Try API param first (backend may support it)
     const params = new URLSearchParams();
     if(moduleUuid) params.set('module_uuid', moduleUuid);
 
     const url = `/api/batches/${encodeURIComponent(ctx.batch_id)}/assignments` + (params.toString() ? `?${params.toString()}` : '');
-    const res = await apiFetch(url);
+    
+    const res = await apiFetch(url, {
+      signal: currentLoadRequest.signal
+    });
 
     if(!res.ok) throw new Error('HTTP ' + res.status);
 
@@ -1714,16 +1744,76 @@ async function loadAssignments(){
     }
 
   } catch(e){
+    // Ignore aborted requests
+    if (e.name === 'AbortError') {
+      console.debug('Assignments load request was aborted');
+      return;
+    }
+    
     console.error('Load assignments error:', e);
     if($items) $items.innerHTML = '<div class="as-empty">Unable to load assignments — please refresh.</div>';
     showItems(true);
     showEmpty(false);
     showErr('Failed to load assignments: ' + (e.message || 'Unknown error'));
   } finally {
+    isLoadingAssignments = false;
+    currentLoadRequest = null;
     showLoader(false);
   }
 }
+// -------------------------
+// ✅ Detect URL changes (SPA) and reload correct module
+// -------------------------
+(function watchUrlChanges(){
+  let lastHref = String(location.href);
+  let urlChangeDebounce = null;
 
+  function handlePossibleChange(){
+    const now = String(location.href);
+    if (now === lastHref) return;
+    lastHref = now;
+
+    // Debounce to prevent rapid-fire calls
+    clearTimeout(urlChangeDebounce);
+    
+    urlChangeDebounce = setTimeout(() => {
+      // resync DOM from URL
+      try {
+        const host = document.querySelector('.crs-wrap');
+        const qModule = deriveModuleUuid();
+        if (host && qModule) {
+          host.dataset.moduleId = String(qModule);
+          host.dataset.module_id = String(qModule);
+          host.dataset.moduleUuid = String(qModule);
+          host.dataset.module_uuid = String(qModule);
+        }
+      } catch(e){}
+
+      loadAssignments();
+    }, 200); // Wait 200ms for URL changes to settle
+  }
+
+  // back/forward
+  window.addEventListener('popstate', handlePossibleChange);
+
+  // patch pushState/replaceState
+  const _ps = history.pushState;
+  const _rs = history.replaceState;
+
+  history.pushState = function(){
+    const r = _ps.apply(this, arguments);
+    setTimeout(handlePossibleChange, 0);
+    return r;
+  };
+  history.replaceState = function(){
+    const r = _rs.apply(this, arguments);
+    setTimeout(handlePossibleChange, 0);
+    return r;
+  };
+
+  // fallback poll (reduced frequency)
+  setInterval(handlePossibleChange, 2000); // Changed from 500ms to 2000ms
+})();
 
   if($refresh)$refresh.addEventListener('click',loadAssignments);
   if($search)$search.addEventListener('keyup',e=>{if(e.key==='Enter')loadAssignments();});

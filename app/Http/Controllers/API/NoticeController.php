@@ -674,367 +674,521 @@ public function unarchive(Request $r, $id)
 
         return response()->file($absPath, $headers);
     }
+/* =========================================================
+ |  View Notices by Batch (RBAC-aware) + module filter
+ * ========================================================= */
+public function viewByBatch(Request $r, string $batchKey)
+{
+    // ---- roles
+    $role = (string) $r->attributes->get('auth_role');
+    $uid  = (int) ($r->attributes->get('auth_tokenable_id') ?? 0);
+
+    if (!$role || !in_array($role, ['superadmin','admin','instructor','student'], true)) {
+        return response()->json(['error' => 'Unauthorized Access'], 403);
+    }
+
+    $isAdminLike  = in_array($role, ['superadmin','admin'], true);
+    $isInstructor = $role === 'instructor';
+    $isStudent    = $role === 'student';
+    $isStaff      = $isAdminLike || $isInstructor;
+
+    // resolve batch
+    $bq = DB::table('batches')->whereNull('deleted_at');
+
+    if (ctype_digit($batchKey)) {
+        $bq->where('id', (int)$batchKey);
+    } elseif (\Illuminate\Support\Str::isUuid($batchKey)) {
+        $bq->where('uuid', $batchKey);
+    } elseif (Schema::hasColumn('batches','slug')) {
+        $bq->where('slug', $batchKey);
+    } else {
+        return response()->json(['error' => 'Batch not found'], 404);
+    }
+
+    $batch = $bq->first();
+    if (!$batch) return response()->json(['error' => 'Batch not found'], 404);
+
+    // pivot detection
+    $biUserCol = Schema::hasColumn('batch_instructors','user_id')
+        ? 'user_id'
+        : (Schema::hasColumn('batch_instructors','instructor_id') ? 'instructor_id' : null);
+
+    $bsUserCol = Schema::hasColumn('batch_students','user_id')
+        ? 'user_id'
+        : (Schema::hasColumn('batch_students','student_id') ? 'student_id' : null);
+
+    // RBAC: instructor assigned?
+    if ($isInstructor) {
+        if (!$biUserCol) {
+            return response()->json(['error'=>'Schema issue: batch_instructors needs user_id OR instructor_id'], 500);
+        }
+
+        $assigned = DB::table('batch_instructors')
+            ->where('batch_id', $batch->id)
+            ->whereNull('deleted_at')
+            ->where($biUserCol, $uid)
+            ->exists();
+
+        if (!$assigned) return response()->json(['error' => 'Forbidden'], 403);
+    }
+
+    if ($isStudent) {
+        if (!$bsUserCol) {
+            return response()->json(['error'=>'Schema issue: batch_students needs user_id OR student_id'], 500);
+        }
+
+        $enrolled = DB::table('batch_students')
+            ->where('batch_id', $batch->id)
+            ->whereNull('deleted_at')
+            ->where($bsUserCol, $uid)
+            ->exists();
+
+        if (!$enrolled) return response()->json(['error' => 'Forbidden'], 403);
+    }
+
+    // load course
+    $course = DB::table('courses')
+        ->where('id', $batch->course_id)
+        ->whereNull('deleted_at')
+        ->first();
+
+    if (!$course) {
+        return response()->json(['error' => 'Course not found for this batch'], 404);
+    }
+
+    /* =========================
+     * Column guards (prevents 500 from unknown columns)
+     * ========================= */
+    $cmHasDeleted = Schema::hasColumn('course_modules', 'deleted_at');
+    $cmHasStatus  = Schema::hasColumn('course_modules', 'status');
+    $cmHasOrder   = Schema::hasColumn('course_modules', 'order_no');
+    $cmHasUuid    = Schema::hasColumn('course_modules', 'uuid');
+    $cmHasTitle   = Schema::hasColumn('course_modules', 'title');
+
+    // notices table columns (if your schema differs)
+    $nHasCourseModuleId  = Schema::hasColumn('notices', 'course_module_id');
+    $nHasAttachmentsJson = Schema::hasColumn('notices', 'attachments_json');
+    $nHasCreatedBy       = Schema::hasColumn('notices', 'created_by');
 
     /* =========================================================
-     |  View Notices by Batch (RBAC-aware)
+     | ✅ Module Filter (SAME as Study Material)
+     | Accepts:
+     |   ?module_uuid=... (uuid)
+     |   ?module=...      (uuid alias)
+     |   ?course_module_id=... (number)
      * ========================================================= */
-     public function viewByBatch(Request $r, string $batchKey)
-     {
-         // ---- roles
-         $role = (string) $r->attributes->get('auth_role');
-         $uid  = (int) ($r->attributes->get('auth_tokenable_id') ?? 0);
-         if (!$role || !in_array($role, ['superadmin','admin','instructor','student'], true)) {
-             return response()->json(['error' => 'Unauthorized Access'], 403);
-         }
-         $isAdminLike = in_array($role, ['superadmin','admin'], true);
-         $isInstructor = $role === 'instructor';
-         $isStudent    = $role === 'student';
+    $filterModuleId   = null;
+    $filterModuleUuid = null;
 
-         // resolve batch
-         $bq = DB::table('batches')->whereNull('deleted_at');
-         if (ctype_digit($batchKey)) {
-             $bq->where('id', (int)$batchKey);
-         } elseif (Str::isUuid($batchKey)) {
-             $bq->where('uuid', $batchKey);
-         } elseif (Schema::hasColumn('batches','slug')) {
-             $bq->where('slug', $batchKey);
-         } else {
-             return response()->json(['error' => 'Batch not found'], 404);
-         }
-         $batch = $bq->first();
-         if (!$batch) return response()->json(['error' => 'Batch not found'], 404);
+    $moduleUuid = $r->query('module_uuid') ?? $r->query('module');
+    $moduleId   = $r->query('course_module_id');
 
-         // pivot detection
-         $biUserCol = Schema::hasColumn('batch_instructors','user_id')
-             ? 'user_id'
-             : (Schema::hasColumn('batch_instructors','instructor_id') ? 'instructor_id' : null);
+    // If notices table doesn't support module linkage, we can't filter
+    if (($moduleUuid || $moduleId) && !$nHasCourseModuleId) {
+        return response()->json([
+            'error' => 'Module filtering not supported (notices.course_module_id missing)'
+        ], 500);
+    }
 
-         $bsUserCol = Schema::hasColumn('batch_students','user_id')
-             ? 'user_id'
-             : (Schema::hasColumn('batch_students','student_id') ? 'student_id' : null);
+    if ($moduleUuid && \Illuminate\Support\Str::isUuid($moduleUuid)) {
+        $mq = DB::table('course_modules')
+            ->where('uuid', $moduleUuid)
+            ->where('course_id', $course->id);
 
-         // RBAC: instructor assigned?
-         if ($isInstructor) {
-             if (!$biUserCol) {
-                 return response()->json(['error'=>'Schema issue: batch_instructors needs user_id OR instructor_id'], 500);
-             }
-             $assigned = DB::table('batch_instructors')
-                 ->where('batch_id', $batch->id)
-                 ->whereNull('deleted_at')
-                 ->where($biUserCol, $uid)
-                 ->exists();
-             if (!$assigned) return response()->json(['error' => 'Forbidden'], 403);
-         }
+        if ($cmHasDeleted) $mq->whereNull('deleted_at');
 
-         if ($isStudent) {
-             if (!$bsUserCol) {
-                 return response()->json(['error'=>'Schema issue: batch_students needs user_id OR student_id'], 500);
-             }
-             $enrolled = DB::table('batch_students')
-                 ->where('batch_id', $batch->id)
-                 ->whereNull('deleted_at')
-                 ->where($bsUserCol, $uid)
-                 ->exists();
-             if (!$enrolled) return response()->json(['error' => 'Forbidden'], 403);
-         }
+        // students only see published
+        if (!$isStaff && $cmHasStatus) $mq->where('status', 'published');
 
-         // load course
-         $course = DB::table('courses')
-             ->where('id', $batch->course_id)
-             ->whereNull('deleted_at')
-             ->first();
-         if (!$course) {
-             return response()->json(['error' => 'Course not found for this batch'], 404);
-         }
+        $mrow = $mq->select(
+            'id',
+            $cmHasUuid ? 'uuid' : DB::raw('NULL as uuid')
+        )->first();
 
-         // load modules for this course (students see published only)
-         $isStaff = $isAdminLike || $isInstructor;
-         $modQ = DB::table('course_modules')
-             ->where('course_id', $course->id)
-             ->whereNull('deleted_at')
-             ->orderBy('order_no')->orderBy('id');
-         if (!$isStaff) $modQ->where('status', 'published');
-         $modules = $modQ->get();
+        if ($mrow) {
+            $filterModuleId   = (int) $mrow->id;
+            $filterModuleUuid = $cmHasUuid ? (string) $mrow->uuid : null;
+        }
+    }
+    elseif ($moduleId && ctype_digit((string)$moduleId)) {
+        $mq = DB::table('course_modules')
+            ->where('id', (int)$moduleId)
+            ->where('course_id', $course->id);
 
-         // load notices for this batch
-         $nQ = DB::table('notices as n')
-             ->leftJoin('course_modules as cm', 'cm.id', '=', 'n.course_module_id')
-             ->leftJoin('users as creator', 'creator.id', '=', 'n.created_by')
-             ->where('n.batch_id', $batch->id)
-             ->whereNull('n.deleted_at')
-             ->whereNull('cm.deleted_at')
-             ->select(
-                 'n.id',
-                 'n.uuid',
-                 'n.title',
-                 'n.slug',
-                 'n.message_html',
-                 'n.visibility_scope',
-                 // select the DB column attachments_json but alias to attachments so existing code works
-                 'n.attachments_json as attachments',
-                 'n.priority',
-                 'n.status',
-                 'n.course_module_id',
-                 'n.created_by',
-                 'cm.title as module_title',
-                 'cm.uuid as module_uuid',
-                 'n.created_at',
-                 'n.updated_at',
-                 'creator.name as created_by_name'
-             )
-             ->orderBy('cm.order_no')
-             ->orderBy('n.created_at', 'desc');
+        if ($cmHasDeleted) $mq->whereNull('deleted_at');
 
-        if (!$isStaff) {
-            $nQ->where('cm.status', 'published');
+        // students only see published
+        if (!$isStaff && $cmHasStatus) $mq->where('status', 'published');
+
+        $mrow = $mq->select(
+            'id',
+            $cmHasUuid ? 'uuid' : DB::raw('NULL as uuid')
+        )->first();
+
+        if ($mrow) {
+            $filterModuleId   = (int) $mrow->id;
+            $filterModuleUuid = $cmHasUuid ? (string) $mrow->uuid : null;
+        }
+    }
+
+    // ❌ Module param provided but invalid / not found
+    if (($moduleUuid || $moduleId) && !$filterModuleId) {
+        return response()->json([
+            'error' => 'Module not found for this course'
+        ], 404);
+    }
+
+    // load modules for this course (students see published only) - keep for dropdown
+    $modQ = DB::table('course_modules')
+        ->where('course_id', $course->id);
+
+    if ($cmHasDeleted) $modQ->whereNull('deleted_at');
+    if (!$isStaff && $cmHasStatus) $modQ->where('status', 'published');
+
+    if ($cmHasOrder) $modQ->orderBy('order_no');
+    $modQ->orderBy('id');
+
+    // ✅ Optional: if you want sidebar to show ONLY the selected module when filtering (like SM),
+    // uncomment the next line:
+    // if ($filterModuleId) $modQ->where('id', $filterModuleId);
+
+    $modules = $modQ->get();
+
+    // load notices for this batch (apply module filter if provided)
+    try {
+        $nQ = DB::table('notices as n');
+
+        // join module only if notices has course_module_id
+        if ($nHasCourseModuleId) {
+            $nQ->leftJoin('course_modules as cm', 'cm.id', '=', 'n.course_module_id');
+            if ($cmHasDeleted) $nQ->whereNull('cm.deleted_at');
+            if (!$isStaff && $cmHasStatus) $nQ->where('cm.status', 'published');
+        }
+
+        // join creator only if notices.created_by exists
+        if ($nHasCreatedBy) {
+            $nQ->leftJoin('users as creator', 'creator.id', '=', 'n.created_by');
+        }
+
+        $nQ->where('n.batch_id', $batch->id)
+            ->whereNull('n.deleted_at');
+
+        $nQ->select(
+            'n.id',
+            'n.uuid',
+            'n.title',
+            'n.slug',
+            'n.message_html',
+            'n.visibility_scope',
+            $nHasAttachmentsJson ? 'n.attachments_json as attachments' : DB::raw('NULL as attachments'),
+            'n.priority',
+            'n.status',
+            $nHasCourseModuleId ? 'n.course_module_id' : DB::raw('NULL as course_module_id'),
+            $nHasCreatedBy ? 'n.created_by' : DB::raw('NULL as created_by'),
+            ($nHasCourseModuleId && $cmHasTitle) ? 'cm.title as module_title' : DB::raw('NULL as module_title'),
+            ($nHasCourseModuleId && $cmHasUuid) ? 'cm.uuid as module_uuid' : DB::raw('NULL as module_uuid'),
+            'n.created_at',
+            'n.updated_at',
+            $nHasCreatedBy ? 'creator.name as created_by_name' : DB::raw('NULL as created_by_name')
+        );
+
+        if ($nHasCourseModuleId && $cmHasOrder) $nQ->orderBy('cm.order_no');
+        $nQ->orderBy('n.created_at', 'desc');
+
+        // ✅ APPLY FILTER HERE
+        if ($filterModuleId !== null && $nHasCourseModuleId) {
+            $nQ->where('n.course_module_id', $filterModuleId);
         }
 
         $notices = $nQ->get();
-
-        // group by module
-        $byModule = [];
-        foreach ($notices as $notice) {
-            $moduleId = $notice->course_module_id;
-            if (!isset($byModule[$moduleId])) {
-                $byModule[$moduleId] = [
-                    'module' => [
-                        'id' => $notice->course_module_id ? (int)$notice->course_module_id : null,
-                        'uuid' => $notice->module_uuid,
-                        'title' => $notice->module_title,
-                    ],
-                    'notices' => []
-                ];
-            }
-
-            $attachments = $this->jsonDecode($notice->attachments ?? null);
-            $nData = [
-                'id' => (int)$notice->id,
-                'uuid' => $notice->uuid,
-                'title' => $notice->title,
-                'slug' => $notice->slug,
-                'message_html' => $notice->message_html,
-                'visibility_scope' => $notice->visibility_scope,
-                'priority' => $notice->priority,
-                'status' => $notice->status,
-                'attachments' => $attachments,
-                'created_by' => $notice->created_by ? (int)$notice->created_by : null,
-                'created_by_name' => $notice->created_by_name,
-                'created_at' => $notice->created_at,
-                'updated_at' => $notice->updated_at,
-            ];
-
-            // Add stream URLs for local files, keep external URLs as-is
-            foreach ($nData['attachments'] as &$attachment) {
-                if (isset($attachment['id']) && ($attachment['disk'] ?? '') !== 'external') {
-                    $attachment['stream_url'] = $this->appUrl() . "/api/notices/stream/{$notice->uuid}/{$attachment['id']}";
-                }
-            }
-
-            $byModule[$moduleId]['notices'][] = $nData;
-        }
-
-        $modulesWithNotices = array_values($byModule);
-
-        // instructors list (if pivot exists)
-        $instructors = collect();
-        if ($biUserCol) {
-            $instructors = DB::table('batch_instructors as bi')
-                ->join('users as u', function($j) use ($biUserCol){
-                    $j->on('u.id', '=', DB::raw("bi.$biUserCol"));
-                })
-                ->where('bi.batch_id', $batch->id)
-                ->whereNull('bi.deleted_at')
-                ->whereNull('u.deleted_at')
-                ->select('u.id','u.uuid','u.name','u.email','u.role')
-                ->get()
-                ->map(fn($u) => [
-                    'id'    => (int)$u->id,
-                    'uuid'  => $u->uuid,
-                    'name'  => $u->name,
-                    'email' => $u->email,
-                    'role'  => $u->role,
-                ])
-                ->values();
-        }
-
-        $studentsCount = DB::table('batch_students')
-            ->where('batch_id', $batch->id)
-            ->whereNull('deleted_at')
-            ->count();
-
-        $noticesCount = DB::table('notices')
-            ->where('batch_id', $batch->id)
-            ->whereNull('deleted_at')
-            ->count();
-
-        $payload = [
-            'batch' => (array)$batch,
-            'course' => [
-                'id' => (int)$course->id,
-                'uuid' => $course->uuid,
-                'title' => $course->title,
-                'slug' => $course->slug,
-            ],
-            'modules_with_notices' => $modulesWithNotices,
-            'all_modules' => $modules->map(fn($m) => [
-                'id' => (int)$m->id,
-                'uuid' => $m->uuid,
-                'title' => $m->title,
-                'status' => $m->status,
-                'order_no' => (int)$m->order_no,
-            ])->values(),
-            'instructors' => $instructors,
-            'stats' => [
-                'students_count' => (int)$studentsCount,
-                'notices_count' => (int)$noticesCount,
-                'modules_count' => count($modules),
-                'you_are_instructor' => $isInstructor,
-                'you_are_student' => $isStudent,
-            ],
-            'permissions' => [
-                'can_view_unpublished_modules' => $isAdminLike || $isInstructor,
-                'can_view_unpublished_notices' => $isAdminLike || $isInstructor,
-                'can_create_notices' => $isAdminLike || $isInstructor,
-            ],
-        ];
-
-        $this->logWithActor('[Notices View By Batch] payload prepared', $r, [
-            'batch_id' => (int)$batch->id,
-            'course_id' => (int)$course->id,
-            'notices_count' => $noticesCount,
-            'modules_count' => count($modulesWithNotices),
-            'role' => $role,
+    } catch (\Illuminate\Database\QueryException $e) {
+        Log::error('[Notices viewByBatch] SQL error', [
+            'message' => $e->getMessage(),
+            'sql' => $e->getSql(),
+            'bindings' => $e->getBindings(),
         ]);
 
-        return response()->json(['data' => $payload]);
-     }
+        return response()->json([
+            'error' => 'Database error while loading notices',
+            'detail' => $e->getMessage(),
+        ], 500);
+    }
+
+    // group by module
+    $byModule = [];
+    foreach ($notices as $notice) {
+        $moduleId = $notice->course_module_id; // can be null
+
+        if (!isset($byModule[$moduleId])) {
+            $byModule[$moduleId] = [
+                'module' => [
+                    'id' => $notice->course_module_id ? (int)$notice->course_module_id : null,
+                    'uuid' => $notice->module_uuid ?? null,
+                    'title' => $notice->module_title ?? null,
+                ],
+                'notices' => []
+            ];
+        }
+
+        $attachments = $this->jsonDecode($notice->attachments ?? null) ?: [];
+
+        $nData = [
+            'id' => (int)$notice->id,
+            'uuid' => $notice->uuid,
+            'title' => $notice->title,
+            'slug' => $notice->slug,
+            'message_html' => $notice->message_html,
+            'visibility_scope' => $notice->visibility_scope,
+            'priority' => $notice->priority,
+            'status' => $notice->status,
+            'attachments' => $attachments,
+            'created_by' => $notice->created_by ? (int)$notice->created_by : null,
+            'created_by_name' => $notice->created_by_name,
+            'created_at' => $notice->created_at,
+            'updated_at' => $notice->updated_at,
+        ];
+
+        foreach ($nData['attachments'] as &$attachment) {
+            if (isset($attachment['id']) && ($attachment['disk'] ?? '') !== 'external') {
+                $attachment['stream_url'] = $this->appUrl() . "/api/notices/stream/{$notice->uuid}/{$attachment['id']}";
+            }
+        }
+        unset($attachment);
+
+        $byModule[$moduleId]['notices'][] = $nData;
+    }
+
+    $modulesWithNotices = array_values($byModule);
+
+    // instructors list (if pivot exists)
+    $instructors = collect();
+    if ($biUserCol) {
+        $instructors = DB::table('batch_instructors as bi')
+            ->join('users as u', 'u.id', '=', 'bi.' . $biUserCol) // ✅ FIX: no DB::raw
+            ->where('bi.batch_id', $batch->id)
+            ->whereNull('bi.deleted_at')
+            ->whereNull('u.deleted_at')
+            ->select('u.id','u.uuid','u.name','u.email','u.role')
+            ->get()
+            ->map(fn($u) => [
+                'id'    => (int)$u->id,
+                'uuid'  => $u->uuid,
+                'name'  => $u->name,
+                'email' => $u->email,
+                'role'  => $u->role,
+            ])
+            ->values();
+    }
+
+    $studentsCount = DB::table('batch_students')
+        ->where('batch_id', $batch->id)
+        ->whereNull('deleted_at')
+        ->count();
+
+    $noticesCount = DB::table('notices')
+        ->where('batch_id', $batch->id)
+        ->whereNull('deleted_at')
+        ->count();
+
+    $payload = [
+        'batch' => (array)$batch,
+        'course' => [
+            'id' => (int)$course->id,
+            'uuid' => $course->uuid,
+            'title' => $course->title,
+            'slug' => $course->slug,
+        ],
+        'applied_module_filter' => [
+            'module_id'   => $filterModuleId,
+            'module_uuid' => $filterModuleUuid,
+        ],
+        'modules_with_notices' => $modulesWithNotices,
+        'all_modules' => $modules->map(fn($m) => [
+            'id' => (int)$m->id,
+            'uuid' => $m->uuid ?? null,
+            'title' => $m->title ?? null,
+            'status' => $m->status ?? null,
+            'order_no' => isset($m->order_no) ? (int)$m->order_no : null,
+        ])->values(),
+        'instructors' => $instructors,
+        'stats' => [
+            'students_count' => (int)$studentsCount,
+            'notices_count' => (int)$noticesCount,
+            'modules_count' => count($modules),
+            'you_are_instructor' => $isInstructor,
+            'you_are_student' => $isStudent,
+        ],
+        'permissions' => [
+            'can_view_unpublished_modules' => $isAdminLike || $isInstructor,
+            'can_view_unpublished_notices' => $isAdminLike || $isInstructor,
+            'can_create_notices' => $isAdminLike || $isInstructor,
+        ],
+    ];
+
+    $this->logWithActor('[Notices View By Batch] payload prepared', $r, [
+        'batch_id' => (int)$batch->id,
+        'course_id' => (int)$course->id,
+        'notices_count' => $noticesCount,
+        'modules_count' => count($modulesWithNotices),
+        'role' => $role,
+        'filter_module_id' => $filterModuleId,
+    ]);
+
+    return response()->json(['data' => $payload]);
+}
+
 
     /* =========================================================
      |  Create notice by batch (resolve batch by id|uuid|slug)
      * ========================================================= */
     public function storeByBatch(Request $r, string $batchKey)
-    {
-        if ($res = $this->requireRole($r, ['admin','superadmin','instructor'])) return $res;
-        $actor = $this->actor($r);
-        $role = $actor['role'];
-        $uid  = $actor['id'];
+{
+    if ($res = $this->requireRole($r, ['admin','superadmin','instructor'])) return $res;
+    $actor = $this->actor($r);
+    $role  = $actor['role'];
+    $uid   = $actor['id'];
 
-        // resolve batch
-        $bq = DB::table('batches')->whereNull('deleted_at');
-        if (ctype_digit($batchKey)) {
-            $bq->where('id', (int)$batchKey);
-        } elseif (Str::isUuid($batchKey)) {
-            $bq->where('uuid', $batchKey);
-        } elseif (Schema::hasColumn('batches', 'slug')) {
-            $bq->where('slug', $batchKey);
-        } else {
-            return response()->json(['error' => 'Batch not found'], 404);
-        }
-        $batch = $bq->first();
-        if (!$batch) return response()->json(['error' => 'Batch not found'], 404);
-
-        if ($role === 'instructor') {
-            $biUserCol = Schema::hasColumn('batch_instructors','user_id')
-                ? 'user_id'
-                : (Schema::hasColumn('batch_instructors','instructor_id') ? 'instructor_id' : null);
-            if (!$biUserCol) {
-                return response()->json(['error'=>'Schema issue: batch_instructors needs user_id OR instructor_id'], 500);
-            }
-            $assigned = DB::table('batch_instructors')
-                ->where('batch_id', $batch->id)
-                ->whereNull('deleted_at')
-                ->where($biUserCol, $uid)
-                ->exists();
-            if (!$assigned) return response()->json(['error' => 'Forbidden'], 403);
-        }
-
-        $courseId = (int) ($batch->course_id ?? 0);
-
-        $v = Validator::make($r->all(), [
-            'course_module_id' => 'sometimes|nullable|integer|exists:course_modules,id',
-            'module_uuid'      => 'sometimes|nullable|uuid|exists:course_modules,uuid',
-            'title'            => 'required|string|max:255',
-            'message_html'     => 'nullable|string',
-            'visibility_scope' => 'nullable|in:course,batch,module',
-            'priority'         => 'nullable|in:low,normal,high',
-            'status'           => 'nullable|in:draft,published,archived',
-            'attachments.*'    => 'nullable|file|max:51200',
-            'library_urls.*'   => 'nullable|url', // NEW: Library URLs support
-        ], [
-            'attachments.*.max' => 'Each attachment must be <= 50 MB.'
-        ]);
-        if ($v->fails()) return response()->json(['errors' => $v->errors()], 422);
-
-        $moduleId = null;
-        if ($r->filled('course_module_id')) {
-            $module = DB::table('course_modules')->where('id', (int)$r->course_module_id)->whereNull('deleted_at')->first();
-            if (!$module) {
-                return response()->json(['errors' => ['course_module_id' => ['Course module not found']]], 422);
-            }
-            $moduleId = (int)$module->id;
-        } elseif ($r->filled('module_uuid')) {
-            $modUuid = $r->input('module_uuid');
-            if ($modUuid && Str::isUuid($modUuid)) {
-                $module = DB::table('course_modules')->where('uuid', $modUuid)->whereNull('deleted_at')->first();
-                if (!$module) {
-                    return response()->json(['errors' => ['module_uuid' => ['Course module (uuid) not found']]], 422);
-                }
-                $moduleId = (int)$module->id;
-            }
-        } else {
-            $modsQuery = DB::table('course_modules')
-                ->where('course_id', $courseId)
-                ->whereNull('deleted_at')
-                ->orderBy('order_no')->orderBy('id');
-            $modules = $modsQuery->get();
-            if ($modules->count() === 1) {
-                $moduleId = (int)$modules->first()->id;
-            } else {
-                $published = $modules->firstWhere('status', 'published');
-                if ($published) $moduleId = (int)$published->id;
-            }
-        }
-
-        if ($moduleId !== null) {
-            $moduleCheck = DB::table('course_modules')->where('id', $moduleId)->whereNull('deleted_at')->first();
-            if (!$moduleCheck || (int)$moduleCheck->course_id !== $courseId) {
-                return response()->json(['errors' => ['course_module_id' => ['Course module does not belong to this batch\'s course']]], 422);
-            }
-        }
-
-        $uuid = $this->genUuid();
-        $slug = $this->uniqueSlug($r->title);
-        $visibility = $r->input('visibility_scope', 'batch');
-
-        // Build attachments using helper (handles uploaded files + library_urls)
-        $stored = $this->appendFilesAndLibraryUrls($r, (string)$batch->id, []);
-
-        $now = Carbon::now();
-        $id = DB::table('notices')->insertGetId([
-            'uuid'              => $uuid,
-            'course_id'         => $courseId,
-            'course_module_id'  => $moduleId !== null ? $moduleId : null,
-            'batch_id'          => (int)$batch->id,
-            'visibility_scope'  => $visibility,
-            'title'             => $r->title,
-            'slug'              => $slug,
-            'message_html'      => $r->input('message_html'),
-            'attachments_json'  => $stored ? json_encode($stored) : null,
-            'priority'          => $r->input('priority', 'normal'),
-            'status'            => $r->input('status', 'draft'),
-            'created_by'        => $actor['id'] ?: 0,
-            'created_at'        => $now,
-            'updated_at'        => $now,
-        ]);
-
-        return response()->json([
-            'message' => 'Notice created',
-            'id'      => $id,
-            'uuid'    => $uuid,
-            'slug'    => $slug,
-            'attachments' => $stored,
-        ], 201);
+    // resolve batch
+    $bq = DB::table('batches')->whereNull('deleted_at');
+    if (ctype_digit($batchKey)) {
+        $bq->where('id', (int)$batchKey);
+    } elseif (Str::isUuid($batchKey)) {
+        $bq->where('uuid', $batchKey);
+    } elseif (Schema::hasColumn('batches', 'slug')) {
+        $bq->where('slug', $batchKey);
+    } else {
+        return response()->json(['error' => 'Batch not found'], 404);
     }
+    $batch = $bq->first();
+    if (!$batch) return response()->json(['error' => 'Batch not found'], 404);
+
+    // RBAC: instructor must be assigned to this batch
+    if ($role === 'instructor') {
+        $biUserCol = Schema::hasColumn('batch_instructors','user_id')
+            ? 'user_id'
+            : (Schema::hasColumn('batch_instructors','instructor_id') ? 'instructor_id' : null);
+
+        if (!$biUserCol) {
+            return response()->json(['error'=>'Schema issue: batch_instructors needs user_id OR instructor_id'], 500);
+        }
+
+        $assigned = DB::table('batch_instructors')
+            ->where('batch_id', $batch->id)
+            ->whereNull('deleted_at')
+            ->where($biUserCol, $uid)
+            ->exists();
+
+        if (!$assigned) return response()->json(['error' => 'Forbidden'], 403);
+    }
+
+    $courseId = (int) ($batch->course_id ?? 0);
+
+    $v = Validator::make($r->all(), [
+        // accept both but we will resolve/store ONLY course_module_id
+        'course_module_id' => 'sometimes|nullable|integer',
+        'module_uuid'      => 'sometimes|nullable|uuid',
+        'title'            => 'required|string|max:255',
+        'message_html'     => 'nullable|string',
+        'visibility_scope' => 'nullable|in:course,batch,module',
+        'priority'         => 'nullable|in:low,normal,high',
+        'status'           => 'nullable|in:draft,published,archived',
+        'attachments.*'    => 'nullable|file|max:51200',
+        'library_urls.*'   => 'nullable|url',
+    ], [
+        'attachments.*.max' => 'Each attachment must be <= 50 MB.'
+    ]);
+    if ($v->fails()) return response()->json(['errors' => $v->errors()], 422);
+
+    /* =========================================================
+     * ✅ Module mapping rule (NO defaults)
+     * - if module_uuid present => find module id and store
+     * - else if course_module_id present => store that
+     * - else => store NULL (no module id)
+     * ========================================================= */
+    $moduleId = null;
+
+    $moduleUuid = trim((string)$r->input('module_uuid', ''));
+    $moduleIdIn = $r->input('course_module_id');
+
+    if ($moduleUuid !== '') {
+        if (!Str::isUuid($moduleUuid)) {
+            return response()->json(['errors' => ['module_uuid' => ['Invalid UUID format']]], 422);
+        }
+
+        $module = DB::table('course_modules')
+            ->where('uuid', $moduleUuid)
+            ->whereNull('deleted_at')
+            ->first();
+
+        if (!$module) {
+            return response()->json(['errors' => ['module_uuid' => ['Course module (uuid) not found']]], 422);
+        }
+
+        // must belong to this batch's course
+        if ((int)$module->course_id !== (int)$courseId) {
+            return response()->json(['errors' => ['module_uuid' => ['Course module does not belong to this batch\'s course']]], 422);
+        }
+
+        $moduleId = (int)$module->id;
+
+    } elseif (!is_null($moduleIdIn) && $moduleIdIn !== '') {
+
+        if (!ctype_digit((string)$moduleIdIn)) {
+            return response()->json(['errors' => ['course_module_id' => ['Invalid module id']]], 422);
+        }
+
+        $module = DB::table('course_modules')
+            ->where('id', (int)$moduleIdIn)
+            ->whereNull('deleted_at')
+            ->first();
+
+        if (!$module) {
+            return response()->json(['errors' => ['course_module_id' => ['Course module not found']]], 422);
+        }
+
+        // must belong to this batch's course
+        if ((int)$module->course_id !== (int)$courseId) {
+            return response()->json(['errors' => ['course_module_id' => ['Course module does not belong to this batch\'s course']]], 422);
+        }
+
+        $moduleId = (int)$module->id;
+    }
+    // else: keep NULL (no module id stored)
+
+    $uuid       = $this->genUuid();
+    $slug       = $this->uniqueSlug($r->title);
+    $visibility = $r->input('visibility_scope', 'batch');
+
+    // Build attachments using helper (handles uploaded files + library_urls)
+    $stored = $this->appendFilesAndLibraryUrls($r, (string)$batch->id, []);
+
+    $now = Carbon::now();
+    $id = DB::table('notices')->insertGetId([
+        'uuid'              => $uuid,
+        'course_id'         => $courseId,
+        'course_module_id'  => $moduleId !== null ? $moduleId : null, // ✅ store resolved id OR NULL
+        'batch_id'          => (int)$batch->id,
+        'visibility_scope'  => $visibility,
+        'title'             => $r->title,
+        'slug'              => $slug,
+        'message_html'      => $r->input('message_html'),
+        'attachments_json'  => $stored ? json_encode($stored) : null,
+        'priority'          => $r->input('priority', 'normal'),
+        'status'            => $r->input('status', 'draft'),
+        'created_by'        => $actor['id'] ?: 0,
+        'created_at'        => $now,
+        'updated_at'        => $now,
+    ]);
+
+    return response()->json([
+        'message'     => 'Notice created',
+        'id'          => $id,
+        'uuid'        => $uuid,
+        'slug'        => $slug,
+        'module_id'   => $moduleId, // helpful for frontend
+        'attachments' => $stored,
+    ], 201);
+}
 
     /* =========================================================
      |  Bin by Batch (soft-deleted notices for a given batch)

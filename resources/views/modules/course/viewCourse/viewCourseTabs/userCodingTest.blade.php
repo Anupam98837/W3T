@@ -812,6 +812,62 @@
 
     return '';
   };
+    // ============================
+  // ✅ Module Context (from URL)
+  // ============================
+  const URLP = new URLSearchParams(window.location.search);
+
+  const RAW_MODULE_UUID =
+    (URLP.get('module_uuid') || URLP.get('course_module_uuid') || '').trim();
+
+  const RAW_MODULE_ID =
+    (URLP.get('module_id') || URLP.get('course_module_id') || '').trim();
+
+  const MODULE = {
+    id: (RAW_MODULE_ID && /^\d+$/.test(RAW_MODULE_ID)) ? Number(RAW_MODULE_ID) : null,
+    uuid: (RAW_MODULE_UUID && /^[0-9a-fA-F-]{36}$/.test(RAW_MODULE_UUID)) ? RAW_MODULE_UUID : null
+  };
+
+  // Query string to append to API URLs
+  const MODULE_QS = (() => {
+    const p = new URLSearchParams();
+    if (MODULE.id != null) {
+      p.set('course_module_id', String(MODULE.id));
+      p.set('module_id', String(MODULE.id)); // compat
+    }
+    if (MODULE.uuid) {
+      p.set('course_module_uuid', MODULE.uuid);
+      p.set('module_uuid', MODULE.uuid); // compat
+    }
+    return p.toString();
+  })();
+
+  // Append module filter to a relative API path (used by api())
+  function withModule(path){
+    if(!MODULE_QS) return path;
+    return path + (path.includes('?') ? '&' : '?') + MODULE_QS;
+  }
+
+  // Append module filter to a full URL string
+  function withModuleUrl(url){
+    if(!MODULE_QS) return url;
+    return url + (url.includes('?') ? '&' : '?') + MODULE_QS;
+  }
+
+  // Add module keys into POST bodies (assign/start)
+  function modulePayload(){
+    const p = {};
+    if (MODULE.id != null) {
+      p.course_module_id = MODULE.id;
+      p.module_id = MODULE.id; // compat
+    }
+    if (MODULE.uuid) {
+      p.course_module_uuid = MODULE.uuid;
+      p.module_uuid = MODULE.uuid; // compat
+    }
+    return p;
+  }
+
 
   function openAttemptsModal(uuid){
     $attemptsModal.style.display = 'grid';
@@ -1392,7 +1448,7 @@
     try{
       const myRole = await getMyRole(token);
 
-      RAW = await api(`/batches/${encodeURIComponent(BATCH_ID)}/coding-questions`, {
+            RAW = await api(withModule(`/batches/${encodeURIComponent(BATCH_ID)}/coding-questions`), {
         method: 'GET'
       });
 
@@ -1414,10 +1470,14 @@
 
       $listTitle.textContent = CAN_MANAGE ? 'Manage Batch Coding Questions' : 'Your Assigned Coding Questions';
 
-      $hintPill.style.display = 'inline-flex';
+           $hintPill.style.display = 'inline-flex';
+
+      const modHint = MODULE_QS ? 'Module filter ON • ' : '';
+
       $hintPill.textContent = CAN_MANAGE
-        ? 'Set max attempts, then toggle Assign'
-        : 'Click ••• to view your previous attempts';
+        ? (modHint + 'Set max attempts, then toggle Assign')
+        : (modHint + 'Click ••• to view your previous attempts');
+
 
       updateStats();
 
@@ -1434,6 +1494,7 @@
 
   async function assignQuestion(uuid, maxAttempts){
     const payload = {
+            ...modulePayload(),
       question_uuid: uuid,
       questionUuids: [uuid],
       question_uuids: [uuid],
@@ -1446,20 +1507,20 @@
       assign_status: 1
     };
 
-    await api(`/batches/${encodeURIComponent(BATCH_ID)}/coding-questions/assign`, {
+    await api(withModule(`/batches/${encodeURIComponent(BATCH_ID)}/coding-questions/assign`), {
       method:'POST',
       body: JSON.stringify(payload)
     });
   }
 
   async function unassignQuestion(uuid){
-    await api(`/batches/${encodeURIComponent(BATCH_ID)}/coding-questions/${encodeURIComponent(uuid)}`, {
+    await api(withModule(`/batches/${encodeURIComponent(BATCH_ID)}/coding-questions/${encodeURIComponent(uuid)}`), {
       method:'DELETE'
     });
   }
 
   async function startQuestion(uuid){
-    const payload = { batch_id: BATCH_ID, batch: BATCH_ID, question_uuid: uuid, questionUuid: uuid };
+    const payload = {  ...modulePayload(), batch_id: BATCH_ID, batch: BATCH_ID, question_uuid: uuid, questionUuid: uuid };
 
     const data = await api(`/judge/start`, { method:'POST', body: JSON.stringify(payload) });
 
@@ -1469,6 +1530,8 @@
     const url = new URL(TEST_URL, window.location.origin);
     url.searchParams.set('batch', BATCH_ID);
     url.searchParams.set('question', uuid);
+    if (MODULE.id != null) url.searchParams.set('module_id', String(MODULE.id));
+    if (MODULE.uuid) url.searchParams.set('module_uuid', MODULE.uuid);
     if(attemptUuid) url.searchParams.set('attempt', attemptUuid);
 
     window.location.href = url.toString();
@@ -1700,6 +1763,8 @@
 
   async function assignCodingQuestion(batchKey, questionUuid, attemptAllowed, quiet=false){
     const payload = {
+            ...modulePayload(),
+
       question_uuid: questionUuid,
       questionUuid: questionUuid,
       question_uuids: [questionUuid],
@@ -1714,7 +1779,11 @@
       assign_status: 1
     };
 
-    const res = await fetch(`/api/batches/${encodeURIComponent(batchKey)}/coding-questions/assign`, {
+    const assignUrl =
+      `/api/batches/${encodeURIComponent(batchKey)}/coding-questions/assign` +
+      (MODULE_QS ? `?${MODULE_QS}` : '');
+
+    const res = await fetch(assignUrl, {
       method: 'POST',
       headers: { 'Authorization':'Bearer '+token, 'Content-Type':'application/json', 'Accept':'application/json' },
       body: JSON.stringify(payload)
@@ -1734,7 +1803,11 @@
   }
 
   async function unassignCodingQuestion(batchKey, questionUuid, quiet=false){
-    const res = await fetch(`/api/batches/${encodeURIComponent(batchKey)}/coding-questions/${encodeURIComponent(questionUuid)}`, {
+    const delUrl =
+      `/api/batches/${encodeURIComponent(batchKey)}/coding-questions/${encodeURIComponent(questionUuid)}` +
+      (MODULE_QS ? `?${MODULE_QS}` : '');
+
+    const res = await fetch(delUrl, {
       method: 'DELETE',
       headers: { 'Authorization':'Bearer '+token, 'Accept':'application/json' }
     });
@@ -1759,7 +1832,10 @@
     cq_rows.querySelectorAll('tr:not(#cq_loader)').forEach(tr=>tr.remove());
 
     try{
-      const res = await fetch(`/api/batches/${encodeURIComponent(cq_batch_key)}/coding-questions?mode=all&${cqParams()}`, {
+      const baseUrl = `/api/batches/${encodeURIComponent(cq_batch_key)}/coding-questions?mode=all`;
+      const url = baseUrl + (MODULE_QS ? `&${MODULE_QS}` : '') + `&${cqParams()}`;
+
+      const res = await fetch(url, {
         headers: { 'Authorization': 'Bearer ' + token, 'Accept': 'application/json' }
       });
 
