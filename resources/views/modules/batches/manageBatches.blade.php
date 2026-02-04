@@ -923,7 +923,7 @@
 
       <div class="modal-body">
         <input type="hidden" id="bcm_id" value="">
-        <div class="mb-3">
+        <div class="mb-3 d-none">
           <label class="form-label">Display Order</label>
           <input type="number" min="1" class="form-control" id="bcm_order" placeholder="e.g. 1">
         </div>
@@ -1461,6 +1461,63 @@ async function assignCourseModuleToBatch(moduleId, assigned){
   
   return j;
 }
+function toIntOrNull(v){
+  const n = Number(v);
+  return Number.isFinite(n) ? Math.trunc(n) : null;
+}
+function getOrderVal(x){
+  const raw = (x?.display_order ?? x?.order ?? x?.position ?? null);
+  const n = toIntOrNull(raw);
+  return (n === null || n <= 0) ? null : n;
+}
+function sortByDisplayOrder(a, b){
+  const ao = getOrderVal(a);
+  const bo = getOrderVal(b);
+
+  // null/empty orders go to bottom
+  if (ao === null && bo === null) return 0;
+  if (ao === null) return 1;
+  if (bo === null) return -1;
+
+  if (ao !== bo) return ao - bo;
+
+  // stable-ish tie breaker
+  const at = String(a?.title ?? a?.module_title ?? a?.name ?? '');
+  const bt = String(b?.title ?? b?.module_title ?? b?.name ?? '');
+  return at.localeCompare(bt);
+}
+
+function sortBatchRowsDom(){
+  const rows = Array.from(bm_rows_mod.querySelectorAll('tr'))
+    .filter(r => r.id !== 'bm_loader_mod');
+
+  rows.sort((r1, r2) => {
+    const a = toIntOrNull(r1.dataset.order) ?? 999999;
+    const b = toIntOrNull(r2.dataset.order) ?? 999999;
+    if (a !== b) return a - b;
+    return String(r1.dataset.title || '').localeCompare(String(r2.dataset.title || ''));
+  });
+
+  rows.forEach(r => bm_rows_mod.appendChild(r));
+}
+
+async function updateBcmOrderOnly(idOrUuid, newOrder){
+  const payload = {
+    display_order: newOrder,
+    order: newOrder,
+    position: newOrder
+  };
+
+  const res = await fetch(`/api/batch-course-modules/${encodeURIComponent(idOrUuid)}`, {
+    method:'PUT',
+    headers:{ 'Authorization':'Bearer '+TOKEN, 'Content-Type':'application/json', 'Accept':'application/json' },
+    body: JSON.stringify(payload)
+  });
+
+  const j = await res.json().catch(()=>({}));
+  if(!res.ok) throw new Error(j?.message || firstError(j) || 'Order update failed');
+  return j;
+}
 
 async function loadBatchModulesTab(){
   if(!mod_batch_uuid) return;
@@ -1476,39 +1533,112 @@ async function loadBatchModulesTab(){
     const j = await res.json().catch(()=>({}));
     if(!res.ok) throw new Error(j?.message || 'Failed to load batch modules');
 
-    const items = pickList(j);
+const items = pickList(j).slice().sort(sortByDisplayOrder);
     const pag = pickPag(j, items.length, bm_per_mod?.value, bm_page_mod);
 
     const frag = document.createDocumentFragment();
 
     items.forEach(x=>{
-      const idOrUuid = x.uuid ?? x.id ?? x.batch_course_module_uuid ?? x.batch_course_module_id ?? '';
-      const title = x.title ?? x.module_title ?? x.name ?? 'Untitled';
-      const order = x.display_order ?? x.order ?? x.position ?? '-';
-      const completed = !!(x.completed ?? x.is_completed ?? x.completed_status);
+  const idOrUuid = x.uuid ?? x.id ?? x.batch_course_module_uuid ?? x.batch_course_module_id ?? '';
+  const title = x.title ?? x.module_title ?? x.name ?? 'Untitled';
+  const orderNum = getOrderVal(x);
+  const completed = !!(x.completed ?? x.is_completed ?? x.completed_status);
 
-      const tr = document.createElement('tr');
-      tr.innerHTML = `
-        <td class="fw-semibold">${esc(title)}</td>
-        <td>${esc(order)}</td>
-        <td>
-          <div class="d-flex align-items-center gap-2">
-            <span class="badge ${completed ? 'badge-success' : 'badge-secondary'}">${completed ? 'Completed' : 'Not Completed'}</span>
-            <button class="btn btn-light btn-sm bcm-toggle" data-id="${esc(idOrUuid)}">
-              <i class="fa fa-rotate"></i> Toggle
-            </button>
-          </div>
-        </td>
-        <td class="text-end">
-          <button class="btn btn-primary btn-sm bcm-edit" data-id="${esc(idOrUuid)}">
-            <i class="fa fa-pen-to-square me-1"></i>Edit
-          </button>
-        </td>
-      `;
-      frag.appendChild(tr);
-    });
+  const tr = document.createElement('tr');
+
+  // ✅ store order/title for DOM sort
+  tr.dataset.order = orderNum ?? '';
+  tr.dataset.title = String(title);
+
+  tr.innerHTML = `
+    <td class="fw-semibold">${esc(title)}</td>
+
+    <td style="width:170px;">
+      <div class="input-group input-group-sm">
+        <input type="number" min="1" step="1"
+          class="form-control bcm-order-input"
+          value="${orderNum ?? ''}"
+          data-id="${esc(idOrUuid)}"
+          placeholder="—">
+        <button class="btn btn-outline-primary bcm-order-save"
+          type="button"
+          data-id="${esc(idOrUuid)}">
+          Save
+        </button>
+      </div>
+      <div class="small text-muted mt-1 bcm-order-msg" data-id="${esc(idOrUuid)}"></div>
+    </td>
+
+    <td>
+      <div class="d-flex align-items-center gap-2">
+        <span class="badge ${completed ? 'badge-success' : 'badge-secondary'}">${completed ? 'Completed' : 'Not Completed'}</span>
+        <button class="btn btn-light btn-sm bcm-toggle d-none" data-id="${esc(idOrUuid)}">
+          <i class="fa fa-rotate"></i> Toggle
+        </button>
+      </div>
+    </td>
+
+    <td class="text-end">
+      <button class="btn btn-primary btn-sm bcm-edit" data-id="${esc(idOrUuid)}">
+        <i class="fa fa-pen-to-square me-1"></i>Edit
+      </button>
+    </td>
+  `;
+  frag.appendChild(tr);
+});
 
     bm_rows_mod.appendChild(frag);
+// ✅ inline order save + instant rearrange
+bm_rows_mod.querySelectorAll('.bcm-order-save').forEach(btn=>{
+  btn.addEventListener('click', async ()=>{
+    const idOrUuid = btn.dataset.id;
+    const input = bm_rows_mod.querySelector(`.bcm-order-input[data-id="${CSS.escape(idOrUuid)}"]`);
+    const msg = bm_rows_mod.querySelector(`.bcm-order-msg[data-id="${CSS.escape(idOrUuid)}"]`);
+    if(!input) return;
+
+    const newOrder = toIntOrNull(input.value);
+    if(!newOrder || newOrder <= 0){
+      err('Display order must be a positive number');
+      return;
+    }
+
+    btn.disabled = true;
+    input.disabled = true;
+    if(msg) msg.textContent = 'Saving…';
+
+    try{
+      await updateBcmOrderOnly(idOrUuid, newOrder);
+      ok('Order updated');
+
+      // ✅ update row dataset and re-sort DOM immediately
+      const row = input.closest('tr');
+      if(row){
+        row.dataset.order = String(newOrder);
+        sortBatchRowsDom();
+      }
+
+      if(msg) msg.textContent = 'Saved.';
+    }catch(e){
+      err(e.message || 'Order update failed');
+      if(msg) msg.textContent = 'Failed.';
+    }finally{
+      btn.disabled = false;
+      input.disabled = false;
+      setTimeout(()=>{ if(msg) msg.textContent = ''; }, 1200);
+    }
+  });
+});
+
+// allow Enter to save
+bm_rows_mod.querySelectorAll('.bcm-order-input').forEach(inp=>{
+  inp.addEventListener('keydown', (e)=>{
+    if(e.key === 'Enter'){
+      e.preventDefault();
+      const idOrUuid = inp.dataset.id;
+      bm_rows_mod.querySelector(`.bcm-order-save[data-id="${CSS.escape(idOrUuid)}"]`)?.click();
+    }
+  });
+});
 
     // toggle completed
     bm_rows_mod.querySelectorAll('.bcm-toggle').forEach(btn=>{

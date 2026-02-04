@@ -1381,8 +1381,7 @@ public function viewCourseByBatch(Request $r, string $batchKey)
     ]);
 
     return response()->json(['data' => $payload]);
-}
-private function computeBatchModuleAccessStatesForStudent(
+}private function computeBatchModuleAccessStatesForStudent(
     int $batchId,
     int $courseId,
     int $userId,
@@ -1412,14 +1411,14 @@ private function computeBatchModuleAccessStatesForStudent(
     // ✅ actor column for assignment_submissions is student_id (your confirmation)
     $assignmentActorCol = 'student_id';
 
-    // auto-detect actor col for quizz_attempt_batch / coding_results
+    // auto-detect actor col for quizz_attempt_batch / coding_attempts
     $quizAttemptActorCol = Schema::hasColumn('quizz_attempt_batch', 'student_id')
         ? 'student_id'
         : (Schema::hasColumn('quizz_attempt_batch', 'user_id') ? 'user_id' : null);
 
-    $codingActorCol = Schema::hasColumn('coding_results', 'student_id')
+    $codingAttemptActorCol = Schema::hasColumn('coding_attempts', 'student_id')
         ? 'student_id'
-        : (Schema::hasColumn('coding_results', 'user_id') ? 'user_id' : null);
+        : (Schema::hasColumn('coding_attempts', 'user_id') ? 'user_id' : null);
 
     // 2) Assignment submissions
     $assignmentSubmittedSet = [];
@@ -1446,7 +1445,6 @@ private function computeBatchModuleAccessStatesForStudent(
     }
 
     // 3) ✅ Exam submissions via quizz_attempt_batch (batch_id + course_module_id + actor)
-    // We'll store attempts keyed by course_module_id
     $examAttemptSetByCourseModule = [];
     if ($rules['exam_submitted'] === 1 && $quizAttemptActorCol) {
 
@@ -1456,19 +1454,15 @@ private function computeBatchModuleAccessStatesForStudent(
             $q->whereNull('deleted_at');
         }
 
-        // mandatory filters per your requirement
         if (Schema::hasColumn('quizz_attempt_batch','batch_id')) {
             $q->where('batch_id', $batchId);
         } else {
-            // if batch_id column doesn't exist, cannot reliably enforce this rule
-            // keep set empty so unlock won't happen incorrectly
-            $q = null;
+            $q = null; // cannot enforce reliably
         }
 
         if ($q) {
             $q->where($quizAttemptActorCol, $userId);
 
-            // course_module_id must exist here
             if (Schema::hasColumn('quizz_attempt_batch','course_module_id')) {
                 $q->whereIn('course_module_id', $cmIds);
 
@@ -1480,32 +1474,35 @@ private function computeBatchModuleAccessStatesForStudent(
         }
     }
 
-    // 4) Coding submissions via question mapping
-    $questionByCourseModule = [];
-    $codingResultSet = [];
-    if ($rules['coding_test_submitted'] === 1) {
+    // 4) ✅ Coding Test submissions via coding_attempts (batch_id + course_module_id + actor)
+    $codingAttemptSetByCourseModule = [];
+    if ($rules['coding_test_submitted'] === 1 && $codingAttemptActorCol) {
 
-        $questionByCourseModule = DB::table('batch_coding_questions')
-            ->whereNull('deleted_at')
-            ->where('batch_id', $batchId)
-            ->whereIn('course_module_id', $cmIds)
-            ->pluck('question_id', 'course_module_id')
-            ->mapWithKeys(fn($qid, $cmId) => [(int)$cmId => (int)$qid])
-            ->all();
+        $q = DB::table('coding_attempts');
 
-        $qIds = array_values(array_unique(array_filter(array_values($questionByCourseModule))));
-        if (!empty($qIds) && $codingActorCol) {
-            $q = DB::table('coding_results');
-            if (Schema::hasColumn('coding_results','deleted_at')) $q->whereNull('deleted_at');
-            if (Schema::hasColumn('coding_results','batch_id'))   $q->where('batch_id', $batchId);
+        if (Schema::hasColumn('coding_attempts','deleted_at')) {
+            $q->whereNull('deleted_at');
+        }
 
-            $q->where($codingActorCol, $userId)
-              ->whereIn('question_id', $qIds);
+        // batch filter only if column exists
+        if (Schema::hasColumn('coding_attempts','batch_id')) {
+            $q->where('batch_id', $batchId);
+        } else {
+            $q = null; // cannot enforce reliably
+        }
 
-            $codingResultSet = $q->pluck('question_id')
-                ->map(fn($v)=>(int)$v)
-                ->flip()
-                ->all();
+        if ($q) {
+            $q->where($codingAttemptActorCol, $userId);
+
+            // course_module_id must exist
+            if (Schema::hasColumn('coding_attempts','course_module_id')) {
+                $q->whereIn('course_module_id', $cmIds);
+
+                $codingAttemptSetByCourseModule = $q->pluck('course_module_id')
+                    ->map(fn($v)=>(int)$v)
+                    ->flip()
+                    ->all();
+            }
         }
     }
 
@@ -1537,15 +1534,14 @@ private function computeBatchModuleAccessStatesForStudent(
             $ok = isset($assignmentSubmittedSet[$prevCourseModuleId]);
         }
 
-        // 3) ✅ exam submitted? -> check quizz_attempt_batch row for prev module + user + batch
+        // 3) exam submitted? -> check quizz_attempt_batch row for prev module + user + batch
         if ($ok && $rules['exam_submitted'] === 1) {
             $ok = isset($examAttemptSetByCourseModule[$prevCourseModuleId]);
         }
 
-        // 4) coding submitted? -> check previous module coding by actor
+        // 4) ✅ coding submitted? -> check coding_attempts row for prev module + user + batch
         if ($ok && $rules['coding_test_submitted'] === 1) {
-            $qid = (int)($questionByCourseModule[$prevCourseModuleId] ?? 0);
-            $ok = $qid > 0 && isset($codingResultSet[$qid]);
+            $ok = isset($codingAttemptSetByCourseModule[$prevCourseModuleId]);
         }
 
         $states[(int)$m->batch_course_module_id] = $ok ? 'unlocked' : 'locked';
@@ -1553,6 +1549,7 @@ private function computeBatchModuleAccessStatesForStudent(
 
     return $states;
 }
+
 
 public function listCourseBatchCards(Request $r)
 {

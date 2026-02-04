@@ -83,287 +83,332 @@ class JudgeController extends Controller
     /* =========================================================
      * START (creates/resumes attempt BEFORE exam UI starts)
      * ========================================================= */
+public function start(Request $r)
+{
+    $v = Validator::make($r->all(), [
+        'question_id'   => 'nullable|integer|exists:coding_questions,id',
+        'question_uuid' => 'nullable|string',
+        'batch_uuid'    => 'nullable|string',
+        'attempt_uuid'  => 'nullable|string',
+    ]);
 
-    public function start(Request $r)
-    {
-        $v = Validator::make($r->all(), [
-            'question_id'   => 'nullable|integer|exists:coding_questions,id',
-            'question_uuid' => 'nullable|string',
-            'batch_uuid'    => 'nullable|string',
-            'attempt_uuid'  => 'nullable|string',
-        ]);
+    if ($v->fails()) {
+        return response()->json(['status' => 'error', 'message' => $v->errors()->first()], 422);
+    }
 
-        if ($v->fails()) {
-            return response()->json(['status' => 'error', 'message' => $v->errors()->first()], 422);
+    $p = $v->validated();
+
+    $userId = (int)($r->attributes->get('auth_tokenable_id') ?? 0);
+    $role   = (string)($r->attributes->get('auth_role') ?? '');
+
+    if ($userId <= 0) {
+        return response()->json(['status' => 'error', 'message' => 'Unauthorized.'], 403);
+    }
+
+    $question = $this->resolveQuestion($p['question_id'] ?? null, $p['question_uuid'] ?? null);
+    if (!$question) {
+        return response()->json(['status' => 'error', 'message' => 'Question not found'], 404);
+    }
+
+    $batchId = null;
+    $bcqId   = null;
+    $bcqRow  = null;
+    $batchAttemptAllowed = null;
+
+    // ✅ NEW
+    $courseModuleId = null;
+
+    if (!empty($p['batch_uuid'])) {
+        $batch = DB::table('batches')->where('uuid', $p['batch_uuid'])->first();
+        if (!$batch) return response()->json(['status' => 'error', 'message' => 'Batch not found'], 404);
+
+        $batchId = (int)$batch->id;
+
+        $bcqRow = DB::table('batch_coding_questions')
+            ->where('batch_id', $batchId)
+            ->where('question_id', $question->id)
+            ->whereNull('deleted_at')
+            ->first();
+
+        if (!$bcqRow && $role === 'student') {
+            return response()->json(['status' => 'error', 'message' => 'This question is not assigned to the batch.'], 403);
         }
 
-        $p = $v->validated();
+        if ($bcqRow) {
+            $bcqId = (int)$bcqRow->id;
+            $batchAttemptAllowed = $bcqRow->attempt_allowed ?? null;
 
-        $userId = (int)($r->attributes->get('auth_tokenable_id') ?? 0);
-        $role   = (string)($r->attributes->get('auth_role') ?? '');
-
-        if ($userId <= 0) {
-            return response()->json(['status' => 'error', 'message' => 'Unauthorized.'], 403);
-        }
-
-        $question = $this->resolveQuestion($p['question_id'] ?? null, $p['question_uuid'] ?? null);
-        if (!$question) {
-            return response()->json(['status' => 'error', 'message' => 'Question not found'], 404);
-        }
-
-        $batchId = null;
-        $bcqId   = null;
-        $bcqRow  = null;
-        $batchAttemptAllowed = null;
-
-        if (!empty($p['batch_uuid'])) {
-            $batch = DB::table('batches')->where('uuid', $p['batch_uuid'])->first();
-            if (!$batch) return response()->json(['status' => 'error', 'message' => 'Batch not found'], 404);
-
-            $batchId = (int)$batch->id;
-
-            $bcqRow = DB::table('batch_coding_questions')
-                ->where('batch_id', $batchId)
-                ->where('question_id', $question->id)
-                ->whereNull('deleted_at')
-                ->first();
-
-            if (!$bcqRow && $role === 'student') {
-                return response()->json(['status' => 'error', 'message' => 'This question is not assigned to the batch.'], 403);
+            // ✅ NEW: read course_module_id from batch_coding_questions
+            if (isset($bcqRow->course_module_id) && !empty($bcqRow->course_module_id)) {
+                $courseModuleId = (int)$bcqRow->course_module_id;
             }
+        }
+    }
 
-            if ($bcqRow) {
-                $bcqId = (int)$bcqRow->id;
-                $batchAttemptAllowed = $bcqRow->attempt_allowed ?? null;
-            }
+    $now = now();
+
+    // ✅ Attempt limit computed here (so UI can block BEFORE exam starts)
+    $qAllowed = (int)($question->total_attempts ?? 1);
+    $bAllowed = is_null($batchAttemptAllowed) ? $qAllowed : (int)$batchAttemptAllowed;
+    $effectiveAllowed = min($qAllowed, $bAllowed);
+
+    // 1) resume via attempt_uuid (ONLY if in_progress)
+    $attempt = null;
+    if (!empty($p['attempt_uuid']) && Str::isUuid($p['attempt_uuid'])) {
+        $q = DB::table('coding_attempts')
+            ->where('uuid', $p['attempt_uuid'])
+            ->where('user_id', $userId)
+            ->where('question_id', $question->id)
+            ->where('status', 'in_progress')
+            ->whereNull('deleted_at');
+
+        if ($batchId) {
+            $q->where('batch_id', $batchId);
+            if ($bcqId) $q->where('batch_coding_question_id', $bcqId);
+        } else {
+            $q->whereNull('batch_id')->whereNull('batch_coding_question_id');
         }
 
-        $now = now();
-
-        // ✅ Attempt limit computed here (so UI can block BEFORE exam starts)
-        $qAllowed = (int)($question->total_attempts ?? 1);
-        $bAllowed = is_null($batchAttemptAllowed) ? $qAllowed : (int)$batchAttemptAllowed;
-        $effectiveAllowed = min($qAllowed, $bAllowed);
-
-        // 1) resume via attempt_uuid (ONLY if in_progress)
-        $attempt = null;
-        if (!empty($p['attempt_uuid']) && Str::isUuid($p['attempt_uuid'])) {
-            $q = DB::table('coding_attempts')
-                ->where('uuid', $p['attempt_uuid'])
-                ->where('user_id', $userId)
-                ->where('question_id', $question->id)
-                ->where('status', 'in_progress')
-                ->whereNull('deleted_at');
-
-            if ($batchId) {
-                $q->where('batch_id', $batchId);
-                if ($bcqId) $q->where('batch_coding_question_id', $bcqId);
-            } else {
-                $q->whereNull('batch_id')->whereNull('batch_coding_question_id');
-            }
-
-            $attempt = $q->first();
+        // ✅ NEW: resume only within same course_module_id (batch context)
+        if ($courseModuleId && $this->hasCol('coding_attempts', 'course_module_id')) {
+            $q->where('course_module_id', $courseModuleId);
         }
 
-        // 2) reuse latest in_progress attempt (refresh-safe)
-        if (!$attempt) {
-            $q = DB::table('coding_attempts')
-                ->where('user_id', $userId)
-                ->where('question_id', $question->id)
-                ->where('status', 'in_progress')
-                ->whereNull('deleted_at')
-                ->orderByDesc('id');
+        $attempt = $q->first();
+    }
 
-            if ($batchId) {
-                $q->where('batch_id', $batchId);
-                if ($bcqId) $q->where('batch_coding_question_id', $bcqId);
-            } else {
-                $q->whereNull('batch_id')->whereNull('batch_coding_question_id');
-            }
+    // 2) reuse latest in_progress attempt (refresh-safe)
+    if (!$attempt) {
+        $q = DB::table('coding_attempts')
+            ->where('user_id', $userId)
+            ->where('question_id', $question->id)
+            ->where('status', 'in_progress')
+            ->whereNull('deleted_at')
+            ->orderByDesc('id');
 
-            $attempt = $q->first();
+        if ($batchId) {
+            $q->where('batch_id', $batchId);
+            if ($bcqId) $q->where('batch_coding_question_id', $bcqId);
+        } else {
+            $q->whereNull('batch_id')->whereNull('batch_coding_question_id');
         }
 
-        // Attempt counters (for UI badge)
-        $usedAttempts = $this->countAttemptsForContext($userId, $question->id, $batchId, $bcqId);
-
-        // If existing attempt exists, return it
-        if ($attempt) {
-            $expiresAt = !empty($attempt->expires_at) ? Carbon::parse($attempt->expires_at) : null;
-            $remaining = $expiresAt ? max(0, $now->diffInSeconds($expiresAt, false)) : null;
-
-            $attemptNo = (int)($attempt->attempt_no ?? $usedAttempts);
-
-            return response()->json([
-                'status' => 'success',
-                'data' => [
-                    'attempt_uuid'       => $attempt->uuid,
-                    'attempt_no'         => $attemptNo,
-                    'attempts_allowed'   => $effectiveAllowed,
-                    'attempts_used'      => $usedAttempts,
-                    'attempts_remaining' => $effectiveAllowed > 0 ? max(0, $effectiveAllowed - $usedAttempts) : null,
-
-                    'server_now'         => $now->toIso8601String(),
-                    'started_at'         => $attempt->server_started_at ? Carbon::parse($attempt->server_started_at)->toIso8601String() : null,
-                    'expires_at'         => $expiresAt ? $expiresAt->toIso8601String() : null,
-                    'time_limit_seconds' => (int)($attempt->time_limit_sec ?? 0),
-                    'remaining_seconds'  => $remaining,
-                ]
-            ], 200);
+        // ✅ NEW: reuse only within same course_module_id (batch context)
+        if ($courseModuleId && $this->hasCol('coding_attempts', 'course_module_id')) {
+            $q->where('course_module_id', $courseModuleId);
         }
 
-        // ✅ If no in_progress attempt, check if we can create a new one
-        $attemptNo = $usedAttempts + 1;
+        $attempt = $q->first();
+    }
 
-        if ($effectiveAllowed > 0 && $attemptNo > $effectiveAllowed) {
-            return response()->json([
-                'status' => 'error',
-                'code'   => 'attempt_limit_reached',
-                'message'=> "Attempt limit reached. Allowed: {$effectiveAllowed}.",
-                'data'   => [
-                    'attempts_allowed'   => $effectiveAllowed,
-                    'attempts_used'      => $usedAttempts,
-                    'attempts_remaining' => 0,
-                ]
-            ], 429);
-        }
+    // ✅ Attempt counters (module-aware, without changing your helper signature)
+    $usedAttemptsQ = DB::table('coding_attempts')
+        ->where('user_id', $userId)
+        ->where('question_id', $question->id)
+        ->whereNull('deleted_at');
 
-        $timeLimitSec = $this->getTimeLimitSec($question, $bcqRow);
-        $expiresAt = ($timeLimitSec > 0) ? $now->copy()->addSeconds($timeLimitSec) : null;
+    if ($batchId) {
+        $usedAttemptsQ->where('batch_id', $batchId);
+        if ($bcqId) $usedAttemptsQ->where('batch_coding_question_id', $bcqId);
+    } else {
+        $usedAttemptsQ->whereNull('batch_id')->whereNull('batch_coding_question_id');
+    }
 
-        $attemptUuid = (string)Str::uuid();
+    if ($courseModuleId && $this->hasCol('coding_attempts', 'course_module_id')) {
+        $usedAttemptsQ->where('course_module_id', $courseModuleId);
+    }
 
-        $insert = [
-            'uuid'                     => $attemptUuid,
-            'question_id'              => $question->id,
-            'user_id'                  => $userId,
-            'batch_id'                 => $batchId,
-            'batch_coding_question_id' => $bcqId,
-            'attempt_no'               => $attemptNo,
-            'status'                   => 'in_progress',
-            'ip'                       => $r->ip(),
-            'user_agent'               => (string)$r->userAgent(),
-            'auth_snapshot'            => json_encode(['role' => $role], JSON_UNESCAPED_UNICODE),
-            'created_at'               => $now,
-            'updated_at'               => $now,
-        ];
+    $usedAttempts = (int)$usedAttemptsQ->count();
 
-        if ($this->hasCol('coding_attempts', 'server_started_at')) {
-            $insert['server_started_at'] = $now;
-        }
-        if ($this->hasCol('coding_attempts', 'time_limit_sec')) {
-            $insert['time_limit_sec'] = $timeLimitSec ?: null;
-        }
-        if ($this->hasCol('coding_attempts', 'expires_at')) {
-            $insert['expires_at'] = $expiresAt;
-        }
+    // If existing attempt exists, return it
+    if ($attempt) {
+        $expiresAt = !empty($attempt->expires_at) ? Carbon::parse($attempt->expires_at) : null;
+        $remaining = $expiresAt ? max(0, $now->diffInSeconds($expiresAt, false)) : null;
 
-        DB::table('coding_attempts')->insert($insert);
+        $attemptNo = (int)($attempt->attempt_no ?? $usedAttempts);
 
         return response()->json([
             'status' => 'success',
             'data' => [
-                'attempt_uuid'       => $attemptUuid,
+                'attempt_uuid'       => $attempt->uuid,
                 'attempt_no'         => $attemptNo,
                 'attempts_allowed'   => $effectiveAllowed,
-                'attempts_used'      => $usedAttempts + 1,
-                'attempts_remaining' => $effectiveAllowed > 0 ? max(0, $effectiveAllowed - ($usedAttempts + 1)) : null,
+                'attempts_used'      => $usedAttempts,
+                'attempts_remaining' => $effectiveAllowed > 0 ? max(0, $effectiveAllowed - $usedAttempts) : null,
 
                 'server_now'         => $now->toIso8601String(),
-                'started_at'         => $now->toIso8601String(),
+                'started_at'         => $attempt->server_started_at ? Carbon::parse($attempt->server_started_at)->toIso8601String() : null,
                 'expires_at'         => $expiresAt ? $expiresAt->toIso8601String() : null,
-                'time_limit_seconds' => $timeLimitSec,
-                'remaining_seconds'  => $timeLimitSec > 0 ? $timeLimitSec : null,
+                'time_limit_seconds' => (int)($attempt->time_limit_sec ?? 0),
+                'remaining_seconds'  => $remaining,
+
+                // (optional) debug
+                'course_module_id'   => $courseModuleId,
             ]
         ], 200);
     }
 
-    /* =========================================================
-     * RUN (no DB write)
-     * ========================================================= */
+    // ✅ If no in_progress attempt, check if we can create a new one
+    $attemptNo = $usedAttempts + 1;
 
-    public function run(Request $r)
-    {
-        $v = Validator::make($r->all(), [
-            'question_id'   => 'nullable|integer|exists:coding_questions,id',
-            'question_uuid' => 'nullable|string',
-            'language'      => 'required|string',
-            'code'          => 'required|string|min:1',
-            'only_samples'  => 'nullable|boolean',
-        ]);
-
-        if ($v->fails()) {
-            return response()->json(['status' => 'error', 'message' => $v->errors()->first()], 422);
-        }
-
-        $p = $v->validated();
-
-        $question = $this->resolveQuestion($p['question_id'] ?? null, $p['question_uuid'] ?? null);
-        if (!$question) return response()->json(['status' => 'error', 'message' => 'Question not found'], 404);
-
-        $langRow = DB::table('question_languages')
-            ->where('question_id', $question->id)
-            ->where('language_key', strtolower(trim($p['language'])))
-            ->where('is_enabled', 1)
-            ->first();
-
-        if (!$langRow) {
-            return response()->json(['status' => 'error', 'message' => 'Language not enabled for this question.'], 422);
-        }
-
-        $onlySamples = array_key_exists('only_samples', $p) ? (bool)$p['only_samples'] : true;
-
-        $testsQ = DB::table('question_tests')
-            ->where('question_id', $question->id)
-            ->where('is_active', 1);
-
-        if ($onlySamples) $testsQ->where('visibility', 'sample');
-
-        $tests = $testsQ->orderBy('sort_order')->get();
-
-        if ($tests->isEmpty()) {
-            return response()->json([
-                'status' => 'error',
-                'message' => $onlySamples ? 'No sample tests found.' : 'No active tests found.',
-            ], 404);
-        }
-
-        $results = [];
-        $allPass = true;
-
-        foreach ($tests as $test) {
-            $exec = $this->runWithJudge0($p['language'], $p['code'], (string)($test->input ?? ''));
-
-            $actual   = (string)($exec['stdout'] ?? $exec['output'] ?? '');
-            $expected = (string)($test->expected ?? '');
-
-            $pass = $this->compareOutputs($question, $actual, $expected);
-            if (!empty($exec['runtime_error'])) $pass = false;
-
-            $results[] = [
-                'test_id'    => $test->id,
-                'visibility' => $test->visibility,
-                'pass'       => $pass,
-                'runtime'    => $exec['runtime_error'] ?? null,
-                'input'      => $test->input,
-                'expected'   => $test->expected,
-                'output'     => $actual,
-                'time'       => $exec['time'] ?? null,
-                'memory'     => $exec['memory'] ?? null,
-                'status'     => $exec['status'] ?? null,
-            ];
-
-            $allPass = $allPass && $pass;
-        }
-
+    if ($effectiveAllowed > 0 && $attemptNo > $effectiveAllowed) {
         return response()->json([
-            'status'   => 'success',
-            'mode'     => 'run',
-            'question' => $question->title,
-            'all_pass' => $allPass,
-            'results'  => $results,
-        ], 200);
+            'status' => 'error',
+            'code'   => 'attempt_limit_reached',
+            'message'=> "Attempt limit reached. Allowed: {$effectiveAllowed}.",
+            'data'   => [
+                'attempts_allowed'   => $effectiveAllowed,
+                'attempts_used'      => $usedAttempts,
+                'attempts_remaining' => 0,
+                'course_module_id'   => $courseModuleId,
+            ]
+        ], 429);
     }
+
+    $timeLimitSec = $this->getTimeLimitSec($question, $bcqRow);
+    $expiresAt = ($timeLimitSec > 0) ? $now->copy()->addSeconds($timeLimitSec) : null;
+
+    $attemptUuid = (string)Str::uuid();
+
+    $insert = [
+        'uuid'                     => $attemptUuid,
+        'question_id'              => $question->id,
+        'user_id'                  => $userId,
+        'batch_id'                 => $batchId,
+        'batch_coding_question_id' => $bcqId,
+        'attempt_no'               => $attemptNo,
+        'status'                   => 'in_progress',
+        'ip'                       => $r->ip(),
+        'user_agent'               => (string)$r->userAgent(),
+        'auth_snapshot'            => json_encode(['role' => $role], JSON_UNESCAPED_UNICODE),
+        'created_at'               => $now,
+        'updated_at'               => $now,
+    ];
+
+    // ✅ NEW: persist course_module_id
+    if ($this->hasCol('coding_attempts', 'course_module_id')) {
+        $insert['course_module_id'] = $courseModuleId;
+    }
+
+    if ($this->hasCol('coding_attempts', 'server_started_at')) {
+        $insert['server_started_at'] = $now;
+    }
+    if ($this->hasCol('coding_attempts', 'time_limit_sec')) {
+        $insert['time_limit_sec'] = $timeLimitSec ?: null;
+    }
+    if ($this->hasCol('coding_attempts', 'expires_at')) {
+        $insert['expires_at'] = $expiresAt;
+    }
+
+    DB::table('coding_attempts')->insert($insert);
+
+    return response()->json([
+        'status' => 'success',
+        'data' => [
+            'attempt_uuid'       => $attemptUuid,
+            'attempt_no'         => $attemptNo,
+            'attempts_allowed'   => $effectiveAllowed,
+            'attempts_used'      => $usedAttempts + 1,
+            'attempts_remaining' => $effectiveAllowed > 0 ? max(0, $effectiveAllowed - ($usedAttempts + 1)) : null,
+
+            'server_now'         => $now->toIso8601String(),
+            'started_at'         => $now->toIso8601String(),
+            'expires_at'         => $expiresAt ? $expiresAt->toIso8601String() : null,
+            'time_limit_seconds' => $timeLimitSec,
+            'remaining_seconds'  => $timeLimitSec > 0 ? $timeLimitSec : null,
+
+            // (optional) debug
+            'course_module_id'   => $courseModuleId,
+        ]
+    ], 200);
+}
+
+/* =========================================================
+ * RUN (no DB write)
+ * ========================================================= */
+
+public function run(Request $r)
+{
+    $v = Validator::make($r->all(), [
+        'question_id'   => 'nullable|integer|exists:coding_questions,id',
+        'question_uuid' => 'nullable|string',
+        'language'      => 'required|string',
+        'code'          => 'required|string|min:1',
+        'only_samples'  => 'nullable|boolean',
+    ]);
+
+    if ($v->fails()) {
+        return response()->json(['status' => 'error', 'message' => $v->errors()->first()], 422);
+    }
+
+    $p = $v->validated();
+
+    $question = $this->resolveQuestion($p['question_id'] ?? null, $p['question_uuid'] ?? null);
+    if (!$question) return response()->json(['status' => 'error', 'message' => 'Question not found'], 404);
+
+    $langRow = DB::table('question_languages')
+        ->where('question_id', $question->id)
+        ->where('language_key', strtolower(trim($p['language'])))
+        ->where('is_enabled', 1)
+        ->first();
+
+    if (!$langRow) {
+        return response()->json(['status' => 'error', 'message' => 'Language not enabled for this question.'], 422);
+    }
+
+    $onlySamples = array_key_exists('only_samples', $p) ? (bool)$p['only_samples'] : true;
+
+    $testsQ = DB::table('question_tests')
+        ->where('question_id', $question->id)
+        ->where('is_active', 1);
+
+    if ($onlySamples) $testsQ->where('visibility', 'sample');
+
+    $tests = $testsQ->orderBy('sort_order')->get();
+
+    if ($tests->isEmpty()) {
+        return response()->json([
+            'status' => 'error',
+            'message' => $onlySamples ? 'No sample tests found.' : 'No active tests found.',
+        ], 404);
+    }
+
+    $results = [];
+    $allPass = true;
+
+    foreach ($tests as $test) {
+        $exec = $this->runWithJudge0($p['language'], $p['code'], (string)($test->input ?? ''));
+
+        $actual   = (string)($exec['stdout'] ?? $exec['output'] ?? '');
+        $expected = (string)($test->expected ?? '');
+
+        $pass = $this->compareOutputs($question, $actual, $expected);
+        if (!empty($exec['runtime_error'])) $pass = false;
+
+        $results[] = [
+            'test_id'    => $test->id,
+            'visibility' => $test->visibility,
+            'pass'       => $pass,
+            'runtime'    => $exec['runtime_error'] ?? null,
+            'input'      => $test->input,
+            'expected'   => $test->expected,
+            'output'     => $actual,
+            'time'       => $exec['time'] ?? null,
+            'memory'     => $exec['memory'] ?? null,
+            'status'     => $exec['status'] ?? null,
+        ];
+
+        $allPass = $allPass && $pass;
+    }
+
+    return response()->json([
+        'status'   => 'success',
+        'mode'     => 'run',
+        'question' => $question->title,
+        'all_pass' => $allPass,
+        'results'  => $results,
+    ], 200);
+}
 
     /* =========================================================
      * SUBMIT (DB write) - robust reuse of in_progress attempts

@@ -28,52 +28,58 @@ class CourseModuleController extends Controller
      |        status=archived is explicitly requested.
      |=========================================================*/
     public function index(Request $r)
-    {
-        // if ($resp = $this->requireRole($r, ['admin','super_admin','superadmin'])) return $resp;
+{
+    // if ($resp = $this->requireRole($r, ['admin','super_admin','superadmin'])) return $resp;
 
-        $q         = trim((string)$r->query('q', ''));
-        $status    = $r->query('status'); // if null => exclude archived
-        $courseId  = $r->query('course_id');
-        $page      = max(1, (int)$r->query('page', 1));
-        $perPage   = min(100, max(1, (int)$r->query('per_page', 20)));
-        $sort      = (string)$r->query('sort', '-created_at');
+    $q         = trim((string)$r->query('q', ''));
+    $status    = $r->query('status'); // if null => exclude archived
+    $courseId  = $r->query('course_id');
+    $page      = max(1, (int)$r->query('page', 1));
+    $perPage   = min(100, max(1, (int)$r->query('per_page', 20)));
 
-        $dir = Str::startsWith($sort, '-') ? 'desc' : 'asc';
-        $col = ltrim($sort, '-');
-        if (!in_array($col, self::SORTABLE, true)) $col = 'created_at';
+    // ✅ Default: oldest -> newest
+    $sort      = (string)$r->query('sort', 'created_at');
 
-        $builder = DB::table('course_modules')->whereNull('deleted_at');
+    $dir = \Illuminate\Support\Str::startsWith($sort, '-') ? 'desc' : 'asc';
+    $col = ltrim($sort, '-');
+    if (!in_array($col, self::SORTABLE, true)) $col = 'created_at';
 
-        if ($courseId !== null && $courseId !== '') {
-            $builder->where('course_id', (int)$courseId);
-        }
+    $builder = DB::table('course_modules')->whereNull('deleted_at');
 
-        if ($status && in_array($status, self::STATUSES, true)) {
-            $builder->where('status', $status);
-        } else {
-            // Default: hide archived from normal list
-            $builder->where('status', '!=', 'archived');
-        }
-
-        if ($q !== '') {
-            $builder->where(function ($qb) use ($q) {
-                $qb->where('title', 'like', '%' . $q . '%')
-                   ->orWhere('short_description', 'like', '%' . $q . '%')
-                   ->orWhere('long_description', 'like', '%' . $q . '%');
-            });
-        }
-
-        $total = (clone $builder)->count();
-        $rows  = $builder->orderBy($col, $dir)->orderBy('id', 'desc')
-            ->forPage($page, $perPage)->get();
-
-        return response()->json([
-            'data'     => $rows,
-            'page'     => $page,
-            'per_page' => $perPage,
-            'total'    => $total,
-        ]);
+    if ($courseId !== null && $courseId !== '') {
+        $builder->where('course_id', (int)$courseId);
     }
+
+    if ($status && in_array($status, self::STATUSES, true)) {
+        $builder->where('status', $status);
+    } else {
+        // Default: hide archived from normal list
+        $builder->where('status', '!=', 'archived');
+    }
+
+    if ($q !== '') {
+        $builder->where(function ($qb) use ($q) {
+            $qb->where('title', 'like', '%' . $q . '%')
+               ->orWhere('short_description', 'like', '%' . $q . '%')
+               ->orWhere('long_description', 'like', '%' . $q . '%');
+        });
+    }
+
+    $total = (clone $builder)->count();
+
+    // ✅ Tie-breaker aligned with direction (oldest->newest => id asc)
+    $rows  = $builder->orderBy($col, $dir)
+        ->orderBy('id', $dir === 'asc' ? 'asc' : 'desc')
+        ->forPage($page, $perPage)
+        ->get();
+
+    return response()->json([
+        'data'     => $rows,
+        'page'     => $page,
+        'per_page' => $perPage,
+        'total'    => $total,
+    ]);
+}
 
     /* =========================================================
      |                    BIN (soft-deleted only)

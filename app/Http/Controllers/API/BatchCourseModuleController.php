@@ -5,6 +5,8 @@ namespace App\Http\Controllers\API;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
+
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
@@ -120,6 +122,28 @@ class BatchCourseModuleController extends Controller
 
         return null;
     }
+private function bcmOrderColumn(): string
+{
+    static $col = null;
+    if ($col) return $col;
+
+    if (Schema::hasColumn('batch_course_module', 'order_no')) return $col = 'order_no';
+    if (Schema::hasColumn('batch_course_module', 'display_order')) return $col = 'display_order';
+
+    // fallback (won't error if you keep using the returned name consistently)
+    return $col = 'order_no';
+}
+
+private function cmOrderColumn(): string
+{
+    static $col = null;
+    if ($col) return $col;
+
+    if (Schema::hasColumn('course_modules', 'order_no')) return $col = 'order_no';
+    if (Schema::hasColumn('course_modules', 'display_order')) return $col = 'display_order';
+
+    return $col = 'order_no';
+}
 
     private function actor(Request $r): array
     {
@@ -138,50 +162,73 @@ class BatchCourseModuleController extends Controller
     }
 
     /**
-     * GET /api/batch-course-modules?batch_id=...
-     */
-    public function index(Request $r)
-    {
-        $this->assertManageAccess($r);
+ * GET /api/batch-course-modules?batch_id=... OR batch_uuid=...
+ */
+public function index(Request $r)
+{
+    $this->assertManageAccess($r);
 
-        $r->validate([
-            'batch_id'     => ['nullable','integer','required_without:batch_uuid'],
-            'batch_uuid'   => ['nullable','string','required_without:batch_id'],
+    $r->validate([
+        'batch_id'     => ['nullable','integer','required_without:batch_uuid'],
+        'batch_uuid'   => ['nullable','string','required_without:batch_id'],
 
-            'course_id'    => ['nullable','integer'],
-            'course_uuid'  => ['nullable','string'],
+        'course_id'    => ['nullable','integer'],
+        'course_uuid'  => ['nullable','string'],
 
-            'status'       => ['nullable', Rule::in(['draft','published','archived'])],
-            'is_completed' => ['nullable', Rule::in([0,1,'0','1',true,false])],
-            'q'            => ['nullable','string','max:200'],
-        ]);
+        'status'       => ['nullable', Rule::in(['draft','published','archived'])],
+        'is_completed' => ['nullable', Rule::in([0,1,'0','1',true,false])],
+        'q'            => ['nullable','string','max:200'],
+    ]);
 
-        $batchId  = $this->resolveBatchIdFromRequest($r);
-        $courseId = $this->resolveCourseIdFromRequest($r, false);
+    $batchId  = $this->resolveBatchIdFromRequest($r);
+    $courseId = $this->resolveCourseIdFromRequest($r, false);
 
-        $q = DB::table('batch_course_module')->whereNull('deleted_at')
-            ->where('batch_id', $batchId);
+    // ✅ Detect actual order columns (supports both order_no / display_order)
+    $bcmOrder = $this->bcmOrderColumn(); // batch_course_module column
+    $cmOrder  = $this->cmOrderColumn();  // course_modules column
 
-        if ($courseId) $q->where('course_id', $courseId);
+    $q = DB::table('batch_course_module as bcm')
+        ->leftJoin('course_modules as cm', function ($j) {
+            $j->on('cm.id', '=', 'bcm.course_module_id')
+              ->whereNull('cm.deleted_at');
+        })
+        ->whereNull('bcm.deleted_at')
+        ->where('bcm.batch_id', $batchId);
 
-        if ($r->filled('status')) $q->where('status', $r->status);
-
-        if ($r->filled('is_completed')) {
-            $q->where('is_completed', (int) ((string)$r->is_completed === 'true' ? 1 : (string)$r->is_completed));
-        }
-
-        if ($r->filled('q')) {
-            $q->where('title', 'like', '%' . trim($r->q) . '%');
-        }
-
-        $items = $q->orderBy('order_no')->orderBy('id','desc')->get();
-
-        return response()->json([
-            'success' => true,
-            'count'   => $items->count(),
-            'data'    => $items
-        ]);
+    if ($courseId) {
+        $q->where('bcm.course_id', $courseId);
     }
+
+    if ($r->filled('status')) {
+        $q->where('bcm.status', $r->status);
+    }
+
+    if ($r->filled('is_completed')) {
+        $q->where('bcm.is_completed', (int) ((string)$r->is_completed === 'true'
+            ? 1
+            : (string)$r->is_completed
+        ));
+    }
+
+    if ($r->filled('q')) {
+        $q->where('bcm.title', 'like', '%' . trim($r->q) . '%');
+    }
+
+    // ✅ Always return a stable "display_order" key for UI
+    $q->select('bcm.*', DB::raw("COALESCE(bcm.$bcmOrder, cm.$cmOrder, 0) as display_order"));
+
+    // ✅ Numeric sort (prevents 1,10,2 issue)
+    $items = $q->orderByRaw("COALESCE(bcm.$bcmOrder, cm.$cmOrder, 0) + 0 ASC")
+        ->orderBy('bcm.id', 'desc')
+        ->get();
+
+    return response()->json([
+        'success' => true,
+        'count'   => $items->count(),
+        'data'    => $items
+    ]);
+}
+
 
     /**
      * GET /api/batch-course-modules/{idOrUuid}
@@ -490,45 +537,77 @@ class BatchCourseModuleController extends Controller
             return response()->json(['success' => false, 'message' => 'Failed to unassign modules'], 500);
         }
     }
+/**
+ * PUT /api/batch-course-modules/{idOrUuid}
+ */
+public function update(Request $r, string $idOrUuid)
+{
+    $this->assertManageAccess($r);
 
-    /**
-     * PUT /api/batch-course-modules/{idOrUuid}
-     */
-    public function update(Request $r, string $idOrUuid)
-    {
-        $this->assertManageAccess($r);
+    $data = $r->validate([
+        'title'             => ['nullable','string','max:255'],
+        'short_description' => ['nullable','string'],
+        'long_description'  => ['nullable','string'],
 
-        $data = $r->validate([
-            'title'             => ['nullable','string','max:255'],
-            'short_description' => ['nullable','string'],
-            'long_description'  => ['nullable','string'],
-            'order_no'          => ['nullable','integer'],
-            'status'            => ['nullable', Rule::in(['draft','published','archived'])],
-            'metadata'          => ['nullable'],
-            'is_completed'      => ['nullable', Rule::in([0,1,'0','1',true,false])],
-        ]);
+        // ✅ accept all possible order keys coming from frontend
+        'display_order'     => ['nullable','integer','min:1'],
+        'order_no'          => ['nullable','integer','min:1'],
+        'order'             => ['nullable','integer','min:1'],
+        'position'          => ['nullable','integer','min:1'],
 
-        if (array_key_exists('metadata', $data)) {
-            if (is_array($data['metadata'])) $data['metadata'] = json_encode($data['metadata']);
-            elseif ($data['metadata'] === null) $data['metadata'] = null;
-            else $data['metadata'] = (string) $data['metadata'];
-        }
+        'status'            => ['nullable', Rule::in(['draft','published','archived'])],
+        'metadata'          => ['nullable'],
+        'is_completed'      => ['nullable', Rule::in([0,1,'0','1',true,false,'true','false'])],
+    ]);
 
-        if (array_key_exists('is_completed', $data)) {
-            $data['is_completed'] = (int) ((string)$data['is_completed'] === 'true' ? 1 : (string)$data['is_completed']);
-        }
-
-        $row = $this->resolveBatchCourseModule($idOrUuid);
-        if (!$row) return response()->json(['success' => false, 'message' => 'Not found'], 404);
-
-        $data['updated_at'] = now();
-
-        DB::table('batch_course_module')->where('id', (int)$row->id)->update($data);
-
-        $updated = DB::table('batch_course_module')->where('id', (int)$row->id)->first();
-
-        return response()->json(['success' => true, 'message' => 'Batch module updated', 'data' => $updated]);
+    // metadata normalization
+    if (array_key_exists('metadata', $data)) {
+        if (is_array($data['metadata'])) $data['metadata'] = json_encode($data['metadata']);
+        elseif ($data['metadata'] === null) $data['metadata'] = null;
+        else $data['metadata'] = (string) $data['metadata'];
     }
+
+    // ✅ safer boolean normalization
+    if (array_key_exists('is_completed', $data)) {
+        $data['is_completed'] = (int) filter_var($data['is_completed'], FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE) ?: 0;
+    }
+
+    // ✅ normalize incoming order value (support multiple names)
+    $incomingOrder =
+        $r->input('display_order') ??
+        $r->input('order_no') ??
+        $r->input('order') ??
+        $r->input('position');
+
+    // ✅ map to real DB column (display_order OR order_no) depending on your schema
+    if ($incomingOrder !== null && $incomingOrder !== '') {
+        $incomingOrder = (int) $incomingOrder;
+
+        if (\Illuminate\Support\Facades\Schema::hasColumn('batch_course_module', 'display_order')) {
+            $data['display_order'] = $incomingOrder;
+            unset($data['order_no'], $data['order'], $data['position']);
+        } else {
+            // fallback for your current schema
+            $data['order_no'] = $incomingOrder;
+            unset($data['display_order'], $data['order'], $data['position']);
+        }
+    } else {
+        // avoid trying to update unknown columns
+        unset($data['display_order'], $data['order'], $data['position']);
+    }
+
+    $row = $this->resolveBatchCourseModule($idOrUuid);
+    if (!$row) return response()->json(['success' => false, 'message' => 'Not found'], 404);
+
+    $data['updated_at'] = now();
+
+    DB::table('batch_course_module')->where('id', (int) $row->id)->update($data);
+
+    $updated = DB::table('batch_course_module')->where('id', (int) $row->id)->first();
+
+    return response()->json(['success' => true, 'message' => 'Batch module updated', 'data' => $updated]);
+}
+
 
     /**
      * PATCH /api/batch-course-modules/{idOrUuid}/toggle-completed
