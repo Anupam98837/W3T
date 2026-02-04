@@ -36,6 +36,7 @@ use App\Http\Controllers\API\ContactUsController;
 use App\Http\Controllers\API\CodingResultController;
 use App\Http\Controllers\API\BlogController;
 use App\Http\Controllers\API\ForgotPasswordController;
+use App\Http\Controllers\API\BatchCourseModuleController;
 
 
 // Auth Routes
@@ -803,3 +804,22 @@ Route::middleware('checkRole')->group(function () {
 });
 //Page privileges 
 Route::middleware('checkRole')->get('/my-privileges', [UserPrivilegeController::class, 'myPrivileges']);
+
+//Batch Course Module
+Route::middleware('checkRole')->prefix('batch-course-modules')->group(function () {
+    Route::get('/', [BatchCourseModuleController::class, 'index']);
+    Route::get('/{idOrUuid}', [BatchCourseModuleController::class, 'show']);
+    Route::post('/assign', [BatchCourseModuleController::class, 'assign']);
+    Route::put('/{idOrUuid}', [BatchCourseModuleController::class, 'update']);
+    Route::patch('/{idOrUuid}/toggle-completed', [BatchCourseModuleController::class, 'toggleCompleted']);
+    Route::delete('/{idOrUuid}', [BatchCourseModuleController::class, 'destroy']);
+
+    // settings
+    Route::get('/{idOrUuid}/settings', [BatchCourseModuleController::class, 'getSettings']);
+    Route::post('/{idOrUuid}/settings', [BatchCourseModuleController::class, 'upsertSettings']);
+
+    // unlock status
+    Route::get('/unlock-status', [BatchCourseModuleController::class, 'unlockStatus']);
+
+
+});

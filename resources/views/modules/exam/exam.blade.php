@@ -783,7 +783,7 @@ async function doSubmit(auto){
     clearAllCache();
 
     const role = sessionStorage.getItem('role') || 'student';
-    window.location.replace(`/${role}/dashboard`);
+    window.location.replace(`/dashboard`);
 
   }catch(e){
     console.error(e);

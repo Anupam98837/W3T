@@ -15,9 +15,8 @@ return new class extends Migration
             $table->bigIncrements('id');
 
             // FKs
-            $table->unsignedBigInteger('batch_id');                // -> batches.id
-            $table->unsignedBigInteger('course_id');               // -> courses.id
-            $table->unsignedBigInteger('batch_course_module_id');  // -> batch_course_module.id
+            $table->unsignedBigInteger('batch_id');   // -> batches.id
+            $table->unsignedBigInteger('course_id');  // -> courses.id
 
             /**
              * settings_json structure (example):
@@ -38,12 +37,12 @@ return new class extends Migration
             $table->timestamp('created_at')->useCurrent();
             $table->timestamp('updated_at')->useCurrent()->useCurrentOnUpdate();
 
-            // Helpful indexes
-            $table->index(['batch_id', 'course_id']);
-            $table->index('batch_course_module_id');
+            // Indexes
+            // ✅ enforce one settings row per (batch_id, course_id)
+            $table->unique(['batch_id', 'course_id'], 'uq_batch_course_module_settings');
 
-            // (Optional but recommended) Ensure one settings row per batch_course_module
-            $table->unique('batch_course_module_id', 'bcm_settings_unique');
+            // Optional extra index (usually redundant if unique exists, but fine if you want)
+            // $table->index(['batch_id', 'course_id']);
 
             // Foreign keys
             $table->foreign('batch_id')
@@ -52,10 +51,6 @@ return new class extends Migration
 
             $table->foreign('course_id')
                 ->references('id')->on('courses')
-                ->cascadeOnDelete();
-
-            $table->foreign('batch_course_module_id')
-                ->references('id')->on('batch_course_module')
                 ->cascadeOnDelete();
 
             $table->foreign('created_by')

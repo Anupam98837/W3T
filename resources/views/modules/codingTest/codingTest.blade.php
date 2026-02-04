@@ -1627,7 +1627,7 @@
   timer: 2000,
   showConfirmButton: false
 });
-window.location.href = `/student/courses`;
+window.location.href = `/dashboard`;
   return;
 }
 

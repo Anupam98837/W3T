@@ -373,6 +373,7 @@ if ($batchQuiz) {
         'quiz_id'       => (int) $quiz->id,
         'batch_id'      => (int) $batchQuiz->batch_id,
         'batch_quiz_id' => (int) $batchQuiz->id,
+        'course_module_id' => !empty($batchQuiz->course_module_id) ? (int)$batchQuiz->course_module_id : null,
         'attempt_id'    => (int) $attemptId,
         'user_id'       => (int) $user->id,
         'came_from'     => 'batch',

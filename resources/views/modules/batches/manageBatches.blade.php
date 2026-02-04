@@ -718,6 +718,234 @@
     </div>
   </div>
 </div>
+{{-- ================= Manage Course Modules (modal) ================= --}}
+<div class="modal fade" id="modulesModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="fa fa-layer-group me-2"></i>Manage Course Modules</h5>
+        <div class="text-muted small ms-2" id="mod_ctx">—</div>
+        <button type="button" class="btn-close ms-auto" data-bs-dismiss="modal"></button>
+      </div>
+
+      <div class="modal-body">
+        <ul class="nav nav-tabs" id="modTabs" role="tablist">
+          <li class="nav-item">
+            <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#modTabCourse" type="button" role="tab">
+              Course Modules
+            </button>
+          </li>
+          <li class="nav-item">
+            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#modTabBatch" type="button" role="tab">
+              Batch Course Modules
+            </button>
+          </li>
+          <li class="nav-item">
+            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#modTabSettings" type="button" role="tab">
+              Settings
+            </button>
+          </li>
+        </ul>
+
+        <div class="tab-content pt-3">
+          {{-- Course Modules --}}
+          <div class="tab-pane fade show active" id="modTabCourse" role="tabpanel">
+            <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+              <div class="d-flex align-items-center gap-2 flex-wrap">
+                <input id="cm_q" class="form-control" style="width:280px" placeholder="Search modules…">
+                <label class="text-muted small mb-0">Per page</label>
+                <select id="cm_per" class="form-select" style="width:90px">
+                  <option>10</option><option selected>20</option><option>30</option><option>50</option>
+                </select>
+                <button id="cm_apply" class="btn btn-primary"><i class="fa fa-check me-1"></i>Apply</button>
+              </div>
+              <div class="text-muted small" id="cm_meta">—</div>
+            </div>
+
+            <div class="table-responsive">
+              <table class="table table-hover align-middle mb-0">
+                <thead>
+                  <tr>
+                    <th>Module</th>
+                    <th style="width:160px;">Type</th>
+                    <th style="width:140px;">Status</th>
+                    <th class="text-center" style="width:110px;">Assign</th>
+                  </tr>
+                </thead>
+                <tbody id="cm_rows">
+                  <tr id="cm_loader" style="display:none;">
+                    <td colspan="4" class="p-3">
+                      <div class="placeholder-wave">
+                        <div class="placeholder col-12 mb-2" style="height:16px;"></div>
+                        <div class="placeholder col-12 mb-2" style="height:16px;"></div>
+                        <div class="placeholder col-12 mb-2" style="height:16px;"></div>
+                      </div>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <div class="d-flex justify-content-end p-2">
+              <ul id="cm_pager" class="pagination mb-0"></ul>
+            </div>
+          </div>
+
+          {{-- Batch Course Modules --}}
+          <div class="tab-pane fade" id="modTabBatch" role="tabpanel">
+            <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+              <div class="d-flex align-items-center gap-2 flex-wrap">
+                <input id="bm_q" class="form-control" style="width:280px" placeholder="Search assigned modules…">
+                <label class="text-muted small mb-0">Per page</label>
+                <select id="bm_per" class="form-select" style="width:90px">
+                  <option>10</option><option selected>20</option><option>30</option><option>50</option>
+                </select>
+                <button id="bm_apply_mod" class="btn btn-primary"><i class="fa fa-check me-1"></i>Apply</button>
+              </div>
+              <div class="text-muted small" id="bm_meta_mod">—</div>
+            </div>
+
+            <div class="table-responsive">
+              <table class="table table-hover align-middle mb-0">
+                <thead>
+                  <tr>
+                    <th>Module</th>
+                    <th style="width:160px;">Order</th>
+                    <th style="width:170px;">Completed</th>
+                    <th class="text-end" style="width:140px;">Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="bm_rows_mod">
+                  <tr id="bm_loader_mod" style="display:none;">
+                    <td colspan="4" class="p-3">
+                      <div class="placeholder-wave">
+                        <div class="placeholder col-12 mb-2" style="height:16px;"></div>
+                        <div class="placeholder col-12 mb-2" style="height:16px;"></div>
+                        <div class="placeholder col-12 mb-2" style="height:16px;"></div>
+                      </div>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <div class="d-flex justify-content-end p-2">
+              <ul id="bm_pager_mod" class="pagination mb-0"></ul>
+            </div>
+          </div>
+
+          {{-- Settings --}}
+          <div class="tab-pane fade" id="modTabSettings" role="tabpanel">
+            <div class="row g-3">
+              <div class="col-12">
+                <div class="alert alert-info small mb-0">
+                  These toggles decide which rule(s) unlock the next module for the student.
+                </div>
+              </div>
+
+              <div class="col-md-6">
+                <div class="d-flex align-items-center justify-content-between border rounded-3 p-3">
+                  <div>
+                    <div class="fw-semibold">Previous Module Completed</div>
+                    <div class="small text-muted">Require previous module completion to unlock next.</div>
+                  </div>
+                  <div class="form-check form-switch m-0">
+                    <input class="form-check-input" type="checkbox" id="set_prev_completed">
+                  </div>
+                </div>
+              </div>
+
+              <div class="col-md-6">
+                <div class="d-flex align-items-center justify-content-between border rounded-3 p-3">
+                  <div>
+                    <div class="fw-semibold">Assignments Submitted</div>
+                    <div class="small text-muted">Require assignment submission to unlock next.</div>
+                  </div>
+                  <div class="form-check form-switch m-0">
+                    <input class="form-check-input" type="checkbox" id="set_assignments_submitted">
+                  </div>
+                </div>
+              </div>
+
+              <div class="col-md-6">
+                <div class="d-flex align-items-center justify-content-between border rounded-3 p-3">
+                  <div>
+                    <div class="fw-semibold">Exams Submitted</div>
+                    <div class="small text-muted">Require exam submission to unlock next.</div>
+                  </div>
+                  <div class="form-check form-switch m-0">
+                    <input class="form-check-input" type="checkbox" id="set_exams_submitted">
+                  </div>
+                </div>
+              </div>
+
+              <div class="col-md-6">
+                <div class="d-flex align-items-center justify-content-between border rounded-3 p-3">
+                  <div>
+                    <div class="fw-semibold">Coding Test Submitted</div>
+                    <div class="small text-muted">Require coding test submission to unlock next.</div>
+                  </div>
+                  <div class="form-check form-switch m-0">
+                    <input class="form-check-input" type="checkbox" id="set_coding_test_submitted">
+                  </div>
+                </div>
+              </div>
+
+              <div class="col-12 d-flex justify-content-end gap-2">
+                <button class="btn btn-light" id="set_reload"><i class="fa fa-rotate me-1"></i>Reload</button>
+                <button class="btn btn-primary" id="set_save"><i class="fa fa-save me-1"></i>Save Settings</button>
+              </div>
+
+              <div class="col-12">
+                <div class="small text-muted" id="set_meta">—</div>
+              </div>
+            </div>
+          </div>
+
+        </div>{{-- /.tab-content --}}
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn btn-light" data-bs-dismiss="modal">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+{{-- ================= Edit Batch Course Module (mini modal) ================= --}}
+<div class="modal fade" id="bcmEditModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-md modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="fa fa-pen-to-square me-2"></i>Edit Batch Course Module</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+
+      <div class="modal-body">
+        <input type="hidden" id="bcm_id" value="">
+        <div class="mb-3">
+          <label class="form-label">Display Order</label>
+          <input type="number" min="1" class="form-control" id="bcm_order" placeholder="e.g. 1">
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label">Completed</label>
+          <div class="form-check form-switch">
+            <input class="form-check-input" type="checkbox" id="bcm_completed">
+            <label class="form-check-label small text-muted">Mark this module as completed for the batch.</label>
+          </div>
+        </div>
+
+        <div class="small text-muted" id="bcm_meta">—</div>
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+        <button class="btn btn-primary" id="bcm_save"><i class="fa fa-save me-1"></i>Save</button>
+      </div>
+    </div>
+  </div>
+</div>
 
 {{-- Toasts --}}
 <div class="toast-container position-fixed top-0 end-0 p-3" style="z-index:2100">
@@ -917,6 +1145,7 @@ const tabs = {
 };
 
 let currentCourseId = '';
+let currentCourseUuid = '';
 const state = { active:{page:1}, archived:{page:1}, bin:{page:1} };
 let sort = '-created_at';
 let filterState = { mode: '', status: '' };
@@ -925,6 +1154,562 @@ let filterState = { mode: '', status: '' };
 applyFromURL();
 loadCourses();
 wiring();
+/* ================= COURSE MODULES MANAGER ================= */
+const modulesModalEl = document.getElementById('modulesModal');
+const mod_ctx = document.getElementById('mod_ctx');
+
+const cm_q = document.getElementById('cm_q');
+const cm_per = document.getElementById('cm_per');
+const cm_apply = document.getElementById('cm_apply');
+const cm_rows = document.getElementById('cm_rows');
+const cm_loader = document.getElementById('cm_loader');
+const cm_meta = document.getElementById('cm_meta');
+const cm_pager = document.getElementById('cm_pager');
+
+const bm_q_mod = document.getElementById('bm_q');
+const bm_per_mod = document.getElementById('bm_per');
+const bm_apply_mod = document.getElementById('bm_apply_mod');
+const bm_rows_mod = document.getElementById('bm_rows_mod');
+const bm_loader_mod = document.getElementById('bm_loader_mod');
+const bm_meta_mod = document.getElementById('bm_meta_mod');
+const bm_pager_mod = document.getElementById('bm_pager_mod');
+
+const set_prev_completed = document.getElementById('set_prev_completed');
+const set_assignments_submitted = document.getElementById('set_assignments_submitted');
+const set_exams_submitted = document.getElementById('set_exams_submitted');
+const set_coding_test_submitted = document.getElementById('set_coding_test_submitted');
+const set_reload = document.getElementById('set_reload');
+const set_save = document.getElementById('set_save');
+const set_meta = document.getElementById('set_meta');
+
+let modulesModal;
+let mod_batch_uuid = null;     // batch uuid (preferred)
+let mod_batch_key = null;      // batch id/uuid fallback
+let cm_page = 1;
+let bm_page_mod = 1;
+let mod_batch_id = null;
+
+function pickList(j){
+  if (Array.isArray(j)) return j;
+  if (Array.isArray(j?.data)) return j.data;
+  if (Array.isArray(j?.data?.data)) return j.data.data;
+  if (Array.isArray(j?.items)) return j.items;
+  if (Array.isArray(j?.modules)) return j.modules;
+  return [];
+}
+function pickPag(j, fallbackLen, perVal, pageVal){
+  return j?.pagination || j?.meta || j?.data?.meta || {
+    current_page: Number(pageVal || 1),
+    per_page: Number(perVal || 20),
+    total: fallbackLen
+  };
+}
+function li(dis,act,label,t){
+  return `<li class="page-item ${dis?'disabled':''} ${act?'active':''}">
+    <a class="page-link" href="javascript:void(0)" data-page="${t||''}">${label}</a>
+  </li>`;
+}
+function showRowLoader(el, on){ if(el) el.style.display = on ? '' : 'none'; }
+
+function cmParams(){
+  const p = new URLSearchParams();
+  if (cm_q?.value?.trim()) p.set('q', cm_q.value.trim());
+  p.set('per_page', cm_per?.value || 20);
+  p.set('page', cm_page);
+
+  // ✅ send both (backend can accept either)
+  if (currentCourseId) p.set('course_id', currentCourseId);
+  if (currentCourseUuid) p.set('course_uuid', currentCourseUuid);
+
+  if (mod_batch_uuid) p.set('batch_uuid', mod_batch_uuid);
+  p.set('type', 'course');
+  return p.toString();
+}
+function bmParamsMod(){
+  const p = new URLSearchParams();
+  if (bm_q_mod?.value?.trim()) p.set('q', bm_q_mod.value.trim());
+  p.set('per_page', bm_per_mod?.value || 20);
+  p.set('page', bm_page_mod);
+
+  // ✅ send both
+  if (currentCourseId) p.set('course_id', currentCourseId);
+  if (currentCourseUuid) p.set('course_uuid', currentCourseUuid);
+
+  if (mod_batch_uuid) p.set('batch_uuid', mod_batch_uuid);
+  p.set('type', 'batch');
+  return p.toString();
+}
+
+function openModules(batchId, batchUuid){
+  modulesModal = modulesModal || new bootstrap.Modal(modulesModalEl);
+
+  mod_batch_uuid = batchUuid || null;                 // uuid
+  mod_batch_id   = batchId ? Number(batchId) : null;  // numeric id
+  mod_batch_key  = batchUuid || batchId || null;      // ✅ set fallback key
+
+  cm_page = 1;
+  bm_page_mod = 1;
+
+  const courseName = courseSel?.options?.[courseSel.selectedIndex]?.text || '—';
+  mod_ctx.textContent = `Course: ${courseName} • Batch: ${batchUuid || batchId}`;
+
+  modulesModal.show();
+  loadCourseModulesTab();
+}
+
+cm_apply?.addEventListener('click', ()=>{ cm_page = 1; loadCourseModulesTab(); });
+cm_per?.addEventListener('change', ()=>{ cm_page = 1; loadCourseModulesTab(); });
+let cmT;
+cm_q?.addEventListener('input', ()=>{ clearTimeout(cmT); cmT=setTimeout(()=>{ cm_page=1; loadCourseModulesTab(); }, 350); });
+
+bm_apply_mod?.addEventListener('click', ()=>{ bm_page_mod = 1; loadBatchModulesTab(); });
+bm_per_mod?.addEventListener('change', ()=>{ bm_page_mod = 1; loadBatchModulesTab(); });
+let bmT;
+bm_q_mod?.addEventListener('input', ()=>{ clearTimeout(bmT); bmT=setTimeout(()=>{ bm_page_mod=1; loadBatchModulesTab(); }, 350); });
+
+document.querySelectorAll('#modTabs button[data-bs-toggle="tab"]').forEach(btn=>{
+  btn.addEventListener('shown.bs.tab', (e)=>{
+    const target = e.target?.getAttribute('data-bs-target') || '';
+    if (target === '#modTabCourse') loadCourseModulesTab();
+    if (target === '#modTabBatch') loadBatchModulesTab();
+    if (target === '#modTabSettings') loadModuleSettings();
+  });
+});
+
+set_reload?.addEventListener('click', ()=> loadModuleSettings());
+set_save?.addEventListener('click', ()=> saveModuleSettings());
+
+async function loadCourseModulesTab(){
+  if(!mod_batch_uuid) return;
+  showRowLoader(cm_loader, true);
+  cm_rows.querySelectorAll('tr:not(#cm_loader)').forEach(tr=>tr.remove());
+  cm_pager.innerHTML = '';
+  cm_meta.textContent = '—';
+
+  try{
+    const res = await fetch(`/api/course-modules?${cmParams()}`, {
+      headers:{ 'Authorization':'Bearer '+TOKEN, 'Accept':'application/json' }
+    });
+    const j = await res.json().catch(()=>({}));
+    if(!res.ok) throw new Error(j?.message || 'Failed to load course modules');
+
+    const items = pickList(j);
+    const pag = pickPag(j, items.length, cm_per?.value, cm_page);
+
+    const frag = document.createDocumentFragment();
+
+    items.forEach(m=>{
+      // try to normalize
+      const id = m.id ?? m.module_id ?? m.course_module_id ?? m.uuid ?? '';
+      const title = m.title ?? m.name ?? m.module_title ?? 'Untitled';
+      const type = m.type ?? m.module_type ?? 'module';
+      const status = m.status ?? (m.active ? 'active' : 'inactive');
+      
+      // FIXED: More comprehensive check for assigned status
+      // Check multiple possible field names and formats from API response
+      const assigned = !!(
+        m.assigned ?? 
+        m.is_assigned ?? 
+        m.in_batch ?? 
+        m.batch_assigned ?? 
+        m.assignedToBatch ??
+        m.pivot?.assigned ??
+        m.pivot?.is_assigned ??
+        (m.batch_course_module_id !== null && m.batch_course_module_id !== undefined) ??
+        false
+      );
+
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td class="fw-semibold">${esc(title)}</td>
+        <td class="text-capitalize">${esc(type)}</td>
+        <td>${badgeStatus(status)}</td>
+        <td class="text-center">
+          <div class="form-check form-switch d-inline-block">
+            <input class="form-check-input cm-tg" type="checkbox"
+              data-id="${esc(id)}" ${assigned?'checked':''}>
+          </div>
+        </td>
+      `;
+      frag.appendChild(tr);
+    });
+
+    cm_rows.appendChild(frag);
+
+    // assign/unassign
+    cm_rows.querySelectorAll('.cm-tg').forEach(ch=>{
+      ch.addEventListener('change', async ()=>{
+        const moduleId = ch.dataset.id;
+        const wantAssigned = !!ch.checked;
+        const originalState = !wantAssigned; // Store for rollback
+
+        ch.disabled = true;
+        try{
+          await assignCourseModuleToBatch(moduleId, wantAssigned);
+          ok(wantAssigned ? 'Module assigned' : 'Module unassigned');
+
+          // Optional: Refresh the Batch Modules tab if it's currently visible
+          const batchTabActive = document.querySelector('#modTabBatch.active');
+          if(batchTabActive){
+            await loadBatchModulesTab();
+          }
+
+        }catch(e){
+          // Rollback to original state on error
+          ch.checked = originalState;
+          err(e.message || 'Assign failed');
+        }finally{
+          ch.disabled = false;
+        }
+      });
+    });
+
+    // pager
+    const total = Number(pag.total||items.length);
+    const per = Number(pag.per_page||cm_per?.value||20);
+    const cur = Number(pag.current_page||pag.page||cm_page||1);
+    const pages = Math.max(1, Math.ceil(total/per));
+
+    let html = '';
+    html += li(cur<=1,false,'Prev',cur-1);
+    const w=2,s=Math.max(1,cur-w),e=Math.min(pages,cur+w);
+    for(let i=s;i<=e;i++) html += li(false,i===cur,i,i);
+    html += li(cur>=pages,false,'Next',cur+1);
+    cm_pager.innerHTML = html;
+
+    cm_pager.querySelectorAll('a.page-link[data-page]').forEach(a=>{
+      a.addEventListener('click', ()=>{
+        const t = Number(a.dataset.page);
+        if(!t || t===cm_page) return;
+        cm_page = t;
+        loadCourseModulesTab();
+      });
+    });
+
+    cm_meta.textContent = `Page ${cur} of ${pages} — ${total} module(s)`;
+  }catch(e){
+    console.error(e);
+    err(e.message || 'Failed to load course modules');
+  }finally{
+    showRowLoader(cm_loader, false);
+  }
+}
+
+async function assignCourseModuleToBatch(moduleId, assigned){
+  // normalize module id (number if possible, otherwise keep as string/uuid)
+  const numericModuleId = Number(moduleId);
+  const isNumeric = Number.isFinite(numericModuleId) && String(numericModuleId) === String(moduleId);
+  
+  // Build comprehensive payload with all possible field names
+  // to ensure backend receives the data it expects
+  const payload = {
+    // ✅ REQUIRED by your backend - course identifiers
+    course_id: currentCourseId || null,
+    course_uuid: currentCourseUuid || null,
+
+    // batch identifiers
+    batch_id: mod_batch_id || null,
+    batch_uuid: mod_batch_uuid || null,
+    batch_key: mod_batch_key || null,
+
+    // module identifiers
+    course_module_id: isNumeric ? numericModuleId : null,
+    course_module_uuid: !isNumeric ? String(moduleId) : null,
+    module_id: isNumeric ? numericModuleId : null,
+    module_uuid: !isNumeric ? String(moduleId) : null,
+
+    // Send assigned status in multiple formats for backend compatibility
+    assigned: !!assigned,
+    is_assigned: !!assigned,
+    assign: !!assigned,
+    
+    // Also send action field in case backend expects it
+    action: assigned ? 'assign' : 'unassign',
+    status: assigned ? 'assigned' : 'unassigned'
+  };
+
+  const res = await fetch(`/api/batch-course-modules/assign`, {
+    method: 'POST',
+    headers: {
+      'Authorization': 'Bearer ' + TOKEN,
+      'Content-Type': 'application/json',
+      'Accept': 'application/json'
+    },
+    body: JSON.stringify(payload)
+  });
+
+  const j = await res.json().catch(()=>({}));
+  if(!res.ok) {
+    // Enhanced error logging
+    console.error('Assignment API error:', {
+      status: res.status,
+      statusText: res.statusText,
+      moduleId: moduleId,
+      assigned: assigned,
+      payload: payload,
+      response: j
+    });
+    throw new Error(j?.message || firstError(j) || 'Assign failed');
+  }
+  
+  // Log success for debugging (can be removed in production)
+  console.log('Assignment successful:', {
+    moduleId,
+    assigned,
+    response: j
+  });
+  
+  return j;
+}
+
+async function loadBatchModulesTab(){
+  if(!mod_batch_uuid) return;
+  showRowLoader(bm_loader_mod, true);
+  bm_rows_mod.querySelectorAll('tr:not(#bm_loader_mod)').forEach(tr=>tr.remove());
+  bm_pager_mod.innerHTML = '';
+  bm_meta_mod.textContent = '—';
+
+  try{
+    const res = await fetch(`/api/batch-course-modules?${bmParamsMod()}`, {
+      headers:{ 'Authorization':'Bearer '+TOKEN, 'Accept':'application/json' }
+    });
+    const j = await res.json().catch(()=>({}));
+    if(!res.ok) throw new Error(j?.message || 'Failed to load batch modules');
+
+    const items = pickList(j);
+    const pag = pickPag(j, items.length, bm_per_mod?.value, bm_page_mod);
+
+    const frag = document.createDocumentFragment();
+
+    items.forEach(x=>{
+      const idOrUuid = x.uuid ?? x.id ?? x.batch_course_module_uuid ?? x.batch_course_module_id ?? '';
+      const title = x.title ?? x.module_title ?? x.name ?? 'Untitled';
+      const order = x.display_order ?? x.order ?? x.position ?? '-';
+      const completed = !!(x.completed ?? x.is_completed ?? x.completed_status);
+
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td class="fw-semibold">${esc(title)}</td>
+        <td>${esc(order)}</td>
+        <td>
+          <div class="d-flex align-items-center gap-2">
+            <span class="badge ${completed ? 'badge-success' : 'badge-secondary'}">${completed ? 'Completed' : 'Not Completed'}</span>
+            <button class="btn btn-light btn-sm bcm-toggle" data-id="${esc(idOrUuid)}">
+              <i class="fa fa-rotate"></i> Toggle
+            </button>
+          </div>
+        </td>
+        <td class="text-end">
+          <button class="btn btn-primary btn-sm bcm-edit" data-id="${esc(idOrUuid)}">
+            <i class="fa fa-pen-to-square me-1"></i>Edit
+          </button>
+        </td>
+      `;
+      frag.appendChild(tr);
+    });
+
+    bm_rows_mod.appendChild(frag);
+
+    // toggle completed
+    bm_rows_mod.querySelectorAll('.bcm-toggle').forEach(btn=>{
+      btn.addEventListener('click', async ()=>{
+        const idOrUuid = btn.dataset.id;
+        btn.disabled = true;
+        try{
+          const res = await fetch(`/api/batch-course-modules/${encodeURIComponent(idOrUuid)}/toggle-completed`,{
+            method:'PATCH',
+            headers:{ 'Authorization':'Bearer '+TOKEN, 'Accept':'application/json' }
+          });
+          const j = await res.json().catch(()=>({}));
+          if(!res.ok) throw new Error(j?.message || firstError(j) || 'Toggle failed');
+          ok('Completed status updated');
+          loadBatchModulesTab();
+        }catch(e){
+          err(e.message || 'Toggle failed');
+        }finally{
+          btn.disabled = false;
+        }
+      });
+    });
+
+    // edit
+    bm_rows_mod.querySelectorAll('.bcm-edit').forEach(btn=>{
+      btn.addEventListener('click', ()=> openBcmEdit(btn.dataset.id));
+    });
+
+    // pager
+    const total = Number(pag.total||items.length);
+    const per = Number(pag.per_page||bm_per_mod?.value||20);
+    const cur = Number(pag.current_page||pag.page||bm_page_mod||1);
+    const pages = Math.max(1, Math.ceil(total/per));
+
+    let html = '';
+    html += li(cur<=1,false,'Prev',cur-1);
+    const w=2,s=Math.max(1,cur-w),e=Math.min(pages,cur+w);
+    for(let i=s;i<=e;i++) html += li(false,i===cur,i,i);
+    html += li(cur>=pages,false,'Next',cur+1);
+    bm_pager_mod.innerHTML = html;
+
+    bm_pager_mod.querySelectorAll('a.page-link[data-page]').forEach(a=>{
+      a.addEventListener('click', ()=>{
+        const t = Number(a.dataset.page);
+        if(!t || t===bm_page_mod) return;
+        bm_page_mod = t;
+        loadBatchModulesTab();
+      });
+    });
+
+    bm_meta_mod.textContent = `Page ${cur} of ${pages} — ${total} item(s)`;
+  }catch(e){
+    console.error(e);
+    err(e.message || 'Failed to load batch modules');
+  }finally{
+    showRowLoader(bm_loader_mod, false);
+  }
+}
+
+/* ===== Edit Batch Course Module ===== */
+const bcmEditModalEl = document.getElementById('bcmEditModal');
+const bcm_id = document.getElementById('bcm_id');
+const bcm_order = document.getElementById('bcm_order');
+const bcm_completed = document.getElementById('bcm_completed');
+const bcm_meta = document.getElementById('bcm_meta');
+const bcm_save = document.getElementById('bcm_save');
+
+let bcmEditModal;
+
+async function openBcmEdit(idOrUuid){
+  bcmEditModal = bcmEditModal || new bootstrap.Modal(bcmEditModalEl);
+  bcm_id.value = idOrUuid || '';
+  bcm_meta.textContent = 'Loading…';
+  bcm_order.value = '';
+  bcm_completed.checked = false;
+  bcmEditModal.show();
+
+  try{
+    const res = await fetch(`/api/batch-course-modules/${encodeURIComponent(idOrUuid)}`, {
+      headers:{ 'Authorization':'Bearer '+TOKEN, 'Accept':'application/json' }
+    });
+    const j = await res.json().catch(()=>({}));
+    if(!res.ok) throw new Error(j?.message || 'Failed to load module');
+    const x = j?.data || j;
+
+    bcm_order.value = x.display_order ?? x.order ?? x.position ?? '';
+    bcm_completed.checked = !!(x.completed ?? x.is_completed ?? x.completed_status);
+    bcm_meta.textContent = 'Ready.';
+  }catch(e){
+    bcm_meta.textContent = 'Failed to load.';
+    err(e.message);
+  }
+}
+
+bcm_save?.addEventListener('click', async ()=>{
+  const idOrUuid = bcm_id.value;
+  if(!idOrUuid) return;
+
+  bcm_save.disabled = true;
+  bcm_meta.textContent = 'Saving…';
+
+  try{
+    const payload = {
+      display_order: bcm_order.value !== '' ? Number(bcm_order.value) : null,
+      order: bcm_order.value !== '' ? Number(bcm_order.value) : null,
+      completed: !!bcm_completed.checked,
+      is_completed: !!bcm_completed.checked
+    };
+
+    const res = await fetch(`/api/batch-course-modules/${encodeURIComponent(idOrUuid)}`, {
+      method:'PUT',
+      headers:{ 'Authorization':'Bearer '+TOKEN, 'Content-Type':'application/json', 'Accept':'application/json' },
+      body: JSON.stringify(payload)
+    });
+    const j = await res.json().catch(()=>({}));
+    if(!res.ok) throw new Error(j?.message || firstError(j) || 'Update failed');
+
+    ok('Batch module updated');
+    bootstrap.Modal.getOrCreateInstance(bcmEditModalEl).hide();
+    loadBatchModulesTab();
+  }catch(e){
+    err(e.message || 'Update failed');
+  }finally{
+    bcm_save.disabled = false;
+    bcm_meta.textContent = '—';
+  }
+});
+
+/* ===== Settings ===== */
+async function loadModuleSettings(){
+  if(!mod_batch_uuid) return;
+  set_meta.textContent = 'Loading…';
+
+  try{
+    // ✅ Build query params with REQUIRED course identifiers
+    const params = new URLSearchParams();
+    if (currentCourseId) params.set('course_id', currentCourseId);
+    if (currentCourseUuid) params.set('course_uuid', currentCourseUuid);
+
+    const url = `/api/batch-course-modules/${encodeURIComponent(mod_batch_uuid)}/settings?${params.toString()}`;
+    
+    const res = await fetch(url, {
+      headers:{ 'Authorization':'Bearer '+TOKEN, 'Accept':'application/json' }
+    });
+    const j = await res.json().catch(()=>({}));
+    if(!res.ok) throw new Error(j?.message || 'Failed to load settings');
+
+    const s = j?.data?.settings || j?.data || j?.settings || {};
+
+    // accept snake_case or camelCase from backend
+    set_prev_completed.checked = !!(s.previous_module_completed ?? s.previousModuleCompleted ?? 0);
+    set_assignments_submitted.checked = !!(s.assignment_submitted ?? s.assignmentSubmitted ?? s.assignments_submitted ?? s.assignmentsSubmitted ?? 0);
+    set_exams_submitted.checked = !!(s.exam_submitted ?? s.examSubmitted ?? s.exams_submitted ?? s.examsSubmitted ?? 0);
+    set_coding_test_submitted.checked = !!(s.coding_test_submitted ?? s.codingTestSubmitted ?? 0);
+
+    set_meta.textContent = 'Loaded.';
+  }catch(e){
+    set_meta.textContent = 'Failed to load.';
+    console.error('Settings load error:', e);
+    err(e.message || 'Failed to load settings');
+  }
+}
+
+async function saveModuleSettings(){
+  if(!mod_batch_uuid) return;
+  set_save.disabled = true;
+  set_meta.textContent = 'Saving…';
+
+  try{
+    const payload = {
+      // ✅ REQUIRED: course identifiers (backend validation requires these)
+      course_id: currentCourseId || null,
+      course_uuid: currentCourseUuid || null,
+
+      // settings_json: send as object (backend will json_encode it)
+      settings_json: {
+        previous_module_completed: set_prev_completed.checked ? 1 : 0,
+        assignment_submitted: set_assignments_submitted.checked ? 1 : 0,
+        exam_submitted: set_exams_submitted.checked ? 1 : 0,
+        coding_test_submitted: set_coding_test_submitted.checked ? 1 : 0
+      }
+    };
+
+    const res = await fetch(`/api/batch-course-modules/${encodeURIComponent(mod_batch_uuid)}/settings`, {
+      method:'POST',
+      headers:{ 'Authorization':'Bearer '+TOKEN, 'Content-Type':'application/json', 'Accept':'application/json' },
+      body: JSON.stringify(payload)
+    });
+    const j = await res.json().catch(()=>({}));
+    if(!res.ok) throw new Error(j?.message || firstError(j) || 'Save failed');
+
+    ok('Settings saved');
+    set_meta.textContent = 'Saved.';
+  }catch(e){
+    set_meta.textContent = 'Save failed.';
+    console.error('Settings save error:', e);
+    err(e.message || 'Failed to save settings');
+  }finally{
+    set_save.disabled = false;
+  }
+}
 
 function setToolbarEnabled(on){
   [q, perPageSel, btnFilter, btnReset, btnCreate].forEach(el=> el.disabled = !on);
@@ -1035,11 +1820,19 @@ function wiring(){
   perPageSel.addEventListener('change', ()=>{ state.active.page=1; load('active'); });
   
   courseSel.addEventListener('change', ()=>{
-    currentCourseId = courseSel.value || '';
-    const on = !!currentCourseId; setToolbarEnabled(on); clearAllTables();
-    if(on){ state.active.page=1; load('active'); }
-  });
-  
+  currentCourseId = courseSel.value || '';
+  currentCourseUuid = courseSel.options[courseSel.selectedIndex]?.dataset?.uuid || '';
+
+  const on = !!(currentCourseId || currentCourseUuid);
+  setToolbarEnabled(on);
+  clearAllTables();
+
+  if(on){
+    state.active.page=1;
+    load('active');
+  }
+});
+
   btnCreate.addEventListener('click', ()=>{ if(!currentCourseId) return Swal.fire('Pick a course','Please select a course first.','info'); openCreateModal(); });
   
   document.querySelector('a[href="#tab-active"]').addEventListener('shown.bs.tab', ()=>{ if(currentCourseId) load('active'); });
@@ -1054,6 +1847,13 @@ function wiring(){
     if(act==='instructors') openInstructors(uuid);
     if(act==='quizzes') openQuizzes(uuid);            // <-- Assign Quiz action
     if(act==='coding') openCodingQuestions(item.dataset.batch || uuid);  
+if(act==='modules') {
+  const bid = item.dataset.batchId || item.dataset.batch || '';
+  const buu = item.dataset.batchUuid || uuid || '';
+  openModules(bid, buu);
+}
+
+
     if(act==='assign') openStudents(uuid);
     if(act==='archive') return archiveBatch(uuid);
     if(act==='unarchive') return unarchiveBatch(uuid);
@@ -1105,6 +1905,16 @@ function rowActions(scope, r){
     <i class="fa fa-code"></i> Assign Coding Question
   </button>
 </li>
+<li>
+<button class="dropdown-item"
+  data-act="modules"
+  data-batch-id="${r.id || ''}"
+  data-batch-uuid="${r.uuid || ''}">
+  <i class="fa fa-layer-group"></i> Manage Course Modules
+</button>
+  
+</li>
+
 <li><button class="dropdown-item" data-act="assign" data-uuid="${r.uuid}"><i class="fa fa-user-plus"></i> Manage Students</button></li><li><hr class="dropdown-divider"></li><li><button class="dropdown-item" data-act="archive" data-uuid="${r.uuid}"><i class="fa fa-box-archive"></i> Archive</button></li><li><button class="dropdown-item text-danger" data-act="delete" data-uuid="${r.uuid}"><i class="fa fa-trash"></i> Delete</button></li></ul></div>`;
   }
   if(scope==='archived'){
@@ -2386,9 +3196,6 @@ async function loadCodingQuestions(){
   }
 }
 /* end coding questions section */
-
-
- 
 });
 </script>
 </body>

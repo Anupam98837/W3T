@@ -1019,31 +1019,33 @@ public function viewCourse(Request $r, string $key)
 
     return response()->json(['data' => $payload]);
 }
-
-
 public function viewCourseByBatch(Request $r, string $batchKey)
 {
     // ---- role from CheckRole (canonical: superadmin/admin/instructor/student/author)
     $role = (string) $r->attributes->get('auth_role');
     $uid  = (int) ($r->attributes->get('auth_tokenable_id') ?? 0);
+
     if (!$role || !in_array($role, ['superadmin','admin','instructor','student'], true)) {
         return response()->json(['error' => 'Unauthorized Access'], 403);
     }
-    $isAdminLike = in_array($role, ['superadmin','admin'], true);
+
+    $isAdminLike  = in_array($role, ['superadmin','admin'], true);
     $isInstructor = $role === 'instructor';
     $isStudent    = $role === 'student';
+    $isStaff      = $isAdminLike || $isInstructor;
 
     // ---- resolve batch by id / uuid / (optional) slug
     $bq = DB::table('batches')->whereNull('deleted_at');
     if (ctype_digit($batchKey)) {
         $bq->where('id', (int)$batchKey);
-    } elseif (Str::isUuid($batchKey)) {
+    } elseif (\Illuminate\Support\Str::isUuid($batchKey)) {
         $bq->where('uuid', $batchKey);
     } elseif (Schema::hasColumn('batches','slug')) {
         $bq->where('slug', $batchKey);
     } else {
         return response()->json(['error' => 'Batch not found'], 404);
     }
+
     $batch = $bq->first();
     if (!$batch) return response()->json(['error' => 'Batch not found'], 404);
 
@@ -1068,6 +1070,7 @@ public function viewCourseByBatch(Request $r, string $batchKey)
             ->exists();
         if (!$assigned) return response()->json(['error' => 'Forbidden'], 403);
     }
+
     if ($isStudent) {
         if (!$bsUserCol) {
             return response()->json(['error'=>'Schema issue: batch_students needs user_id OR student_id'], 500);
@@ -1081,8 +1084,12 @@ public function viewCourseByBatch(Request $r, string $batchKey)
     }
 
     // ---- load course for this batch (students only see published)
-    $cq = DB::table('courses')->whereNull('deleted_at')->where('id', $batch->course_id);
+    $cq = DB::table('courses')
+        ->whereNull('deleted_at')
+        ->where('id', $batch->course_id);
+
     if ($isStudent) $cq->where('status', 'published');
+
     $course = $cq->first();
     if (!$course) return response()->json(['error' => 'Course not found for this batch'], 404);
 
@@ -1100,17 +1107,8 @@ public function viewCourseByBatch(Request $r, string $batchKey)
         ->where('status', 'active')
         ->orderBy('order_no')->orderBy('id')
         ->get();
-    $cover = $mediaAll->firstWhere('featured_type', 'image') ?? $mediaAll->first();
 
-    // ---- modules (staff: all; students: only published)
-    $isStaff = $isAdminLike || $isInstructor;
-    $modQ = DB::table('course_modules')
-        ->select('id','uuid','title','short_description','long_description','order_no','status')
-        ->where('course_id', $course->id)
-        ->whereNull('deleted_at')
-        ->orderBy('order_no')->orderBy('id');
-    if (!$isStaff) $modQ->where('status', 'published');
-    $modules = $modQ->get();
+    $cover = $mediaAll->firstWhere('featured_type', 'image') ?? $mediaAll->first();
 
     // ---- instructors for sidebar (join only on the column that exists)
     $instructors = collect();
@@ -1153,7 +1151,173 @@ public function viewCourseByBatch(Request $r, string $batchKey)
         } catch (\Throwable $e) {}
     }
 
-    // ---- payload
+    // =========================================================
+    // ✅ batch_course_module ONLY + join course_modules for LIVE details
+    // IMPORTANT: we will rely on batch_course_module_id (already selected)
+    // =========================================================
+    $batchMods = DB::table('batch_course_module as bcm')
+        ->join('course_modules as cm', function ($j) {
+            $j->on('cm.id', '=', 'bcm.course_module_id')
+              ->whereNull('cm.deleted_at');
+        })
+        ->whereNull('bcm.deleted_at')
+        ->where('bcm.batch_id', (int)$batch->id)
+        ->where('bcm.course_id', (int)$course->id)
+        ->orderBy('bcm.order_no')->orderBy('bcm.id')
+        ->select([
+            // batch_course_module keys (✅ use these!)
+            'bcm.id as batch_course_module_id',
+            'bcm.uuid as batch_course_module_uuid',
+
+            'bcm.batch_id',
+            'bcm.course_id',
+            'bcm.course_module_id',
+            'bcm.is_completed as bcm_is_completed',
+            'bcm.order_no as bcm_order_no',
+            'bcm.status as bcm_status',
+            'bcm.metadata as bcm_metadata',
+
+            // LIVE course_modules details
+            'cm.uuid as cm_uuid',
+            'cm.title as cm_title',
+            'cm.short_description as cm_short_description',
+            'cm.long_description as cm_long_description',
+            'cm.order_no as cm_order_no',
+            'cm.status as cm_status',
+        ])
+        ->get();
+
+    if ($batchMods->isEmpty()) {
+        $payload = [
+            'batch' => (array)$batch,
+            'course' => [
+                'id'                => (int)$course->id,
+                'uuid'              => $course->uuid,
+                'slug'              => $course->slug,
+                'title'             => $course->title,
+                'short_description' => $course->short_description,
+                'full_description'  => $course->full_description,
+                'status'            => $course->status,
+                'difficulty'        => $course->level,
+                'language'          => $course->language,
+                'course_type'       => $course->course_type,
+                'publish_at'        => $course->publish_at,
+                'unpublish_at'      => $course->unpublish_at,
+                'created_at'        => $course->created_at,
+                'duration_hours'    => $durationHours,
+            ],
+            'pricing' => [
+                'currency'            => $course->price_currency ?? 'INR',
+                'original'            => round($price, 2),
+                'final'               => $final,
+                'discount_amount'     => $discAmt,
+                'discount_percent'    => $discPct,
+                'effective_percent'   => $effectivePct,
+                'is_free'             => ($course->course_type === 'free') || ($price <= 0),
+                'has_discount'        => ($final < $price),
+                'discount_expires_at' => $course->discount_expires_at,
+            ],
+            'media' => [
+                'cover'   => $cover ? [
+                    'id'   => (int)$cover->id,
+                    'uuid' => $cover->uuid,
+                    'type' => $cover->featured_type,
+                    'url'  => $cover->featured_url,
+                ] : null,
+                'gallery' => $mediaAll->map(fn($m) => [
+                    'id'   => (int)$m->id,
+                    'uuid' => $m->uuid,
+                    'type' => $m->featured_type,
+                    'url'  => $m->featured_url,
+                ])->values(),
+            ],
+            'modules' => [],
+            'instructors' => $instructors,
+            'stats' => [
+                'students_count'      => (int)$studentsCount,
+                'you_are_instructor'  => $isInstructor,
+                'you_are_student'     => $isStudent,
+            ],
+            'permissions' => [
+                'can_view_unpublished_modules' => $isStaff,
+            ],
+        ];
+        return response()->json(['data' => $payload]);
+    }
+
+    // =========================================================
+    // ✅ settings row per (batch_id, course_id)
+    // =========================================================
+    $defaults = [
+        'previous_module_completed' => 0,
+        'assignment_submitted'      => 0,
+        'exam_submitted'            => 0,
+        'coding_test_submitted'     => 0,
+    ];
+
+    $settingsRow = DB::table('batch_course_module_settings')
+        ->where('batch_id', (int)$batch->id)
+        ->where('course_id', (int)$course->id)
+        ->first();
+
+    $rules = $defaults;
+    if ($settingsRow && !empty($settingsRow->settings_json)) {
+        try {
+            $tmp = json_decode($settingsRow->settings_json, true);
+            if (is_array($tmp)) {
+                $rules = array_merge($defaults, array_intersect_key($tmp, $defaults));
+                $rules = array_map(fn($v) => (int)$v, $rules);
+            }
+        } catch (\Throwable $e) {}
+    }
+
+    // =========================================================
+    // ✅ access states ONLY FOR STUDENT
+    // key by batch_course_module_id
+    // =========================================================
+    $accessStates = [];
+    if ($isStudent) {
+        $accessStates = $this->computeBatchModuleAccessStatesForStudent(
+            (int)$batch->id,
+            (int)$course->id,
+            (int)$uid,
+            $rules,
+            $batchMods
+        );
+    }
+
+    // =========================================================
+    // ✅ output modules
+    // =========================================================
+    $modules = $batchMods->map(function($m) use ($isStudent, $isStaff, $rules, $accessStates) {
+
+        $access = 'unlocked';
+        if ($isStudent) {
+            $access = $accessStates[(int)$m->batch_course_module_id] ?? 'locked';
+        } elseif ($isStaff) {
+            $access = 'unlocked';
+        }
+
+        return [
+            'id'   => (int)$m->course_module_id,
+            'uuid' => (string)$m->cm_uuid,
+
+            'title'             => (string)$m->cm_title,
+            'short_description' => $m->cm_short_description,
+            'long_description'  => $m->cm_long_description,
+            'order_no'          => (int)($m->cm_order_no ?? 0),
+            'status'            => (string)($m->cm_status ?? 'draft'),
+
+            'batch_course_module_id'   => (int)$m->batch_course_module_id,
+            'batch_course_module_uuid' => (string)$m->batch_course_module_uuid,
+            'is_completed'             => (int)($m->bcm_is_completed ?? 0),
+            'access_state'             => (string)$access,
+
+            // optional debug
+            'rules' => $rules,
+        ];
+    })->values();
+
     $payload = [
         'batch' => (array)$batch,
         'course' => [
@@ -1173,15 +1337,15 @@ public function viewCourseByBatch(Request $r, string $batchKey)
             'duration_hours'    => $durationHours,
         ],
         'pricing' => [
-            'currency'           => $course->price_currency ?? 'INR',
-            'original'           => round($price, 2),
-            'final'              => $final,
-            'discount_amount'    => $discAmt,
-            'discount_percent'   => $discPct,
-            'effective_percent'  => $effectivePct,
-            'is_free'            => ($course->course_type === 'free') || ($price <= 0),
-            'has_discount'       => ($final < $price),
-            'discount_expires_at'=> $course->discount_expires_at,
+            'currency'            => $course->price_currency ?? 'INR',
+            'original'            => round($price, 2),
+            'final'               => $final,
+            'discount_amount'     => $discAmt,
+            'discount_percent'    => $discPct,
+            'effective_percent'   => $effectivePct,
+            'is_free'             => ($course->course_type === 'free') || ($price <= 0),
+            'has_discount'        => ($final < $price),
+            'discount_expires_at' => $course->discount_expires_at,
         ],
         'media' => [
             'cover'   => $cover ? [
@@ -1197,15 +1361,7 @@ public function viewCourseByBatch(Request $r, string $batchKey)
                 'url'  => $m->featured_url,
             ])->values(),
         ],
-        'modules' => $modules->map(fn($m) => [
-            'id'                => (int)$m->id,
-            'uuid'              => $m->uuid,
-            'title'             => $m->title,
-            'short_description' => $m->short_description,
-            'long_description'  => $m->long_description,
-            'order_no'          => (int)$m->order_no,
-            'status'            => $m->status,
-        ])->values(),
+        'modules' => $modules,
         'instructors' => $instructors,
         'stats' => [
             'students_count'      => (int)$studentsCount,
@@ -1221,13 +1377,182 @@ public function viewCourseByBatch(Request $r, string $batchKey)
         'batch_id'  => (int)$batch->id,
         'course_id' => (int)$course->id,
         'modules'   => count($payload['modules']),
-        'media'     => count($payload['media']['gallery']),
         'role'      => $role,
     ]);
 
     return response()->json(['data' => $payload]);
 }
+private function computeBatchModuleAccessStatesForStudent(
+    int $batchId,
+    int $courseId,
+    int $userId,
+    array $rules,
+    \Illuminate\Support\Collection $batchModsOrdered
+): array {
 
+    $defaults = [
+        'previous_module_completed' => 0,
+        'assignment_submitted'      => 0,
+        'exam_submitted'            => 0,
+        'coding_test_submitted'     => 0,
+    ];
+    $rules = array_merge($defaults, array_intersect_key($rules, $defaults));
+    $rules = array_map(fn($v) => (int)$v, $rules);
+
+    // If no rule enabled → all unlocked
+    if (array_sum($rules) <= 0) {
+        return $batchModsOrdered
+            ->mapWithKeys(fn($m) => [(int)$m->batch_course_module_id => 'unlocked'])
+            ->all();
+    }
+
+    // all module ids in this batch-course
+    $cmIds = $batchModsOrdered->pluck('course_module_id')->map(fn($v)=>(int)$v)->values()->all();
+
+    // ✅ actor column for assignment_submissions is student_id (your confirmation)
+    $assignmentActorCol = 'student_id';
+
+    // auto-detect actor col for quizz_attempt_batch / coding_results
+    $quizAttemptActorCol = Schema::hasColumn('quizz_attempt_batch', 'student_id')
+        ? 'student_id'
+        : (Schema::hasColumn('quizz_attempt_batch', 'user_id') ? 'user_id' : null);
+
+    $codingActorCol = Schema::hasColumn('coding_results', 'student_id')
+        ? 'student_id'
+        : (Schema::hasColumn('coding_results', 'user_id') ? 'user_id' : null);
+
+    // 2) Assignment submissions
+    $assignmentSubmittedSet = [];
+    if ($rules['assignment_submitted'] === 1) {
+        $q = DB::table('assignment_submissions');
+
+        if (Schema::hasColumn('assignment_submissions','deleted_at')) {
+            $q->whereNull('deleted_at');
+        }
+
+        $q->where($assignmentActorCol, $userId);
+
+        // batch filter only if column exists
+        if (Schema::hasColumn('assignment_submissions','batch_id')) {
+            $q->where('batch_id', $batchId);
+        }
+
+        $q->whereIn('course_module_id', $cmIds);
+
+        $assignmentSubmittedSet = $q->pluck('course_module_id')
+            ->map(fn($v)=>(int)$v)
+            ->flip()
+            ->all();
+    }
+
+    // 3) ✅ Exam submissions via quizz_attempt_batch (batch_id + course_module_id + actor)
+    // We'll store attempts keyed by course_module_id
+    $examAttemptSetByCourseModule = [];
+    if ($rules['exam_submitted'] === 1 && $quizAttemptActorCol) {
+
+        $q = DB::table('quizz_attempt_batch');
+
+        if (Schema::hasColumn('quizz_attempt_batch','deleted_at')) {
+            $q->whereNull('deleted_at');
+        }
+
+        // mandatory filters per your requirement
+        if (Schema::hasColumn('quizz_attempt_batch','batch_id')) {
+            $q->where('batch_id', $batchId);
+        } else {
+            // if batch_id column doesn't exist, cannot reliably enforce this rule
+            // keep set empty so unlock won't happen incorrectly
+            $q = null;
+        }
+
+        if ($q) {
+            $q->where($quizAttemptActorCol, $userId);
+
+            // course_module_id must exist here
+            if (Schema::hasColumn('quizz_attempt_batch','course_module_id')) {
+                $q->whereIn('course_module_id', $cmIds);
+
+                $examAttemptSetByCourseModule = $q->pluck('course_module_id')
+                    ->map(fn($v)=>(int)$v)
+                    ->flip()
+                    ->all();
+            }
+        }
+    }
+
+    // 4) Coding submissions via question mapping
+    $questionByCourseModule = [];
+    $codingResultSet = [];
+    if ($rules['coding_test_submitted'] === 1) {
+
+        $questionByCourseModule = DB::table('batch_coding_questions')
+            ->whereNull('deleted_at')
+            ->where('batch_id', $batchId)
+            ->whereIn('course_module_id', $cmIds)
+            ->pluck('question_id', 'course_module_id')
+            ->mapWithKeys(fn($qid, $cmId) => [(int)$cmId => (int)$qid])
+            ->all();
+
+        $qIds = array_values(array_unique(array_filter(array_values($questionByCourseModule))));
+        if (!empty($qIds) && $codingActorCol) {
+            $q = DB::table('coding_results');
+            if (Schema::hasColumn('coding_results','deleted_at')) $q->whereNull('deleted_at');
+            if (Schema::hasColumn('coding_results','batch_id'))   $q->where('batch_id', $batchId);
+
+            $q->where($codingActorCol, $userId)
+              ->whereIn('question_id', $qIds);
+
+            $codingResultSet = $q->pluck('question_id')
+                ->map(fn($v)=>(int)$v)
+                ->flip()
+                ->all();
+        }
+    }
+
+    // ---------- Sequential unlock (based on IMMEDIATE PREVIOUS bcm row) ----------
+    $states = [];
+    $mods = $batchModsOrdered->values();
+
+    for ($i = 0; $i < $mods->count(); $i++) {
+        $m = $mods[$i];
+
+        // ✅ first module ALWAYS unlocked
+        if ($i === 0) {
+            $states[(int)$m->batch_course_module_id] = 'unlocked';
+            continue;
+        }
+
+        $prev = $mods[$i - 1];
+        $prevCourseModuleId = (int)$prev->course_module_id;
+
+        $ok = true;
+
+        // 1) previous module completed? -> check previous bcm row's is_completed
+        if ($rules['previous_module_completed'] === 1) {
+            $ok = $ok && ((int)($prev->bcm_is_completed ?? 0) === 1);
+        }
+
+        // 2) assignment submitted? -> check previous module assignment by actor
+        if ($ok && $rules['assignment_submitted'] === 1) {
+            $ok = isset($assignmentSubmittedSet[$prevCourseModuleId]);
+        }
+
+        // 3) ✅ exam submitted? -> check quizz_attempt_batch row for prev module + user + batch
+        if ($ok && $rules['exam_submitted'] === 1) {
+            $ok = isset($examAttemptSetByCourseModule[$prevCourseModuleId]);
+        }
+
+        // 4) coding submitted? -> check previous module coding by actor
+        if ($ok && $rules['coding_test_submitted'] === 1) {
+            $qid = (int)($questionByCourseModule[$prevCourseModuleId] ?? 0);
+            $ok = $qid > 0 && isset($codingResultSet[$qid]);
+        }
+
+        $states[(int)$m->batch_course_module_id] = $ok ? 'unlocked' : 'locked';
+    }
+
+    return $states;
+}
 
 public function listCourseBatchCards(Request $r)
 {

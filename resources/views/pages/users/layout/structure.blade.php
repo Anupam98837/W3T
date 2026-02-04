@@ -433,6 +433,11 @@
       <div class="w3-section-title"><i class="fa-solid fa-graduation-cap"></i> ACADEMICS</div>
       <div class="w3-section-rule"></div>
     </div>
+    <nav id="defaultAcademicsMenu" class="w3-menu" aria-label="Academics (Default)">
+  <a href="/running-courses" class="w3-link">
+    <i class="fa-solid fa-person-chalkboard"></i><span>My Courses</span>
+  </a>
+</nav>
 
     <div id="allMenuWrap" style="display:none">
       <nav class="w3-menu" aria-label="Academics (All)">

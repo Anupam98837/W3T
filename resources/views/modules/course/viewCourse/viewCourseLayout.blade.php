@@ -340,7 +340,7 @@
       padding: 16px;
       min-height: calc(100% - 0px);
       height: 100%;
-      overflow-y: auto;
+      /* overflow-y: auto; */
     }
     @media (max-width: 768px) { .vc-main .panel { padding: 14px; } }
     @media (max-width: 576px) { .vc-main .panel { padding: 12px; } }
@@ -541,6 +541,51 @@
       0%, 100%{ transform: translateY(0); opacity:.35; }
       50%{ transform: translateY(-3px); opacity:.95; }
     }
+    /* ===== Locked / Unlocked badge (sidebar modules) ======================= */
+.vc-module .module-meta{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  flex-shrink: 0;
+}
+
+.vc-badge{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  padding:6px 10px;
+  border-radius:999px;
+  font-size:12px;
+  font-weight:600;
+  border:1px solid var(--line-strong);
+  background: color-mix(in oklab, var(--surface) 85%, transparent);
+  color: var(--muted-color);
+  white-space: nowrap;
+}
+
+.vc-badge.unlocked{
+  border-color: color-mix(in oklab, var(--accent-color) 30%, var(--line-strong));
+  background: color-mix(in oklab, var(--accent-color) 12%, transparent);
+  color: var(--ink);
+}
+
+.vc-badge.locked{
+  border-color: color-mix(in oklab, #ef4444 35%, var(--line-strong));
+  background: color-mix(in oklab, #ef4444 12%, transparent);
+  color: var(--ink);
+}
+
+.vc-module.is-locked{
+  opacity: .75;
+  cursor: not-allowed;
+}
+
+.vc-module.is-locked:hover, .vc-module.is-locked:active{
+  transform: none;
+  box-shadow: none;
+  border-color: var(--line-strong);
+}
+
   </style>
 </head>
 
@@ -972,58 +1017,96 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // ===== Modules ==========================================================
   const renderModules = (modules=[]) => {
-    el.mList.innerHTML = '';
-    el.mEmpty.style.display = modules.length ? 'none' : '';
-    const frag = document.createDocumentFragment();
+  el.mList.innerHTML = '';
+  el.mEmpty.style.display = modules.length ? 'none' : '';
+  const frag = document.createDocumentFragment();
 
-    modules.forEach(m => {
-      const div = document.createElement('div');
-      div.className = 'vc-module';
-      div.dataset.uuid = m.uuid;
-      div.innerHTML = `
-        <div class="module-content">
-          <div class="t">${m.title ?? 'Untitled module'}</div>
-          <div class="d">${m.short_description ?? ''}</div>
-        </div>
-        <div class="module-arrow">›</div>
-      `;
-      div.addEventListener('click', () => {
-        selectedModuleUuid = m.uuid;
-        [...el.mList.children].forEach(c => c.classList.toggle('active', c.dataset.uuid === selectedModuleUuid));
-        setModuleHeader(m);
+  // ✅ student detection (your role cache)
+  const roleNow = (window.getCurrentRole?.() || USER_ROLE || '').toLowerCase();
+  const isStudent = roleNow === 'student';
 
-        updateQueryParam('module', selectedModuleUuid);
-        bus.emit('vc:module-changed', { moduleUuid: selectedModuleUuid, module: m });
+  modules.forEach(m => {
+    const accessState = String(m.access_state || 'unlocked').toLowerCase(); // locked/unlocked
+    const isLocked = isStudent && accessState === 'locked';
 
-        closeMobileSidebar();
-        tryRefreshCurrentTab();
-      });
-      frag.appendChild(div);
+    const div = document.createElement('div');
+    div.className = 'vc-module' + (isLocked ? ' is-locked' : '');
+    div.dataset.uuid = m.uuid;
+
+   const badgeHtml = isStudent
+  ? (isLocked ? `<i class="fa-solid fa-lock vc-lock-ico" title="Locked"></i>` : ``)
+  : '';
+
+
+    div.innerHTML = `
+      <div class="module-content">
+        <div class="t">${m.title ?? 'Untitled module'}</div>
+        <div class="d">${m.short_description ?? ''}</div>
+      </div>
+
+      <div class="module-meta">
+        ${badgeHtml}
+      </div>
+    `;
+
+    div.addEventListener('click', () => {
+      // ✅ block locked module selection for students
+      if (isLocked) {
+        Swal?.fire?.({
+          icon: 'info',
+          title: 'Module Locked',
+          text: 'Complete the required steps to unlock this module.',
+          confirmButtonText: 'OK'
+        });
+        return;
+      }
+
+      selectedModuleUuid = m.uuid;
+      [...el.mList.children].forEach(c => c.classList.toggle('active', c.dataset.uuid === selectedModuleUuid));
+      setModuleHeader(m);
+
+      updateQueryParam('module', selectedModuleUuid);
+      bus.emit('vc:module-changed', { moduleUuid: selectedModuleUuid, module: m });
+
+      closeMobileSidebar();
+      tryRefreshCurrentTab();
     });
 
-    el.mList.appendChild(frag);
+    frag.appendChild(div);
+  });
 
-    // === DEFAULT SELECTION: first module if none selected yet ============
-    let chosen = null;
-    if (modules.length) {
-      if (selectedModuleUuid) {
-        chosen = modules.find(x => x.uuid === selectedModuleUuid) || null;
-      }
-      if (!chosen) {
-        chosen = modules[0];
-        selectedModuleUuid = chosen.uuid || null;
-        if (selectedModuleUuid) updateQueryParam('module', selectedModuleUuid);
-      }
+  el.mList.appendChild(frag);
+
+  // === DEFAULT SELECTION: first UNLOCKED module for students ============
+  let chosen = null;
+
+  if (modules.length) {
+    const roleNow2 = (window.getCurrentRole?.() || USER_ROLE || '').toLowerCase();
+    const isStudent2 = roleNow2 === 'student';
+
+    const isUnlocked = (mm) => String(mm?.access_state || 'unlocked').toLowerCase() !== 'locked';
+
+    if (selectedModuleUuid) {
+      chosen = modules.find(x => x.uuid === selectedModuleUuid) || null;
+      // if selected is locked for student, force fallback
+      if (isStudent2 && chosen && !isUnlocked(chosen)) chosen = null;
     }
 
-    if (chosen) {
-      [...el.mList.children].forEach(c => c.classList.toggle('active', c.dataset.uuid === selectedModuleUuid));
-      setModuleHeader(chosen);
-      bus.emit('vc:module-changed', { moduleUuid: selectedModuleUuid, module: chosen });
-    } else {
-      setModuleHeader(null);
+    if (!chosen) {
+      chosen = isStudent2 ? (modules.find(isUnlocked) || modules[0]) : modules[0];
+      selectedModuleUuid = chosen?.uuid || null;
+      if (selectedModuleUuid) updateQueryParam('module', selectedModuleUuid);
     }
-  };
+  }
+
+  if (chosen) {
+    [...el.mList.children].forEach(c => c.classList.toggle('active', c.dataset.uuid === selectedModuleUuid));
+    setModuleHeader(chosen);
+    bus.emit('vc:module-changed', { moduleUuid: selectedModuleUuid, module: chosen });
+  } else {
+    setModuleHeader(null);
+  }
+};
 
   const wireSearch = (modules=[]) => {
     if (!el.mSearch) return;
