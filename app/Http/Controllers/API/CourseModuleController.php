@@ -5,6 +5,9 @@ namespace App\Http\Controllers\API;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
+use Illuminate\Validation\ValidationException;
+
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
@@ -19,6 +22,73 @@ class CourseModuleController extends Controller
     private const STATUSES = ['draft','published','archived'];
 
     public function __construct() {}
+private function batchesQuery()
+{
+    $q = DB::table('batches');
+
+    // soft delete safe (only apply if column exists)
+    if (Schema::hasColumn('batches', 'deleted_at')) {
+        $q->whereNull('deleted_at');
+    }
+
+    return $q;
+}
+
+/**
+ * Resolve batch id from: batch_id | batch_uuid | batch_key
+ * Throws 422 if a batch identifier is provided but not found.
+ */
+private function resolveBatchIdFromRequest(Request $r): int
+{
+    if ($r->filled('batch_id')) {
+        return (int) $r->input('batch_id');
+    }
+
+    if ($r->filled('batch_uuid')) {
+        $id = $this->batchesQuery()
+            ->where('uuid', (string) $r->input('batch_uuid'))
+            ->value('id');
+
+        if (!$id) {
+            throw ValidationException::withMessages([
+                'batch_uuid' => ['Batch not found for the given batch_uuid.'],
+            ]);
+        }
+        return (int) $id;
+    }
+
+    if ($r->filled('batch_key')) {
+        $key = (string) $r->input('batch_key');
+
+        // Try common possible column names for "batch_key"
+        $possibleCols = ['batch_key', 'key', 'code', 'slug', 'batch_code'];
+        $col = null;
+        foreach ($possibleCols as $c) {
+            if (Schema::hasColumn('batches', $c)) { $col = $c; break; }
+        }
+
+        if (!$col) {
+            throw ValidationException::withMessages([
+                'batch_key' => ['No batch key column found in batches table (expected batch_key/key/code/slug/batch_code).'],
+            ]);
+        }
+
+        $id = $this->batchesQuery()
+            ->where($col, $key)
+            ->value('id');
+
+        if (!$id) {
+            throw ValidationException::withMessages([
+                'batch_key' => ["Batch not found for the given batch_key (matched on column: {$col})."],
+            ]);
+        }
+        return (int) $id;
+    }
+
+    throw ValidationException::withMessages([
+        'batch' => ['Provide batch_id or batch_uuid or batch_key.'],
+    ]);
+}
 
     /* =========================================================
      |                       LIST (active)
@@ -31,45 +101,86 @@ class CourseModuleController extends Controller
 {
     // if ($resp = $this->requireRole($r, ['admin','super_admin','superadmin'])) return $resp;
 
-    $q         = trim((string)$r->query('q', ''));
-    $status    = $r->query('status'); // if null => exclude archived
-    $courseId  = $r->query('course_id');
-    $page      = max(1, (int)$r->query('page', 1));
-    $perPage   = min(100, max(1, (int)$r->query('per_page', 20)));
+    $q        = trim((string) $r->query('q', ''));
+    $status   = $r->query('status'); // if null => exclude archived
+    $courseId = $r->query('course_id');
+
+    $page    = max(1, (int) $r->query('page', 1));
+    $perPage = min(100, max(1, (int) $r->query('per_page', 20)));
 
     // ✅ Default: oldest -> newest
-    $sort      = (string)$r->query('sort', 'created_at');
+    $sort = (string) $r->query('sort', 'created_at');
 
     $dir = \Illuminate\Support\Str::startsWith($sort, '-') ? 'desc' : 'asc';
     $col = ltrim($sort, '-');
     if (!in_array($col, self::SORTABLE, true)) $col = 'created_at';
 
-    $builder = DB::table('course_modules')->whereNull('deleted_at');
+    // ✅ OPTIONAL: if batch is provided, include assignment info in response
+    $batchId = null;
+    if ($r->filled('batch_id') || $r->filled('batch_uuid') || $r->filled('batch_key')) {
+        // works with query params too (Laravel input() merges query/body)
+        $batchId = $this->resolveBatchIdFromRequest($r);
+    }
+
+    $builder = DB::table('course_modules as cm')
+        ->whereNull('cm.deleted_at');
 
     if ($courseId !== null && $courseId !== '') {
-        $builder->where('course_id', (int)$courseId);
+        $builder->where('cm.course_id', (int) $courseId);
     }
 
     if ($status && in_array($status, self::STATUSES, true)) {
-        $builder->where('status', $status);
+        $builder->where('cm.status', $status);
     } else {
         // Default: hide archived from normal list
-        $builder->where('status', '!=', 'archived');
+        $builder->where('cm.status', '!=', 'archived');
     }
 
     if ($q !== '') {
         $builder->where(function ($qb) use ($q) {
-            $qb->where('title', 'like', '%' . $q . '%')
-               ->orWhere('short_description', 'like', '%' . $q . '%')
-               ->orWhere('long_description', 'like', '%' . $q . '%');
+            $qb->where('cm.title', 'like', '%' . $q . '%')
+               ->orWhere('cm.short_description', 'like', '%' . $q . '%')
+               ->orWhere('cm.long_description', 'like', '%' . $q . '%');
         });
     }
 
-    $total = (clone $builder)->count();
+    /**
+     * ✅ If batchId is provided, add:
+     * - assigned (0/1)
+     * - batch_course_module_id / uuid
+     *
+     * Using a subquery (MAX(id) per course_module_id) to avoid duplicate rows
+     * if your bcm table ever has multiple active rows for same module+batch.
+     */
+    if ($batchId) {
+        $bcmPick = DB::table('batch_course_module')
+            ->selectRaw('MAX(id) as id, course_module_id')
+            ->whereNull('deleted_at')
+            ->where('batch_id', $batchId)
+            ->groupBy('course_module_id');
+
+        $builder
+            ->leftJoinSub($bcmPick, 'bcmx', function ($j) {
+                $j->on('bcmx.course_module_id', '=', 'cm.id');
+            })
+            ->leftJoin('batch_course_module as bcm', 'bcm.id', '=', 'bcmx.id')
+            ->select('cm.*')
+            ->addSelect([
+                DB::raw('IF(bcm.id IS NULL, 0, 1) as assigned'),
+                DB::raw('bcm.id as batch_course_module_id'),
+                DB::raw('bcm.uuid as batch_course_module_uuid'),
+            ]);
+    } else {
+        $builder->select('cm.*');
+    }
+
+    // ✅ total count (safe even with joins)
+    $total = (clone $builder)->distinct('cm.id')->count('cm.id');
 
     // ✅ Tie-breaker aligned with direction (oldest->newest => id asc)
-    $rows  = $builder->orderBy($col, $dir)
-        ->orderBy('id', $dir === 'asc' ? 'asc' : 'desc')
+    $rows = $builder
+        ->orderBy('cm.' . $col, $dir)
+        ->orderBy('cm.id', $dir === 'asc' ? 'asc' : 'desc')
         ->forPage($page, $perPage)
         ->get();
 
@@ -80,6 +191,7 @@ class CourseModuleController extends Controller
         'total'    => $total,
     ]);
 }
+
 
     /* =========================================================
      |                    BIN (soft-deleted only)
