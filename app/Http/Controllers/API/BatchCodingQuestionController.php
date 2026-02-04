@@ -253,6 +253,7 @@ public function index(Request $r, $batch)
 
     $moduleFilterRequested = ($moduleId !== null) || ($moduleUuid !== null);
 
+    // ✅ FIX 1: Only validate schema if filter is actually requested
     if ($moduleFilterRequested && !$mapModuleIdCol && !$mapModuleUuidCol) {
         return response()->json([
             'ok' => false,
@@ -267,10 +268,16 @@ public function index(Request $r, $batch)
         ->select('id','course_id')
         ->first();
 
+    // ✅ FIX 2: Handle missing batch gracefully
+    if (!$batchRow) {
+        return response()->json(['ok' => false, 'error' => 'Batch not found'], 404);
+    }
+
     $courseId = (int)($batchRow->course_id ?? 0);
-    if ($courseId <= 0) {
-        // if your batches schema differs, adjust here
-        return response()->json(['ok'=>false,'error'=>'Batch course not found'], 404);
+    
+    // ✅ FIX 3: Only validate course if module filter is requested
+    if ($moduleFilterRequested && $courseId <= 0) {
+        return response()->json(['ok'=>false,'error'=>'Batch has no associated course'], 404);
     }
 
     // ✅ normalize requested module to BOTH id+uuid (course-scoped)
@@ -283,7 +290,7 @@ public function index(Request $r, $batch)
         if ($moduleId !== null) {
             $mq->where('id', $moduleId);
         } elseif ($moduleUuid !== null) {
-            // if course_modules.uuid missing, this will throw; so guard
+            // ✅ FIX 4: Guard UUID filter if column doesn't exist
             if (!$this->tableHasColumn('course_modules','uuid')) {
                 return response()->json(['ok'=>false,'error'=>'Schema issue: course_modules.uuid missing'], 500);
             }
@@ -299,8 +306,9 @@ public function index(Request $r, $batch)
             return response()->json(['ok'=>false,'error'=>'Course module not found for this batch/course'], 404);
         }
 
+        // ✅ FIX 5: Update both id and uuid from resolved module
         $moduleId   = (int)$mrow->id;
-        $moduleUuid = $mrow->uuid ? (string)$mrow->uuid : $moduleUuid; // keep if null in schema
+        $moduleUuid = $mrow->uuid ?? null; // allow null if schema doesn't support
     }
 
     /* ================= ASSIGNED QUERY ================= */
@@ -311,17 +319,14 @@ public function index(Request $r, $batch)
     if ($this->tableHasColumn($mapTable,'deleted_at')) $assignedQ->whereNull('bcq.deleted_at');
     if ($this->tableHasColumn($questionTable,'deleted_at')) $assignedQ->whereNull('cq.deleted_at');
 
-    // ✅ apply module filter (prefers id column; falls back to uuid column)
+    // ✅ FIX 6: Apply module filter (prefer id; fallback to uuid)
     if ($moduleFilterRequested) {
-        if ($mapModuleIdCol) {
+        if ($mapModuleIdCol && $moduleId !== null) {
             $assignedQ->where("bcq.$mapModuleIdCol", $moduleId);
-        } elseif ($mapModuleUuidCol) {
-            // moduleUuid can be null if course_modules.uuid doesn't exist; in that case module filter isn't possible via uuid
-            if (!$moduleUuid) {
-                return response()->json(['ok'=>false,'error'=>'Module uuid filter not supported (course_modules.uuid missing)'], 500);
-            }
+        } elseif ($mapModuleUuidCol && $moduleUuid !== null) {
             $assignedQ->where("bcq.$mapModuleUuidCol", $moduleUuid);
         }
+        // ✅ If both columns exist, prefer id filter (more reliable)
     }
 
     $selectAssigned = [
@@ -329,6 +334,7 @@ public function index(Request $r, $batch)
         'cq.uuid',
         'cq.total_attempts',
         DB::raw('1 as is_assigned'),
+        DB::raw('1 as assigned'), // ✅ FIX 7: Add both keys for frontend compatibility
     ];
 
     foreach (['title','slug','difficulty','status','sort_order','description'] as $col) {
@@ -341,8 +347,18 @@ public function index(Request $r, $batch)
     if ($startCol) $selectAssigned[] = "bcq.$startCol as available_from";
     if ($endCol)   $selectAssigned[] = "bcq.$endCol as available_to";
 
-    if ($mapModuleIdCol)   $selectAssigned[] = "bcq.$mapModuleIdCol as course_module_id";
-    if ($mapModuleUuidCol) $selectAssigned[] = "bcq.$mapModuleUuidCol as course_module_uuid";
+    // ✅ FIX 8: Always include module columns (even if null) for consistent frontend handling
+    if ($mapModuleIdCol) {
+        $selectAssigned[] = "bcq.$mapModuleIdCol as course_module_id";
+    } else {
+        $selectAssigned[] = DB::raw('NULL as course_module_id');
+    }
+
+    if ($mapModuleUuidCol) {
+        $selectAssigned[] = "bcq.$mapModuleUuidCol as course_module_uuid";
+    } else {
+        $selectAssigned[] = DB::raw('NULL as course_module_uuid');
+    }
 
     $selectAssigned[] = 'bcq.id as map_id';
     $selectAssigned[] = 'bcq.uuid as map_uuid';
@@ -364,11 +380,11 @@ public function index(Request $r, $batch)
                     $j->whereNull('bcq.deleted_at');
                 }
 
-                // ✅ module-aware join (assignment should be per-module)
+                // ✅ FIX 9: Module-aware join (prefer id; fallback uuid)
                 if ($moduleFilterRequested) {
-                    if ($mapModuleIdCol) {
+                    if ($mapModuleIdCol && $moduleId !== null) {
                         $j->where("bcq.$mapModuleIdCol", $moduleId);
-                    } elseif ($mapModuleUuidCol) {
+                    } elseif ($mapModuleUuidCol && $moduleUuid !== null) {
                         $j->where("bcq.$mapModuleUuidCol", $moduleUuid);
                     }
                 }
@@ -388,15 +404,26 @@ public function index(Request $r, $batch)
             }
         }
 
-        // ✅ robust assignment flag (does not require assign_status column)
+        // ✅ FIX 10: Robust assignment flag + both keys
         $selectAll[] = DB::raw("CASE WHEN bcq.id IS NULL THEN 0 ELSE 1 END as is_assigned");
+        $selectAll[] = DB::raw("CASE WHEN bcq.id IS NULL THEN 0 ELSE 1 END as assigned");
 
         if ($attemptAllowedCol) $selectAll[] = "bcq.$attemptAllowedCol as attempt_allowed";
         if ($startCol) $selectAll[] = "bcq.$startCol as available_from";
         if ($endCol)   $selectAll[] = "bcq.$endCol as available_to";
 
-        if ($mapModuleIdCol)   $selectAll[] = "bcq.$mapModuleIdCol as course_module_id";
-        if ($mapModuleUuidCol) $selectAll[] = "bcq.$mapModuleUuidCol as course_module_uuid";
+        // ✅ FIX 11: Always include module columns (even if null)
+        if ($mapModuleIdCol) {
+            $selectAll[] = "bcq.$mapModuleIdCol as course_module_id";
+        } else {
+            $selectAll[] = DB::raw('NULL as course_module_id');
+        }
+
+        if ($mapModuleUuidCol) {
+            $selectAll[] = "bcq.$mapModuleUuidCol as course_module_uuid";
+        } else {
+            $selectAll[] = DB::raw('NULL as course_module_uuid');
+        }
 
         $selectAll[] = 'bcq.id as map_id';
         $selectAll[] = 'bcq.uuid as map_uuid';
@@ -409,28 +436,36 @@ public function index(Request $r, $batch)
         return response()->json([
             'ok' => true,
             'batch_id' => $batchId,
+            'course_id' => $courseId, // ✅ FIX 12: Include for frontend reference
             'mode' => 'all',
             'module' => [
                 'course_module_id' => $moduleId,
                 'course_module_uuid' => $moduleUuid,
+                'filter_active' => $moduleFilterRequested, // ✅ FIX 13: Explicit flag
             ],
-            'items' => $rows
+            'items' => $rows,
+            'data' => $rows, // ✅ FIX 14: Alias for frontend compatibility
         ]);
     }
 
     /* ================= ASSIGNED ONLY ================= */
+    $assignedRows = $assignedQ->get();
+
     return response()->json([
         'ok' => true,
         'batch_id' => $batchId,
+        'course_id' => $courseId, // ✅ FIX 15: Include course_id
         'mode' => $isStudent ? 'student' : 'assigned',
         'module' => [
             'course_module_id' => $moduleId,
             'course_module_uuid' => $moduleUuid,
+            'filter_active' => $moduleFilterRequested, // ✅ FIX 16: Explicit flag
         ],
-        'items' => $assignedQ->get()
+        'items' => $assignedRows,
+        'data' => $assignedRows, // ✅ FIX 17: Alias for frontend compatibility
+        'questions' => $assignedRows, // ✅ FIX 18: Another common alias
     ]);
 }
-
    /**
  * POST /api/batches/{batch}/coding-questions/assign
  * Body: { question_uuid, attempt_allowed?, start_at?, end_at? }

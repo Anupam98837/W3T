@@ -273,7 +273,7 @@ body.role-privileged #submitAssignSend {
 
             <div class="col-md-2 col-lg-4 d-flex justify-content-end">
               <!-- Upload visible only for admin/instructor (kept but no modal) -->
-              <button id="btn-upload" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="createAssignmentModal" style="display:none;">
+              <button id="btn-upload" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createAssignmentModal" style="display:none;">
                 + Assignment
               </button>
             </div>
@@ -584,7 +584,7 @@ body.role-privileged #submitAssignSend {
             </div>
           </div>
           <!-- Attachments -->
-          <div class="mb-2">
+          <div class="mb-2" id="sm-submit_dropzone">
             <label class="form-label" id="st-attachment">Attachments<span class="text-danger">*</span></label>
 
             <!-- Drag & Drop Zone -->
@@ -1170,11 +1170,65 @@ function createItemRow(row){
         <i class="fa fa-user" style="font-size:10px;"></i>
         <span>${escapeHtml(row.created_by_name || 'Unknown')}</span>
     `;
+    // ADD THIS CODE BLOCK - Shows submission status badge for students
+(async function addSubmissionBadge() {
+  if (role !== 'student') return; // only for students
+  
+  try {
+    const assignKey = row.uuid || row.assignment_uuid || row.id || '';
+    if (!assignKey) return;
     
+    // Check if student has submitted (quick check from cached data if available)
+    const token = localStorage.getItem('token') || sessionStorage.getItem('token') || '';
+    const resp = await fetch(`/api/assignments/my-submissions/${encodeURIComponent(assignKey)}`, {
+      headers: { 
+        'Authorization': 'Bearer ' + token, 
+        'Accept': 'application/json' 
+      }
+    });
+    
+    if (!resp.ok) return;
+    const data = await resp.json();
+    const submissions = (data && data.data && data.data.items) ? data.data.items : [];
+    
+    if (submissions && submissions.length > 0) {
+      // Student has submitted - add badge
+      const badge = document.createElement('span');
+      badge.className = 'badge bg-success';
+      badge.style.fontSize = '11px';
+      badge.style.marginLeft = '8px';
+      badge.style.padding = '3px 8px';
+      badge.textContent = `Submitted (${submissions.length})`;
+      
+      // Insert badge next to title
+      title.appendChild(badge);
+    }
+  } catch (err) {
+    console.debug('Could not check submission status:', err);
+  }
+})();
+
     meta.appendChild(title); 
     meta.appendChild(sub);
+    // ADD SUBMISSION BADGE (uses cache - no async needed)
+if (role === 'student') {
+  const assignKey = row.uuid || row.assignment_uuid || row.id || '';
+  const submissionCount = studentSubmissionCache.get(assignKey) || 0;
+  
+  if (submissionCount > 0) {
+    const badge = document.createElement('span');
+    badge.className = 'badge bg-success';
+    badge.style.fontSize = '11px';
+    badge.style.marginLeft = '8px';
+    badge.style.padding = '3px 8px';
+    badge.textContent = submissionCount === 1 ? 'Submitted' : `Submitted (${submissionCount})`;
+    title.appendChild(badge);
+  }
+}
+
     meta.appendChild(creatorInfo); // Add creator info to meta section
     
+
     left.appendChild(icon); 
     left.appendChild(meta);
 
@@ -1511,7 +1565,30 @@ function createItemRow(row){
     const backdrop=document.createElement('div');backdrop.className='modal-backdrop fade show';backdrop.id='asDetailsBackdrop';document.body.appendChild(backdrop);
     document.body.classList.add('modal-open');backdrop.addEventListener('click',closeDetailsModal);
     const attachments=row.attachments&&Array.isArray(row.attachments)?row.attachments:[];const attachList=attachments.length?attachments.map(a=>{const name=a.name||(a.url||a.path||'').split('/').pop();const size=a.size?` (${formatSize(a.size)})`:'';return`<div style="display:flex; justify-content:space-between; gap:8px;"><div>${escapeHtml(name)}</div><div style="color:var(--muted-color); font-size:13px;">${escapeHtml(a.mime||a.ext||'')}${size}</div></div>`;}).join(''):'<div style="color:var(--muted-color)">No attachments</div>';
-    if(detailsBody){detailsBody.innerHTML=`<div style="display:flex; flex-direction:column; gap:12px; font-size:15px;"><div><strong>Title:</strong> ${escapeHtml(row.title||'Untitled')}</div><div><strong>Instruction:</strong> ${escapeHtml(row.instruction||'—')}</div><div><strong>Created At:</strong> ${row.created_at?new Date(row.created_at).toLocaleString():'—'}</div><div><strong>Created By:</strong> ${escapeHtml(row.creator_name||row.created_by_name||'—')}</div><div><strong>Attachments:</strong> ${attachments.length} file(s)</div><div style="margin-top:6px;">${attachList}</div><div style="color:var(--muted-color); font-size:13px; margin-top:6px;"><strong>ID:</strong> ${escapeHtml(String(row.id||row.uuid||''))}</div></div>`;}
+const safeInstructionHtml = sanitizeHtml(row.instruction || '—');
+
+if (detailsBody) {
+  detailsBody.innerHTML = `
+    <div style="display:flex; flex-direction:column; gap:12px; font-size:15px;">
+      <div><strong>Title:</strong> ${escapeHtml(row.title || 'Untitled')}</div>
+
+      <div>
+        <strong>Instruction:</strong>
+        <div class="mt-1" style="padding:10px 12px; border:1px solid var(--line-soft); border-radius:12px; background:rgba(15,23,42,.03)">
+          ${safeInstructionHtml}
+        </div>
+      </div>
+
+      <div><strong>Created At:</strong> ${row.created_at ? new Date(row.created_at).toLocaleString() : '—'}</div>
+      <div><strong>Created By:</strong> ${escapeHtml(row.creator_name || row.created_by_name || '—')}</div>
+      <div><strong>Attachments:</strong> ${attachments.length} file(s)</div>
+      <div style="margin-top:6px;">${attachList}</div>
+      <div style="display:none; color:var(--muted-color); font-size:13px; margin-top:6px;">
+        <strong>ID:</strong> ${escapeHtml(String(row.id || row.uuid || ''))}
+      </div>
+    </div>
+  `;
+}
     if(detailsFooter){detailsFooter.innerHTML='';const close=document.createElement('button');close.className='btn btn-light';close.textContent='Close';close.addEventListener('click',closeDetailsModal);detailsFooter.appendChild(close);if(canEdit){const edit=document.createElement('button');edit.className='btn btn-primary';edit.textContent='Edit';edit.addEventListener('click',()=>{closeDetailsModal();const id=encodeURIComponent(row.id||row.uuid||'');if(id)window.location.href=`/admin/assignments/${id}`;});detailsFooter.appendChild(edit);}}
   }
   function closeDetailsModal(){detailsModal.classList.remove('show');detailsModal.style.display='none';detailsModal.setAttribute('aria-hidden','true');const bd=document.getElementById('asDetailsBackdrop');if(bd)bd.remove();document.body.classList.remove('modal-open');if(detailsBody)detailsBody.innerHTML='';if(detailsFooter)detailsFooter.innerHTML='';}
@@ -1656,6 +1733,10 @@ async function loadAssignments(){
   showLoader(true);
   showItems(false);
   showEmpty(false);
+   if (role === 'student') {
+    await fetchAllStudentSubmissions();
+  }
+
 
   try{
     const ctx = (typeof readContext === 'function') ? readContext() : null;
@@ -1759,6 +1840,38 @@ async function loadAssignments(){
     isLoadingAssignments = false;
     currentLoadRequest = null;
     showLoader(false);
+  }
+}
+// Cache for student submission status (assignment_key -> submitted count)
+const studentSubmissionCache = new Map();
+
+async function fetchAllStudentSubmissions() {
+  if (role !== 'student') return;
+  
+  try {
+    const token = localStorage.getItem('token') || sessionStorage.getItem('token') || '';
+    const resp = await fetch('/api/assignments/my-submissions', {
+      headers: { 
+        'Authorization': 'Bearer ' + token, 
+        'Accept': 'application/json' 
+      }
+    });
+    
+    if (!resp.ok) return;
+    const data = await resp.json();
+    const allSubmissions = (data && data.data && data.data.items) ? data.data.items : [];
+    
+    // Group by assignment
+    studentSubmissionCache.clear();
+    allSubmissions.forEach(sub => {
+      const key = sub.assignment_uuid || sub.assignment_id || sub.assignmentUuid || '';
+      if (!key) return;
+      const count = studentSubmissionCache.get(key) || 0;
+      studentSubmissionCache.set(key, count + 1);
+    });
+    
+  } catch (err) {
+    console.debug('Could not fetch student submissions:', err);
   }
 }
 // -------------------------
@@ -2122,6 +2235,7 @@ function setFileInputVisibility(show) {
   }
 }
 
+
 function renderAssignmentInfo(info) {
   // defensive defaults
   const noteDefault = 'Unable to load submission info';
@@ -2221,17 +2335,39 @@ function renderAssignmentInfo(info) {
       attemptsEl.className = 'alert alert-info mb-3';
     }
   }
+// enforce UI behavior based on attempts for students only
 
-  // enforce UI behavior for zero attempts left for students
+const isStudent = (role === 'student');
+
+if (isStudent) {
+  const stAttachment = document.getElementById('sm-submit_dropzone');
+
   if (info.attempts_left === 0) {
     submitBtn.disabled = true;
     submitBtn.innerHTML = '<i class="fa fa-ban me-1"></i> No Attempts Left';
     setFileInputVisibility(false);
+    if (stAttachment) stAttachment.classList.add('d-none');
+
+  } else if (info.attempts_left === null) {
+    // attempts not enforced, but attachments should be hidden for students
+    submitBtn.disabled = false;
+    submitBtn.innerHTML = '<i class="fa fa-paper-plane me-1"></i> Submit';
+    setFileInputVisibility(false);
+    if (stAttachment) stAttachment.classList.add('d-none');
+
   } else {
     submitBtn.disabled = false;
     submitBtn.innerHTML = '<i class="fa fa-paper-plane me-1"></i> Submit';
     setFileInputVisibility(true);
+    if (stAttachment) stAttachment.classList.remove('d-none');
   }
+} else {
+  // non-students: keep your normal behavior
+  submitBtn.disabled = false;
+  submitBtn.innerHTML = '<i class="fa fa-paper-plane me-1"></i> Submit';
+  setFileInputVisibility(true);
+}
+
 }
 
   // Render existing submissions for student view (unchanged)
@@ -2786,7 +2922,7 @@ function renderAssignmentInfo(info) {
     fileInput.files = dtNew.files;
     renderFiles(fileInput.files);
   });
-  dropzone && dropzone.addEventListener('click', ()=> fileInput && fileInput.click());
+  // dropzone && dropzone.addEventListener('click', ()=> fileInput && fileInput.click());
   fileInput && fileInput.addEventListener('change', ()=> renderFiles(fileInput.files));
   clearBtn && clearBtn.addEventListener('click', ()=> { if(fileInput) fileInput.value=''; renderFiles([]); });
 
@@ -3209,6 +3345,7 @@ function openEditModal(item) {
         { id: 'assign_end_at', value: item.end_at ? (new Date(item.end_at)).toISOString().slice(0,16) : '' }
     ];
 
+    
     basicFields.forEach(field => {
         try {
             const element = document.getElementById(field.id);
