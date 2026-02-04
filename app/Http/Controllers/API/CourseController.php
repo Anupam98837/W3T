@@ -1454,6 +1454,7 @@ public function viewCourseByBatch(Request $r, string $batchKey)
             $q->whereNull('deleted_at');
         }
 
+        // mandatory filters per your requirement
         if (Schema::hasColumn('quizz_attempt_batch','batch_id')) {
             $q->where('batch_id', $batchId);
         } else {
@@ -1474,7 +1475,8 @@ public function viewCourseByBatch(Request $r, string $batchKey)
         }
     }
 
-    // 4) ✅ Coding Test submissions via coding_attempts (batch_id + course_module_id + actor)
+    // 4) ✅ Coding submissions via coding_attempts (batch_id + course_module_id + actor)
+    // We'll store attempts keyed by course_module_id
     $codingAttemptSetByCourseModule = [];
     if ($rules['coding_test_submitted'] === 1 && $codingAttemptActorCol) {
 
@@ -1484,7 +1486,7 @@ public function viewCourseByBatch(Request $r, string $batchKey)
             $q->whereNull('deleted_at');
         }
 
-        // batch filter only if column exists
+        // mandatory filters per your requirement
         if (Schema::hasColumn('coding_attempts','batch_id')) {
             $q->where('batch_id', $batchId);
         } else {
@@ -1494,7 +1496,7 @@ public function viewCourseByBatch(Request $r, string $batchKey)
         if ($q) {
             $q->where($codingAttemptActorCol, $userId);
 
-            // course_module_id must exist
+            // course_module_id must exist here
             if (Schema::hasColumn('coding_attempts','course_module_id')) {
                 $q->whereIn('course_module_id', $cmIds);
 

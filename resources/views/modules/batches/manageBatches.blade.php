@@ -1563,7 +1563,7 @@ const items = pickList(j).slice().sort(sortByDisplayOrder);
         <button class="btn btn-outline-primary bcm-order-save"
           type="button"
           data-id="${esc(idOrUuid)}">
-          Save
+         <i class="fa-regular fa-floppy-disk"></i>
         </button>
       </div>
       <div class="small text-muted mt-1 bcm-order-msg" data-id="${esc(idOrUuid)}"></div>
