@@ -1337,5 +1337,35 @@ protected function appendFilesAndLibraryUrls(Request $r, int $batchId, array $ex
 
     return $out;
 }
+/**
+ * Safe JSON decode helper (returns associative arrays).
+ * Accepts JSON string / array / object / null.
+ */
+private function jsonDecode($value, $fallback = null)
+{
+    if ($value === null) return $fallback;
+
+    // already decoded
+    if (is_array($value)) return $value;
+
+    // stdClass / object -> array
+    if (is_object($value)) {
+        return json_decode(json_encode($value), true) ?? $fallback;
+    }
+
+    // JSON string
+    if (is_string($value)) {
+        $value = trim($value);
+        if ($value === '' || strtolower($value) === 'null') return $fallback;
+
+        $decoded = json_decode($value, true);
+        if (json_last_error() === JSON_ERROR_NONE) {
+            return $decoded;
+        }
+        return $fallback;
+    }
+
+    return $fallback;
+}
 
 }

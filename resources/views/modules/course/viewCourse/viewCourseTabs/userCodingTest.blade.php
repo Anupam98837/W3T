@@ -812,63 +812,70 @@
 
     return '';
   };
-    // ============================
-  // ✅ Module Context (from URL)
-  // ============================
-  const URLP = new URLSearchParams(window.location.search);
+const deriveModuleUuid = () => {
+    try {
+      const url = new URL(window.location.href);
 
-  const RAW_MODULE_UUID =
-    (URLP.get('module_uuid') || URLP.get('course_module_uuid') || '').trim();
+      const uuidRe = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
 
-  const RAW_MODULE_ID =
-    (URLP.get('module_id') || URLP.get('course_module_id') || '').trim();
+      const candidates = [
+        'module_uuid',
+        'module',
+        'moduleId',
+        'module_id',
+        'course_module_uuid',
+        'course_module_id',
+        'mid',
+        'm'
+      ];
 
-  const MODULE = {
-    id: (RAW_MODULE_ID && /^\d+$/.test(RAW_MODULE_ID)) ? Number(RAW_MODULE_ID) : null,
-    uuid: (RAW_MODULE_UUID && /^[0-9a-fA-F-]{36}$/.test(RAW_MODULE_UUID)) ? RAW_MODULE_UUID : null
+      // 1) First pass: return FIRST candidate that looks like a UUID
+      for (const key of candidates) {
+        const v = url.searchParams.get(key);
+        if (v && uuidRe.test(String(v).trim())) return String(v).trim();
+      }
+
+      // 2) If URL path contains uuid, prefer that over numeric query params
+      const parts = url.pathname.split('/').filter(Boolean);
+
+      const modulesIdx = parts.findIndex(p => ['module','modules'].includes(String(p).toLowerCase()));
+      if (modulesIdx !== -1 && parts[modulesIdx + 1] && uuidRe.test(parts[modulesIdx + 1])) {
+        return parts[modulesIdx + 1];
+      }
+
+      const anyPath = parts.find(p => uuidRe.test(p));
+      if (anyPath) return anyPath;
+
+      // 3) Hash uuid
+      const hash = (url.hash || '').replace('#','');
+      if (hash && uuidRe.test(hash)) return hash;
+
+      // 4) Finally: fall back to any non-empty candidate (could be numeric id)
+      for (const key of candidates) {
+        const v = url.searchParams.get(key);
+        if (v && String(v).trim() !== '') return String(v).trim();
+      }
+
+      return null;
+    } catch (e) {
+      return null;
+    }
   };
 
-  // Query string to append to API URLs
-  const MODULE_QS = (() => {
-    const p = new URLSearchParams();
-    if (MODULE.id != null) {
-      p.set('course_module_id', String(MODULE.id));
-      p.set('module_id', String(MODULE.id)); // compat
-    }
-    if (MODULE.uuid) {
-      p.set('course_module_uuid', MODULE.uuid);
-      p.set('module_uuid', MODULE.uuid); // compat
-    }
-    return p.toString();
-  })();
+  // ✅ expose so other code can reuse safely
+  window.deriveModuleUuid = deriveModuleUuid;
 
-  // Append module filter to a relative API path (used by api())
-  function withModule(path){
-    if(!MODULE_QS) return path;
-    return path + (path.includes('?') ? '&' : '?') + MODULE_QS;
+  // ✅ Get module filter dynamically (do NOT cache once)
+  function getModuleFilter() {
+    const mod = String(deriveModuleUuid() || '').trim();
+    if (!mod) return null;
+
+    // numeric => treat as id
+    if (/^\d+$/.test(mod)) return { course_module_id: String(Number(mod)) };
+
+    // otherwise treat as uuid
+    return { course_module_uuid: mod };
   }
-
-  // Append module filter to a full URL string
-  function withModuleUrl(url){
-    if(!MODULE_QS) return url;
-    return url + (url.includes('?') ? '&' : '?') + MODULE_QS;
-  }
-
-  // Add module keys into POST bodies (assign/start)
-  function modulePayload(){
-    const p = {};
-    if (MODULE.id != null) {
-      p.course_module_id = MODULE.id;
-      p.module_id = MODULE.id; // compat
-    }
-    if (MODULE.uuid) {
-      p.course_module_uuid = MODULE.uuid;
-      p.module_uuid = MODULE.uuid; // compat
-    }
-    return p;
-  }
-
-
   function openAttemptsModal(uuid){
     $attemptsModal.style.display = 'grid';
     
@@ -1448,7 +1455,7 @@
     try{
       const myRole = await getMyRole(token);
 
-            RAW = await api(withModule(`/batches/${encodeURIComponent(BATCH_ID)}/coding-questions`), {
+      RAW = await api(`/batches/${encodeURIComponent(BATCH_ID)}/coding-questions`, {
         method: 'GET'
       });
 
@@ -1470,14 +1477,10 @@
 
       $listTitle.textContent = CAN_MANAGE ? 'Manage Batch Coding Questions' : 'Your Assigned Coding Questions';
 
-           $hintPill.style.display = 'inline-flex';
-
-      const modHint = MODULE_QS ? 'Module filter ON • ' : '';
-
+      $hintPill.style.display = 'inline-flex';
       $hintPill.textContent = CAN_MANAGE
-        ? (modHint + 'Set max attempts, then toggle Assign')
-        : (modHint + 'Click ••• to view your previous attempts');
-
+        ? 'Set max attempts, then toggle Assign'
+        : 'Click ••• to view your previous attempts';
 
       updateStats();
 
@@ -1494,7 +1497,6 @@
 
   async function assignQuestion(uuid, maxAttempts){
     const payload = {
-            ...modulePayload(),
       question_uuid: uuid,
       questionUuids: [uuid],
       question_uuids: [uuid],
@@ -1507,20 +1509,20 @@
       assign_status: 1
     };
 
-    await api(withModule(`/batches/${encodeURIComponent(BATCH_ID)}/coding-questions/assign`), {
+    await api(`/batches/${encodeURIComponent(BATCH_ID)}/coding-questions/assign`, {
       method:'POST',
       body: JSON.stringify(payload)
     });
   }
 
   async function unassignQuestion(uuid){
-    await api(withModule(`/batches/${encodeURIComponent(BATCH_ID)}/coding-questions/${encodeURIComponent(uuid)}`), {
+    await api(`/batches/${encodeURIComponent(BATCH_ID)}/coding-questions/${encodeURIComponent(uuid)}`, {
       method:'DELETE'
     });
   }
 
   async function startQuestion(uuid){
-    const payload = {  ...modulePayload(), batch_id: BATCH_ID, batch: BATCH_ID, question_uuid: uuid, questionUuid: uuid };
+    const payload = { batch_id: BATCH_ID, batch: BATCH_ID, question_uuid: uuid, questionUuid: uuid };
 
     const data = await api(`/judge/start`, { method:'POST', body: JSON.stringify(payload) });
 
@@ -1530,8 +1532,6 @@
     const url = new URL(TEST_URL, window.location.origin);
     url.searchParams.set('batch', BATCH_ID);
     url.searchParams.set('question', uuid);
-    if (MODULE.id != null) url.searchParams.set('module_id', String(MODULE.id));
-    if (MODULE.uuid) url.searchParams.set('module_uuid', MODULE.uuid);
     if(attemptUuid) url.searchParams.set('attempt', attemptUuid);
 
     window.location.href = url.toString();
@@ -1763,8 +1763,6 @@
 
   async function assignCodingQuestion(batchKey, questionUuid, attemptAllowed, quiet=false){
     const payload = {
-            ...modulePayload(),
-
       question_uuid: questionUuid,
       questionUuid: questionUuid,
       question_uuids: [questionUuid],
@@ -1779,11 +1777,7 @@
       assign_status: 1
     };
 
-    const assignUrl =
-      `/api/batches/${encodeURIComponent(batchKey)}/coding-questions/assign` +
-      (MODULE_QS ? `?${MODULE_QS}` : '');
-
-    const res = await fetch(assignUrl, {
+    const res = await fetch(`/api/batches/${encodeURIComponent(batchKey)}/coding-questions/assign`, {
       method: 'POST',
       headers: { 'Authorization':'Bearer '+token, 'Content-Type':'application/json', 'Accept':'application/json' },
       body: JSON.stringify(payload)
@@ -1803,11 +1797,7 @@
   }
 
   async function unassignCodingQuestion(batchKey, questionUuid, quiet=false){
-    const delUrl =
-      `/api/batches/${encodeURIComponent(batchKey)}/coding-questions/${encodeURIComponent(questionUuid)}` +
-      (MODULE_QS ? `?${MODULE_QS}` : '');
-
-    const res = await fetch(delUrl, {
+    const res = await fetch(`/api/batches/${encodeURIComponent(batchKey)}/coding-questions/${encodeURIComponent(questionUuid)}`, {
       method: 'DELETE',
       headers: { 'Authorization':'Bearer '+token, 'Accept':'application/json' }
     });
@@ -1832,10 +1822,7 @@
     cq_rows.querySelectorAll('tr:not(#cq_loader)').forEach(tr=>tr.remove());
 
     try{
-      const baseUrl = `/api/batches/${encodeURIComponent(cq_batch_key)}/coding-questions?mode=all`;
-      const url = baseUrl + (MODULE_QS ? `&${MODULE_QS}` : '') + `&${cqParams()}`;
-
-      const res = await fetch(url, {
+      const res = await fetch(`/api/batches/${encodeURIComponent(cq_batch_key)}/coding-questions?mode=all&${cqParams()}`, {
         headers: { 'Authorization': 'Bearer ' + token, 'Accept': 'application/json' }
       });
 
