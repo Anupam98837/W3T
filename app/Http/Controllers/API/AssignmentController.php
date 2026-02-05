@@ -682,6 +682,10 @@ public function restore(Request $r, string $assignment)
  *   - URL filter applies to:
  *       1) modules list (modules_with_assignments + all_modules)
  *       2) assignments query
+ *
+ * ✅ NEW: Join with assignment_submissions (via assignment_id)
+ *   - For super_admin/admin/instructor: per assignment -> submitted_students / total_students
+ *   - For student: per assignment -> submitted (true/false)
  */
 public function viewAssignmentByBatch(Request $r, string $batchKey)
 {
@@ -750,6 +754,12 @@ public function viewAssignmentByBatch(Request $r, string $batchKey)
         ->first();
     if (!$course) return response()->json(['error'=>'Course not found for this batch'], 404);
 
+    // total students assigned in the batch (used for staff submission stats)
+    $studentsCount = DB::table('batch_students')
+        ->where('batch_id', $batch->id)
+        ->whereNull('deleted_at')
+        ->count();
+
     // ===========================
     // ✅ Module filter (UUID-first)
     // ===========================
@@ -816,19 +826,68 @@ public function viewAssignmentByBatch(Request $r, string $batchKey)
         return response()->json(['error' => 'Module is not available'], 403);
     }
 
+    // ===========================
+    // ✅ Submissions join helpers
+    // ===========================
+    // For staff: submitted students count per assignment (distinct student_id)
+    $subAgg = null;
+    if ($isStaff) {
+        $subAgg = DB::table('assignment_submissions as s')
+            ->select('s.assignment_id', DB::raw('COUNT(DISTINCT s.student_id) as submitted_students'))
+            ->whereNull('s.deleted_at')
+            ->where('s.batch_id', $batch->id)
+            // If you have non-submitted rows like 'draft', uncomment:
+            // ->where('s.status', 'submitted')
+            ->groupBy('s.assignment_id');
+    }
+
+    // For student: whether THIS student has submitted each assignment
+    $mySub = null;
+    if ($isStudent) {
+        $mySub = DB::table('assignment_submissions as s')
+            ->select('s.assignment_id', DB::raw('1 as has_submitted'))
+            ->whereNull('s.deleted_at')
+            ->where('s.batch_id', $batch->id)
+            ->where('s.student_id', $uid)
+            // ->where('s.status', 'submitted')
+            ->groupBy('s.assignment_id');
+    }
+
     // load assignments for batch (join modules for context and creator info)
     $aq = DB::table('assignments as a')
         ->leftJoin('course_modules as cm', 'cm.id', '=', 'a.course_module_id')
         ->leftJoin('users as creator', 'creator.id', '=', 'a.created_by')
         ->where('a.batch_id', $batch->id)
         ->whereNull('a.deleted_at')
-        ->whereNull('cm.deleted_at')
-        ->select(
-            'a.id','a.uuid','a.title','a.slug','a.instruction','a.status','a.attachments_json',
-            'a.course_module_id','cm.title as module_title','cm.uuid as module_uuid','cm.status as module_status',
-            'a.created_at','a.updated_at',
-            'creator.name as created_by_name'
-        )
+        ->whereNull('cm.deleted_at');
+
+    // ✅ join submission aggregates
+    if ($isStaff && $subAgg) {
+        $aq->leftJoinSub($subAgg, 'subm', function($j){
+            $j->on('subm.assignment_id', '=', 'a.id');
+        });
+    }
+    if ($isStudent && $mySub) {
+        $aq->leftJoinSub($mySub, 'mysub', function($j){
+            $j->on('mysub.assignment_id', '=', 'a.id');
+        });
+    }
+
+    $selects = [
+        'a.id','a.uuid','a.title','a.slug','a.instruction','a.status','a.attachments_json',
+        'a.course_module_id','cm.title as module_title','cm.uuid as module_uuid','cm.status as module_status',
+        'a.created_at','a.updated_at',
+        'creator.name as created_by_name'
+    ];
+
+    if ($isStaff) {
+        $selects[] = DB::raw('COALESCE(subm.submitted_students, 0) as submitted_students');
+    }
+    if ($isStudent) {
+        $selects[] = DB::raw('COALESCE(mysub.has_submitted, 0) as has_submitted');
+    }
+
+    $aq->select($selects)
         ->orderBy('cm.order_no')
         ->orderBy('a.created_at', 'desc');
 
@@ -870,7 +929,7 @@ public function viewAssignmentByBatch(Request $r, string $batchKey)
             }
         }
 
-        $byModule[$mid]['assignments'][] = [
+        $row = [
             'id' => (int)$as->id,
             'uuid' => $as->uuid,
             'title' => $as->title,
@@ -882,6 +941,18 @@ public function viewAssignmentByBatch(Request $r, string $batchKey)
             'updated_at' => $as->updated_at,
             'created_by_name' => $as->created_by_name,
         ];
+
+        // ✅ NEW per assignment keys
+        if ($isStaff) {
+            $row['submitted_students'] = (int)($as->submitted_students ?? 0);
+            $row['total_students']     = (int)$studentsCount;
+            // optional combined display:
+            // $row['submission_ratio'] = ((int)($as->submitted_students ?? 0)) . '/' . ((int)$studentsCount);
+        } elseif ($isStudent) {
+            $row['submitted'] = ((int)($as->has_submitted ?? 0)) === 1;
+        }
+
+        $byModule[$mid]['assignments'][] = $row;
     }
 
     // instructors list (if pivot exists)
@@ -905,13 +976,10 @@ public function viewAssignmentByBatch(Request $r, string $batchKey)
             ])->values();
     }
 
-    $studentsCount = DB::table('batch_students')
-        ->where('batch_id', $batch->id)
-        ->whereNull('deleted_at')
-        ->count();
-
     // ✅ count only filtered assignments if module filter applied
-    $assignmentsCountQ = DB::table('assignments')->where('batch_id', $batch->id)->whereNull('deleted_at');
+    $assignmentsCountQ = DB::table('assignments')
+        ->where('batch_id', $batch->id)
+        ->whereNull('deleted_at');
     if ($resolvedModuleId) $assignmentsCountQ->where('course_module_id', $resolvedModuleId);
     $assignmentsCount = $assignmentsCountQ->count();
 
@@ -958,6 +1026,7 @@ public function viewAssignmentByBatch(Request $r, string $batchKey)
 
     return response()->json(['data' => $payload]);
 }
+
 public function storeByBatch(Request $r, string $batchKey)
 {
     if ($res = $this->requireRole($r, ['admin','super_admin','instructor'])) return $res;

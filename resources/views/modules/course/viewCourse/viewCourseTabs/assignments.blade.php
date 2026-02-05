@@ -6,7 +6,6 @@
 
 <style>
 /* same compact CSS style as study material page but with as- prefix where needed */
-.crs-wrap{ }
 .as-list{max-width:1100px;margin:18px auto}
 .as-card{border-radius:12px;padding:18px}
 .as-item{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px;border-radius:10px;border:1px solid var(--line-strong)}
@@ -1225,7 +1224,32 @@ if (role === 'student') {
     title.appendChild(badge);
   }
 }
-
+// ADD SUBMISSION STATS BADGE (admin/instructor only)
+if (isPrivileged && row.submitted_students !== undefined && row.total_students !== undefined) {
+  const statsBadge = document.createElement('span');
+  statsBadge.className = 'badge bg-info';
+  statsBadge.style.fontSize = '11px';
+  statsBadge.style.marginLeft = '8px';
+  statsBadge.style.padding = '3px 8px';
+  
+  const submitted = row.submitted_students || 0;
+  const total = row.total_students || 0;
+  const percentage = total > 0 ? Math.round((submitted / total) * 100) : 0;
+  
+  statsBadge.textContent = `${submitted}/${total} submitted (${percentage}%)`;
+  
+  // Change badge color based on submission rate
+  if (percentage === 100) {
+    statsBadge.classList.remove('bg-info');
+    statsBadge.classList.add('bg-success');
+  } else if (percentage < 50) {
+    statsBadge.classList.remove('bg-info');
+    statsBadge.classList.add('bg-warning');
+  }
+  
+  // Insert badge next to title
+  title.appendChild(statsBadge);
+}
     meta.appendChild(creatorInfo); // Add creator info to meta section
     
 
@@ -1850,12 +1874,17 @@ async function fetchAllStudentSubmissions() {
   
   try {
     const token = localStorage.getItem('token') || sessionStorage.getItem('token') || '';
-    const resp = await fetch('/api/assignments/my-submissions', {
-      headers: { 
-        'Authorization': 'Bearer ' + token, 
-        'Accept': 'application/json' 
-      }
-    });
+    const resp = await fetch(
+  `/api/assignments/${encodeURIComponent(assignmentKey)}/submissions`,
+  {
+    method: 'GET',
+    headers: {
+      'Accept': 'application/json',
+      // 'Authorization': `Bearer ${token}`, // if your API is protected
+    },
+  }
+);
+
     
     if (!resp.ok) return;
     const data = await resp.json();
@@ -3221,18 +3250,18 @@ function resetCreateModalFields(){try{const cf=document.getElementById('assignCr
       ? getActiveModuleUuid() 
       : (ctx && (ctx.module_uuid || ctx.moduleUuid || ctx.module_id || ctx.moduleId) || null);
     
-    console.log('[CREATE] Active module UUID:', activeModuleUuid); // DEBUG
+    // console.log('[CREATE] Active module UUID:', activeModuleUuid); // DEBUG
     
     if (activeModuleUuid) {
       // Send as module_uuid (UUID format) or course_module_id (numeric format)
       if (/^\d+$/.test(String(activeModuleUuid))) {
         // Numeric ID
         fd.append('course_module_id', String(activeModuleUuid));
-        console.log('[CREATE] Sending course_module_id:', activeModuleUuid);
+        // console.log('[CREATE] Sending course_module_id:', activeModuleUuid);
       } else if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(activeModuleUuid))) {
         // UUID format
         fd.append('module_uuid', String(activeModuleUuid));
-        console.log('[CREATE] Sending module_uuid:', activeModuleUuid);
+        // console.log('[CREATE] Sending module_uuid:', activeModuleUuid);
       } else {
         console.warn('[CREATE] Module identifier not in expected format:', activeModuleUuid);
       }
@@ -3300,7 +3329,7 @@ function resetCreateModalFields(){try{const cf=document.getElementById('assignCr
 });   
 }    
 function openEditModal(item) {
-    console.log('Opening edit modal for item:', item);
+    // console.log('Opening edit modal for item:', item);
     
     // Check if modal element exists
     if (!modalEl) { 
@@ -3373,7 +3402,7 @@ function openEditModal(item) {
 
     // allowed types - IMPROVED VERSION
     try {
-        console.log('Processing allowed_submission_types:', item.allowed_submission_types);
+        // console.log('Processing allowed_submission_types:', item.allowed_submission_types);
         
         if (Array.isArray(item.allowed_submission_types)) {
             allowedTypes = item.allowed_submission_types.map(String).filter(Boolean);
@@ -3390,18 +3419,18 @@ function openEditModal(item) {
             allowedTypes = [];
         }
         
-        console.log('Processed allowedTypes:', allowedTypes);
+        // console.log('Processed allowedTypes:', allowedTypes);
 
         // Render the selected types with error handling
         if (typeof renderAssignModalSelected === 'function') {
-            console.log('Calling renderAssignModalSelected');
+            // console.log('Calling renderAssignModalSelected');
             renderAssignModalSelected();
         } else {
             console.warn('renderAssignModalSelected is not a function');
         }
         
         if (typeof renderAssignSelectedChips === 'function') {
-            console.log('Calling renderAssignSelectedChips');
+            // console.log('Calling renderAssignSelectedChips');
             renderAssignSelectedChips();
         } else {
             console.warn('renderAssignSelectedChips is not a function');
@@ -3477,7 +3506,7 @@ function openEditModal(item) {
     }
 
     // show modal - ROBUST VERSION
-    console.log('Attempting to show modal...');
+    // console.log('Attempting to show modal...');
     
     try {
         // Check if modal element still exists
@@ -3487,15 +3516,15 @@ function openEditModal(item) {
 
         // Method 1: Use showModalSafe if available
         if (typeof showModalSafe === 'function') {
-            console.log('Using showModalSafe function');
+            // console.log('Using showModalSafe function');
             showModalSafe();
         } 
         // Method 2: Use Bootstrap Modal
         else if (typeof bootstrap !== 'undefined' && bootstrap.Modal) {
-            console.log('Using Bootstrap Modal');
+            // console.log('Using Bootstrap Modal');
             let modalInstance = bootstrap.Modal.getInstance(modalEl);
             if (!modalInstance) {
-                console.log('Creating new Bootstrap Modal instance');
+                // console.log('Creating new Bootstrap Modal instance');
                 modalInstance = new bootstrap.Modal(modalEl, {
                     backdrop: true,
                     keyboard: true,
@@ -3506,7 +3535,7 @@ function openEditModal(item) {
         }
         // Method 3: Manual fallback
         else {
-            console.log('Using manual modal display');
+            // console.log('Using manual modal display');
             modalEl.style.display = 'block';
             modalEl.classList.add('show');
             document.body.classList.add('modal-open');
@@ -3520,14 +3549,14 @@ function openEditModal(item) {
             }
         }
         
-        console.log('Modal shown successfully');
+        // console.log('Modal shown successfully');
         
     } catch (modalError) {
         console.error('Error showing modal:', modalError);
         
         // Emergency fallback
         if (modalEl) {
-            console.log('Using emergency fallback for modal');
+            // console.log('Using emergency fallback for modal');
             modalEl.style.display = 'block';
         } else {
             showErr('Cannot open edit modal - please refresh the page');
@@ -3574,7 +3603,6 @@ const createdTd=document.createElement('td');createdTd.textContent=it.created_at
       setTimeout(()=>{wrap.querySelector('#bin-refresh')?.addEventListener('click',()=>openBin());wrap.querySelector('#bin-back')?.addEventListener('click',()=>loadAssignments());},0);
       return wrap;
     }
-
     async function restoreItem(item){const r=await Swal.fire({title:'Restore item?',text:`Restore "${item.title||'this item'}"?`,icon:'question',showCancelButton:true,confirmButtonText:'Yes, restore',cancelButtonText:'Cancel'});if(!r.isConfirmed)return;try{const url=`/api/assignments/${encodeURIComponent(item.id||item.uuid)}/restore`;const res=await apiFetch(url,{method:'POST'});if(!res.ok)throw new Error('Restore failed: '+res.status);showOk('Restored');await openBin();}catch(e){console.error(e);showErr('Restore failed');}}
     async function forceDeleteItem(item){const r=await Swal.fire({title:'Permanently delete?',html:`Permanently delete "<strong>${escapeHtml(item.title||'this item')}</strong>"?<br><strong>This cannot be undone.</strong>`,icon:'warning',showCancelButton:true,confirmButtonText:'Yes, delete permanently',cancelButtonText:'Cancel',focusCancel:true});if(!r.isConfirmed)return;try{const url=`/api/assignments/${encodeURIComponent(item.id||item.uuid)}/force`;const res=await apiFetch(url,{method:'DELETE'});if(!res.ok)throw new Error('Delete failed: '+res.status);showOk('Permanently deleted');await openBin();}catch(e){console.error(e);showErr('Delete failed');}}
 
@@ -3583,8 +3611,6 @@ const createdTd=document.createElement('td');createdTd.textContent=it.created_at
     function restorePreviousList(){if($items){if(_prevContent!==null){$items.innerHTML=_prevContent;_prevContent=null;}else{if(typeof loadAssignments==='function')loadAssignments();}}}
     $btnBin.addEventListener('click',ev=>{ev.preventDefault();openBin();});
   })();
-  
-
   loadAssignments();
 })();
 </script>
