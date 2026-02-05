@@ -541,6 +541,10 @@
     <div class="ct-stat" style="display:none;">
       <div class="k">Role</div><div class="v" id="stRole">—</div>
     </div>
+    <div class="ct-stat d-none" id="stModuleStat" style="display:none;">
+    <div class="k">Module</div>
+    <div class="v" id="stModule">—</div>
+  </div>
   </div>
 
   <div class="ct-card">
@@ -812,70 +816,178 @@
 
     return '';
   };
+// ✅ ADD THIS ENTIRE BLOCK
 const deriveModuleUuid = () => {
-    try {
-      const url = new URL(window.location.href);
+  try {
+    const url = new URL(window.location.href);
+    const uuidRe = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
 
-      const uuidRe = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
+    const candidates = [
+      'module_uuid',
+      'module',
+      'moduleId',
+      'module_id',
+      'course_module_uuid',
+      'course_module_id',
+      'mid',
+      'm'
+    ];
 
-      const candidates = [
-        'module_uuid',
-        'module',
-        'moduleId',
-        'module_id',
-        'course_module_uuid',
-        'course_module_id',
-        'mid',
-        'm'
-      ];
-
-      // 1) First pass: return FIRST candidate that looks like a UUID
-      for (const key of candidates) {
-        const v = url.searchParams.get(key);
-        if (v && uuidRe.test(String(v).trim())) return String(v).trim();
-      }
-
-      // 2) If URL path contains uuid, prefer that over numeric query params
-      const parts = url.pathname.split('/').filter(Boolean);
-
-      const modulesIdx = parts.findIndex(p => ['module','modules'].includes(String(p).toLowerCase()));
-      if (modulesIdx !== -1 && parts[modulesIdx + 1] && uuidRe.test(parts[modulesIdx + 1])) {
-        return parts[modulesIdx + 1];
-      }
-
-      const anyPath = parts.find(p => uuidRe.test(p));
-      if (anyPath) return anyPath;
-
-      // 3) Hash uuid
-      const hash = (url.hash || '').replace('#','');
-      if (hash && uuidRe.test(hash)) return hash;
-
-      // 4) Finally: fall back to any non-empty candidate (could be numeric id)
-      for (const key of candidates) {
-        const v = url.searchParams.get(key);
-        if (v && String(v).trim() !== '') return String(v).trim();
-      }
-
-      return null;
-    } catch (e) {
-      return null;
+    // 1) First pass: return FIRST candidate that looks like a UUID
+    for (const key of candidates) {
+      const v = url.searchParams.get(key);
+      if (v && uuidRe.test(String(v).trim())) return String(v).trim();
     }
-  };
 
-  // ✅ expose so other code can reuse safely
-  window.deriveModuleUuid = deriveModuleUuid;
+    // 2) Check URL path for module segments
+    const parts = url.pathname.split('/').filter(Boolean);
+    const modulesIdx = parts.findIndex(p => ['module','modules'].includes(String(p).toLowerCase()));
+    if (modulesIdx !== -1 && parts[modulesIdx + 1] && uuidRe.test(parts[modulesIdx + 1])) {
+      return parts[modulesIdx + 1];
+    }
 
-  // ✅ Get module filter dynamically (do NOT cache once)
-  function getModuleFilter() {
-    const mod = String(deriveModuleUuid() || '').trim();
-    if (!mod) return null;
+    // 3) Any path segment that looks like UUID
+    const anyPath = parts.find(p => uuidRe.test(p));
+    if (anyPath) return anyPath;
 
-    // numeric => treat as id
-    if (/^\d+$/.test(mod)) return { course_module_id: String(Number(mod)) };
+    // 4) Hash fragment
+    const hash = (url.hash || '').replace('#','');
+    if (hash && uuidRe.test(hash)) return hash;
 
-    // otherwise treat as uuid
-    return { course_module_uuid: mod };
+    // 5) Fallback to any non-empty candidate (numeric IDs)
+    for (const key of candidates) {
+      const v = url.searchParams.get(key);
+      if (v && String(v).trim() !== '') return String(v).trim();
+    }
+
+    return null;
+  } catch (e) {
+    return null;
   }
+};
+
+// ✅ Expose globally
+window.deriveModuleUuid = deriveModuleUuid;
+
+// ✅ Get module filter dynamically
+function getModuleFilter() {
+  const mod = String(deriveModuleUuid() || '').trim();
+  if (!mod) return null;
+
+  // numeric => treat as id
+  if (/^\d+$/.test(mod)) return { course_module_id: String(Number(mod)) };
+
+  // otherwise treat as uuid
+  return { course_module_uuid: mod };
+}
+
+// ✅ Generate query string for API calls
+function moduleQueryString() {
+  const mf = getModuleFilter();
+  if (!mf) return '';
+  
+  const p = new URLSearchParams();
+
+  if (mf.course_module_uuid) {
+    // Send BOTH keys for backend compatibility
+    p.set('course_module_uuid', String(mf.course_module_uuid).trim());
+    p.set('module_uuid', String(mf.course_module_uuid).trim());
+  } else if (mf.course_module_id != null) {
+    p.set('course_module_id', String(mf.course_module_id).trim());
+    p.set('module_id', String(mf.course_module_id).trim());
+  }
+
+  return p.toString();
+}
+function passesModuleFilter(item) {
+  const mf = getModuleFilter();
+  if (!mf) return true; // No filter = show all
+
+  // Extract module identifiers from item
+  const cmid =
+    item.course_module_id ??
+    item.module_id ??
+    item.raw?.course_module_id ??
+    null;
+
+  const cmuuid =
+    item.course_module_uuid ??
+    item.module_uuid ??
+    item.raw?.course_module_uuid ??
+    null;
+
+  // ✅ SIMPLIFIED: Compare ID if available, otherwise UUID
+  if (mf.course_module_id != null && cmid != null) {
+    return String(cmid) === String(mf.course_module_id);
+  }
+  
+  if (mf.course_module_uuid && cmuuid) {
+    return String(cmuuid).toLowerCase() === String(mf.course_module_uuid).toLowerCase();
+  }
+
+  // ✅ If we have a filter but item has no matching field, exclude it
+  return false;
+}
+// ✅ AFTER the module filtering functions, ADD THIS:
+
+// Track current module to detect changes
+let CURRENT_MODULE = null;
+
+// ✅ Function to check if module changed
+function hasModuleChanged() {
+  const newModule = deriveModuleUuid();
+  const changed = newModule !== CURRENT_MODULE;
+  if (changed) {
+    console.log('[Module Change]', { from: CURRENT_MODULE, to: newModule });
+    CURRENT_MODULE = newModule;
+  }
+  return changed;
+}
+
+// ✅ Monitor URL changes (for SPA-style navigation)
+let lastUrl = window.location.href;
+
+function checkUrlChange() {
+  const currentUrl = window.location.href;
+  
+  if (currentUrl !== lastUrl) {
+    console.log('[URL Changed]', { from: lastUrl, to: currentUrl });
+    lastUrl = currentUrl;
+    
+    if (hasModuleChanged()) {
+      console.log('[Reloading for module change...]');
+      loadIndex(); // Re-fetch data for new module
+    }
+  }
+}
+
+// ✅ Poll for URL changes (catches hash/query param changes)
+setInterval(checkUrlChange, 500);
+
+// ✅ Listen for navigation events
+window.addEventListener('popstate', () => {
+  console.log('[Popstate detected]');
+  checkUrlChange();
+});
+
+window.addEventListener('hashchange', () => {
+  console.log('[Hash change detected]');
+  checkUrlChange();
+});
+
+// ✅ Intercept pushState/replaceState (for SPA routing)
+const originalPushState = history.pushState;
+const originalReplaceState = history.replaceState;
+
+history.pushState = function(...args) {
+  originalPushState.apply(this, args);
+  checkUrlChange();
+};
+
+history.replaceState = function(...args) {
+  originalReplaceState.apply(this, args);
+  checkUrlChange();
+};
   function openAttemptsModal(uuid){
     $attemptsModal.style.display = 'grid';
     
@@ -1320,17 +1432,28 @@ const deriveModuleUuid = () => {
   }
 
   function updateStats(){
-    const total = LIST.length;
-    const assigned = LIST.filter(x=>x.assigned).length;
-    const attempts = LIST.reduce((a,x)=>a + (Number(x.attemptsCount)||0), 0);
+  const total = LIST.length;
+  const assigned = LIST.filter(x=>x.assigned).length;
+  const attempts = LIST.reduce((a,x)=>a + (Number(x.attemptsCount)||0), 0);
 
-    stTotal.textContent = String(total);
-    stAssigned.textContent = String(assigned);
-    stAttempts.textContent = String(attempts);
-    stRole.textContent = ROLE ? ROLE : '—';
+  stTotal.textContent = String(total);
+  stAssigned.textContent = String(assigned);
+  stAttempts.textContent = String(attempts);
+  stRole.textContent = ROLE ? ROLE : '—';
 
-    $stats.style.display = 'grid';
+  // ✅ Show module filter if active
+  const mf = getModuleFilter();
+  const stModuleEl = el('stModule');
+  const stModuleStatEl = el('stModuleStat');
+  
+  if (mf && stModuleEl && stModuleStatEl) {
+    const modVal = mf.course_module_uuid || mf.course_module_id || '—';
+    stModuleEl.textContent = String(modVal).slice(0, 12) + (String(modVal).length > 12 ? '...' : '');
+    stModuleStatEl.style.display = 'block';
   }
+
+  $stats.style.display = 'grid';
+}
 
   function renderAttemptsModal(attempts, questionTitle){
 
@@ -1435,86 +1558,134 @@ const deriveModuleUuid = () => {
         </div>`;
     }
   }
-
-  async function loadIndex(){
-    if(!token){
-      $noToken.style.display = 'flex';
-      setLoading(false);
-      return;
-    }
-    if(!BATCH_ID){
-      $noBatch.style.display = 'flex';
-      setLoading(false);
-      return;
-    }
-
-    $noToken.style.display = 'none';
-    $noBatch.style.display = 'none';
-    setLoading(true);
-
-    try{
-      const myRole = await getMyRole(token);
-
-      RAW = await api(`/batches/${encodeURIComponent(BATCH_ID)}/coding-questions`, {
-        method: 'GET'
-      });
-
-      ROLE = myRole || detectRole(RAW);
-      console.log('[CodingTests]', { ROLE, CAN_MANAGE });
-
-      CAN_MANAGE = ['admin', 'superadmin', 'instructor'].includes(ROLE);
-
-      if ($assignBtn) {
-        $assignBtn.style.display = CAN_MANAGE ? 'inline-flex' : 'none';
-      }
-
-      const arr = pickArray(RAW);
-      LIST = Array.isArray(arr) ? arr.map(normalizeQuestion) : [];
-
-      if(!CAN_MANAGE){
-        LIST = LIST.filter(q => q.assigned === true || RAW?.only_assigned === true);
-      }
-
-      $listTitle.textContent = CAN_MANAGE ? 'Manage Batch Coding Questions' : 'Your Assigned Coding Questions';
-
-      $hintPill.style.display = 'inline-flex';
-      $hintPill.textContent = CAN_MANAGE
-        ? 'Set max attempts, then toggle Assign'
-        : 'Click ••• to view your previous attempts';
-
-      updateStats();
-
-      FILTERED = LIST.slice();
-      setLoading(false);
-      applyFilters();
-
-    }catch(err){
-      setLoading(false);
-      $listTitle.textContent = 'Failed to load';
-      toast(err.message || 'Failed to load');
-    }
+async function loadIndex(){
+  if(!token){
+    $noToken.style.display = 'flex';
+    setLoading(false);
+    return;
+  }
+  if(!BATCH_ID){
+    $noBatch.style.display = 'flex';
+    setLoading(false);
+    return;
   }
 
-  async function assignQuestion(uuid, maxAttempts){
-    const payload = {
-      question_uuid: uuid,
-      questionUuids: [uuid],
-      question_uuids: [uuid],
-      max_attempts: maxAttempts,
-      allowed_attempts: maxAttempts,
-      attempt_limit: maxAttempts,
-      attempt_allowed: maxAttempts,
-      attemptAllowed: maxAttempts,
-      publish_to_students: 1,
-      assign_status: 1
-    };
+  $noToken.style.display = 'none';
+  $noBatch.style.display = 'none';
+  setLoading(true);
 
-    await api(`/batches/${encodeURIComponent(BATCH_ID)}/coding-questions/assign`, {
-      method:'POST',
-      body: JSON.stringify(payload)
+  try{
+    const myRole = await getMyRole(token);
+
+    const moduleFilter = getModuleFilter();
+    console.log('━━━━━ LOAD INDEX START ━━━━━');
+    console.log('1️⃣ Module Filter:', moduleFilter);
+
+    const mqs = moduleQueryString();
+    const apiUrl = `/batches/${encodeURIComponent(BATCH_ID)}/coding-questions${mqs ? ('?' + mqs) : ''}`;
+
+    console.log('2️⃣ API Request:', apiUrl);
+
+    RAW = await api(apiUrl, { method: 'GET' });
+
+    console.log('3️⃣ Raw Response:', {
+      itemCount: pickArray(RAW).length,
+      module: RAW?.module,
+      firstItem: pickArray(RAW)[0]
     });
+
+    ROLE = myRole || detectRole(RAW);
+    CAN_MANAGE = ['admin', 'superadmin', 'instructor'].includes(ROLE);
+
+    if ($assignBtn) {
+      $assignBtn.style.display = CAN_MANAGE ? 'inline-flex' : 'none';
+    }
+
+    const arr = pickArray(RAW);
+    
+    // ✅ NO PATCHING NEEDED - backend fills UUIDs automatically
+    LIST = Array.isArray(arr) ? arr.map(normalizeQuestion) : [];
+
+    console.log('4️⃣ After Normalization:', LIST.length);
+
+    const beforeFilter = LIST.length;
+    LIST = LIST.filter(passesModuleFilter);
+
+    console.log('5️⃣ After Module Filter:', {
+      before: beforeFilter,
+      after: LIST.length,
+      filtered: beforeFilter - LIST.length
+    });
+
+    if(!CAN_MANAGE){
+      const beforeAssigned = LIST.length;
+      LIST = LIST.filter(q => q.assigned === true || RAW?.only_assigned === true);
+
+      console.log('6️⃣ After Assigned Filter:', {
+        before: beforeAssigned,
+        after: LIST.length
+      });
+    }
+
+    console.log('7️⃣ FINAL LIST:', LIST.length, 'questions');
+
+    $listTitle.textContent = CAN_MANAGE ? 'Manage Batch Coding Questions' : 'Your Assigned Coding Questions';
+
+    $hintPill.style.display = 'inline-flex';
+    $hintPill.textContent = CAN_MANAGE
+      ? 'Set max attempts, then toggle Assign'
+      : 'Click ••• to view your previous attempts';
+
+    updateStats();
+
+    FILTERED = LIST.slice();
+    setLoading(false);
+    applyFilters();
+
+    console.log('━━━━━ LOAD INDEX END ━━━━━\n');
+
+  }catch(err){
+    console.error('❌ loadIndex ERROR:', err);
+    setLoading(false);
+    $listTitle.textContent = 'Failed to load';
+    toast(err.message || 'Failed to load');
+  }
+}
+  async function assignQuestion(uuid, maxAttempts){
+  const payload = {
+    question_uuid: uuid,         // ✅ FIXED
+    questionUuid: uuid,          // ✅ FIXED
+    question_uuids: [uuid],      // ✅ FIXED
+    questionUuids: [uuid],       // ✅ FIXED
+
+    attempt_allowed: maxAttempts,  // ✅ FIXED
+    attemptAllowed: maxAttempts,   // ✅ FIXED
+    max_attempts: maxAttempts,     // ✅ FIXED
+    allowed_attempts: maxAttempts, // ✅ FIXED
+
+    publish_to_students: 1,
+    assign_status: 1
+  };
+
+  // ✅ Add module context
+  const mf = getModuleFilter();
+  if (mf) {
+    if (mf.course_module_uuid) {
+      payload.course_module_uuid = String(mf.course_module_uuid);
+      payload.module_uuid = String(mf.course_module_uuid);
+      delete payload.course_module_id;
+      delete payload.module_id;
+    } else if (mf.course_module_id != null) {
+      payload.course_module_id = Number(mf.course_module_id);
+      payload.module_id = Number(mf.course_module_id);
+    }
   }
 
+  await api(`/batches/${encodeURIComponent(BATCH_ID)}/coding-questions/assign`, {
+    method:'POST',
+    body: JSON.stringify(payload)
+  });
+}
   async function unassignQuestion(uuid){
     await api(`/batches/${encodeURIComponent(BATCH_ID)}/coding-questions/${encodeURIComponent(uuid)}`, {
       method:'DELETE'
@@ -1762,40 +1933,53 @@ const deriveModuleUuid = () => {
   }
 
   async function assignCodingQuestion(batchKey, questionUuid, attemptAllowed, quiet=false){
-    const payload = {
-      question_uuid: questionUuid,
-      questionUuid: questionUuid,
-      question_uuids: [questionUuid],
-      questionUuids: [questionUuid],
+  const payload = {
+    question_uuid: questionUuid,
+    questionUuid: questionUuid,
+    question_uuids: [questionUuid],
+    questionUuids: [questionUuid],
 
-      attempt_allowed: attemptAllowed,
-      attemptAllowed: attemptAllowed,
-      max_attempts: attemptAllowed,
-      allowed_attempts: attemptAllowed,
+    attempt_allowed: attemptAllowed,
+    attemptAllowed: attemptAllowed,
+    max_attempts: attemptAllowed,
+    allowed_attempts: attemptAllowed,
 
-      publish_to_students: 1,
-      assign_status: 1
-    };
+    publish_to_students: 1,
+    assign_status: 1
+  };
 
-    const res = await fetch(`/api/batches/${encodeURIComponent(batchKey)}/coding-questions/assign`, {
-      method: 'POST',
-      headers: { 'Authorization':'Bearer '+token, 'Content-Type':'application/json', 'Accept':'application/json' },
-      body: JSON.stringify(payload)
-    });
-
-    const j = await res.json().catch(()=>({}));
-    if(!res.ok) throw new Error(j?.message || firstError(j) || 'Assign failed');
-    if(!quiet) ok('Coding question assigned');
-
-    if (typeof window !== 'undefined') {
-      try {
-        window.dispatchEvent(new CustomEvent('codingQuestionsAssigned', { detail: { questionUuid, assigned: true } }));
-      } catch(e) {}
+  // ✅ ADD MODULE CONTEXT
+  const mf = getModuleFilter();
+  if (mf) {
+    if (mf.course_module_uuid) {
+      payload.course_module_uuid = String(mf.course_module_uuid);
+      payload.module_uuid = String(mf.course_module_uuid);
+      delete payload.course_module_id;
+      delete payload.module_id;
+    } else if (mf.course_module_id != null) {
+      payload.course_module_id = Number(mf.course_module_id);
+      payload.module_id = Number(mf.course_module_id);
     }
-
-    return j;
   }
 
+  const res = await fetch(`/api/batches/${encodeURIComponent(batchKey)}/coding-questions/assign`, {
+    method: 'POST',
+    headers: { 'Authorization':'Bearer '+token, 'Content-Type':'application/json', 'Accept':'application/json' },
+    body: JSON.stringify(payload)
+  });
+
+  const j = await res.json().catch(()=>({}));
+  if(!res.ok) throw new Error(j?.message || firstError(j) || 'Assign failed');
+  if(!quiet) ok('Coding question assigned');
+
+  if (typeof window !== 'undefined') {
+    try {
+      window.dispatchEvent(new CustomEvent('codingQuestionsAssigned', { detail: { questionUuid, assigned: true } }));
+    } catch(e) {}
+  }
+
+  return j;
+}
   async function unassignCodingQuestion(batchKey, questionUuid, quiet=false){
     const res = await fetch(`/api/batches/${encodeURIComponent(batchKey)}/coding-questions/${encodeURIComponent(questionUuid)}`, {
       method: 'DELETE',
@@ -1822,19 +2006,30 @@ const deriveModuleUuid = () => {
     cq_rows.querySelectorAll('tr:not(#cq_loader)').forEach(tr=>tr.remove());
 
     try{
-      const res = await fetch(`/api/batches/${encodeURIComponent(cq_batch_key)}/coding-questions?mode=all&${cqParams()}`, {
-        headers: { 'Authorization': 'Bearer ' + token, 'Accept': 'application/json' }
-      });
+// ✅ Append module filter
+const mqs = moduleQueryString();
+const baseParams = cqParams();
+const finalParams = [baseParams, mqs].filter(Boolean).join('&');
+const url = `/api/batches/${encodeURIComponent(cq_batch_key)}/coding-questions?mode=all${baseParams ? ('&' + baseParams) : ''}`;
+
+
+const res = await fetch(url, {
+  headers: { 'Authorization': 'Bearer ' + token, 'Accept': 'application/json' }
+});
+
 
       const j = await res.json().catch(()=>({}));
       if(!res.ok) throw new Error(j?.message || 'Failed to load coding questions');
 
       const items = pickItems(j);
       const pag   = pickPagination(j, items.length);
+        // ✅ Client-side fallback filter
+// ✅ No module filtering inside modal
+const listItems = items;
+
 
       const frag = document.createDocumentFragment();
-
-      items.forEach(qn=>{
+listItems.forEach(qn => {
         const qUuid = getQUuid(qn);
         const assigned = getAssigned(qn);
 
@@ -1952,7 +2147,7 @@ const deriveModuleUuid = () => {
         });
       });
 
-      const total = Number(pag.total || items.length);
+const total = Number(pag.total || listItems.length);
       const per   = Number(pag.per_page || cq_per.value || 20);
       const cur   = Number(pag.current_page || pag.page || 1);
       const pages = Math.max(1, Math.ceil(total / per));

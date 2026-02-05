@@ -366,105 +366,143 @@ public function index(Request $r, $batch)
     $assignedQ->select($selectAssigned);
 
     /* ================= ALL QUESTIONS (ADMIN) ================= */
-    if (!$isStudent && strtolower($r->query('mode')) === 'all') {
+   /* ================= ALL QUESTIONS (ADMIN) ================= */
+if (!$isStudent && strtolower($r->query('mode')) === 'all') {
 
-        $allQ = DB::table($questionTable.' as cq')
-            ->leftJoin($mapTable.' as bcq', function ($j) use (
-                $mapQCol, $mapBatchCol, $batchId, $questionJoinCol, $mapTable,
-                $moduleId, $moduleUuid, $mapModuleIdCol, $mapModuleUuidCol, $moduleFilterRequested
-            ) {
-                $j->on("bcq.$mapQCol", '=', "cq.$questionJoinCol")
-                  ->where("bcq.$mapBatchCol", $batchId);
+    $allQ = DB::table($questionTable.' as cq')
+        ->leftJoin($mapTable.' as bcq', function ($j) use (
+            $mapQCol, $mapBatchCol, $batchId, $questionJoinCol, $mapTable,
+            $moduleId, $moduleUuid, $mapModuleIdCol, $mapModuleUuidCol, $moduleFilterRequested
+        ) {
+            $j->on("bcq.$mapQCol", '=', "cq.$questionJoinCol")
+              ->where("bcq.$mapBatchCol", $batchId);
 
-                if (Schema::hasColumn($mapTable,'deleted_at')) {
-                    $j->whereNull('bcq.deleted_at');
-                }
-
-                // ✅ FIX 9: Module-aware join (prefer id; fallback uuid)
-                if ($moduleFilterRequested) {
-                    if ($mapModuleIdCol && $moduleId !== null) {
-                        $j->where("bcq.$mapModuleIdCol", $moduleId);
-                    } elseif ($mapModuleUuidCol && $moduleUuid !== null) {
-                        $j->where("bcq.$mapModuleUuidCol", $moduleUuid);
-                    }
-                }
-            });
-
-        if ($this->tableHasColumn($questionTable,'deleted_at')) $allQ->whereNull('cq.deleted_at');
-
-        $selectAll = [
-            'cq.uuid as question_key',
-            'cq.uuid',
-            'cq.total_attempts',
-        ];
-
-        foreach (['title','slug','difficulty','status','sort_order','description'] as $col) {
-            if ($this->tableHasColumn($questionTable, $col)) {
-                $selectAll[] = "cq.$col";
+            if (Schema::hasColumn($mapTable,'deleted_at')) {
+                $j->whereNull('bcq.deleted_at');
             }
+
+            // ✅ Module-aware join (prefer id; fallback uuid)
+            if ($moduleFilterRequested) {
+                if ($mapModuleIdCol && $moduleId !== null) {
+                    $j->where("bcq.$mapModuleIdCol", $moduleId);
+                } elseif ($mapModuleUuidCol && $moduleUuid !== null) {
+                    $j->where("bcq.$mapModuleUuidCol", $moduleUuid);
+                }
+            }
+        });
+
+    if ($this->tableHasColumn($questionTable,'deleted_at')) $allQ->whereNull('cq.deleted_at');
+
+    $selectAll = [
+        'cq.uuid as question_key',
+        'cq.uuid',
+        'cq.total_attempts',
+    ];
+
+    foreach (['title','slug','difficulty','status','sort_order','description'] as $col) {
+        if ($this->tableHasColumn($questionTable, $col)) {
+            $selectAll[] = "cq.$col";
         }
-
-        // ✅ FIX 10: Robust assignment flag + both keys
-        $selectAll[] = DB::raw("CASE WHEN bcq.id IS NULL THEN 0 ELSE 1 END as is_assigned");
-        $selectAll[] = DB::raw("CASE WHEN bcq.id IS NULL THEN 0 ELSE 1 END as assigned");
-
-        if ($attemptAllowedCol) $selectAll[] = "bcq.$attemptAllowedCol as attempt_allowed";
-        if ($startCol) $selectAll[] = "bcq.$startCol as available_from";
-        if ($endCol)   $selectAll[] = "bcq.$endCol as available_to";
-
-        // ✅ FIX 11: Always include module columns (even if null)
-        if ($mapModuleIdCol) {
-            $selectAll[] = "bcq.$mapModuleIdCol as course_module_id";
-        } else {
-            $selectAll[] = DB::raw('NULL as course_module_id');
-        }
-
-        if ($mapModuleUuidCol) {
-            $selectAll[] = "bcq.$mapModuleUuidCol as course_module_uuid";
-        } else {
-            $selectAll[] = DB::raw('NULL as course_module_uuid');
-        }
-
-        $selectAll[] = 'bcq.id as map_id';
-        $selectAll[] = 'bcq.uuid as map_uuid';
-
-        $rows = $allQ->select($selectAll)
-                     ->orderBy('is_assigned','desc')
-                     ->orderBy('question_key')
-                     ->get();
-
-        return response()->json([
-            'ok' => true,
-            'batch_id' => $batchId,
-            'course_id' => $courseId, // ✅ FIX 12: Include for frontend reference
-            'mode' => 'all',
-            'module' => [
-                'course_module_id' => $moduleId,
-                'course_module_uuid' => $moduleUuid,
-                'filter_active' => $moduleFilterRequested, // ✅ FIX 13: Explicit flag
-            ],
-            'items' => $rows,
-            'data' => $rows, // ✅ FIX 14: Alias for frontend compatibility
-        ]);
     }
 
-    /* ================= ASSIGNED ONLY ================= */
-    $assignedRows = $assignedQ->get();
+    $selectAll[] = DB::raw("CASE WHEN bcq.id IS NULL THEN 0 ELSE 1 END as is_assigned");
+    $selectAll[] = DB::raw("CASE WHEN bcq.id IS NULL THEN 0 ELSE 1 END as assigned");
+
+    if ($attemptAllowedCol) $selectAll[] = "bcq.$attemptAllowedCol as attempt_allowed";
+    if ($startCol) $selectAll[] = "bcq.$startCol as available_from";
+    if ($endCol)   $selectAll[] = "bcq.$endCol as available_to";
+
+    if ($mapModuleIdCol) {
+        $selectAll[] = "bcq.$mapModuleIdCol as course_module_id";
+    } else {
+        $selectAll[] = DB::raw('NULL as course_module_id');
+    }
+
+    if ($mapModuleUuidCol) {
+        $selectAll[] = "bcq.$mapModuleUuidCol as course_module_uuid";
+    } else {
+        $selectAll[] = DB::raw('NULL as course_module_uuid');
+    }
+
+    $selectAll[] = 'bcq.id as map_id';
+    $selectAll[] = 'bcq.uuid as map_uuid';
+
+    $rows = $allQ->select($selectAll)
+                 ->orderBy('is_assigned','desc')
+                 ->orderBy('question_key')
+                 ->get();
+
+    // ✅ FIX: Auto-fill missing module UUIDs from filter context
+    if ($moduleFilterRequested && $moduleUuid) {
+        foreach ($rows as $row) {
+            if (!$row->course_module_uuid && $row->course_module_id == $moduleId) {
+                $row->course_module_uuid = $moduleUuid;
+            }
+        }
+    }
+
+    // ✅ FIX: Auto-fill missing module IDs from filter context
+    if ($moduleFilterRequested && $moduleId) {
+        foreach ($rows as $row) {
+            if (!$row->course_module_id && $row->course_module_uuid == $moduleUuid) {
+                $row->course_module_id = $moduleId;
+            }
+        }
+    }
 
     return response()->json([
         'ok' => true,
         'batch_id' => $batchId,
-        'course_id' => $courseId, // ✅ FIX 15: Include course_id
-        'mode' => $isStudent ? 'student' : 'assigned',
+        'course_id' => $courseId,
+        'mode' => 'all',
         'module' => [
             'course_module_id' => $moduleId,
             'course_module_uuid' => $moduleUuid,
-            'filter_active' => $moduleFilterRequested, // ✅ FIX 16: Explicit flag
+            'filter_active' => $moduleFilterRequested,
         ],
-        'items' => $assignedRows,
-        'data' => $assignedRows, // ✅ FIX 17: Alias for frontend compatibility
-        'questions' => $assignedRows, // ✅ FIX 18: Another common alias
+        'items' => $rows,
+        'data' => $rows,
     ]);
+}
+
+    /* ================= ASSIGNED ONLY ================= */
+   /* ================= ASSIGNED ONLY ================= */
+$assignedRows = $assignedQ->get();
+
+// ✅ FIX: Auto-fill missing module UUIDs from filter context
+if ($moduleFilterRequested && $moduleUuid) {
+    foreach ($assignedRows as $row) {
+        // If item has matching module ID but missing UUID, fill it
+        if (!$row->course_module_uuid && $row->course_module_id == $moduleId) {
+            $row->course_module_uuid = $moduleUuid;
+        }
+    }
+}
+
+// ✅ FIX: Auto-fill missing module IDs from filter context
+if ($moduleFilterRequested && $moduleId) {
+    foreach ($assignedRows as $row) {
+        // If item has matching module UUID but missing ID, fill it
+        if (!$row->course_module_id && $row->course_module_uuid == $moduleUuid) {
+            $row->course_module_id = $moduleId;
+        }
+    }
+}
+
+return response()->json([
+    'ok' => true,
+    'batch_id' => $batchId,
+    'course_id' => $courseId,
+    'mode' => $isStudent ? 'student' : 'assigned',
+    'module' => [
+        'course_module_id' => $moduleId,
+        'course_module_uuid' => $moduleUuid,
+        'filter_active' => $moduleFilterRequested,
+    ],
+    'items' => $assignedRows,
+    'data' => $assignedRows,
+    'questions' => $assignedRows,
+]);
 }
    /**
  * POST /api/batches/{batch}/coding-questions/assign
