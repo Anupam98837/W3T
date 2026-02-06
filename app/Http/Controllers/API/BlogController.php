@@ -393,12 +393,130 @@ public function index(Request $r)
 
         return response()->json($row);
     }
+/* =========================================================
+     |  ACTIVITY LOG (DB FACADE) - schema safe
+     |  table: activity_logs
+     |========================================================= */
+
+    private function rowToArray($row): ?array
+    {
+        if (!$row) return null;
+        if (is_array($row)) return $row;
+        return json_decode(json_encode($row), true);
+    }
+
+    private function safeJson($val): ?string
+    {
+        try {
+            if ($val === null) return null;
+            return json_encode($val, JSON_UNESCAPED_UNICODE);
+        } catch (\Throwable $e) {
+            return null;
+        }
+    }
+
+    private function logActivity(
+        Request $request,
+        string $action,
+        string $message,
+        array $meta = [],
+        ?string $tableName = null,
+        ?int $rowId = null,
+        $oldRow = null,
+        $newRow = null
+    ): void {
+        try {
+            if (!Schema::hasTable('activity_logs')) return;
+
+            $actor = $this->actor($request); // expects ['id'=>..,'role'=>..] OR at least id
+            $actorId = (int)($actor['id'] ?? 0);
+            $actorRole = (string)($actor['role'] ?? '');
+
+            $now = now();
+            $ip  = $request->ip();
+            $ua  = substr((string)$request->userAgent(), 0, 255);
+
+            $oldArr = $this->rowToArray($oldRow);
+            $newArr = $this->rowToArray($newRow);
+
+            // lightweight diff (best-effort)
+            $changes = [];
+            if (is_array($oldArr) && is_array($newArr)) {
+                $keys = array_unique(array_merge(array_keys($oldArr), array_keys($newArr)));
+                foreach ($keys as $k) {
+                    $ov = $oldArr[$k] ?? null;
+                    $nv = $newArr[$k] ?? null;
+                    if ($ov !== $nv) $changes[$k] = ['old' => $ov, 'new' => $nv];
+                }
+            }
+
+            $ins = [];
+
+            if (Schema::hasColumn('activity_logs', 'uuid')) $ins['uuid'] = (string)Str::uuid();
+
+            // module/action/message
+            if (Schema::hasColumn('activity_logs', 'module')) $ins['module'] = 'blogs';
+            if (Schema::hasColumn('activity_logs', 'action')) $ins['action'] = $action;
+            if (Schema::hasColumn('activity_logs', 'message')) $ins['message'] = $message;
+
+            // actor id
+            foreach (['actor_id','user_id','created_by','created_by_user_id'] as $col) {
+                if (Schema::hasColumn('activity_logs', $col)) { $ins[$col] = $actorId ?: null; break; }
+            }
+            // actor role
+            foreach (['actor_role','role'] as $col) {
+                if (Schema::hasColumn('activity_logs', $col)) { $ins[$col] = $actorRole ?: null; break; }
+            }
+
+            // request info
+            foreach (['endpoint','path','url'] as $col) {
+                if (Schema::hasColumn('activity_logs', $col)) { $ins[$col] = (string)$request->path(); break; }
+            }
+            foreach (['method','http_method'] as $col) {
+                if (Schema::hasColumn('activity_logs', $col)) { $ins[$col] = (string)$request->method(); break; }
+            }
+
+            // table/ref
+            foreach (['table_name','table','ref_table'] as $col) {
+                if (Schema::hasColumn('activity_logs', $col)) { $ins[$col] = $tableName; break; }
+            }
+            foreach (['row_id','ref_id','subject_id'] as $col) {
+                if (Schema::hasColumn('activity_logs', $col)) { $ins[$col] = $rowId; break; }
+            }
+
+            // ip & ua
+            foreach (['ip','ip_address'] as $col) {
+                if (Schema::hasColumn('activity_logs', $col)) { $ins[$col] = $ip; break; }
+            }
+            foreach (['user_agent','ua'] as $col) {
+                if (Schema::hasColumn('activity_logs', $col)) { $ins[$col] = $ua; break; }
+            }
+
+            // json blobs
+            foreach (['meta_json','meta','metadata'] as $col) {
+                if (Schema::hasColumn('activity_logs', $col)) { $ins[$col] = $this->safeJson($meta); break; }
+            }
+            foreach (['old_json','old_data','old_payload'] as $col) {
+                if (Schema::hasColumn('activity_logs', $col)) { $ins[$col] = $this->safeJson($oldArr); break; }
+            }
+            foreach (['new_json','new_data','new_payload'] as $col) {
+                if (Schema::hasColumn('activity_logs', $col)) { $ins[$col] = $this->safeJson($newArr); break; }
+            }
+            foreach (['changes_json','changes'] as $col) {
+                if (Schema::hasColumn('activity_logs', $col)) { $ins[$col] = $this->safeJson($changes); break; }
+            }
+
+            if (Schema::hasColumn('activity_logs', 'created_at') && !isset($ins['created_at'])) $ins['created_at'] = $now;
+            if (Schema::hasColumn('activity_logs', 'updated_at') && !isset($ins['updated_at'])) $ins['updated_at'] = $now;
+
+            if (!empty($ins)) DB::table('activity_logs')->insert($ins);
+        } catch (\Throwable $e) {
+            Log::warning('Activity log failed', ['err' => $e->getMessage()]);
+        }
+    }
 
     /* =========================================================
-     |  CREATE
-     |  POST /api/blogs
-     |  NOTE: Featured Image is now UPLOADABLE (featured_image file),
-     |        not a URL field from UI.
+     |  CREATE  - POST /api/blogs
      |========================================================= */
     public function store(Request $request)
     {
@@ -412,15 +530,12 @@ public function index(Request $r)
             'short_description' => ['sometimes','nullable','string','max:500'],
             'content_html'      => ['sometimes','nullable','string'],
 
-            // ✅ NEW: uploadable featured image (optional)
-            'featured_image'    => ['sometimes','nullable','file','max:5120'], // 5MB (adjust if you want)
-
-            // (kept for backward compatibility if any old client sends URL)
+            'featured_image'    => ['sometimes','nullable','file','max:5120'],
             'featured_image_url'=> ['sometimes','nullable','string','max:500'],
 
             'blog_date'         => ['sometimes','nullable','date'],
             'status'            => ['sometimes', Rule::in($this->allowedStatuses())],
-            'is_published'      => ['sometimes'], // accept yes/no/1/0/true/false
+            'is_published'      => ['sometimes'],
         ]);
 
         $actor = $this->actor($request);
@@ -438,12 +553,10 @@ public function index(Request $r)
         $status = $data['status'] ?? 'draft';
         $isPub  = array_key_exists('is_published', $data) ? $this->normalizePublish($data['is_published']) : 0;
 
-        // if someone sets published=1 but status is draft -> keep status as pending_approval
         if ($isPub === 1 && in_array($status, ['draft'], true)) {
             $status = 'pending_approval';
         }
 
-        // ✅ FEATURED IMAGE: if file uploaded, save it and build URL
         $featuredUrl = null;
         if ($request->hasFile('featured_image')) {
             try {
@@ -452,7 +565,6 @@ public function index(Request $r)
                 return response()->json(['error' => 'Featured image upload failed', 'details' => $e->getMessage()], 422);
             }
         } elseif (!empty($data['featured_image_url'])) {
-            // backward compatible only
             $featuredUrl = $data['featured_image_url'];
         }
 
@@ -484,14 +596,20 @@ public function index(Request $r)
 
         $row = DB::table('blogs')->where('id', $id)->first();
 
+        // ✅ ACTIVITY LOG
+        $this->logActivity($request, 'blog_create', 'Blog created', [
+            'blog_id' => (int)$id,
+            'blog_uuid' => (string)$uuid,
+            'slug' => (string)$slug,
+            'status' => (string)$status,
+            'is_published' => (int)$isPub,
+        ], 'blogs', (int)$id, null, $row);
+
         return response()->json(['success'=>true,'data'=>$row], 201);
     }
 
     /* =========================================================
-     |  UPDATE
-     |  PUT/PATCH /api/blogs/{identifier}
-     |  NOTE: Featured Image is now UPLOADABLE (featured_image file),
-     |        not just URL.
+     |  UPDATE  - PUT/PATCH /api/blogs/{identifier}
      |========================================================= */
     public function update(Request $request, $identifier)
     {
@@ -499,6 +617,8 @@ public function index(Request $r)
 
         $blog = $this->resolveBlog($identifier, false);
         if (!$blog) return response()->json(['error'=>'Not found'], 404);
+
+        $old = $blog;
 
         $data = $request->validate([
             'title'             => ['sometimes','string','max:255'],
@@ -508,15 +628,12 @@ public function index(Request $r)
             'short_description' => ['sometimes','nullable','string','max:500'],
             'content_html'      => ['sometimes','nullable','string'],
 
-            // ✅ NEW: uploadable featured image (optional)
-            'featured_image'    => ['sometimes','nullable','file','max:5120'], // 5MB
-
-            // (kept for backward compatibility only)
+            'featured_image'    => ['sometimes','nullable','file','max:5120'],
             'featured_image_url'=> ['sometimes','nullable','string','max:500'],
 
             'blog_date'         => ['sometimes','nullable','date'],
             'status'            => ['sometimes', Rule::in($this->allowedStatuses())],
-            'is_published'      => ['sometimes'], // yes/no/1/0/true/false
+            'is_published'      => ['sometimes'],
 
             'regenerate_slug'   => ['sometimes','boolean'],
         ]);
@@ -524,7 +641,6 @@ public function index(Request $r)
         $actor = $this->actor($request);
         $now   = Carbon::now();
 
-        // slug rules
         $slug = $blog->slug;
         if (array_key_exists('slug', $data)) {
             $norm = $this->normSlug($data['slug']);
@@ -539,7 +655,6 @@ public function index(Request $r)
             $slug = $this->uniqueSlug($base, (int)$blog->id);
         }
 
-        // shortcode rules (auto if title changed and shortcode not provided)
         if (array_key_exists('shortcode', $data) && trim((string)$data['shortcode']) !== '') {
             $shortcode = trim((string)$data['shortcode']);
         } elseif (isset($data['title']) && $data['title'] !== $blog->title) {
@@ -548,28 +663,21 @@ public function index(Request $r)
             $shortcode = $blog->shortcode;
         }
 
-        // publish flag
         $isPub = $blog->is_published;
         if (array_key_exists('is_published', $data)) {
             $isPub = $this->normalizePublish($data['is_published']);
         }
 
-        // status
         $status = $blog->status;
         if (array_key_exists('status', $data)) {
             $status = (string)$data['status'];
         }
 
-        // keep consistent: if publishing but still draft -> pending_approval
         if ((int)$isPub === 1 && in_array($status, ['draft'], true)) {
             $status = 'pending_approval';
         }
 
-        // ✅ FEATURED IMAGE update:
-        // - if file uploaded: delete old local file (if local) and save new one
-        // - else if featured_image_url provided (old clients): set it
         $featuredUrl = $blog->featured_image_url;
-
         if ($request->hasFile('featured_image')) {
             try {
                 $this->tryDeleteLocalFeatured($blog->featured_image_url);
@@ -578,7 +686,6 @@ public function index(Request $r)
                 return response()->json(['error' => 'Featured image upload failed', 'details' => $e->getMessage()], 422);
             }
         } elseif (array_key_exists('featured_image_url', $data)) {
-            // backward compatible only
             $featuredUrl = $data['featured_image_url'] ?: null;
         }
 
@@ -608,12 +715,17 @@ public function index(Request $r)
 
         $fresh = DB::table('blogs')->where('id', (int)$blog->id)->first();
 
+        // ✅ ACTIVITY LOG
+        $this->logActivity($request, 'blog_update', 'Blog updated', [
+            'blog_id' => (int)$blog->id,
+            'blog_uuid' => (string)($blog->uuid ?? ''),
+        ], 'blogs', (int)$blog->id, $old, $fresh);
+
         return response()->json(['success'=>true,'data'=>$fresh]);
     }
 
     /* =========================================================
-     |  SOFT DELETE
-     |  DELETE /api/blogs/{identifier}
+     |  SOFT DELETE  - DELETE /api/blogs/{identifier}
      |========================================================= */
     public function destroy(Request $request, $identifier)
     {
@@ -622,6 +734,7 @@ public function index(Request $r)
         $blog = $this->resolveBlog($identifier, false);
         if (!$blog) return response()->json(['error'=>'Not found'], 404);
 
+        $old = $blog;
         $actor = $this->actor($request);
 
         DB::table('blogs')->where('id', (int)$blog->id)->update([
@@ -630,12 +743,19 @@ public function index(Request $r)
             'updated_by_user_id' => $actor['id'] ?: null,
         ]);
 
+        $fresh = DB::table('blogs')->where('id', (int)$blog->id)->first();
+
+        // ✅ ACTIVITY LOG
+        $this->logActivity($request, 'blog_soft_delete', 'Blog moved to bin', [
+            'blog_id' => (int)$blog->id,
+            'blog_uuid' => (string)($blog->uuid ?? ''),
+        ], 'blogs', (int)$blog->id, $old, $fresh);
+
         return response()->json(['success'=>true,'message'=>'Moved to bin']);
     }
 
     /* =========================================================
-     |  RESTORE
-     |  POST /api/blogs/{identifier}/restore
+     |  RESTORE  - POST /api/blogs/{identifier}/restore
      |========================================================= */
     public function restore(Request $request, $identifier)
     {
@@ -646,6 +766,7 @@ public function index(Request $r)
             return response()->json(['error'=>'Not found in bin'], 404);
         }
 
+        $old = $blog;
         $actor = $this->actor($request);
 
         DB::table('blogs')->where('id', (int)$blog->id)->update([
@@ -654,12 +775,19 @@ public function index(Request $r)
             'updated_by_user_id' => $actor['id'] ?: null,
         ]);
 
+        $fresh = DB::table('blogs')->where('id', (int)$blog->id)->first();
+
+        // ✅ ACTIVITY LOG
+        $this->logActivity($request, 'blog_restore', 'Blog restored from bin', [
+            'blog_id' => (int)$blog->id,
+            'blog_uuid' => (string)($blog->uuid ?? ''),
+        ], 'blogs', (int)$blog->id, $old, $fresh);
+
         return response()->json(['success'=>true,'message'=>'Restored']);
     }
 
     /* =========================================================
-     |  HARD DELETE
-     |  DELETE /api/blogs/{identifier}/force
+     |  HARD DELETE  - DELETE /api/blogs/{identifier}/force
      |========================================================= */
     public function forceDelete(Request $request, $identifier)
     {
@@ -668,17 +796,24 @@ public function index(Request $r)
         $blog = $this->resolveBlog($identifier, true);
         if (!$blog) return response()->json(['error'=>'Not found'], 404);
 
-        // optionally try to delete local featured image if it's local
+        $old = $blog;
+
         $this->tryDeleteLocalFeatured($blog->featured_image_url);
 
         DB::table('blogs')->where('id', (int)$blog->id)->delete();
+
+        // ✅ ACTIVITY LOG
+        $this->logActivity($request, 'blog_force_delete', 'Blog deleted permanently', [
+            'blog_id' => (int)$blog->id,
+            'blog_uuid' => (string)($blog->uuid ?? ''),
+            'featured_image_url' => (string)($blog->featured_image_url ?? ''),
+        ], 'blogs', (int)$blog->id, $old, null);
 
         return response()->json(['success'=>true,'message'=>'Deleted permanently']);
     }
 
     /* =========================================================
-     |  TOGGLE ACTIVE/INACTIVE
-     |  POST /api/blogs/{identifier}/toggle-status
+     |  TOGGLE ACTIVE/INACTIVE  - POST /api/blogs/{identifier}/toggle-status
      |========================================================= */
     public function toggleStatus(Request $request, $identifier)
     {
@@ -687,9 +822,9 @@ public function index(Request $r)
         $blog = $this->resolveBlog($identifier, false);
         if (!$blog) return response()->json(['error'=>'Not found'], 404);
 
+        $old = $blog;
         $actor = $this->actor($request);
 
-        // toggle only between active/inactive
         $newStatus = ($blog->status === 'active') ? 'inactive' : 'active';
 
         DB::table('blogs')->where('id', (int)$blog->id)->update([
@@ -698,12 +833,20 @@ public function index(Request $r)
             'updated_by_user_id' => $actor['id'] ?: null,
         ]);
 
+        $fresh = DB::table('blogs')->where('id', (int)$blog->id)->first();
+
+        // ✅ ACTIVITY LOG
+        $this->logActivity($request, 'blog_toggle_status', 'Blog status toggled', [
+            'blog_id' => (int)$blog->id,
+            'from' => (string)($old->status ?? ''),
+            'to' => (string)$newStatus,
+        ], 'blogs', (int)$blog->id, $old, $fresh);
+
         return response()->json(['success'=>true,'message'=>'Status updated','status'=>$newStatus]);
     }
 
     /* =========================================================
-     |  APPROVE
-     |  POST /api/blogs/{identifier}/approve
+     |  APPROVE  - POST /api/blogs/{identifier}/approve
      |========================================================= */
     public function approve(Request $request, $identifier)
     {
@@ -712,9 +855,9 @@ public function index(Request $r)
         $blog = $this->resolveBlog($identifier, false);
         if (!$blog) return response()->json(['error'=>'Not found'], 404);
 
+        $old = $blog;
         $actor = $this->actor($request);
 
-        // approval action: mark approved + set approver
         DB::table('blogs')->where('id', (int)$blog->id)->update([
             'status'               => 'approved',
             'approved_by_user_id'  => $actor['id'] ?: null,
@@ -725,13 +868,17 @@ public function index(Request $r)
 
         $fresh = DB::table('blogs')->where('id', (int)$blog->id)->first();
 
+        // ✅ ACTIVITY LOG
+        $this->logActivity($request, 'blog_approve', 'Blog approved', [
+            'blog_id' => (int)$blog->id,
+            'blog_uuid' => (string)($blog->uuid ?? ''),
+        ], 'blogs', (int)$blog->id, $old, $fresh);
+
         return response()->json(['success'=>true,'message'=>'Blog approved','data'=>$fresh]);
     }
 
     /* =========================================================
-     |  SET PUBLISH
-     |  POST /api/blogs/{identifier}/publish
-     |  body: { is_published: yes|no|1|0 }
+     |  SET PUBLISH  - POST /api/blogs/{identifier}/publish
      |========================================================= */
     public function publish(Request $request, $identifier)
     {
@@ -740,6 +887,8 @@ public function index(Request $r)
         $blog = $this->resolveBlog($identifier, false);
         if (!$blog) return response()->json(['error'=>'Not found'], 404);
 
+        $old = $blog;
+
         $data = $request->validate([
             'is_published' => ['required'],
         ]);
@@ -747,7 +896,6 @@ public function index(Request $r)
         $actor = $this->actor($request);
         $isPub = $this->normalizePublish($data['is_published']);
 
-        // if trying to publish without approval, move to pending_approval
         $status = $blog->status;
         if ($isPub === 1 && !in_array($status, ['approved','active'], true)) {
             $status = 'pending_approval';
@@ -762,14 +910,19 @@ public function index(Request $r)
 
         $fresh = DB::table('blogs')->where('id', (int)$blog->id)->first();
 
+        // ✅ ACTIVITY LOG
+        $this->logActivity($request, 'blog_publish', 'Blog publish flag updated', [
+            'blog_id' => (int)$blog->id,
+            'from_is_published' => (int)($old->is_published ?? 0),
+            'to_is_published' => (int)$isPub,
+            'final_status' => (string)$status,
+        ], 'blogs', (int)$blog->id, $old, $fresh);
+
         return response()->json(['success'=>true,'message'=>'Publish flag updated','data'=>$fresh]);
     }
 
     /* =========================================================
-     |  FEATURED IMAGE UPLOAD (PUBLIC folder)
-     |  POST /api/blogs/{identifier}/featured-image
-     |  multipart: featured_image (file)
-     |  (kept as-is; still useful from UI)
+     |  FEATURED IMAGE UPLOAD  - POST /api/blogs/{identifier}/featured-image
      |========================================================= */
     public function featuredUpload(Request $request, $identifier)
     {
@@ -777,6 +930,8 @@ public function index(Request $r)
 
         $blog = $this->resolveBlog($identifier, false);
         if (!$blog) return response()->json(['error'=>'Not found'], 404);
+
+        $old = $blog;
 
         if (!$request->hasFile('featured_image')) {
             return response()->json(['error'=>'featured_image file is required'], 422);
@@ -798,6 +953,13 @@ public function index(Request $r)
         ]);
 
         $fresh = DB::table('blogs')->where('id', (int)$blog->id)->first();
+
+        // ✅ ACTIVITY LOG
+        $this->logActivity($request, 'blog_featured_upload', 'Featured image uploaded', [
+            'blog_id' => (int)$blog->id,
+            'from' => (string)($old->featured_image_url ?? ''),
+            'to' => (string)$url,
+        ], 'blogs', (int)$blog->id, $old, $fresh);
 
         return response()->json([
             'success' => true,

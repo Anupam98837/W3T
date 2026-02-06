@@ -1533,7 +1533,19 @@ public function studentSubmissionStatus(Request $r, string $assignmentKey)
     $submissions = DB::table('assignment_submissions')
         ->where('assignment_id', $assignment->id)
         ->whereNull('deleted_at')
-        ->select('student_id', 'attempt_no', 'submitted_at', 'status', 'is_late', 'id as submission_id')
+->select(
+    'student_id',
+    'attempt_no',
+    'submitted_at',
+    'status',
+    'is_late',
+    'late_minutes',
+    'total_marks',
+    'grade_letter',
+    'graded_at',
+    'graded_by',
+    'id as submission_id'
+)
         ->orderBy('attempt_no', 'desc')
         ->get()
         ->groupBy('student_id');
@@ -1558,21 +1570,33 @@ public function studentSubmissionStatus(Request $r, string $assignmentKey)
         })->all();
 
         return [
-            'student_id' => $studentId,
-            'student_name' => $student->student_name,
-            'student_email' => $student->student_email,
-            'student_uuid' => $student->student_uuid,
-            'enrolled_at' => $student->enrolled_at,
-            'has_submitted' => $studentSubmissions->isNotEmpty(),
-            'submission_count' => $attemptsCount,
-            'latest_attempt' => $latestSubmission ? $latestSubmission->attempt_no : null,
-            'latest_submission_date' => $latestSubmission ? $latestSubmission->submitted_at : null,
-            'status' => $latestSubmission ? $latestSubmission->status : 'not_submitted',
-            'is_late' => $latestSubmission ? (bool)$latestSubmission->is_late : false,
-            'attempts_remaining' => $assignment->attempts_allowed ?
-                max(0, $assignment->attempts_allowed - $attemptsCount) : null,
-            'all_attempts' => $allAttemptsArray,
-        ];
+    'student_id' => $studentId,
+    'student_name' => $student->student_name,
+    'student_email' => $student->student_email,
+    'student_uuid' => $student->student_uuid,
+    'enrolled_at' => $student->enrolled_at,
+    'has_submitted' => $studentSubmissions->isNotEmpty(),
+    'submission_count' => $attemptsCount,
+    'latest_attempt' => $latestSubmission ? $latestSubmission->attempt_no : null,
+    'latest_submission_date' => $latestSubmission ? $latestSubmission->submitted_at : null,
+    'status' => $latestSubmission ? $latestSubmission->status : 'not_submitted',
+    'is_late' => $latestSubmission ? (bool)$latestSubmission->is_late : false,
+
+    // ✅ ADD THESE (grade fields)
+    'latest_total_marks'  => $latestSubmission ? $latestSubmission->total_marks : null,
+    'latest_grade_letter' => $latestSubmission ? $latestSubmission->grade_letter : null,
+    'graded_at'           => $latestSubmission ? $latestSubmission->graded_at : null,
+    'graded_by'           => $latestSubmission ? $latestSubmission->graded_by : null,
+
+    // optional alias if frontend expects "grade"
+    'grade' => $latestSubmission ? $latestSubmission->grade_letter : null,
+
+    'attempts_remaining' => $assignment->attempts_allowed ?
+        max(0, $assignment->attempts_allowed - $attemptsCount) : null,
+
+    'all_attempts' => $allAttemptsArray,
+];
+
     });
 
     // Sorting
@@ -2541,12 +2565,13 @@ public function gradeSubmission(Request $r, string $submissionKey)
     if ($res = $this->requireRole($r, ['admin','superadmin','instructor'])) return $res;
 
     $validator = Validator::make($r->all(), [
-        'marks' => 'required|numeric|min:0',
-        'grade_letter' => 'nullable|string|max:10',
-        'grader_note' => 'nullable|string',
-        'feedback_html' => 'nullable|string',
-        'feedback_visible' => 'boolean',
-        'apply_late_penalty' => 'boolean', // Whether to auto-apply late penalty
+        'marks'             => 'required|numeric|min:0',
+        'grade_letter'      => 'nullable|string|max:10',  // supports Postman key
+        'grade'             => 'nullable|string|max:10',  // supports frontend key
+        'grader_note'       => 'nullable|string',
+        'feedback_html'     => 'nullable|string',
+        'feedback_visible'  => 'nullable|boolean',
+        'apply_late_penalty'=> 'nullable|boolean',
     ]);
 
     if ($validator->fails()) {
@@ -2571,21 +2596,33 @@ public function gradeSubmission(Request $r, string $submissionKey)
 
     try {
         $actor = $this->actor($r);
-        $givenMarks = (float) $r->input('marks');
-        $applyLatePenalty = $r->input('apply_late_penalty', true);
-        
+
+        $givenMarks       = (float) $r->input('marks');
+        $applyLatePenalty = $r->boolean('apply_late_penalty', true);
+        $feedbackVisible  = $r->boolean('feedback_visible', true);
+
+        // ✅ Accept grade from either "grade_letter" or "grade"
+        $gradeLetter = $r->input('grade_letter');
+        if ($gradeLetter === null || $gradeLetter === '') {
+            $gradeLetter = $r->input('grade');
+        }
+        $gradeLetter = is_string($gradeLetter) ? trim($gradeLetter) : $gradeLetter;
+        if ($gradeLetter === '') $gradeLetter = null;
+
         // Calculate late penalty if applicable
         $penaltyDetails = $this->calculateLatePenalty($assignment, $submission, $givenMarks, $applyLatePenalty);
-        
+
+        $now = Carbon::now()->toDateTimeString();
+
         $updateData = [
-            'total_marks' => $penaltyDetails['final_marks'],
-            'grade_letter' => $r->input('grade_letter'),
-            'graded_at' => Carbon::now()->toDateTimeString(),
-            'graded_by' => $actor['id'],
-            'grader_note' => $r->input('grader_note'),
-            'feedback_html' => $r->input('feedback_html'),
-            'feedback_visible' => $r->input('feedback_visible', true),
-            'updated_at' => Carbon::now()->toDateTimeString(),
+            'total_marks'      => $penaltyDetails['final_marks'],
+            'grade_letter'     => $gradeLetter,                 // ✅ will store now
+            'graded_at'        => $now,
+            'graded_by'        => $actor['id'],
+            'grader_note'      => $r->input('grader_note'),
+            'feedback_html'    => $r->input('feedback_html'),
+            'feedback_visible' => $feedbackVisible,
+            'updated_at'       => $now,
         ];
 
         // Store penalty details in metadata
@@ -2597,25 +2634,30 @@ public function gradeSubmission(Request $r, string $submissionKey)
                 $metadata = [];
             }
         }
-        
+
         $metadata['grading_details'] = [
-            'given_marks' => $givenMarks,
-            'late_penalty_applied' => $penaltyDetails['penalty_applied'],
-            'late_penalty_amount' => $penaltyDetails['penalty_amount'],
-            'late_penalty_percentage' => $penaltyDetails['penalty_percentage'],
-            'final_marks_after_penalty' => $penaltyDetails['final_marks'],
-            'graded_by' => $actor['id'],
-            'graded_by_role' => $actor['role'],
-            'graded_at' => Carbon::now()->toDateTimeString(),
+            'given_marks'              => $givenMarks,
+            'grade_letter'             => $gradeLetter, // ✅ also keep in metadata
+            'late_penalty_applied'     => $penaltyDetails['penalty_applied'],
+            'late_penalty_amount'      => $penaltyDetails['penalty_amount'],
+            'late_penalty_percentage'  => $penaltyDetails['penalty_percentage'],
+            'final_marks_after_penalty'=> $penaltyDetails['final_marks'],
+            'graded_by'                => $actor['id'],
+            'graded_by_role'           => $actor['role'],
+            'graded_at'                => $now,
         ];
 
         $updateData['metadata'] = json_encode($metadata);
 
-        DB::table('assignment_submissions')
+        $affected = DB::table('assignment_submissions')
             ->where('id', $submission->id)
             ->update($updateData);
 
-        // Return the updated submission with penalty details
+        if (!$affected) {
+            return response()->json(['error' => 'Nothing updated (submission may be missing)'], 409);
+        }
+
+        // Return updated submission
         $updatedSubmission = $this->resolveSubmission($submissionKey);
         $updatedSubmission->penalty_details = $penaltyDetails;
 
@@ -2625,10 +2667,11 @@ public function gradeSubmission(Request $r, string $submissionKey)
         ], 200);
 
     } catch (\Throwable $e) {
-        Log::error('grade submission error: '.$e->getMessage(), ['submission' => $submission]);
+        Log::error('grade submission error: '.$e->getMessage(), ['submission' => $submissionKey]);
         return response()->json(['error' => 'Failed to grade submission'], 500);
     }
 }
+
 /**
  * Calculate late penalty for a submission
  */

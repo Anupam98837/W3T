@@ -15,6 +15,121 @@ class CodingResultController extends Controller
      | Auth helpers (same pattern as ExamController)
      |============================================ */
     private const USER_TYPE = 'App\\Models\\User';
+    
+    private function rowToArray($row): ?array
+    {
+        if (!$row) return null;
+        if (is_array($row)) return $row;
+        return json_decode(json_encode($row), true);
+    }
+
+    private function safeJson($val): ?string
+    {
+        try {
+            if ($val === null) return null;
+            return json_encode($val, JSON_UNESCAPED_UNICODE);
+        } catch (\Throwable $e) {
+            return null;
+        }
+    }
+
+    private function logActivity(
+        Request $request,
+        string $action,
+        string $message,
+        array $meta = [],
+        ?string $tableName = null,
+        ?int $rowId = null,
+        $oldRow = null,
+        $newRow = null
+    ): void {
+        try {
+            if (!Schema::hasTable('activity_logs')) return;
+
+            $now = now();
+            $ip  = $request->ip();
+            $ua  = substr((string) $request->userAgent(), 0, 255);
+
+            // best-effort actor (token middleware style OR auth())
+            $actorId = (int) ($request->attributes->get('auth_tokenable_id')
+                ?? $request->user()?->id
+                ?? 0);
+
+            $actorRole = strtolower((string) ($request->attributes->get('auth_role')
+                ?? $request->user()?->role
+                ?? ''));
+
+            $oldArr = $this->rowToArray($oldRow);
+            $newArr = $this->rowToArray($newRow);
+
+            $changes = [];
+            if (is_array($oldArr) && is_array($newArr)) {
+                $keys = array_unique(array_merge(array_keys($oldArr), array_keys($newArr)));
+                foreach ($keys as $k) {
+                    $ov = $oldArr[$k] ?? null;
+                    $nv = $newArr[$k] ?? null;
+                    if ($ov !== $nv) $changes[$k] = ['old' => $ov, 'new' => $nv];
+                }
+            }
+
+            $ins = [];
+
+            if (Schema::hasColumn('activity_logs', 'uuid')) $ins['uuid'] = (string) Str::uuid();
+
+            if (Schema::hasColumn('activity_logs', 'module')) $ins['module'] = 'coding_questions';
+            if (Schema::hasColumn('activity_logs', 'action')) $ins['action'] = $action;
+            if (Schema::hasColumn('activity_logs', 'message')) $ins['message'] = $message;
+
+            foreach (['actor_id','user_id','created_by','created_by_user_id'] as $col) {
+                if (Schema::hasColumn('activity_logs', $col)) { $ins[$col] = $actorId ?: null; break; }
+            }
+            foreach (['actor_role','role'] as $col) {
+                if (Schema::hasColumn('activity_logs', $col)) { $ins[$col] = $actorRole ?: null; break; }
+            }
+
+            foreach (['endpoint','path','url'] as $col) {
+                if (Schema::hasColumn('activity_logs', $col)) { $ins[$col] = (string) $request->path(); break; }
+            }
+            foreach (['method','http_method'] as $col) {
+                if (Schema::hasColumn('activity_logs', $col)) { $ins[$col] = (string) $request->method(); break; }
+            }
+
+            foreach (['table_name','table','ref_table'] as $col) {
+                if (Schema::hasColumn('activity_logs', $col)) { $ins[$col] = $tableName; break; }
+            }
+            foreach (['row_id','ref_id','subject_id'] as $col) {
+                if (Schema::hasColumn('activity_logs', $col)) { $ins[$col] = $rowId; break; }
+            }
+
+            foreach (['ip','ip_address'] as $col) {
+                if (Schema::hasColumn('activity_logs', $col)) { $ins[$col] = $ip; break; }
+            }
+            foreach (['user_agent','ua'] as $col) {
+                if (Schema::hasColumn('activity_logs', $col)) { $ins[$col] = $ua; break; }
+            }
+
+            foreach (['meta_json','meta','metadata'] as $col) {
+                if (Schema::hasColumn('activity_logs', $col)) { $ins[$col] = $this->safeJson($meta); break; }
+            }
+            foreach (['old_json','old_data','old_payload'] as $col) {
+                if (Schema::hasColumn('activity_logs', $col)) { $ins[$col] = $this->safeJson($oldArr); break; }
+            }
+            foreach (['new_json','new_data','new_payload'] as $col) {
+                if (Schema::hasColumn('activity_logs', $col)) { $ins[$col] = $this->safeJson($newArr); break; }
+            }
+            foreach (['changes_json','changes'] as $col) {
+                if (Schema::hasColumn('activity_logs', $col)) { $ins[$col] = $this->safeJson($changes); break; }
+            }
+
+            if (Schema::hasColumn('activity_logs', 'created_at') && !isset($ins['created_at'])) $ins['created_at'] = $now;
+            if (Schema::hasColumn('activity_logs', 'updated_at') && !isset($ins['updated_at'])) $ins['updated_at'] = $now;
+
+            if (!empty($ins)) DB::table('activity_logs')->insert($ins);
+        } catch (\Throwable $e) {
+            Log::warning('Activity log failed', ['err' => $e->getMessage()]);
+        }
+    }
+
 
     private function getUserFromToken(Request $request): ?object
     {
@@ -414,6 +529,126 @@ public function export(Request $request, string $resultUuid)
 
     if (!$row) {
         return response()->json(['success'=>false,'message'=>'Result not found'], 404);
+    }
+
+    /* =======================
+       ✅ ACTIVITY LOG (Export)
+    ======================= */
+    try {
+        if (\Illuminate\Support\Facades\Schema::hasTable('activity_logs')) {
+            $now = now();
+
+            // actor (best-effort; works even if auth check is commented)
+            $actorId = 0;
+            $actorRole = null;
+
+            if ($user) {
+                if (is_object($user)) {
+                    $actorId = (int)($user->id ?? 0);
+                    $actorRole = isset($user->role) ? strtolower((string)$user->role) : null;
+                } elseif (is_array($user)) {
+                    $actorId = (int)($user['id'] ?? 0);
+                    $actorRole = isset($user['role']) ? strtolower((string)$user['role']) : null;
+                }
+            }
+
+            $ins = [];
+
+            if (\Illuminate\Support\Facades\Schema::hasColumn('activity_logs', 'uuid')) {
+                $ins['uuid'] = (string) \Illuminate\Support\Str::uuid();
+            }
+
+            if (\Illuminate\Support\Facades\Schema::hasColumn('activity_logs', 'module')) {
+                $ins['module'] = 'coding_results';
+            }
+            if (\Illuminate\Support\Facades\Schema::hasColumn('activity_logs', 'action')) {
+                $ins['action'] = 'coding_result_export';
+            }
+            if (\Illuminate\Support\Facades\Schema::hasColumn('activity_logs', 'message')) {
+                $ins['message'] = 'Coding result exported';
+            }
+
+            foreach (['actor_id','user_id','created_by','created_by_user_id'] as $col) {
+                if (\Illuminate\Support\Facades\Schema::hasColumn('activity_logs', $col)) {
+                    $ins[$col] = $actorId ?: null;
+                    break;
+                }
+            }
+            foreach (['actor_role','role'] as $col) {
+                if (\Illuminate\Support\Facades\Schema::hasColumn('activity_logs', $col)) {
+                    $ins[$col] = $actorRole ?: null;
+                    break;
+                }
+            }
+
+            foreach (['endpoint','path','url'] as $col) {
+                if (\Illuminate\Support\Facades\Schema::hasColumn('activity_logs', $col)) {
+                    $ins[$col] = (string) $request->path();
+                    break;
+                }
+            }
+            foreach (['method','http_method'] as $col) {
+                if (\Illuminate\Support\Facades\Schema::hasColumn('activity_logs', $col)) {
+                    $ins[$col] = (string) $request->method();
+                    break;
+                }
+            }
+            foreach (['ip','ip_address'] as $col) {
+                if (\Illuminate\Support\Facades\Schema::hasColumn('activity_logs', $col)) {
+                    $ins[$col] = (string) $request->ip();
+                    break;
+                }
+            }
+            foreach (['user_agent','ua'] as $col) {
+                if (\Illuminate\Support\Facades\Schema::hasColumn('activity_logs', $col)) {
+                    $ins[$col] = substr((string) $request->userAgent(), 0, 255);
+                    break;
+                }
+            }
+
+            $meta = [
+                'result_uuid'   => $resultUuid,
+                'format'        => $format,
+                'result_id'     => (int) ($row->id ?? 0),
+                'attempt_id'    => (int) ($row->attempt_id ?? 0),
+                'question_id'   => (int) ($row->question_id ?? 0),
+                'student_id'    => (int) ($row->student_id ?? 0),
+                'student_email' => (string) ($row->student_email ?? ''),
+            ];
+
+            foreach (['meta_json','meta','metadata'] as $col) {
+                if (\Illuminate\Support\Facades\Schema::hasColumn('activity_logs', $col)) {
+                    $ins[$col] = json_encode($meta, JSON_UNESCAPED_UNICODE);
+                    break;
+                }
+            }
+
+            foreach (['table_name','table','ref_table'] as $col) {
+                if (\Illuminate\Support\Facades\Schema::hasColumn('activity_logs', $col)) {
+                    $ins[$col] = 'coding_results';
+                    break;
+                }
+            }
+            foreach (['row_id','ref_id','subject_id'] as $col) {
+                if (\Illuminate\Support\Facades\Schema::hasColumn('activity_logs', $col)) {
+                    $ins[$col] = (int) ($row->id ?? 0);
+                    break;
+                }
+            }
+
+            if (\Illuminate\Support\Facades\Schema::hasColumn('activity_logs', 'created_at') && !isset($ins['created_at'])) {
+                $ins['created_at'] = $now;
+            }
+            if (\Illuminate\Support\Facades\Schema::hasColumn('activity_logs', 'updated_at') && !isset($ins['updated_at'])) {
+                $ins['updated_at'] = $now;
+            }
+
+            if (!empty($ins)) {
+                DB::table('activity_logs')->insert($ins);
+            }
+        }
+    } catch (\Throwable $e) {
+        Log::warning('Activity log failed (coding result export)', ['err' => $e->getMessage()]);
     }
 
     /* =======================

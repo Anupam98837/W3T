@@ -37,6 +37,7 @@ use App\Http\Controllers\API\CodingResultController;
 use App\Http\Controllers\API\BlogController;
 use App\Http\Controllers\API\ForgotPasswordController;
 use App\Http\Controllers\API\BatchCourseModuleController;
+use App\Http\Controllers\API\UserActivityLogsController;
 
 
 // Auth Routes
@@ -246,8 +247,9 @@ Route::middleware('checkRole:admin,super_admin,instructor, student')->group(func
     // Generic assignment endpoints
     Route::get   ('/assignments',                   [AssignmentController::class, 'index']);
     Route::get   ('/assignments/{assignment}',      [AssignmentController::class, 'show']);     // {id|uuid|slug}
+        Route::match(['put','patch'], '/assignments/{assignment}', [AssignmentController::class, 'update']);
+
     Route::post  ('/assignments',                   [AssignmentController::class, 'store']);
-    Route::match(['put','patch'], '/assignments/{assignment}', [AssignmentController::class, 'update']);
     Route::delete('/assignments/{assignment}',      [AssignmentController::class, 'destroy']);
     // Optional: assignments under a course (list/create) — keeps parity with courses routes
     Route::get   ('/courses/{course}/assignments',          [AssignmentController::class, 'index']);
@@ -823,3 +825,6 @@ Route::middleware('checkRole')->prefix('batch-course-modules')->group(function (
 
 
 });
+
+
+Route::middleware('checkRole')->get('/activity-logs', [UserActivityLogsController::class, 'index']);

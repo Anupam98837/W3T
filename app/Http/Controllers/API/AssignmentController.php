@@ -6,6 +6,8 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
+
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
@@ -371,6 +373,29 @@ public function store(Request $r, $course = null)
     ];
 
     $id = DB::table('assignments')->insertGetId($insert);
+    // =========================
+// ✅ ACTIVITY LOG (DB)
+// create = old_values null, new_values = created row
+// =========================
+try {
+    $fresh = DB::table('assignments')->where('id', (int)$id)->first();
+
+    $this->logActivity(
+        $r,
+        'create',
+        'Created assignment "'.($insert['title'] ?? 'Assignment').'"',
+        'assignments',
+        (int)$id,
+        array_keys($insert),              // changed_fields (created fields)
+        null,                             // old_values
+        $fresh ? (array)$fresh : $insert  // new_values
+    );
+} catch (\Throwable $e) {
+    Log::warning('[ASSIGNMENT_STORE] activity_log_failed', [
+        'new_id' => (int)$id,
+        'msg'    => $e->getMessage(),
+    ]);
+}
 
     return response()->json([
         'status'  => 'success',
@@ -381,56 +406,221 @@ public function store(Request $r, $course = null)
         ]),
     ], 201);
 }
+// Put these helper methods inside AssignmentController (same class)
 
-   /* UPDATE */
 /**
- * Update Assignment basic fields and (optionally) add/remove attachments and library URLs.
+ * Base query for assignments with soft-delete safety.
  */
+private function assignmentsBaseQuery()
+{
+    $q = DB::table('assignments');
+
+    // your schema has deleted_at; keep it safe
+    if (\Illuminate\Support\Facades\Schema::hasColumn('assignments', 'deleted_at')) {
+        $q->whereNull('deleted_at');
+    }
+
+    return $q;
+}
+
+/**
+ * Apply id/uuid key filter to a query. Accepts numeric id OR uuid string.
+ * Returns: [query, keyStr, isNumeric]
+ */
+private function applyAssignmentKey($q, $key): array
+{
+    $keyStr = (string) $key;
+
+    if (ctype_digit($keyStr)) {
+        $q->where('id', (int) $keyStr);
+        return [$q, $keyStr, true];
+    }
+
+    // UUID (or any non-numeric key)
+    $q->where('uuid', $keyStr);
+    return [$q, $keyStr, false];
+}
+/* =========================================
+ * UPDATE (FIXED + LOGS + ALLOWED TYPES STORE)
+ * - Fixes: allowed_submission_types not persisting/visible
+ *   1) Normalizes & stores allowed_submission_types inside metadata
+ *   2) Optionally stores into a dedicated JSON column if your table has one
+ *   3) Returns allowed_submission_types in response (top-level)
+ *   4) Updates using a plain assignments table query (no joins) for safety
+ * ========================================= */
 public function update(Request $r, $id)
 {
-    if ($res = $this->requireRole($r, ['admin','super_admin','instructor'])) return $res;
+    // ---- request/actor context (safe) ----
+    $actor = [
+        'role' => $r->attributes->get('auth_role'),
+        'type' => $r->attributes->get('auth_tokenable_type'),
+        'id'   => (int)($r->attributes->get('auth_tokenable_id') ?? 0),
+    ];
 
-    $row = DB::table('assignments')
-        ->where('id', (int)$id)
-        ->whereNull('deleted_at')
-        ->first();
-
-    if (!$row) return response()->json(['error' => 'Assignment not found'], 404);
-
-    $v = Validator::make($r->all(), [
-        'title'               => 'sometimes|required|string|max:255',
-        'description'         => 'nullable|string',
-        'view_policy'         => 'nullable|in:inline_only,downloadable',
-        // assignment fields you might update
-        'status'              => 'sometimes|in:draft,published,closed',
-        'submission_type'     => 'sometimes|in:file,link,text,code,mixed',
-        'attempts_allowed'    => 'sometimes|integer|min:0',
-        'total_marks'         => 'sometimes|numeric|min:0',
-        'pass_marks'          => 'sometimes|numeric|min:0',
-        'release_at'          => 'sometimes|nullable|date',
-        'due_at'              => 'sometimes|nullable|date|after_or_equal:release_at',
-        'end_at'              => 'sometimes|nullable|date|after_or_equal:due_at',
-        'allow_late'          => 'sometimes|boolean',
-        'late_penalty_percent'=> 'sometimes|nullable|numeric|min:0|max:100',
-
-        'attachments.*'       => 'nullable|file|max:51200',
-        'library_urls.*'      => 'nullable|url',
-        'remove_attachments'  => 'sometimes|array',
-        'remove_attachments.*'=> 'string',
-    ], [
-        'attachments.*.max' => 'Each attachment must be <= 50 MB.',
+    Log::info('[ASSIGNMENT_UPDATE] hit', [
+        'key'   => $id,
+        'actor' => $actor,
+        'ip'    => $r->ip(),
+        'ua'    => substr((string)$r->userAgent(), 0, 160),
+        'is_multipart' => str_contains((string)$r->header('content-type'), 'multipart/form-data'),
+        'has_files'    => $r->hasFile('attachments'),
+        'input_keys'   => array_keys($r->all() ?? []),
+        'files_count'  => $r->hasFile('attachments') ? count((array)$r->file('attachments')) : 0,
+        'remove_attachments_count' => is_array($r->input('remove_attachments')) ? count($r->input('remove_attachments')) : 0,
+        'library_urls_count'       => is_array($r->input('library_urls')) ? count($r->input('library_urls')) : 0,
+        'allowed_types_count'      => is_array($r->input('allowed_submission_types')) ? count($r->input('allowed_submission_types')) : 0,
     ]);
 
-    if ($v->fails()) return response()->json(['errors' => $v->errors()], 422);
+    // ---- auth ----
+    if ($res = $this->requireRole($r, ['admin','super_admin','instructor'])) {
+        Log::warning('[ASSIGNMENT_UPDATE] blocked_by_role', ['key' => $id, 'actor' => $actor]);
+        return $res;
+    }
+
+    // ---- BACKWARD-COMPAT KEYS (from your Blade payload) ----
+    if ($r->has('instructions') && !$r->has('description')) {
+        $r->merge(['description' => $r->input('instructions')]);
+    }
+    if ($r->has('allow_late_submissions') && !$r->has('allow_late')) {
+        $r->merge(['allow_late' => $r->input('allow_late_submissions')]);
+    }
+    if ($r->has('late_penalty') && !$r->has('late_penalty_percent')) {
+        $r->merge(['late_penalty_percent' => $r->input('late_penalty')]);
+    }
+
+    // ---- normalize empty string -> null (prevents 422 on numeric/date when key exists) ----
+    foreach ([
+        'attempts_allowed','total_marks','pass_marks','late_penalty_percent',
+        'release_at','due_at','end_at'
+    ] as $f) {
+        if ($r->has($f) && is_string($r->input($f)) && trim($r->input($f)) === '') {
+            $r->merge([$f => null]);
+        }
+    }
+
+    // 1) Find assignment by numeric id OR uuid (read)
+    $q = $this->assignmentsBaseQuery();
+    [$q, $keyStr, $isNumeric] = $this->applyAssignmentKey($q, $id);
+
+    Log::info('[ASSIGNMENT_UPDATE] lookup', [
+        'key'       => $id,
+        'key_str'   => $keyStr,
+        'is_numeric'=> $isNumeric,
+    ]);
+
+    $row = $q->first();
+    if (!$row) {
+        Log::warning('[ASSIGNMENT_UPDATE] not_found', ['key' => $id, 'actor' => $actor]);
+        return response()->json(['error' => 'Assignment not found'], 404);
+    }
+
+    Log::info('[ASSIGNMENT_UPDATE] found', [
+        'db_id'   => (int)($row->id ?? 0),
+        'db_uuid' => (string)($row->uuid ?? ''),
+        'batch_id'=> (int)($row->batch_id ?? 0),
+    ]);
+
+    // ---- validator ----
+    $rules = [
+        'course_id'         => 'sometimes|nullable|integer|min:1',
+        'course_module_id'  => 'sometimes|nullable|integer|min:1',
+        'batch_id'          => 'sometimes|nullable|integer|min:1',
+
+        'title'             => 'sometimes|required|string|max:255',
+        'slug'              => 'sometimes|nullable|string|max:255',
+        'description'       => 'sometimes|nullable|string',
+
+        'view_policy'       => 'sometimes|nullable|in:inline_only,downloadable',
+
+        'status'            => 'sometimes|in:draft,published,closed',
+        'submission_type'   => 'sometimes|in:file,link,text,code,mixed',
+
+        'attempts_allowed'  => 'sometimes|nullable|integer|min:0',
+        'total_marks'       => 'sometimes|nullable|numeric|min:0',
+        'pass_marks'        => 'sometimes|nullable|numeric|min:0',
+
+        'release_at'        => 'sometimes|nullable|date',
+        'due_at'            => 'sometimes|nullable|date|after_or_equal:release_at',
+        'end_at'            => 'sometimes|nullable|date|after_or_equal:due_at',
+
+        'allow_late'           => 'sometimes|nullable|boolean',
+        'late_penalty_percent' => 'sometimes|nullable|numeric|min:0|max:100',
+
+        // IMPORTANT: your UI sends this; we store it in metadata
+        'allowed_submission_types'   => 'sometimes|array',
+        'allowed_submission_types.*' => 'string|max:20',
+
+        'attachments.*'     => 'nullable|file|max:51200',
+        'library_urls'      => 'sometimes|array',
+        'library_urls.*'    => 'nullable|url',
+
+        'remove_attachments'   => 'sometimes|array',
+        'remove_attachments.*' => 'string',
+    ];
+
+    $messages = [
+        'attachments.*.max' => 'Each attachment must be <= 50 MB.',
+    ];
+
+    $v = Validator::make($r->all(), $rules, $messages);
+
+    if ($v->fails()) {
+        Log::warning('[ASSIGNMENT_UPDATE] validation_failed', [
+            'key'    => $id,
+            'db_id'  => (int)($row->id ?? 0),
+            'actor'  => $actor,
+            'errors' => $v->errors()->toArray(),
+            'safe_input' => [
+                'title' => $r->input('title'),
+                'slug'  => $r->input('slug'),
+                'status' => $r->input('status'),
+                'submission_type' => $r->input('submission_type'),
+                'attempts_allowed' => $r->input('attempts_allowed'),
+                'total_marks' => $r->input('total_marks'),
+                'pass_marks'  => $r->input('pass_marks'),
+                'allowed_submission_types' => $r->input('allowed_submission_types'),
+                'release_at' => $r->input('release_at'),
+                'due_at' => $r->input('due_at'),
+                'end_at' => $r->input('end_at'),
+                'allow_late' => $r->input('allow_late'),
+                'late_penalty_percent' => $r->input('late_penalty_percent'),
+                'library_urls_sample' => is_array($r->input('library_urls')) ? array_slice($r->input('library_urls'), 0, 3) : null,
+            ],
+        ]);
+
+        return response()->json(['errors' => $v->errors()], 422);
+    }
 
     $data   = $v->validated();
     $update = [];
 
+    Log::info('[ASSIGNMENT_UPDATE] validated', [
+        'key' => $id,
+        'db_id' => (int)($row->id ?? 0),
+        'validated_keys' => array_keys($data),
+        'allowed_types_count' => isset($data['allowed_submission_types']) && is_array($data['allowed_submission_types'])
+            ? count($data['allowed_submission_types']) : 0,
+    ]);
+
+    // ---- decode meta once and merge ----
+    $meta = $this->jsonDecode($row->metadata);
+    if (!is_array($meta)) $meta = [];
+    $metaTouched = false;
+
+    // ---- mapping fields to DB ----
+    foreach (['course_id','course_module_id','batch_id'] as $fld) {
+        if (array_key_exists($fld, $data)) $update[$fld] = $data[$fld];
+    }
+
     if (array_key_exists('title', $data)) {
         $update['title'] = $data['title'];
         if ($r->boolean('regenerate_slug', false)) {
-            $update['slug'] = Str::slug($data['title']) ?: $row->uuid;
+            $update['slug'] = Str::slug($data['title']) ?: ($row->uuid ?? (string)($row->id ?? $keyStr));
         }
+    }
+
+    if (array_key_exists('slug', $data)) {
+        $update['slug'] = $data['slug'];
     }
 
     if (array_key_exists('description', $data)) {
@@ -438,14 +628,41 @@ public function update(Request $r, $id)
     }
 
     if (array_key_exists('view_policy', $data)) {
-        // merge/overwrite metadata->view_policy
-        $meta = $this->jsonDecode($row->metadata);
-        if (!is_array($meta)) $meta = [];
         $meta['view_policy'] = $data['view_policy'];
+        $metaTouched = true;
+    }
+
+    // ✅ FIX: normalize + store allowed_submission_types properly
+    if (array_key_exists('allowed_submission_types', $data)) {
+        $types = is_array($data['allowed_submission_types']) ? $data['allowed_submission_types'] : [];
+
+        $types = array_values(array_unique(array_filter(array_map(function ($x) {
+            $x = strtolower(trim((string)$x));
+            return $x !== '' ? $x : null;
+        }, $types))));
+
+        $meta['allowed_submission_types'] = $types;
+        $metaTouched = true;
+
+        // OPTIONAL: if you have a dedicated column, store there too
+        if (\Illuminate\Support\Facades\Schema::hasColumn('assignments', 'allowed_submission_types_json')) {
+            $update['allowed_submission_types_json'] = json_encode($types, JSON_UNESCAPED_UNICODE);
+        } elseif (\Illuminate\Support\Facades\Schema::hasColumn('assignments', 'allowed_submission_types')) {
+            // if column is JSON/text
+            $update['allowed_submission_types'] = json_encode($types, JSON_UNESCAPED_UNICODE);
+        }
+
+        Log::info('[ASSIGNMENT_UPDATE] allowed_types_normalized', [
+            'key' => $id,
+            'db_id' => (int)($row->id ?? 0),
+            'types' => $types,
+        ]);
+    }
+
+    if ($metaTouched) {
         $update['metadata'] = json_encode($meta, JSON_UNESCAPED_UNICODE);
     }
 
-    // assignment fields
     foreach ([
         'status',
         'submission_type',
@@ -466,80 +683,186 @@ public function update(Request $r, $id)
         $update['allow_late'] = !empty($data['allow_late']) ? 1 : 0;
     }
 
+    Log::info('[ASSIGNMENT_UPDATE] update_fields_built', [
+        'key' => $id,
+        'db_id' => (int)($row->id ?? 0),
+        'update_keys' => array_keys($update),
+        'meta_touched' => $metaTouched,
+        'allowed_types_count' => isset($meta['allowed_submission_types']) && is_array($meta['allowed_submission_types'])
+            ? count($meta['allowed_submission_types']) : 0,
+    ]);
+
     // decode existing attachments_json
     $stored = $this->jsonDecode($row->attachments_json);
     if (!is_array($stored)) $stored = [];
 
-    //
-    // 1) Remove attachments (remove_attachments[])
-    //
-    $toRemove = $r->input('remove_attachments', []);
-    if (!is_array($toRemove)) $toRemove = [$toRemove];
+    DB::beginTransaction();
+    try {
+        // 1) Remove attachments (remove_attachments[])
+        $toRemove = $r->input('remove_attachments', []);
+        if (!is_array($toRemove)) $toRemove = [$toRemove];
 
-    if (!empty($toRemove)) {
-        $remSet = array_flip(array_map('strval', $toRemove));
-        $kept   = [];
+        if (!empty($toRemove)) {
+            $remSet = array_flip(array_map('strval', $toRemove));
+            $kept   = [];
+            $deletedPhysical = 0;
+            $removedCount = 0;
 
-        foreach ($stored as $att) {
-            $attId = '';
+            foreach ($stored as $att) {
+                $attId = '';
+                if (isset($att['id']))                $attId = (string)$att['id'];
+                elseif (isset($att['attachment_id'])) $attId = (string)$att['attachment_id'];
+                elseif (isset($att['file_id']))       $attId = (string)$att['file_id'];
+                elseif (isset($att['storage_key']))   $attId = (string)$att['storage_key'];
+                elseif (isset($att['key']))           $attId = (string)$att['key'];
+                else                                  $attId = (string)($att['path'] ?? ($att['url'] ?? ''));
 
-            if (isset($att['id']))               $attId = (string)$att['id'];
-            elseif (isset($att['attachment_id']))$attId = (string)$att['attachment_id'];
-            elseif (isset($att['file_id']))      $attId = (string)$att['file_id'];
-            elseif (isset($att['storage_key']))  $attId = (string)$att['storage_key'];
-            elseif (isset($att['key']))          $attId = (string)$att['key'];
-            else                                 $attId = (string)($att['path'] ?? ($att['url'] ?? ''));
+                if ($attId !== '' && isset($remSet[$attId])) {
+                    $removedCount++;
 
-            if ($attId !== '' && isset($remSet[$attId])) {
-                // try to delete physical file (best-effort)
-                try {
-                    if (!empty($att['path'])) {
-                        $p = $att['path'];
+                    // best-effort physical delete
+                    try {
+                        if (!empty($att['path'])) {
+                            $p = $att['path'];
+                            if (strpos($p, 'assets/media') === 0 || strpos($p, 'batchStudyMaterial') === 0) {
+                                $candidate = $this->mediaBasePublicPath()
+                                    . DIRECTORY_SEPARATOR
+                                    . str_replace('/', DIRECTORY_SEPARATOR, ltrim($p, '/'));
+                            } else {
+                                $candidate = storage_path('app/' . ltrim($p, '/'));
+                            }
 
-                        if (strpos($p, 'assets/media') === 0 || strpos($p, 'batchStudyMaterial') === 0) {
-                            $candidate = $this->mediaBasePublicPath()
-                                . DIRECTORY_SEPARATOR
-                                . str_replace('/', DIRECTORY_SEPARATOR, ltrim($p, '/'));
-                        } else {
-                            $candidate = storage_path('app/' . ltrim($p, '/'));
+                            if (File::exists($candidate) && is_file($candidate)) {
+                                File::delete($candidate);
+                                $deletedPhysical++;
+                            }
                         }
-
-                        if (File::exists($candidate) && is_file($candidate)) {
-                            File::delete($candidate);
-                        }
+                    } catch (\Throwable $ex) {
+                        Log::warning('[ASSIGNMENT_UPDATE] physical_delete_failed', [
+                            'key' => $id,
+                            'db_id' => (int)($row->id ?? 0),
+                            'msg' => $ex->getMessage(),
+                        ]);
                     }
-                } catch (\Throwable $ex) {
-                    Log::warning('Failed to delete assignment attachment: ' . $ex->getMessage(), ['att' => $att]);
+
+                    continue;
                 }
 
-                continue; // don't keep
+                $kept[] = $att;
             }
 
-            $kept[] = $att;
+            $stored = $kept;
+
+            Log::info('[ASSIGNMENT_UPDATE] remove_attachments_done', [
+                'key' => $id,
+                'db_id' => (int)($row->id ?? 0),
+                'removed_count' => $removedCount,
+                'deleted_physical' => $deletedPhysical,
+                'remaining_count' => count($stored),
+            ]);
         }
 
-        $stored = $kept;
-    }
+        // 2) Append new files + library_urls
+        $batchId = (int)($row->batch_id ?? 0);
 
-    //
-    // 2) Append new files + library_urls
-    //
-    $batchId = (int)$row->batch_id;
-    $stored  = $this->appendFilesAndLibraryUrls($r, $batchId, $stored);
+        $stored = $this->appendFilesAndLibraryUrls($r, $batchId, $stored);
 
-    $update['attachments_json'] = $stored ? json_encode($stored, JSON_UNESCAPED_UNICODE) : json_encode([], JSON_UNESCAPED_UNICODE);
-    $update['updated_at']       = now();
+        $update['attachments_json'] = $stored
+            ? json_encode($stored, JSON_UNESCAPED_UNICODE)
+            : json_encode([], JSON_UNESCAPED_UNICODE);
 
-    DB::table('assignments')->where('id', (int)$id)->update($update);
+        $update['updated_at'] = now();
 
-    return response()->json([
-        'status'      => 'success',
-        'message'     => 'Assignment updated',
-        'id'          => (int)$id,
-        'attachments' => $stored,
+        // ✅ SAFER UPDATE QUERY: update on plain assignments table (no joins)
+        $uq = DB::table('assignments');
+        if (\Illuminate\Support\Facades\Schema::hasColumn('assignments', 'deleted_at')) {
+            $uq->whereNull('deleted_at');
+        }
+        $this->applyAssignmentKey($uq, $id);
+
+        Log::info('[ASSIGNMENT_UPDATE] db_update_begin', [
+            'key' => $id,
+            'db_id' => (int)($row->id ?? 0),
+            'update_keys' => array_keys($update),
+        ]);
+
+        $affected = $uq->update($update);
+        // =========================
+// ✅ ACTIVITY LOG (DB)
+// - old_values: $row (before update)
+// - new_values: fresh row after update
+// =========================
+try {
+    $fresh = DB::table('assignments')->where('id', (int)$row->id)->first();
+
+    $this->logActivity(
+        $r,
+        'update',
+        'Updated assignment "'.($row->title ?? $row->id).'"',
+        'assignments',
+        (int)$row->id,
+        array_values(array_keys($update)),      // changed_fields
+        (array)$row,                            // old_values
+        $fresh ? (array)$fresh : null           // new_values
+    );
+} catch (\Throwable $e) {
+    Log::warning('[ASSIGNMENT_UPDATE] activity_log_failed', [
+        'key' => $id,
+        'db_id' => (int)($row->id ?? 0),
+        'msg' => $e->getMessage(),
     ]);
 }
 
+
+        Log::info('[ASSIGNMENT_UPDATE] db_update_done', [
+            'key' => $id,
+            'db_id' => (int)($row->id ?? 0),
+            'affected_rows' => (int)$affected,
+        ]);
+
+        DB::commit();
+
+        // recompute final allowed types from merged meta (what we actually saved)
+        $finalAllowed = [];
+        if (isset($meta['allowed_submission_types']) && is_array($meta['allowed_submission_types'])) {
+            $finalAllowed = $meta['allowed_submission_types'];
+        }
+
+        Log::info('[ASSIGNMENT_UPDATE] success', [
+            'key' => $id,
+            'db_id' => (int)($row->id ?? 0),
+            'db_uuid' => (string)($row->uuid ?? ''),
+            'final_attachments_count' => is_array($stored) ? count($stored) : 0,
+            'final_allowed_types_count' => count($finalAllowed),
+        ]);
+
+        return response()->json([
+            'status'      => 'success',
+            'message'     => 'Assignment updated',
+            'id'          => (int)($row->id ?? 0),
+            'uuid'        => $row->uuid ?? null,
+            'attachments' => $stored,
+
+            // ✅ IMPORTANT: return top-level for frontend edit screen
+            'allowed_submission_types' => $finalAllowed,
+        ]);
+    } catch (\Throwable $e) {
+        DB::rollBack();
+
+        Log::error('[ASSIGNMENT_UPDATE] failed', [
+            'key'   => $id,
+            'db_id' => (int)($row->id ?? 0),
+            'actor' => $actor,
+            'msg'   => $e->getMessage(),
+            'trace' => $e->getTraceAsString(),
+        ]);
+
+        return response()->json([
+            'error'   => 'Failed to update assignment',
+            'message' => $e->getMessage(),
+        ], 500);
+    }
+}
     /* DESTROY */
     public function destroy(Request $request, string $assignment)
     {
@@ -554,7 +877,25 @@ public function update(Request $r, $id)
             'updated_at' => now(),
         ]);
 
-        $this->logActivity($request,'destroy','Archived/Deleted assignment "'.$row->title.'"','assignments',(int)$row->id,['status','deleted_at'],(array)$row,null);
+DB::table('assignments')->where('id', $row->id)->update([
+    'status'     => 'closed',
+    'deleted_at' => now(),
+    'updated_at' => now(),
+]);
+
+// ✅ fetch new state for log
+$fresh = DB::table('assignments')->where('id', (int)$row->id)->first();
+
+$this->logActivity(
+    $request,
+    'destroy',
+    'Archived/Deleted assignment "'.$row->title.'"',
+    'assignments',
+    (int)$row->id,
+    ['status','deleted_at'],
+    (array)$row,
+    $fresh ? (array)$fresh : null
+);
 
         return response()->json(['status'=>'success','message'=>'Assignment deleted']);
     }
@@ -668,7 +1009,24 @@ public function restore(Request $r, string $assignment)
 
     DB::table('assignments')->where('id', (int)$row->id)->update(['deleted_at' => null, 'updated_at' => now()]);
 
-    $this->logActivity($r, 'restore', 'Restored assignment "'.($row->title ?? $row->id).'"', 'assignments', (int)$row->id, ['deleted_at'], (array)$row, null);
+DB::table('assignments')->where('id', (int)$row->id)->update([
+    'deleted_at' => null,
+    'updated_at' => now()
+]);
+
+// ✅ fetch new state for log
+$fresh = DB::table('assignments')->where('id', (int)$row->id)->first();
+
+$this->logActivity(
+    $r,
+    'restore',
+    'Restored assignment "'.($row->title ?? $row->id).'"',
+    'assignments',
+    (int)$row->id,
+    ['deleted_at'],
+    (array)$row,
+    $fresh ? (array)$fresh : null
+);
 
     return response()->json(['status'=>'success','message'=>'Assignment restored']);
 }
@@ -1026,7 +1384,6 @@ public function viewAssignmentByBatch(Request $r, string $batchKey)
 
     return response()->json(['data' => $payload]);
 }
-
 public function storeByBatch(Request $r, string $batchKey)
 {
     if ($res = $this->requireRole($r, ['admin','super_admin','instructor'])) return $res;
@@ -1051,9 +1408,7 @@ public function storeByBatch(Request $r, string $batchKey)
     }
 
     $batch = $bq->first();
-    if (!$batch) {
-        return response()->json(['error' => 'Batch not found'], 404);
-    }
+    if (!$batch) return response()->json(['error' => 'Batch not found'], 404);
 
     /* =========================
        Instructor access check
@@ -1061,14 +1416,10 @@ public function storeByBatch(Request $r, string $batchKey)
     if ($role === 'instructor') {
         $biUserCol = \Illuminate\Support\Facades\Schema::hasColumn('batch_instructors','user_id')
             ? 'user_id'
-            : (\Illuminate\Support\Facades\Schema::hasColumn('batch_instructors','instructor_id')
-                ? 'instructor_id'
-                : null);
+            : (\Illuminate\Support\Facades\Schema::hasColumn('batch_instructors','instructor_id') ? 'instructor_id' : null);
 
         if (!$biUserCol) {
-            return response()->json([
-                'error' => 'Schema issue: batch_instructors needs user_id OR instructor_id'
-            ], 500);
+            return response()->json(['error' => 'Schema issue: batch_instructors needs user_id OR instructor_id'], 500);
         }
 
         $assigned = DB::table('batch_instructors')
@@ -1077,9 +1428,7 @@ public function storeByBatch(Request $r, string $batchKey)
             ->where($biUserCol, $uid)
             ->exists();
 
-        if (!$assigned) {
-            return response()->json(['error' => 'Forbidden'], 403);
-        }
+        if (!$assigned) return response()->json(['error' => 'Forbidden'], 403);
     }
 
     /* =========================
@@ -1088,11 +1437,10 @@ public function storeByBatch(Request $r, string $batchKey)
     $courseId = (int) ($batch->course_id ?? 0);
 
     /* =========================
-       ✅ FIX: Resolve course_module_id from BOTH module_uuid AND course_module_id
+       Resolve course_module_id (same as your code)
        ========================= */
     $moduleId = null;
 
-    // Priority 1: Try course_module_id (numeric ID)
     if ($r->filled('course_module_id')) {
         $module = DB::table('course_modules')
             ->where('id', (int)$r->input('course_module_id'))
@@ -1101,20 +1449,14 @@ public function storeByBatch(Request $r, string $batchKey)
 
         if (!$module || (int)$module->course_id !== $courseId) {
             return response()->json([
-                'errors' => [
-                    'course_module_id' => [
-                        'Course module not found or does not belong to this batch\'s course'
-                    ]
-                ]
+                'errors' => ['course_module_id' => ['Course module not found or does not belong to this batch\'s course']]
             ], 422);
         }
 
         $moduleId = (int)$module->id;
-    }
-    // Priority 2: Try module_uuid (UUID format) ✅ NEW
-    elseif ($r->filled('module_uuid')) {
+    } elseif ($r->filled('module_uuid')) {
         $moduleUuid = $r->input('module_uuid');
-        
+
         $module = DB::table('course_modules')
             ->where('uuid', $moduleUuid)
             ->whereNull('deleted_at')
@@ -1122,26 +1464,18 @@ public function storeByBatch(Request $r, string $batchKey)
 
         if (!$module) {
             return response()->json([
-                'errors' => [
-                    'module_uuid' => ['Course module not found with UUID: ' . $moduleUuid]
-                ]
+                'errors' => ['module_uuid' => ['Course module not found with UUID: ' . $moduleUuid]]
             ], 422);
         }
 
         if ((int)$module->course_id !== $courseId) {
             return response()->json([
-                'errors' => [
-                    'module_uuid' => [
-                        'Course module does not belong to this batch\'s course'
-                    ]
-                ]
+                'errors' => ['module_uuid' => ['Course module does not belong to this batch\'s course']]
             ], 422);
         }
 
         $moduleId = (int)$module->id;
-    }
-    // Priority 3: Fallback to first/published module
-    else {
+    } else {
         $modules = DB::table('course_modules')
             ->where('course_id', $courseId)
             ->whereNull('deleted_at')
@@ -1153,31 +1487,22 @@ public function storeByBatch(Request $r, string $batchKey)
             $moduleId = (int)$modules->first()->id;
         } else {
             $published = $modules->firstWhere('status', 'published');
-            if ($published) {
-                $moduleId = (int)$published->id;
-            } elseif ($modules->count() > 0) {
-                $moduleId = (int)$modules->first()->id;
-            } else {
+            if ($published) $moduleId = (int)$published->id;
+            elseif ($modules->count() > 0) $moduleId = (int)$modules->first()->id;
+            else {
                 return response()->json([
-                    'errors' => [
-                        'course_module_id' => [
-                            'Unable to infer course_module_id from batch — please provide course_module_id or module_uuid'
-                        ]
-                    ]
+                    'errors' => ['course_module_id' => ['Unable to infer course_module_id from batch — please provide course_module_id or module_uuid']]
                 ], 422);
             }
         }
     }
 
     /* =========================
-       🔴 PRESERVE allowed_submission_types
+       Preserve allowed_submission_types
        ========================= */
     $allowedTypes = $r->input('allowed_submission_types');
-
     if (is_array($allowedTypes)) {
-        $allowedTypes = array_values(
-            array_filter($allowedTypes, fn ($v) => is_string($v) && $v !== '')
-        );
+        $allowedTypes = array_values(array_filter($allowedTypes, fn ($v) => is_string($v) && $v !== ''));
     } else {
         $allowedTypes = null;
     }
@@ -1186,14 +1511,52 @@ public function storeByBatch(Request $r, string $batchKey)
        Merge everything for store()
        ========================= */
     $r->merge([
-        'batch_id'                  => (int)$batch->id,
-        'course_id'                 => $courseId,
-        'course_module_id'          => $moduleId,
-        'allowed_submission_types'  => $allowedTypes,
+        'batch_id'                 => (int)$batch->id,
+        'course_id'                => $courseId,
+        'course_module_id'         => $moduleId,
+        'allowed_submission_types' => $allowedTypes,
     ]);
 
-    return $this->store($r, $courseId);
+    // ✅ Call existing store()
+    $resp = $this->store($r, $courseId);
+
+    // ✅ ACTIVITY LOG after successful create (DB log)
+    try {
+        if ($resp instanceof \Illuminate\Http\JsonResponse) {
+            $payload = $resp->getData(true); // array
+            $statusCode = $resp->getStatusCode();
+
+            if ($statusCode === 201) {
+                $newId = (int)($payload['data']['id'] ?? 0);
+
+                // old_values = null (create)
+                // new_values = the created row (fresh)
+                $fresh = $newId > 0
+                    ? DB::table('assignments')->where('id', $newId)->first()
+                    : null;
+
+                $this->logActivity(
+                    $r,
+                    'create',
+                    'Created assignment "'.($payload['data']['title'] ?? 'Assignment').'"',
+                    'assignments',
+                    $newId ?: null,
+                    $newId ? array_keys((array)($payload['data'] ?? [])) : null,
+                    null,
+                    $fresh ? (array)$fresh : ($payload['data'] ?? null)
+                );
+            }
+        }
+    } catch (\Throwable $e) {
+        Log::warning('[ASSIGNMENT_STORE_BY_BATCH] activity_log_failed', [
+            'batch_id' => (int)($batch->id ?? 0),
+            'msg' => $e->getMessage(),
+        ]);
+    }
+
+    return $resp;
 }
+
 /**
  * Bin (deleted items) by batch — admin/instructor (instructor must be assigned)
  */

@@ -1,7 +1,7 @@
 {{-- resources/views/modules/viewCourse/viewCourseLayout.blade.php --}}
 @php
   // Tab map (server-side include for first render; JS will swap panes without full reload)
-  $tabKey = request('tab', 'materials');
+  $tabKey = request('tab', 'recorded');
   $tabs = [
     'recorded'     => 'modules.course.viewCourse.viewCourseTabs.recordedVideos',
     'materials'    => 'modules.course.viewCourse.viewCourseTabs.studyMaterial',
@@ -11,7 +11,7 @@
     'notices'      => 'modules.course.viewCourse.viewCourseTabs.notices',
     'chat'         => 'modules.course.viewCourse.viewCourseTabs.chat',
   ];
-  $tabKey     = array_key_exists($tabKey, $tabs) ? $tabKey : 'materials';
+  $tabKey     = array_key_exists($tabKey, $tabs) ? $tabKey : 'recorded';
   $tabPartial = $tabs[$tabKey];
   $moduleUuid = request('module'); // optional
 @endphp

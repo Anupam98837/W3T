@@ -17,6 +17,65 @@ class BatchController extends Controller
     /* =========================================================
      |                       Helpers
      |=========================================================*/
+     /** Resolve actor (id + role) best-effort */
+private function resolveActor(Request $r): array
+{
+    $id = $this->authUserIdFromToken($r)
+        ?: (int)($r->attributes->get('auth_tokenable_id') ?? 0);
+
+    $role = (string)($r->attributes->get('auth_role') ?? '');
+
+    // fallback role lookup (safe)
+    try {
+        if (!$role && $id > 0 && Schema::hasColumn('users', 'role')) {
+            $role = (string) (DB::table('users')->where('id', $id)->value('role') ?? '');
+        }
+    } catch (\Throwable) {}
+
+    return ['id' => $id, 'role' => $role];
+}
+
+/**
+ * Activity Log (DB facade)
+ * Table: user_data_activity_log
+ */
+private function logActivity(
+    Request $r,
+    string $activity,
+    string $module,
+    string $note,
+    string $tableName,
+    ?int $recordId = null,
+    ?array $changedFields = null,
+    $oldValues = null,
+    $newValues = null
+): void {
+    try {
+        if (!Schema::hasTable('user_data_activity_log')) return;
+
+        $actor = $this->resolveActor($r);
+
+        DB::table('user_data_activity_log')->insert([
+            'performed_by'      => $actor['id'] ?: 0,
+            'performed_by_role' => $actor['role'] ?: null,
+            'ip'                => $r->ip(),
+            'user_agent'        => (string) $r->userAgent(),
+            'activity'          => $activity,
+            'module'            => $module,
+            'table_name'        => $tableName,
+            'record_id'         => $recordId,
+            'changed_fields'    => $changedFields ? json_encode(array_values($changedFields), JSON_UNESCAPED_UNICODE) : null,
+            'old_values'        => $oldValues !== null ? json_encode($oldValues, JSON_UNESCAPED_UNICODE) : null,
+            'new_values'        => $newValues !== null ? json_encode($newValues, JSON_UNESCAPED_UNICODE) : null,
+            'log_note'          => $note,
+            'created_at'        => now(),
+            'updated_at'        => now(),
+        ]);
+    } catch (\Throwable $e) {
+        Log::warning('[BatchController] activity_log_failed', ['error' => $e->getMessage()]);
+    }
+}
+
 
     /** Extract user id from Bearer token (Sanctum-style hashed token) */
     protected function authUserIdFromToken(Request $request): ?int
@@ -333,6 +392,18 @@ if ($request->has('group_links') && is_array($request->group_links)) {
 
             $id  = DB::table('batches')->insertGetId($payload);
             $row = DB::table('batches')->where('id', $id)->first();
+            $this->logActivity(
+    $request,
+    'create',
+    'Batches',
+    'Created batch: ' . ($row->badge_title ?? '') . ' (course_id=' . (int)$row->course_id . ')',
+    'batches',
+    (int)$id,
+    array_keys($payload),
+    null,
+    (array)$row
+);
+
             $row->group_links    = $row->group_links ? json_decode($row->group_links, true) : null;
             $row->metadata       = $row->metadata ? json_decode($row->metadata, true) : null;
            $row->duration_human = $this->humanDuration($row->starts_at ?? null, $row->ends_at ?? null);
@@ -352,6 +423,7 @@ public function update(Request $request, $idOrUuid)
     if (!$batch) {
         return response()->json(['success' => false, 'message' => 'Batch not found'], 404);
     }
+    $oldRow = DB::table('batches')->where('id', $batch->id)->first();
 
     // Validation (group_links now key => value map)
     $v = Validator::make($request->all(), [
@@ -471,6 +543,18 @@ public function update(Request $request, $idOrUuid)
     $upd['updated_at'] = now();
     DB::table('batches')->where('id', $batch->id)->update($upd);
 
+    $this->logActivity(
+    $request,
+    'update',
+    'Batches',
+    'Updated batch: ' . ($fresh->badge_title ?? '') . ' (id=' . (int)$batch->id . ')',
+    'batches',
+    (int)$batch->id,
+    array_keys($upd),
+    $oldRow ? (array)$oldRow : null,
+    $fresh ? (array)$fresh : null
+);
+
     $fresh = DB::table('batches')->where('id', $batch->id)->first();
     $fresh->group_links    = $fresh->group_links ? json_decode($fresh->group_links, true) : null;
     $fresh->metadata       = $fresh->metadata ? json_decode($fresh->metadata, true) : null;
@@ -489,37 +573,106 @@ public function update(Request $request, $idOrUuid)
 
 
     /** DELETE /api/batches/{idOrUuid} (soft delete) */
-    public function destroy(Request $request, $idOrUuid)
-    {
-        $row = $this->findBatch($idOrUuid);
-        if (!$row) return response()->json(['success' => false, 'message' => 'Batch not found'], 404);
-
-        DB::table('batches')->where('id', $row->id)->update(['deleted_at' => Carbon::now()]);
-        return response()->json(['success' => true, 'message' => 'Batch deleted']);
+   public function destroy(Request $request, $idOrUuid)
+{
+    $row = $this->findBatch($idOrUuid);
+    if (!$row) {
+        return response()->json(['success' => false, 'message' => 'Batch not found'], 404);
     }
 
-    /** POST /api/batches/{idOrUuid}/restore */
-    public function restore(Request $request, $idOrUuid)
-    {
-        $row = $this->findBatch($idOrUuid, true);
-        if (!$row) return response()->json(['success' => false, 'message' => 'Batch not found'], 404);
+    $oldRow = DB::table('batches')->where('id', $row->id)->first();
+    $now = Carbon::now();
 
-        DB::table('batches')->where('id', $row->id)->update(['deleted_at' => null, 'updated_at' => Carbon::now()]);
-        return response()->json(['success' => true, 'message' => 'Batch restored']);
+    DB::table('batches')->where('id', $row->id)->update([
+        'deleted_at' => $now,
+        'updated_at' => $now,
+    ]);
+
+    $newRow = DB::table('batches')->where('id', $row->id)->first();
+
+    // ✅ Activity Log
+    $this->logActivity(
+        $request,
+        'delete',
+        'Batches',
+        'Soft deleted batch: ' . ($newRow->badge_title ?? '') . ' (id=' . (int)$row->id . ')',
+        'batches',
+        (int)$row->id,
+        ['deleted_at','updated_at'],
+        $oldRow ? (array)$oldRow : null,
+        $newRow ? (array)$newRow : null
+    );
+
+    return response()->json(['success' => true, 'message' => 'Batch deleted']);
+}
+
+/** POST /api/batches/{idOrUuid}/restore */
+public function restore(Request $request, $idOrUuid)
+{
+    $row = $this->findBatch($idOrUuid, true);
+    if (!$row) {
+        return response()->json(['success' => false, 'message' => 'Batch not found'], 404);
     }
 
-    /** PATCH /api/batches/{idOrUuid}/archive -> status=archived */
-    public function archive(Request $request, $idOrUuid)
-    {
-        $row = $this->findBatch($idOrUuid);
-        if (!$row) return response()->json(['success' => false, 'message' => 'Batch not found'], 404);
+    $oldRow = DB::table('batches')->where('id', $row->id)->first();
+    $now = Carbon::now();
 
-        DB::table('batches')->where('id', $row->id)->update([
-            'status'     => 'archived',
-            'updated_at' => Carbon::now(),
-        ]);
-        return response()->json(['success' => true, 'message' => 'Batch archived']);
+    DB::table('batches')->where('id', $row->id)->update([
+        'deleted_at' => null,
+        'updated_at' => $now,
+    ]);
+
+    $newRow = DB::table('batches')->where('id', $row->id)->first();
+
+    // ✅ Activity Log
+    $this->logActivity(
+        $request,
+        'restore',
+        'Batches',
+        'Restored batch: ' . ($newRow->badge_title ?? '') . ' (id=' . (int)$row->id . ')',
+        'batches',
+        (int)$row->id,
+        ['deleted_at','updated_at'],
+        $oldRow ? (array)$oldRow : null,
+        $newRow ? (array)$newRow : null
+    );
+
+    return response()->json(['success' => true, 'message' => 'Batch restored']);
+}
+
+/** PATCH /api/batches/{idOrUuid}/archive -> status=archived */
+public function archive(Request $request, $idOrUuid)
+{
+    $row = $this->findBatch($idOrUuid);
+    if (!$row) {
+        return response()->json(['success' => false, 'message' => 'Batch not found'], 404);
     }
+
+    $oldRow = DB::table('batches')->where('id', $row->id)->first();
+    $now = Carbon::now();
+
+    DB::table('batches')->where('id', $row->id)->update([
+        'status'     => 'archived',
+        'updated_at' => $now,
+    ]);
+
+    $newRow = DB::table('batches')->where('id', $row->id)->first();
+
+    // ✅ Activity Log
+    $this->logActivity(
+        $request,
+        'archive',
+        'Batches',
+        'Archived batch: ' . ($newRow->badge_title ?? '') . ' (id=' . (int)$row->id . ')',
+        'batches',
+        (int)$row->id,
+        ['status','updated_at'],
+        $oldRow ? (array)$oldRow : null,
+        $newRow ? (array)$newRow : null
+    );
+
+    return response()->json(['success' => true, 'message' => 'Batch archived']);
+}
 
     /* =========================================================
      |                Existing Students (role=student)
@@ -606,84 +759,168 @@ public function update(Request $request, $idOrUuid)
      * POST /api/batches/{idOrUuid}/students/toggle
      * Body: { user_id: int, assigned: bool }
      */
-    public function studentsToggle(Request $request, $idOrUuid)
-    {
-        $uid = $this->authUserIdFromToken($request);
-        if (!$uid) return response()->json(['success' => false, 'message' => 'Unauthorized'], 401);
+   /**
+ * POST /api/batches/{idOrUuid}/students/toggle
+ * Body: { user_id: int, assigned: bool }
+ */
+public function studentsToggle(Request $request, $idOrUuid)
+{
+    $uid = $this->authUserIdFromToken($request);
+    if (!$uid) return response()->json(['success' => false, 'message' => 'Unauthorized'], 401);
 
-        $batch = $this->findBatch($idOrUuid);
-        if (!$batch) return response()->json(['success' => false, 'message' => 'Batch not found'], 404);
+    $batch = $this->findBatch($idOrUuid);
+    if (!$batch) return response()->json(['success' => false, 'message' => 'Batch not found'], 404);
 
-        $v = Validator::make($request->all(), [
-            'user_id'  => 'required|integer|exists:users,id',
-            'assigned' => 'required|boolean',
-        ]);
-        if ($v->fails()) {
-            return response()->json(['success' => false, 'errors' => $v->errors()], 422);
-        }
-
-        $now = Carbon::now();
-        $ip  = $request->ip();
-
-        if ($request->boolean('assigned')) {
-            // If a row exists (even soft-deleted), revive it; else insert new
-            $existing = DB::table('batch_students')
-                ->where('batch_id', $batch->id)
-                ->where('user_id', (int)$request->user_id)
-                ->first();
-
-            if ($existing) {
-                DB::table('batch_students')
-                    ->where('id', $existing->id)
-                    ->update([
-                        'deleted_at'        => null,
-                        'updated_at'        => $now,
-                        'enrollment_status' => 'enrolled',
-                        'enrolled_at'       => $existing->enrolled_at ?: $now,
-                    ]);
-            } else {
-                DB::table('batch_students')->insert([
-                    'uuid'              => (string)Str::uuid(),
-                    'batch_id'          => $batch->id,
-                    'user_id'           => (int)$request->user_id,
-                    'enrollment_status' => 'enrolled',
-                    'enrolled_at'       => $now,
-                    'completed_at'      => null,
-                    'created_by'        => $uid,
-                    'created_at'        => $now,
-                    'created_at_ip'     => $ip,
-                    'updated_at'        => $now,
-                    'deleted_at'        => null,
-                    'metadata'          => json_encode([]),
-                ]);
-            }
-        } else {
-            // Soft delete assignment
-            DB::table('batch_students')
-                ->where('batch_id', $batch->id)
-                ->where('user_id', (int)$request->user_id)
-                ->whereNull('deleted_at')
-                ->update([
-                    'deleted_at' => $now,
-                    'updated_at' => $now,
-                ]);
-        }
-
-        return response()->json(['success' => true]);
+    $v = Validator::make($request->all(), [
+        'user_id'  => 'required|integer|exists:users,id',
+        'assigned' => 'required|boolean',
+    ]);
+    if ($v->fails()) {
+        return response()->json(['success' => false, 'errors' => $v->errors()], 422);
     }
 
-    /* =========================================================
-     |                CSV Upload (create/update students)
-     |=========================================================*/
+    $now = Carbon::now();
+    $ip  = $request->ip();
 
-    /**
-     * POST /api/batches/{idOrUuid}/students/upload-csv
-     * Form-Data: csv (file .csv)
-     * Required columns per row: email, name, phone (others are ignored/nullable)
-     * - Creates user with role='student' if not exists (case-insensitive email).
-     * - Updates name/phone if provided.
-     * - Enrolls each into the batch (if not already).
-     */
+    $targetUserId = (int) $request->user_id;
+
+    // for nicer log message
+    $stu = DB::table('users')->select('id','name','email')->where('id', $targetUserId)->first();
+    $stuLabel = ($stu ? (($stu->name ?? '') . ' <' . ($stu->email ?? '') . '>') : ('user_id=' . $targetUserId));
+
+    if ($request->boolean('assigned')) {
+        // If a row exists (even soft-deleted), revive it; else insert new
+        $existing = DB::table('batch_students')
+            ->where('batch_id', $batch->id)
+            ->where('user_id', $targetUserId)
+            ->first();
+
+        $oldRow = $existing ? DB::table('batch_students')->where('id', $existing->id)->first() : null;
+
+        if ($existing) {
+            DB::table('batch_students')
+                ->where('id', $existing->id)
+                ->update([
+                    'deleted_at'        => null,
+                    'updated_at'        => $now,
+                    'enrollment_status' => 'enrolled',
+                    'enrolled_at'       => $existing->enrolled_at ?: $now,
+                ]);
+
+            $newRow = DB::table('batch_students')->where('id', $existing->id)->first();
+
+            // ✅ Activity Log (assign/revive)
+            $this->logActivity(
+                $request,
+                'assign',
+                'Batch Students',
+                'Assigned student to batch: ' . ($batch->badge_title ?? '') . ' (batch_id=' . (int)$batch->id . ', ' . $stuLabel . ')',
+                'batch_students',
+                (int)$existing->id,
+                ['deleted_at','updated_at','enrollment_status','enrolled_at'],
+                $oldRow ? (array)$oldRow : null,
+                $newRow ? (array)$newRow : null
+            );
+
+        } else {
+            // Insert (prefer insertGetId for logging id)
+            $insert = [
+                'uuid'              => (string) Str::uuid(),
+                'batch_id'          => $batch->id,
+                'user_id'           => $targetUserId,
+                'enrollment_status' => 'enrolled',
+                'enrolled_at'       => $now,
+                'completed_at'      => null,
+                'created_by'        => $uid,
+                'created_at'        => $now,
+                'created_at_ip'     => $ip,
+                'updated_at'        => $now,
+                'deleted_at'        => null,
+                'metadata'          => json_encode([]),
+            ];
+
+            $newId = null;
+            if (Schema::hasColumn('batch_students', 'id')) {
+                $newId = DB::table('batch_students')->insertGetId($insert);
+            } else {
+                DB::table('batch_students')->insert($insert);
+            }
+
+            $newRow = $newId
+                ? DB::table('batch_students')->where('id', $newId)->first()
+                : DB::table('batch_students')
+                    ->where('batch_id', $batch->id)
+                    ->where('user_id', $targetUserId)
+                    ->orderByDesc('created_at')
+                    ->first();
+
+            // ✅ Activity Log (new assign)
+            $this->logActivity(
+                $request,
+                'assign',
+                'Batch Students',
+                'Assigned student to batch: ' . ($batch->badge_title ?? '') . ' (batch_id=' . (int)$batch->id . ', ' . $stuLabel . ')',
+                'batch_students',
+                (int)($newRow->id ?? 0),
+                ['uuid','batch_id','user_id','enrollment_status','enrolled_at','created_by','created_at','created_at_ip','updated_at','deleted_at','metadata'],
+                null,
+                $newRow ? (array)$newRow : null
+            );
+        }
+
+    } else {
+        // Soft delete assignment
+        $oldRow = DB::table('batch_students')
+            ->where('batch_id', $batch->id)
+            ->where('user_id', $targetUserId)
+            ->whereNull('deleted_at')
+            ->first();
+
+        $affected = DB::table('batch_students')
+            ->where('batch_id', $batch->id)
+            ->where('user_id', $targetUserId)
+            ->whereNull('deleted_at')
+            ->update([
+                'deleted_at' => $now,
+                'updated_at' => $now,
+            ]);
+
+        $newRow = DB::table('batch_students')
+            ->where('batch_id', $batch->id)
+            ->where('user_id', $targetUserId)
+            ->first();
+
+        // ✅ Activity Log (unassign) - even if no-op, we log it as well
+        $action = $affected > 0 ? 'unassign' : 'unassign_noop';
+        $msg = $affected > 0
+            ? 'Unassigned student from batch: ' . ($batch->badge_title ?? '') . ' (batch_id=' . (int)$batch->id . ', ' . $stuLabel . ')'
+            : 'Unassign requested but no active enrollment found: (batch_id=' . (int)$batch->id . ', ' . $stuLabel . ')';
+
+        $this->logActivity(
+            $request,
+            $action,
+            'Batch Students',
+            $msg,
+            'batch_students',
+            (int)($newRow->id ?? ($oldRow->id ?? 0)),
+            ['deleted_at','updated_at'],
+            $oldRow ? (array)$oldRow : null,
+            $newRow ? (array)$newRow : null
+        );
+    }
+
+    return response()->json(['success' => true]);
+}
+
+
+/**
+ * POST /api/batches/{idOrUuid}/students/upload-csv
+ * Form-Data: csv (file .csv)
+ * Required columns per row: email, name, phone (others are ignored/nullable)
+ * - Creates user with role='student' if not exists (case-insensitive email).
+ * - Updates name/phone if provided.
+ * - Enrolls each into the batch (if not already).
+ */
 public function studentsUploadCsv(Request $request, $idOrUuid)
 {
     $uid = $this->authUserIdFromToken($request);
@@ -708,6 +945,8 @@ public function studentsUploadCsv(Request $request, $idOrUuid)
     $updatedUsers = 0;
     $enrolled     = 0;
     $errors       = [];
+
+    $originalName = method_exists($file, 'getClientOriginalName') ? (string)$file->getClientOriginalName() : 'students.csv';
 
     try {
         $fh = fopen($file->getRealPath(), 'r');
@@ -747,7 +986,6 @@ public function studentsUploadCsv(Request $request, $idOrUuid)
         // helper: make unique slug like your UserController::store
         $makeSlug = function (string $name): string {
             $base = \Illuminate\Support\Str::slug($name);
-            // keep base reasonable so base + '-' + 24 chars < 255
             $base = \Illuminate\Support\Str::limit($base, 200, '');
             do {
                 $slug = $base . '-' . \Illuminate\Support\Str::lower(\Illuminate\Support\Str::random(24));
@@ -792,9 +1030,7 @@ public function studentsUploadCsv(Request $request, $idOrUuid)
                 ];
                 if ($phoneCol) $insert[$phoneCol] = $phone;
 
-                // if a unique index exists on email (without deleted_at), this will throw on dup
                 $id = DB::table('users')->insertGetId($insert);
-
                 $user = DB::table('users')->where('id', $id)->first();
                 $createdUsers++;
             } else {
@@ -840,6 +1076,28 @@ public function studentsUploadCsv(Request $request, $idOrUuid)
         }
         fclose($fh);
 
+        // ✅ Activity Log (ONE summary log only)
+        $errCount = count($errors);
+        $errPreview = $errCount ? array_slice($errors, 0, 5) : [];
+
+        $this->logActivity(
+            $request,
+            'bulk_upload',
+            'Batch Students',
+            'CSV upload students into batch: ' . ($batch->badge_title ?? '') .
+            ' (batch_id=' . (int)$batch->id . ', file=' . $originalName . ')' .
+            ' | created_users=' . (int)$createdUsers .
+            ', updated_users=' . (int)$updatedUsers .
+            ', enrolled=' . (int)$enrolled .
+            ', errors=' . (int)$errCount .
+            ($errCount ? (' (first5: ' . implode(' | ', $errPreview) . ')') : ''),
+            'batches',
+            (int)$batch->id,
+            ['csv_upload'],
+            null,
+            null
+        );
+
         return response()->json([
             'success' => true,
             'summary' => [
@@ -849,8 +1107,24 @@ public function studentsUploadCsv(Request $request, $idOrUuid)
                 'errors'        => $errors,
             ]
         ]);
+
     } catch (\Throwable $e) {
         Log::error('CSV upload failed', ['ex' => $e]);
+
+        // ✅ Activity Log (failure)
+        $this->logActivity(
+            $request,
+            'bulk_upload_failed',
+            'Batch Students',
+            'CSV upload FAILED for batch: ' . ($batch->badge_title ?? '') .
+            ' (batch_id=' . (int)$batch->id . ', file=' . $originalName . ') | error=' . $e->getMessage(),
+            'batches',
+            (int)$batch->id,
+            ['csv_upload'],
+            null,
+            null
+        );
+
         return response()->json(['success' => false, 'message' => 'CSV processing failed'], 500);
     }
 }
@@ -949,7 +1223,6 @@ public function instructorsIndex(Request $request, $idOrUuid)
         ],
     ]);
 }
-
 /**
  * POST /api/batches/{idOrUuid}/instructors/toggle
  * Body: { user_id:int, assigned:bool, role_in_batch?:instructor|tutor|TA|mentor }
@@ -974,13 +1247,21 @@ public function instructorsToggle(Request $request, $idOrUuid)
     $now  = now();
     $ip   = $request->ip();
     $roleInBatch = $request->input('role_in_batch', 'instructor');
+    $targetUserId = (int)$request->user_id;
+
+    // For nicer log message
+    $ins = DB::table('users')->select('id','name','email')->where('id', $targetUserId)->first();
+    $insLabel = ($ins ? (($ins->name ?? '') . ' <' . ($ins->email ?? '') . '>') : ('user_id=' . $targetUserId));
 
     if ($request->boolean('assigned')) {
+
         // If a link (even soft-deleted) exists, revive; else insert
         $existing = DB::table('batch_instructors')
             ->where('batch_id', $batch->id)
-            ->where('user_id', (int)$request->user_id)
+            ->where('user_id', $targetUserId)
             ->first();
+
+        $oldRow = $existing ? DB::table('batch_instructors')->where('id', $existing->id)->first() : null;
 
         if ($existing) {
             DB::table('batch_instructors')
@@ -993,11 +1274,28 @@ public function instructorsToggle(Request $request, $idOrUuid)
                   'unassigned_at' => null,
                   'updated_at'    => $now,
               ]);
+
+            $newRow = DB::table('batch_instructors')->where('id', $existing->id)->first();
+
+            // ✅ Activity log (assign/revive)
+            $this->logActivity(
+                $request,
+                'assign',
+                'Batch Instructors',
+                'Assigned instructor to batch: ' . ($batch->badge_title ?? '') .
+                ' (batch_id=' . (int)$batch->id . ', ' . $insLabel . ', role_in_batch=' . ($roleInBatch ?: ($existing->role_in_batch ?? 'instructor')) . ')',
+                'batch_instructors',
+                (int)$existing->id,
+                ['deleted_at','assign_status','role_in_batch','assigned_at','unassigned_at','updated_at'],
+                $oldRow ? (array)$oldRow : null,
+                $newRow ? (array)$newRow : null
+            );
+
         } else {
-            DB::table('batch_instructors')->insert([
+            $insert = [
                 'uuid'          => (string) Str::uuid(),
                 'batch_id'      => $batch->id,
-                'user_id'       => (int)$request->user_id,
+                'user_id'       => $targetUserId,
                 'role_in_batch' => $roleInBatch,
                 'assign_status' => 'active',
                 'assigned_at'   => $now,
@@ -1008,13 +1306,50 @@ public function instructorsToggle(Request $request, $idOrUuid)
                 'updated_at'    => $now,
                 'deleted_at'    => null,
                 'metadata'      => json_encode([]),
-            ]);
+            ];
+
+            $newId = null;
+            if (Schema::hasColumn('batch_instructors', 'id')) {
+                $newId = DB::table('batch_instructors')->insertGetId($insert);
+            } else {
+                DB::table('batch_instructors')->insert($insert);
+            }
+
+            $newRow = $newId
+                ? DB::table('batch_instructors')->where('id', $newId)->first()
+                : DB::table('batch_instructors')
+                    ->where('batch_id', $batch->id)
+                    ->where('user_id', $targetUserId)
+                    ->orderByDesc('created_at')
+                    ->first();
+
+            // ✅ Activity log (new assign)
+            $this->logActivity(
+                $request,
+                'assign',
+                'Batch Instructors',
+                'Assigned instructor to batch: ' . ($batch->badge_title ?? '') .
+                ' (batch_id=' . (int)$batch->id . ', ' . $insLabel . ', role_in_batch=' . $roleInBatch . ')',
+                'batch_instructors',
+                (int)($newRow->id ?? 0),
+                ['uuid','batch_id','user_id','role_in_batch','assign_status','assigned_at','unassigned_at','created_by','created_at_ip','created_at','updated_at','deleted_at','metadata'],
+                null,
+                $newRow ? (array)$newRow : null
+            );
         }
+
     } else {
+
         // Soft delete + mark removed
-        DB::table('batch_instructors')
+        $oldRow = DB::table('batch_instructors')
+            ->where('batch_id', $batch->id)
+            ->where('user_id', $targetUserId)
+            ->whereNull('deleted_at')
+            ->first();
+
+        $affected = DB::table('batch_instructors')
           ->where('batch_id', $batch->id)
-          ->where('user_id', (int)$request->user_id)
+          ->where('user_id', $targetUserId)
           ->whereNull('deleted_at')
           ->update([
               'assign_status' => 'removed',
@@ -1022,10 +1357,35 @@ public function instructorsToggle(Request $request, $idOrUuid)
               'deleted_at'    => $now,
               'updated_at'    => $now,
           ]);
+
+        $newRow = DB::table('batch_instructors')
+            ->where('batch_id', $batch->id)
+            ->where('user_id', $targetUserId)
+            ->first();
+
+        // ✅ Activity log (unassign) – even if no-op
+        $action = $affected > 0 ? 'unassign' : 'unassign_noop';
+        $msg = $affected > 0
+            ? 'Unassigned instructor from batch: ' . ($batch->badge_title ?? '') .
+              ' (batch_id=' . (int)$batch->id . ', ' . $insLabel . ')'
+            : 'Unassign requested but no active instructor link found: (batch_id=' . (int)$batch->id . ', ' . $insLabel . ')';
+
+        $this->logActivity(
+            $request,
+            $action,
+            'Batch Instructors',
+            $msg,
+            'batch_instructors',
+            (int)($newRow->id ?? ($oldRow->id ?? 0)),
+            ['assign_status','unassigned_at','deleted_at','updated_at'],
+            $oldRow ? (array)$oldRow : null,
+            $newRow ? (array)$newRow : null
+        );
     }
 
     return response()->json(['success'=>true]);
 }
+
 
 /**
  * PATCH /api/batches/{idOrUuid}/instructors/update
@@ -1049,9 +1409,11 @@ public function instructorsUpdate(Request $request, $idOrUuid)
         return response()->json(['success'=>false,'errors'=>$v->errors()], 422);
     }
 
+    $targetUserId = (int)$request->user_id;
+
     $link = DB::table('batch_instructors')
         ->where('batch_id', $batch->id)
-        ->where('user_id', (int)$request->user_id)
+        ->where('user_id', $targetUserId)
         ->whereNull('deleted_at')
         ->first();
 
@@ -1064,11 +1426,34 @@ public function instructorsUpdate(Request $request, $idOrUuid)
     if ($request->has('assign_status')) $upd['assign_status'] = $request->assign_status;
     if (empty($upd)) return response()->json(['success'=>true,'message'=>'Nothing to update']);
 
+    $oldRow = DB::table('batch_instructors')->where('id', $link->id)->first();
+
     $upd['updated_at'] = now();
-    DB::table('batch_instructors')->where('id',$link->id)->update($upd);
+    DB::table('batch_instructors')->where('id', $link->id)->update($upd);
+
+    $newRow = DB::table('batch_instructors')->where('id', $link->id)->first();
+
+    // For nicer log message
+    $ins = DB::table('users')->select('id','name','email')->where('id', $targetUserId)->first();
+    $insLabel = ($ins ? (($ins->name ?? '') . ' <' . ($ins->email ?? '') . '>') : ('user_id=' . $targetUserId));
+
+    // ✅ Activity log (update link)
+    $this->logActivity(
+        $request,
+        'update',
+        'Batch Instructors',
+        'Updated instructor link in batch: ' . ($batch->badge_title ?? '') .
+        ' (batch_id=' . (int)$batch->id . ', ' . $insLabel . ')',
+        'batch_instructors',
+        (int)$link->id,
+        array_keys($upd),
+        $oldRow ? (array)$oldRow : null,
+        $newRow ? (array)$newRow : null
+    );
 
     return response()->json(['success'=>true,'message'=>'Instructor link updated']);
 }
+
 /**
  * GET /api/batches/{idOrUuid}/quizzes?q=&assigned=&per_page=&page=
  * assigned: 'all' (default) | '1' | '0'
@@ -1198,7 +1583,6 @@ private function resolveCourseModuleIdFromRequest(Request $request): ?int
     
     return $row ? (int) $row->id : null;
 }
-
 public function quizzToggle(Request $request, $idOrUuid)
 {
     $uid = $this->authUserIdFromToken($request);
@@ -1220,7 +1604,6 @@ public function quizzToggle(Request $request, $idOrUuid)
         'available_until'     => 'nullable|date|after_or_equal:available_from',
         'attempt_allowed'     => 'sometimes|nullable|integer|min:0',
 
-        // ✅ Module context from URL (optional)
         'module_uuid'         => 'sometimes|nullable|string',
         'course_module_uuid'  => 'sometimes|nullable|string',
         'module_id'           => 'sometimes|nullable|integer',
@@ -1242,20 +1625,9 @@ public function quizzToggle(Request $request, $idOrUuid)
     // ✅ Resolve module context from request
     $courseModuleId = $hasCourseModuleId ? $this->resolveCourseModuleIdFromRequest($request) : null;
 
-    // 🔍 DEBUG LOGGING
-    \Log::info('Quiz Toggle Request', [
-        'batch_id' => $batch->id,
-        'quiz_id' => $quizId,
-        'assigned' => $request->boolean('assigned'),
-        'request_data' => [
-            'course_module_id' => $request->input('course_module_id'),
-            'module_id' => $request->input('module_id'),
-            'course_module_uuid' => $request->input('course_module_uuid'),
-            'module_uuid' => $request->input('module_uuid'),
-        ],
-        'resolved_course_module_id' => $courseModuleId,
-        'has_column' => $hasCourseModuleId,
-    ]);
+    // (optional) quiz label for log
+    $quizRow = DB::table('quizz')->select('id','quiz_name')->where('id', $quizId)->first();
+    $quizLabel = $quizRow ? (($quizRow->quiz_name ?? '') . ' (quiz_id=' . $quizId . ')') : ('quiz_id=' . $quizId);
 
     // Fetch existing assignment (include soft-deleted so we can revive)
     $existing = DB::table('batch_quizzes')
@@ -1265,20 +1637,28 @@ public function quizzToggle(Request $request, $idOrUuid)
 
     $pivotId = null;
 
-    // Use transaction to avoid race conditions
+    // for activity log outside transaction
+    $logAction = null;
+    $logMsg    = null;
+    $logOld    = null;
+    $logNew    = null;
+    $logCols   = [];
+
     DB::transaction(function () use (
         $request, $batch, $quizId, $uid, $ip, $now, $existing,
-        $hasAssignedAt, $hasCourseModuleId, $courseModuleId, &$pivotId
+        $hasAssignedAt, $hasCourseModuleId, $courseModuleId, &$pivotId,
+        &$logAction, &$logMsg, &$logOld, &$logNew, &$logCols, $quizLabel
     ) {
+
         if ($request->boolean('assigned')) {
             // ========================================
-            // ASSIGN QUIZ TO BATCH
+            // ASSIGN / UPDATE QUIZ TO BATCH
             // ========================================
 
             $payload = [
                 'assign_status'       => 1,
                 'status'              => 'active',
-                
+
                 'display_order'       => $request->filled('display_order')
                     ? (int) $request->display_order
                     : (optional($existing)->display_order ?? 1),
@@ -1301,39 +1681,40 @@ public function quizzToggle(Request $request, $idOrUuid)
 
                 'unassigned_at'       => null,
                 'updated_at'          => $now,
-                'deleted_at'          => null, // Revive if soft-deleted
+                'deleted_at'          => null,
             ];
 
-            // ✅ STORE MODULE CONTEXT
             if ($hasCourseModuleId) {
-                // If module is provided in request, use it
-                // Otherwise, keep existing module (or null if new assignment)
                 $payload['course_module_id'] = $courseModuleId !== null
                     ? $courseModuleId
                     : (optional($existing)->course_module_id ?? null);
             }
 
-            // Set assigned_at timestamp
             if ($hasAssignedAt) {
-                // If already assigned, keep original timestamp
-                // If new assignment, set current timestamp
                 $payload['assigned_at'] = optional($existing)->assigned_at ?? $now;
             }
 
+            $logCols = array_keys($payload);
+
             if ($existing) {
-                // Update existing assignment
+                $logOld = DB::table('batch_quizzes')->where('id', $existing->id)->first();
+
                 DB::table('batch_quizzes')
                     ->where('id', $existing->id)
                     ->update($payload);
-                
+
                 $pivotId = $existing->id;
 
-                \Log::info('Quiz Assignment Updated', [
-                    'pivot_id' => $pivotId,
-                    'course_module_id' => $payload['course_module_id'] ?? null,
-                ]);
+                $logNew = DB::table('batch_quizzes')->where('id', $pivotId)->first();
+
+                // decide if this is "assign" (revive) vs "update"
+                $logAction = (!is_null($logOld) && !is_null($logOld->deleted_at)) ? 'assign' : 'update';
+                $logMsg = ($logAction === 'assign')
+                    ? "Assigned quiz to batch (revived): {$quizLabel}, batch_id={$batch->id}"
+                    : "Updated quiz assignment in batch: {$quizLabel}, batch_id={$batch->id}";
+
             } else {
-                // Create new assignment
+
                 $insertData = array_merge($payload, [
                     'uuid'          => (string) Str::uuid(),
                     'batch_id'      => $batch->id,
@@ -1344,18 +1725,29 @@ public function quizzToggle(Request $request, $idOrUuid)
                     'metadata'      => json_encode([]),
                 ]);
 
+                $logCols = array_keys($insertData);
+
                 $pivotId = DB::table('batch_quizzes')->insertGetId($insertData);
 
-                \Log::info('Quiz Assignment Created', [
-                    'pivot_id' => $pivotId,
-                    'course_module_id' => $insertData['course_module_id'] ?? null,
-                ]);
+                $logOld = null;
+                $logNew = DB::table('batch_quizzes')->where('id', $pivotId)->first();
+
+                $logAction = 'assign';
+                $logMsg = "Assigned quiz to batch: {$quizLabel}, batch_id={$batch->id}";
             }
 
         } else {
             // ========================================
             // UNASSIGN QUIZ FROM BATCH
             // ========================================
+
+            $activeRow = DB::table('batch_quizzes')
+                ->where('batch_id', $batch->id)
+                ->where('quiz_id', $quizId)
+                ->whereNull('deleted_at')
+                ->first();
+
+            $logOld = $activeRow;
 
             $affected = DB::table('batch_quizzes')
                 ->where('batch_id', $batch->id)
@@ -1368,15 +1760,40 @@ public function quizzToggle(Request $request, $idOrUuid)
                     'updated_at'    => $now,
                 ]);
 
-            \Log::info('Quiz Assignment Removed', [
-                'batch_id' => $batch->id,
-                'quiz_id' => $quizId,
-                'rows_affected' => $affected,
-            ]);
+            $logCols = ['assign_status','unassigned_at','deleted_at','updated_at'];
+
+            $latest = DB::table('batch_quizzes')
+                ->where('batch_id', $batch->id)
+                ->where('quiz_id', $quizId)
+                ->first();
+
+            $logNew = $latest;
+
+            $logAction = ($affected > 0) ? 'unassign' : 'unassign_noop';
+            $logMsg = ($affected > 0)
+                ? "Unassigned quiz from batch: {$quizLabel}, batch_id={$batch->id}"
+                : "Unassign requested but no active quiz assignment found: {$quizLabel}, batch_id={$batch->id}";
 
             $pivotId = null;
         }
     });
+
+    // ✅ Activity log (outside transaction)
+    if ($logAction) {
+        $rowIdForLog = (int)($pivotId ?? ($logNew->id ?? ($logOld->id ?? 0)));
+
+        $this->logActivity(
+            $request,
+            $logAction,
+            'Batch Quizzes',
+            $logMsg,
+            'batch_quizzes',
+            $rowIdForLog,
+            $logCols,
+            $logOld ? (array)$logOld : null,
+            $logNew ? (array)$logNew : null
+        );
+    }
 
     // If unassigned, return success with null data
     if (is_null($pivotId)) {
@@ -1387,12 +1804,8 @@ public function quizzToggle(Request $request, $idOrUuid)
         ]);
     }
 
-    // ========================================
-    // FETCH FRESH PIVOT DATA TO RETURN
-    // ========================================
-
+    // Fetch fresh pivot
     $pivot = DB::table('batch_quizzes')->where('id', $pivotId)->first();
-
     if (!$pivot) {
         return response()->json([
             'success' => false,
@@ -1400,7 +1813,6 @@ public function quizzToggle(Request $request, $idOrUuid)
         ], 500);
     }
 
-    // Build response data
     $assignedAt = $hasAssignedAt
         ? ($pivot->assigned_at ?? $pivot->created_at ?? null)
         : ($pivot->created_at ?? null);
@@ -1418,22 +1830,14 @@ public function quizzToggle(Request $request, $idOrUuid)
         'assigned_at'         => $assignedAt,
         'created_at'          => $pivot->created_at ?? null,
         'updated_at'          => $pivot->updated_at ?? null,
-        'attempt_allowed'     => isset($pivot->attempt_allowed) 
+        'attempt_allowed'     => isset($pivot->attempt_allowed)
             ? (is_null($pivot->attempt_allowed) ? null : (int) $pivot->attempt_allowed)
             : null,
     ];
 
-    // ✅ Include course_module_id in response
     if ($hasCourseModuleId && isset($pivot->course_module_id)) {
-        $data['course_module_id'] = is_null($pivot->course_module_id) 
-            ? null 
-            : (int) $pivot->course_module_id;
+        $data['course_module_id'] = is_null($pivot->course_module_id) ? null : (int) $pivot->course_module_id;
     }
-
-    \Log::info('Quiz Toggle Response', [
-        'pivot_id' => $pivotId,
-        'course_module_id' => $data['course_module_id'] ?? 'not_set',
-    ]);
 
     return response()->json([
         'success' => true,
@@ -1443,19 +1847,16 @@ public function quizzToggle(Request $request, $idOrUuid)
 }
 public function enrollStudent(Request $request, $idOrUuid)
 {
-    // derive actor from token (must be present)
     $actorId = $this->authUserIdFromToken($request);
     if (!$actorId) {
         return response()->json(['success' => false, 'message' => 'Unauthorized'], 401);
     }
 
-    // find batch (by id or uuid)
     $batch = $this->findBatch($idOrUuid);
     if (!$batch) {
         return response()->json(['success' => false, 'message' => 'Batch not found'], 404);
     }
 
-    // If client provided user_id, validate it. Otherwise fall back to actor id.
     $inputUserId = $request->input('user_id', null);
     if ($inputUserId !== null) {
         $v = Validator::make(['user_id' => $inputUserId], [
@@ -1466,15 +1867,8 @@ public function enrollStudent(Request $request, $idOrUuid)
         }
         $userId = (int) $inputUserId;
     } else {
-        // no user_id provided by client -> use server-derived actor id
         $userId = $actorId;
     }
-
-    // Optional security: prevent clients from enrolling another user even if they send user_id.
-    // Uncomment to enforce strict match:
-    // if ($userId !== $actorId) {
-    //     return response()->json(['success' => false, 'message' => 'Forbidden: cannot enroll another user'], 403);
-    // }
 
     $now = now();
     $ip  = $request->ip() ?: $request->server('REMOTE_ADDR');
@@ -1482,9 +1876,22 @@ public function enrollStudent(Request $request, $idOrUuid)
     $resultId = null;
     $createdNew = false;
 
+    // for activity log
+    $logAction = null;
+    $logMsg    = null;
+    $logOld    = null;
+    $logNew    = null;
+
+    // user label
+    $u = DB::table('users')->select('id','name','email')->where('id', $userId)->first();
+    $uLabel = $u ? (($u->name ?? '') . ' <' . ($u->email ?? '') . '>') : ('user_id=' . $userId);
+
     try {
-        DB::transaction(function() use ($batch, $userId, $actorId, $now, $ip, &$resultId, &$createdNew) {
-            // include soft-deleted so we can revive; lock for safety
+        DB::transaction(function() use (
+            $batch, $userId, $actorId, $now, $ip,
+            &$resultId, &$createdNew,
+            &$logAction, &$logMsg, &$logOld, &$logNew, $uLabel
+        ) {
             $existing = DB::table('batch_students')
                 ->where('batch_id', $batch->id)
                 ->where('user_id', $userId)
@@ -1492,28 +1899,35 @@ public function enrollStudent(Request $request, $idOrUuid)
                 ->first();
 
             if ($existing) {
-                // prepare update: always set verification state to not_verified (managed server-side)
+                $logOld = DB::table('batch_students')->where('id', $existing->id)->first();
+
                 $upd = [
                     'enrollment_status' => 'not_verified',
                     'updated_at'        => $now,
                 ];
 
+                $revived = false;
                 if (!is_null($existing->deleted_at)) {
-                    // revive soft-deleted row — preserve original created_by/created_at_ip if present
-                    $upd['deleted_at']    = null;
-                    $upd['enrolled_at']   = $existing->enrolled_at ?: $now;
-                    // only set created_by/created_at_ip if original values are missing
-                    if (empty($existing->created_by)) {
-                        $upd['created_by'] = $actorId;
-                    }
-                    if (empty($existing->created_at_ip)) {
-                        $upd['created_at_ip'] = $ip;
-                    }
+                    $revived = true;
+                    $upd['deleted_at']  = null;
+                    $upd['enrolled_at'] = $existing->enrolled_at ?: $now;
+
+                    if (empty($existing->created_by))     $upd['created_by'] = $actorId;
+                    if (empty($existing->created_at_ip))  $upd['created_at_ip'] = $ip;
                 }
 
                 DB::table('batch_students')->where('id', $existing->id)->update($upd);
+
                 $resultId = $existing->id;
                 $createdNew = false;
+
+                $logNew = DB::table('batch_students')->where('id', $resultId)->first();
+
+                $logAction = $revived ? 'enroll_revive' : 'enroll_update';
+                $logMsg = $revived
+                    ? "Enrollment revived in batch_id={$batch->id} for {$uLabel}"
+                    : "Enrollment updated in batch_id={$batch->id} for {$uLabel}";
+
             } else {
                 $insert = [
                     'uuid'              => (string)\Illuminate\Support\Str::uuid(),
@@ -1532,18 +1946,35 @@ public function enrollStudent(Request $request, $idOrUuid)
 
                 $resultId = DB::table('batch_students')->insertGetId($insert);
                 $createdNew = true;
+
+                $logOld = null;
+                $logNew = DB::table('batch_students')->where('id', $resultId)->first();
+                $logAction = 'enroll_create';
+                $logMsg = "Student enrolled into batch_id={$batch->id} for {$uLabel}";
             }
         });
 
         if (is_null($resultId)) {
-            // should not happen, but guard just in case
             Log::error('Enroll transaction completed without resultId', ['batch' => $batch->id, 'user' => $userId]);
             return response()->json(['success' => false, 'message' => 'Failed to enroll student'], 500);
         }
 
-        $row = DB::table('batch_students')->where('id', $resultId)->first();
+        // ✅ Activity log
+        if ($logAction) {
+            $this->logActivity(
+                $request,
+                $logAction,
+                'Batch Students',
+                $logMsg,
+                'batch_students',
+                (int)$resultId,
+                $logNew ? array_keys((array)$logNew) : ['enrollment_status','deleted_at','enrolled_at','updated_at'],
+                $logOld ? (array)$logOld : null,
+                $logNew ? (array)$logNew : null
+            );
+        }
 
-        // normalize metadata to array for stable API
+        $row = DB::table('batch_students')->where('id', $resultId)->first();
         $row->metadata = $row->metadata ? json_decode($row->metadata, true) : [];
 
         $message = $createdNew ? 'Student enrolled' : 'Student enrollment updated/revived';
@@ -1555,7 +1986,6 @@ public function enrollStudent(Request $request, $idOrUuid)
         return response()->json(['success' => false, 'message' => 'Failed to enroll student'], 500);
     }
 }
-
 public function verifyStudent(Request $request, $idOrUuid, $userId)
 {
     $actorId = $this->authUserIdFromToken($request);
@@ -1563,19 +1993,25 @@ public function verifyStudent(Request $request, $idOrUuid, $userId)
         return response()->json(['success' => false, 'message' => 'Unauthorized'], 401);
     }
 
-    // TODO: permission check (who can verify?)
-    // if (! $this->userCanVerify($actorId)) { return response()->json([...], 403); }
-
     $batch = $this->findBatch($idOrUuid);
     if (!$batch) {
         return response()->json(['success' => false, 'message' => 'Batch not found'], 404);
     }
 
+    // labels for log
+    $u = DB::table('users')->select('id','name','email')->where('id', (int)$userId)->first();
+    $uLabel = $u ? (($u->name ?? '') . ' <' . ($u->email ?? '') . '>') : ('user_id=' . (int)$userId);
+
     try {
         $updated = null;
 
-        DB::transaction(function() use ($batch, $userId, &$updated, $actorId) {
-            // lock active enrollment row
+        // for activity log
+        $logAction = null;
+        $logMsg    = null;
+        $logOld    = null;
+        $logNew    = null;
+
+        DB::transaction(function() use ($batch, $userId, &$updated, &$logAction, &$logMsg, &$logOld, &$logNew, $uLabel) {
             $row = DB::table('batch_students')
                 ->where('batch_id', $batch->id)
                 ->where('user_id', (int)$userId)
@@ -1585,12 +2021,18 @@ public function verifyStudent(Request $request, $idOrUuid, $userId)
 
             if (!$row) {
                 $updated = false;
+                $logAction = 'verify_not_found';
+                $logMsg = "Verify failed: no active enrollment in batch_id={$batch->id} for {$uLabel}";
                 return;
             }
 
-            // idempotent: if already verified, treat as success (no-op)
+            $logOld = DB::table('batch_students')->where('id', $row->id)->first();
+
             if (isset($row->enrollment_status) && $row->enrollment_status === 'verified') {
                 $updated = true;
+                $logNew = $logOld;
+                $logAction = 'verify_noop';
+                $logMsg = "Verify no-op (already verified): batch_id={$batch->id} for {$uLabel}";
                 return;
             }
 
@@ -1600,7 +2042,27 @@ public function verifyStudent(Request $request, $idOrUuid, $userId)
             ]);
 
             $updated = true;
+
+            $logNew = DB::table('batch_students')->where('id', $row->id)->first();
+            $logAction = 'verify';
+            $logMsg = "Student verified in batch_id={$batch->id} for {$uLabel}";
         });
+
+        // ✅ Activity log (even for not_found/noop if you want)
+        if ($logAction) {
+            $rowId = (int)($logNew->id ?? ($logOld->id ?? 0));
+            $this->logActivity(
+                $request,
+                $logAction,
+                'Batch Students',
+                $logMsg,
+                'batch_students',
+                $rowId,
+                ['enrollment_status','updated_at'],
+                $logOld ? (array)$logOld : null,
+                $logNew ? (array)$logNew : null
+            );
+        }
 
         if (!$updated) {
             return response()->json(['success' => false, 'message' => 'Active enrollment not found for this student'], 404);
@@ -1621,6 +2083,7 @@ public function verifyStudent(Request $request, $idOrUuid, $userId)
         return response()->json(['success' => false, 'message' => 'Failed to verify student'], 500);
     }
 }
+
 /**
      * Check if current user is enrolled in a specific batch
      *

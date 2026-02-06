@@ -118,7 +118,7 @@ h3{ font-size: 1.1rem; }
   border-radius: var(--radius-1);
   box-shadow: var(--shadow-1);
 }
-.card { overflow: auto; }
+/* .card { overflow: auto; } */
 .card-header, .modal-header, .popover-header {
   background: #f7f9fc;
   border-bottom: 1px solid var(--line-strong);

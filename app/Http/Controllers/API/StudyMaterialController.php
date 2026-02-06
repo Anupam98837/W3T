@@ -18,6 +18,118 @@ class StudyMaterialController extends Controller
     private const MEDIA_SUBDIR = 'assets/media/study_materials';
 
     /* =========================================================
+     * Activity Log (schema-safe)
+     * ========================================================= */
+    private function rowToArray($row): ?array
+    {
+        if (!$row) return null;
+        if (is_array($row)) return $row;
+        return json_decode(json_encode($row), true);
+    }
+
+    private function safeJson($val): ?string
+    {
+        try {
+            if ($val === null) return null;
+            return json_encode($val, JSON_UNESCAPED_UNICODE);
+        } catch (\Throwable $e) {
+            return null;
+        }
+    }
+
+    private function logActivity(
+        Request $r,
+        string $action,
+        string $message,
+        array $meta = [],
+        ?string $tableName = null,
+        ?int $rowId = null,
+        $oldRow = null,
+        $newRow = null
+    ): void {
+        try {
+            if (!Schema::hasTable('activity_logs')) return;
+
+            $now = now();
+            $ip  = $r->ip();
+            $ua  = substr((string) $r->userAgent(), 0, 255);
+
+            $actor = $this->actor($r);
+            $actorId = (int) ($actor['id'] ?? 0);
+            $actorRole = strtolower((string) ($actor['role'] ?? ''));
+
+            $oldArr = $this->rowToArray($oldRow);
+            $newArr = $this->rowToArray($newRow);
+
+            $changes = [];
+            if (is_array($oldArr) && is_array($newArr)) {
+                $keys = array_unique(array_merge(array_keys($oldArr), array_keys($newArr)));
+                foreach ($keys as $k) {
+                    $ov = $oldArr[$k] ?? null;
+                    $nv = $newArr[$k] ?? null;
+                    if ($ov !== $nv) $changes[$k] = ['old' => $ov, 'new' => $nv];
+                }
+            }
+
+            $ins = [];
+
+            if (Schema::hasColumn('activity_logs', 'uuid')) $ins['uuid'] = (string) Str::uuid();
+
+            if (Schema::hasColumn('activity_logs', 'module')) $ins['module'] = 'study_materials';
+            if (Schema::hasColumn('activity_logs', 'action')) $ins['action'] = $action;
+            if (Schema::hasColumn('activity_logs', 'message')) $ins['message'] = $message;
+
+            foreach (['actor_id','user_id','created_by','created_by_user_id'] as $col) {
+                if (Schema::hasColumn('activity_logs', $col)) { $ins[$col] = $actorId ?: null; break; }
+            }
+            foreach (['actor_role','role'] as $col) {
+                if (Schema::hasColumn('activity_logs', $col)) { $ins[$col] = $actorRole ?: null; break; }
+            }
+
+            foreach (['endpoint','path','url'] as $col) {
+                if (Schema::hasColumn('activity_logs', $col)) { $ins[$col] = (string) $r->path(); break; }
+            }
+            foreach (['method','http_method'] as $col) {
+                if (Schema::hasColumn('activity_logs', $col)) { $ins[$col] = (string) $r->method(); break; }
+            }
+
+            foreach (['table_name','table','ref_table'] as $col) {
+                if (Schema::hasColumn('activity_logs', $col)) { $ins[$col] = $tableName; break; }
+            }
+            foreach (['row_id','ref_id','subject_id'] as $col) {
+                if (Schema::hasColumn('activity_logs', $col)) { $ins[$col] = $rowId; break; }
+            }
+
+            foreach (['ip','ip_address'] as $col) {
+                if (Schema::hasColumn('activity_logs', $col)) { $ins[$col] = $ip; break; }
+            }
+            foreach (['user_agent','ua'] as $col) {
+                if (Schema::hasColumn('activity_logs', $col)) { $ins[$col] = $ua; break; }
+            }
+
+            foreach (['meta_json','meta','metadata'] as $col) {
+                if (Schema::hasColumn('activity_logs', $col)) { $ins[$col] = $this->safeJson($meta); break; }
+            }
+            foreach (['old_json','old_data','old_payload'] as $col) {
+                if (Schema::hasColumn('activity_logs', $col)) { $ins[$col] = $this->safeJson($oldArr); break; }
+            }
+            foreach (['new_json','new_data','new_payload'] as $col) {
+                if (Schema::hasColumn('activity_logs', $col)) { $ins[$col] = $this->safeJson($newArr); break; }
+            }
+            foreach (['changes_json','changes'] as $col) {
+                if (Schema::hasColumn('activity_logs', $col)) { $ins[$col] = $this->safeJson($changes); break; }
+            }
+
+            if (Schema::hasColumn('activity_logs', 'created_at') && !isset($ins['created_at'])) $ins['created_at'] = $now;
+            if (Schema::hasColumn('activity_logs', 'updated_at') && !isset($ins['updated_at'])) $ins['updated_at'] = $now;
+
+            if (!empty($ins)) DB::table('activity_logs')->insert($ins);
+        } catch (\Throwable $e) {
+            Log::warning('Activity log failed', ['err' => $e->getMessage()]);
+        }
+    }
+
+    /* =========================================================
      |  Auth / Actor helpers  (same pattern you use elsewhere)
      * ========================================================= */
     private function actor(Request $r): array
@@ -100,6 +212,7 @@ class StudyMaterialController extends Controller
             'actor_role' => $actor['role'],
         ], $context));
     }
+
      /* =========================================================
      |  Create
      |  - saves files under storage/app/batchStudyMaterial/{batch_id}
@@ -192,6 +305,17 @@ class StudyMaterialController extends Controller
             'updated_at'         => $now,
         ]);
 
+        // ✅ ACTIVITY LOG
+        $fresh = DB::table('study_materials')->where('id', (int)$id)->first();
+        $this->logActivity($r, 'study_material_create', 'Study material created', [
+            'study_material_id' => (int) $id,
+            'uuid' => (string) $uuid,
+            'course_id' => (int) $r->course_id,
+            'course_module_id' => (int) $r->course_module_id,
+            'batch_id' => (int) $r->batch_id,
+            'attachment_count' => count($stored),
+        ], 'study_materials', (int) $id, null, $fresh);
+
         return response()->json([
             'message' => 'Study material created',
             'id'      => $id,
@@ -200,6 +324,7 @@ class StudyMaterialController extends Controller
             'attachments' => $stored,
         ], 201);
     }
+
     /* =========================================================
      |  List (filters for dropdown-driven page)
      * ========================================================= */
@@ -207,7 +332,7 @@ class StudyMaterialController extends Controller
     {
 
         $q  = DB::table('study_materials')->whereNull('deleted_at');
-        
+
         if ($r->filled('course_id'))        $q->where('course_id', (int)$r->course_id);
         if ($r->filled('course_module_id')) $q->where('course_module_id', (int)$r->course_module_id);
         if ($r->filled('batch_id'))         $q->where('batch_id', (int)$r->batch_id);
@@ -232,183 +357,6 @@ class StudyMaterialController extends Controller
         ]);
     }
 
-    /* =========================================================
-     |  View assignments for a batch (RBAC aware) — unchanged
-     * ========================================================= */
-    public function viewAssignmentByBatch(Request $r, string $batchKey)
-    {
-        // allow super_admin/admin/instructor/student (with checks)
-        $role = (string) $r->attributes->get('auth_role');
-        $uid  = (int) ($r->attributes->get('auth_tokenable_id') ?? 0);
-        if (!$role || !in_array($role, ['super_admin','admin','instructor','student'], true)) {
-            return response()->json(['error'=>'Unauthorized Access'], 403);
-        }
-
-        $isAdminLike = in_array($role, ['super_admin','admin'], true);
-        $isInstructor = $role === 'instructor';
-        $isStudent = $role === 'student';
-
-        // resolve batch (id | uuid | slug)
-        $bq = DB::table('batches')->whereNull('deleted_at');
-        if (ctype_digit($batchKey)) {
-            $bq->where('id', (int)$batchKey);
-        } elseif (\Illuminate\Support\Str::isUuid($batchKey)) {
-            $bq->where('uuid', $batchKey);
-        } elseif (\Illuminate\Support\Facades\Schema::hasColumn('batches','slug')) {
-            $bq->where('slug', $batchKey);
-        } else {
-            return response()->json(['error' => 'Batch not found'], 404);
-        }
-        $batch = $bq->first();
-        if (!$batch) return response()->json(['error' => 'Batch not found'], 404);
-
-        // determine pivot columns
-        $biUserCol = \Illuminate\Support\Facades\Schema::hasColumn('batch_instructors','user_id')
-            ? 'user_id'
-            : (\Illuminate\Support\Facades\Schema::hasColumn('batch_instructors','instructor_id') ? 'instructor_id' : null);
-
-        $bsUserCol = \Illuminate\Support\Facades\Schema::hasColumn('batch_students','user_id')
-            ? 'user_id'
-            : (\Illuminate\Support\Facades\Schema::hasColumn('batch_students','student_id') ? 'student_id' : null);
-
-        // RBAC checks for instructor/student
-        if ($isInstructor) {
-            if (!$biUserCol) {
-                return response()->json(['error'=>'Schema issue: batch_instructors needs user_id OR instructor_id'], 500);
-            }
-            $assigned = DB::table('batch_instructors')->where('batch_id', $batch->id)->whereNull('deleted_at')->where($biUserCol, $uid)->exists();
-            if (!$assigned) return response()->json(['error'=>'Forbidden'], 403);
-        }
-        if ($isStudent) {
-            if (!$bsUserCol) {
-                return response()->json(['error'=>'Schema issue: batch_students needs user_id OR student_id'], 500);
-            }
-            $enrolled = DB::table('batch_students')->where('batch_id', $batch->id)->whereNull('deleted_at')->where($bsUserCol, $uid)->exists();
-            if (!$enrolled) return response()->json(['error'=>'Forbidden'], 403);
-        }
-
-        // load course
-        $course = DB::table('courses')->where('id', $batch->course_id)->whereNull('deleted_at')->first();
-        if (!$course) return response()->json(['error'=>'Course not found for this batch'], 404);
-
-        // load modules for the course (students see only published)
-        $isStaff = $isAdminLike || $isInstructor;
-        $modQ = DB::table('course_modules')->where('course_id', $course->id)->whereNull('deleted_at')->orderBy('order_no')->orderBy('id');
-        if (!$isStaff) $modQ->where('status', 'published');
-        $modules = $modQ->get();
-
-        // load assignments for batch (join modules for context and creator info)
-        $aq = DB::table('assignments as a')
-            ->leftJoin('course_modules as cm', 'cm.id', '=', 'a.course_module_id')
-            ->leftJoin('users as creator', 'creator.id', '=', 'a.created_by') // Join with users table for creator info
-            ->where('a.batch_id', $batch->id)
-            ->whereNull('a.deleted_at')
-            ->whereNull('cm.deleted_at')
-            ->select(
-                'a.id','a.uuid','a.title','a.slug','a.instruction','a.status','a.attachments_json',
-                'a.course_module_id','cm.title as module_title','cm.uuid as module_uuid','cm.status as module_status',
-                'a.created_at','a.updated_at',
-                'creator.name as created_by_name' // Get creator's name
-            )
-            ->orderBy('cm.order_no')
-            ->orderBy('a.created_at', 'desc');
-
-        if (!$isStaff) {
-            $aq->where('cm.status', 'published');
-        }
-
-        $assignments = $aq->get();
-
-        // group by module
-        $byModule = [];
-        foreach ($assignments as $as) {
-            $mid = $as->course_module_id ?: 0;
-            if (!isset($byModule[$mid])) {
-                $byModule[$mid] = [
-                    'module' => [
-                        'id' => (int)$as->course_module_id,
-                        'uuid' => $as->module_uuid,
-                        'title' => $as->module_title,
-                        'status' => $as->module_status ?? null,
-                    ],
-                    'assignments' => []
-                ];
-            }
-
-            $attachments = [];
-            if (!empty($as->attachments_json)) {
-                try { $attachments = is_string($as->attachments_json) ? json_decode($as->attachments_json, true) : $as->attachments_json; } catch (\Throwable $e) { $attachments = []; }
-            }
-
-            $byModule[$mid]['assignments'][] = [
-                'id' => (int)$as->id,
-                'uuid' => $as->uuid,
-                'title' => $as->title,
-                'slug' => $as->slug,
-                'instruction' => $as->instruction,
-                'status' => $as->status,
-                'attachments' => $attachments,
-                'created_at' => $as->created_at,
-                'updated_at' => $as->updated_at,
-                'created_by_name' => $as->created_by_name, // Include creator's name
-            ];
-        }
-
-        // instructors list (if pivot exists)
-        $instructors = collect();
-        if ($biUserCol) {
-            $instructors = DB::table('batch_instructors as bi')
-                ->join('users as u', function($j) use ($biUserCol){
-                    $j->on('u.id', '=', DB::raw("bi.$biUserCol"));
-                })
-                ->where('bi.batch_id', $batch->id)
-                ->whereNull('bi.deleted_at')
-                ->whereNull('u.deleted_at')
-                ->select('u.id','u.uuid','u.name','u.email','u.role')
-                ->get()
-                ->map(fn($u) => [
-                    'id' => (int)$u->id,
-                    'uuid' => $u->uuid,
-                    'name' => $u->name,
-                    'email' => $u->email,
-                    'role' => $u->role,
-                ])->values();
-        }
-
-        $studentsCount = DB::table('batch_students')->where('batch_id', $batch->id)->whereNull('deleted_at')->count();
-        $assignmentsCount = DB::table('assignments')->where('batch_id', $batch->id)->whereNull('deleted_at')->count();
-
-        $payload = [
-            'batch' => (array)$batch,
-            'course' => [
-                'id' => (int)$course->id,
-                'uuid' => $course->uuid,
-                'title' => $course->title,
-                'slug' => $course->slug,
-            ],
-            'modules_with_assignments' => array_values($byModule),
-            'all_modules' => $modules->map(fn($m) => [
-                'id' => (int)$m->id, 'uuid' => $m->uuid, 'title' => $m->title, 'status' => $m->status, 'order_no' => (int)$m->order_no
-            ])->values(),
-            'instructors' => $instructors,
-            'stats' => [
-                'students_count' => (int)$studentsCount,
-                'assignments_count' => (int)$assignmentsCount,
-                'modules_count' => count($modules),
-                'you_are_instructor' => $isInstructor,
-                'you_are_student' => $isStudent,
-            ],
-            'permissions' => [
-                'can_create_assignment' => $isAdminLike || $isInstructor,
-                'can_view_unpublished_modules' => $isAdminLike || $isInstructor,
-            ],
-        ];
-
-        $this->logWithActor('[Assignments] view by batch', $r, ['batch_id' => $batch->id, 'assignments_count' => $assignmentsCount]);
-
-        return response()->json(['data' => $payload]);
-    }
-
        /**
      * Update basic fields and (optionally) add more files / remove selected files
      */
@@ -419,6 +367,8 @@ class StudyMaterialController extends Controller
 
     $row = DB::table('study_materials')->where('id', (int)$id)->whereNull('deleted_at')->first();
     if (!$row) return response()->json(['error' => 'Not found'], 404);
+
+    $oldForLog = $row;
 
     // validation: note remove_attachments is optional array of strings; allow library_urls
     $v = Validator::make($r->all(), [
@@ -517,6 +467,16 @@ class StudyMaterialController extends Controller
 
     DB::table('study_materials')->where('id', (int)$id)->update($update);
 
+    // ✅ ACTIVITY LOG
+    $fresh = DB::table('study_materials')->where('id', (int)$id)->first();
+    $this->logActivity($r, 'study_material_update', 'Study material updated', [
+        'study_material_id' => (int) $id,
+        'uuid' => (string) ($fresh->uuid ?? ''),
+        'batch_id' => (int) ($fresh->batch_id ?? 0),
+        'course_id' => (int) ($fresh->course_id ?? 0),
+        'course_module_id' => (int) ($fresh->course_module_id ?? 0),
+    ], 'study_materials', (int) $id, $oldForLog, $fresh);
+
     return response()->json([
         'message' => 'Study material updated',
         'id'      => (int)$id,
@@ -534,9 +494,19 @@ class StudyMaterialController extends Controller
         $row = DB::table('study_materials')->where('id', (int)$id)->whereNull('deleted_at')->first();
         if (!$row) return response()->json(['error'=>'Not found'], 404);
 
+        $oldForLog = $row;
+
         DB::table('study_materials')->where('id', (int)$id)->update([
             'deleted_at' => Carbon::now()
         ]);
+
+        // ✅ ACTIVITY LOG
+        $fresh = DB::table('study_materials')->where('id', (int)$id)->first();
+        $this->logActivity($r, 'study_material_soft_delete', 'Study material moved to bin (soft delete)', [
+            'study_material_id' => (int) $id,
+            'uuid' => (string) ($fresh->uuid ?? ''),
+            'batch_id' => (int) ($fresh->batch_id ?? 0),
+        ], 'study_materials', (int) $id, $oldForLog, $fresh);
 
         return response()->json(['message'=>'Study material moved to bin']);
     }
@@ -611,7 +581,17 @@ class StudyMaterialController extends Controller
         $row = DB::table('study_materials')->where('id', (int)$id)->whereNotNull('deleted_at')->first();
         if (!$row) return response()->json(['error'=>'Not found'], 404);
 
+        $oldForLog = $row;
+
         DB::table('study_materials')->where('id', (int)$id)->update(['deleted_at' => null, 'updated_at' => Carbon::now()]);
+
+        // ✅ ACTIVITY LOG
+        $fresh = DB::table('study_materials')->where('id', (int)$id)->first();
+        $this->logActivity($r, 'study_material_restore', 'Study material restored from bin', [
+            'study_material_id' => (int) $id,
+            'uuid' => (string) ($fresh->uuid ?? ''),
+            'batch_id' => (int) ($fresh->batch_id ?? 0),
+        ], 'study_materials', (int) $id, $oldForLog, $fresh);
 
         return response()->json(['message'=>'Study material restored']);
     }
@@ -687,222 +667,223 @@ class StudyMaterialController extends Controller
         // Use Laravel's binary file response with inline disposition
         return response()->download($absPath, $name, $headers, 'inline');
     }
-/* =========================================================
- | View Study Materials by Batch (with RBAC + Module Filter)
- * ========================================================= */
-public function viewStudyMaterialByBatch(Request $r, string $batchKey)
-{
-    /* --------------------------
-     | Role & Actor
-     * -------------------------- */
-    $role = (string) $r->attributes->get('auth_role');
-    $uid  = (int) ($r->attributes->get('auth_tokenable_id') ?? 0);
-
-    if (!in_array($role, ['superadmin','admin','instructor','student'], true)) {
-        return response()->json(['error' => 'Unauthorized Access'], 403);
-    }
-
-    $isAdminLike = in_array($role, ['superadmin','admin'], true);
-    $isInstructor = $role === 'instructor';
-    $isStudent    = $role === 'student';
-    $isStaff      = $isAdminLike || $isInstructor;
-
-    /* --------------------------
-     | Resolve Batch
-     * -------------------------- */
-    $bq = DB::table('batches')->whereNull('deleted_at');
-
-    if (ctype_digit($batchKey)) {
-        $bq->where('id', (int)$batchKey);
-    } elseif (Str::isUuid($batchKey)) {
-        $bq->where('uuid', $batchKey);
-    } elseif (Schema::hasColumn('batches','slug')) {
-        $bq->where('slug', $batchKey);
-    } else {
-        return response()->json(['error' => 'Batch not found'], 404);
-    }
-
-    $batch = $bq->first();
-    if (!$batch) return response()->json(['error' => 'Batch not found'], 404);
-
-    /* --------------------------
-     | RBAC checks
-     * -------------------------- */
-    $biUserCol = Schema::hasColumn('batch_instructors','user_id')
-        ? 'user_id'
-        : (Schema::hasColumn('batch_instructors','instructor_id') ? 'instructor_id' : null);
-
-    $bsUserCol = Schema::hasColumn('batch_students','user_id')
-        ? 'user_id'
-        : (Schema::hasColumn('batch_students','student_id') ? 'student_id' : null);
-
-    if ($isInstructor) {
-        if (!$biUserCol) return response()->json(['error'=>'Schema error'],500);
-        if (!DB::table('batch_instructors')
-            ->where('batch_id',$batch->id)
-            ->where($biUserCol,$uid)
-            ->whereNull('deleted_at')
-            ->exists()) {
-            return response()->json(['error'=>'Forbidden'],403);
-        }
-    }
-
-    if ($isStudent) {
-        if (!$bsUserCol) return response()->json(['error'=>'Schema error'],500);
-        if (!DB::table('batch_students')
-            ->where('batch_id',$batch->id)
-            ->where($bsUserCol,$uid)
-            ->whereNull('deleted_at')
-            ->exists()) {
-            return response()->json(['error'=>'Forbidden'],403);
-        }
-    }
-
-    /* --------------------------
-     | Course
-     * -------------------------- */
-    $course = DB::table('courses')
-        ->where('id', $batch->course_id)
-        ->whereNull('deleted_at')
-        ->first();
-
-    if (!$course) {
-        return response()->json(['error'=>'Course not found'],404);
-    }
 
     /* =========================================================
-     | 🔥 Resolve Module Filter (UUID or ID)
+     | View Study Materials by Batch (with RBAC + Module Filter)
      * ========================================================= */
-    $filterModuleId = null;
+    public function viewStudyMaterialByBatch(Request $r, string $batchKey)
+    {
+        /* --------------------------
+         | Role & Actor
+         * -------------------------- */
+        $role = (string) $r->attributes->get('auth_role');
+        $uid  = (int) ($r->attributes->get('auth_tokenable_id') ?? 0);
 
-    $moduleUuid = $r->query('module_uuid') ?? $r->query('module');
-    $moduleId   = $r->query('course_module_id');
-
-    if ($moduleUuid && Str::isUuid($moduleUuid)) {
-        $filterModuleId = DB::table('course_modules')
-            ->where('uuid', $moduleUuid)
-            ->where('course_id', $course->id)
-            ->whereNull('deleted_at')
-            ->value('id');
-    }
-    elseif ($moduleId && ctype_digit((string)$moduleId)) {
-        $filterModuleId = DB::table('course_modules')
-            ->where('id', (int)$moduleId)
-            ->where('course_id', $course->id)
-            ->whereNull('deleted_at')
-            ->value('id');
-    }
-
-    // ❌ Module param provided but invalid
-    if (($moduleUuid || $moduleId) && !$filterModuleId) {
-        return response()->json([
-            'error' => 'Module not found for this course'
-        ], 404);
-    }
-
-    /* --------------------------
-     | Modules (Sidebar)
-     * -------------------------- */
-    $modQ = DB::table('course_modules')
-        ->where('course_id', $course->id)
-        ->whereNull('deleted_at');
-
-    if (!$isStaff) $modQ->where('status', 'published');
-    if ($filterModuleId) $modQ->where('id', $filterModuleId);
-
-    $modules = $modQ
-        ->orderBy('order_no')
-        ->orderBy('id')
-        ->get();
-
-    /* --------------------------
-     | Study Materials
-     * -------------------------- */
-    $rows = DB::table('study_materials as sm')
-        ->join('course_modules as cm', function ($j) {
-            $j->on('cm.id','=','sm.course_module_id')
-              ->whereNull('cm.deleted_at');
-        })
-        ->leftJoin('users as u','u.id','=','sm.created_by')
-        ->where('sm.batch_id', $batch->id)
-        ->where('cm.course_id', $course->id)
-        ->whereNull('sm.deleted_at')
-        ->when(!$isStaff, fn($q)=>$q->where('cm.status','published'))
-        ->when($filterModuleId, fn($q)=>$q->where('sm.course_module_id',$filterModuleId))
-        ->orderBy('cm.order_no')
-        ->orderBy('sm.created_at','desc')
-        ->select(
-            'sm.*',
-            'cm.uuid as module_uuid',
-            'cm.title as module_title',
-            'u.name as created_by_name'
-        )
-        ->get();
-
-    /* --------------------------
-     | Group by Module
-     * -------------------------- */
-    $grouped = [];
-
-    foreach ($rows as $row) {
-        $mid = (int)$row->course_module_id;
-
-        if (!isset($grouped[$mid])) {
-            $grouped[$mid] = [
-                'module' => [
-                    'id'    => $mid,
-                    'uuid'  => $row->module_uuid,
-                    'title' => $row->module_title,
-                ],
-                'materials' => []
-            ];
+        if (!in_array($role, ['superadmin','admin','instructor','student'], true)) {
+            return response()->json(['error' => 'Unauthorized Access'], 403);
         }
 
-        $attachments = $this->jsonDecode($row->attachment);
+        $isAdminLike = in_array($role, ['superadmin','admin'], true);
+        $isInstructor = $role === 'instructor';
+        $isStudent    = $role === 'student';
+        $isStaff      = $isAdminLike || $isInstructor;
 
-        foreach ($attachments as &$a) {
-            if (isset($a['id'])) {
-                $a['stream_url'] =
-                    $this->appUrl()."/api/study-materials/stream/{$row->uuid}/{$a['id']}";
+        /* --------------------------
+         | Resolve Batch
+         * -------------------------- */
+        $bq = DB::table('batches')->whereNull('deleted_at');
+
+        if (ctype_digit($batchKey)) {
+            $bq->where('id', (int)$batchKey);
+        } elseif (Str::isUuid($batchKey)) {
+            $bq->where('uuid', $batchKey);
+        } elseif (Schema::hasColumn('batches','slug')) {
+            $bq->where('slug', $batchKey);
+        } else {
+            return response()->json(['error' => 'Batch not found'], 404);
+        }
+
+        $batch = $bq->first();
+        if (!$batch) return response()->json(['error' => 'Batch not found'], 404);
+
+        /* --------------------------
+         | RBAC checks
+         * -------------------------- */
+        $biUserCol = Schema::hasColumn('batch_instructors','user_id')
+            ? 'user_id'
+            : (Schema::hasColumn('batch_instructors','instructor_id') ? 'instructor_id' : null);
+
+        $bsUserCol = Schema::hasColumn('batch_students','user_id')
+            ? 'user_id'
+            : (Schema::hasColumn('batch_students','student_id') ? 'student_id' : null);
+
+        if ($isInstructor) {
+            if (!$biUserCol) return response()->json(['error'=>'Schema error'],500);
+            if (!DB::table('batch_instructors')
+                ->where('batch_id',$batch->id)
+                ->where($biUserCol,$uid)
+                ->whereNull('deleted_at')
+                ->exists()) {
+                return response()->json(['error'=>'Forbidden'],403);
             }
         }
 
-        $grouped[$mid]['materials'][] = [
-            'id' => (int)$row->id,
-            'uuid' => $row->uuid,
-            'title' => $row->title,
-            'description' => $row->description,
-            'attachments' => $attachments,
-            'attachment_count' => (int)$row->attachment_count,
-            'created_by_name' => $row->created_by_name,
-            'created_at' => $row->created_at,
-        ];
-    }
+        if ($isStudent) {
+            if (!$bsUserCol) return response()->json(['error'=>'Schema error'],500);
+            if (!DB::table('batch_students')
+                ->where('batch_id',$batch->id)
+                ->where($bsUserCol,$uid)
+                ->whereNull('deleted_at')
+                ->exists()) {
+                return response()->json(['error'=>'Forbidden'],403);
+            }
+        }
 
-    /* --------------------------
-     | Response
-     * -------------------------- */
-    return response()->json([
-        'data' => [
-            'batch' => (array)$batch,
-            'course' => [
-                'id' => (int)$course->id,
-                'uuid' => $course->uuid,
-                'title' => $course->title,
-            ],
-            'modules_with_materials' => array_values($grouped),
-            'all_modules' => $modules->map(fn($m)=>[
-                'id' => (int)$m->id,
-                'uuid' => $m->uuid,
-                'title' => $m->title,
-                'status' => $m->status,
-            ])->values(),
-            'permissions' => [
-                'can_upload_materials' => $isAdminLike || $isInstructor,
+        /* --------------------------
+         | Course
+         * -------------------------- */
+        $course = DB::table('courses')
+            ->where('id', $batch->course_id)
+            ->whereNull('deleted_at')
+            ->first();
+
+        if (!$course) {
+            return response()->json(['error'=>'Course not found'],404);
+        }
+
+        /* =========================================================
+         | 🔥 Resolve Module Filter (UUID or ID)
+         * ========================================================= */
+        $filterModuleId = null;
+
+        $moduleUuid = $r->query('module_uuid') ?? $r->query('module');
+        $moduleId   = $r->query('course_module_id');
+
+        if ($moduleUuid && Str::isUuid($moduleUuid)) {
+            $filterModuleId = DB::table('course_modules')
+                ->where('uuid', $moduleUuid)
+                ->where('course_id', $course->id)
+                ->whereNull('deleted_at')
+                ->value('id');
+        }
+        elseif ($moduleId && ctype_digit((string)$moduleId)) {
+            $filterModuleId = DB::table('course_modules')
+                ->where('id', (int)$moduleId)
+                ->where('course_id', $course->id)
+                ->whereNull('deleted_at')
+                ->value('id');
+        }
+
+        // ❌ Module param provided but invalid
+        if (($moduleUuid || $moduleId) && !$filterModuleId) {
+            return response()->json([
+                'error' => 'Module not found for this course'
+            ], 404);
+        }
+
+        /* --------------------------
+         | Modules (Sidebar)
+         * -------------------------- */
+        $modQ = DB::table('course_modules')
+            ->where('course_id', $course->id)
+            ->whereNull('deleted_at');
+
+        if (!$isStaff) $modQ->where('status', 'published');
+        if ($filterModuleId) $modQ->where('id', $filterModuleId);
+
+        $modules = $modQ
+            ->orderBy('order_no')
+            ->orderBy('id')
+            ->get();
+
+        /* --------------------------
+         | Study Materials
+         * -------------------------- */
+        $rows = DB::table('study_materials as sm')
+            ->join('course_modules as cm', function ($j) {
+                $j->on('cm.id','=','sm.course_module_id')
+                  ->whereNull('cm.deleted_at');
+            })
+            ->leftJoin('users as u','u.id','=','sm.created_by')
+            ->where('sm.batch_id', $batch->id)
+            ->where('cm.course_id', $course->id)
+            ->whereNull('sm.deleted_at')
+            ->when(!$isStaff, fn($q)=>$q->where('cm.status','published'))
+            ->when($filterModuleId, fn($q)=>$q->where('sm.course_module_id',$filterModuleId))
+            ->orderBy('cm.order_no')
+            ->orderBy('sm.created_at','desc')
+            ->select(
+                'sm.*',
+                'cm.uuid as module_uuid',
+                'cm.title as module_title',
+                'u.name as created_by_name'
+            )
+            ->get();
+
+        /* --------------------------
+         | Group by Module
+         * -------------------------- */
+        $grouped = [];
+
+        foreach ($rows as $row) {
+            $mid = (int)$row->course_module_id;
+
+            if (!isset($grouped[$mid])) {
+                $grouped[$mid] = [
+                    'module' => [
+                        'id'    => $mid,
+                        'uuid'  => $row->module_uuid,
+                        'title' => $row->module_title,
+                    ],
+                    'materials' => []
+                ];
+            }
+
+            $attachments = $this->jsonDecode($row->attachment);
+
+            foreach ($attachments as &$a) {
+                if (isset($a['id'])) {
+                    $a['stream_url'] =
+                        $this->appUrl()."/api/study-materials/stream/{$row->uuid}/{$a['id']}";
+                }
+            }
+
+            $grouped[$mid]['materials'][] = [
+                'id' => (int)$row->id,
+                'uuid' => $row->uuid,
+                'title' => $row->title,
+                'description' => $row->description,
+                'attachments' => $attachments,
+                'attachment_count' => (int)$row->attachment_count,
+                'created_by_name' => $row->created_by_name,
+                'created_at' => $row->created_at,
+            ];
+        }
+
+        /* --------------------------
+         | Response
+         * -------------------------- */
+        return response()->json([
+            'data' => [
+                'batch' => (array)$batch,
+                'course' => [
+                    'id' => (int)$course->id,
+                    'uuid' => $course->uuid,
+                    'title' => $course->title,
+                ],
+                'modules_with_materials' => array_values($grouped),
+                'all_modules' => $modules->map(fn($m)=>[
+                    'id' => (int)$m->id,
+                    'uuid' => $m->uuid,
+                    'title' => $m->title,
+                    'status' => $m->status,
+                ])->values(),
+                'permissions' => [
+                    'can_upload_materials' => $isAdminLike || $isInstructor,
+                ]
             ]
-        ]
-    ]);
-}
+        ]);
+    }
 
     /**
      * Create study material for a batch (resolve batch by id|uuid|slug).
@@ -1007,7 +988,7 @@ public function viewStudyMaterialByBatch(Request $r, string $batchKey)
                 ->value('id');
         }
 
-       
+
         if ($moduleKey === null) {
     return response()->json([
         'errors' => [
@@ -1063,6 +1044,18 @@ public function viewStudyMaterialByBatch(Request $r, string $batchKey)
         'created_at'       => $now,
         'updated_at'       => $now,
     ]);
+
+    // ✅ ACTIVITY LOG
+    $fresh = DB::table('study_materials')->where('id', (int)$id)->first();
+    $this->logActivity($r, 'study_material_create', 'Study material created (by batch)', [
+        'study_material_id' => (int) $id,
+        'uuid' => (string) $uuid,
+        'batch_id' => (int) $batch->id,
+        'course_id' => (int) $courseId,
+        'course_module_id' => (int) $moduleId,
+        'attachment_count' => count($stored),
+        'via' => 'storeByBatch',
+    ], 'study_materials', (int) $id, null, $fresh);
 
     return response()->json([
         'message'     => 'Study material created',
@@ -1140,154 +1133,155 @@ public function viewStudyMaterialByBatch(Request $r, string $batchKey)
             'data' => $items,
         ], 200);
     }
+
     /**
- * Append uploaded files AND library_urls[] (remote URL attachments) to existing stored attachments.
- *
- * @param Request $r
- * @param int $batchId
- * @param array $stored  Existing decoded attachments array (will be appended to)
- * @return array        Merged stored attachments array
- */
-protected function appendFilesAndLibraryUrls(Request $r, int $batchId, array $existing = []): array
-{
-    // normalize existing attachments to array
-    $stored = $existing ?: [];
-    if (!is_array($stored)) $stored = [];
+     * Append uploaded files AND library_urls[] (remote URL attachments) to existing stored attachments.
+     *
+     * @param Request $r
+     * @param int $batchId
+     * @param array $stored  Existing decoded attachments array (will be appended to)
+     * @return array        Merged stored attachments array
+     */
+    protected function appendFilesAndLibraryUrls(Request $r, int $batchId, array $existing = []): array
+    {
+        // normalize existing attachments to array
+        $stored = $existing ?: [];
+        if (!is_array($stored)) $stored = [];
 
-    // Build dedupe keys set (by url or sha256)
-    $seenUrl = [];
-    $seenSha = [];
+        // Build dedupe keys set (by url or sha256)
+        $seenUrl = [];
+        $seenSha = [];
 
-    foreach ($stored as $att) {
-        if (!empty($att['url'])) $seenUrl[(string)$att['url']] = true;
-        if (!empty($att['sha256'])) $seenSha[(string)$att['sha256']] = true;
-    }
+        foreach ($stored as $att) {
+            if (!empty($att['url'])) $seenUrl[(string)$att['url']] = true;
+            if (!empty($att['sha256'])) $seenSha[(string)$att['sha256']] = true;
+        }
 
-    // 1) Handle uploaded files (attachments[] / attachments)
-    $files = [];
-    if ($r->hasFile('attachments')) {
-        $files = is_array($r->file('attachments')) ? $r->file('attachments') : [$r->file('attachments')];
-    }
+        // 1) Handle uploaded files (attachments[] / attachments)
+        $files = [];
+        if ($r->hasFile('attachments')) {
+            $files = is_array($r->file('attachments')) ? $r->file('attachments') : [$r->file('attachments')];
+        }
 
-    if (!empty($files)) {
-        // store under public/assets/media/study_materials/batchStudyMaterial/{batchId}/...
-        $folder = "batchStudyMaterial/".(int)$batchId;
-        $destBase = $this->mediaBasePublicPath() . DIRECTORY_SEPARATOR . self::MEDIA_SUBDIR . DIRECTORY_SEPARATOR . $folder;
-        $this->ensureDir($destBase);
+        if (!empty($files)) {
+            // store under public/assets/media/study_materials/batchStudyMaterial/{batchId}/...
+            $folder = "batchStudyMaterial/".(int)$batchId;
+            $destBase = $this->mediaBasePublicPath() . DIRECTORY_SEPARATOR . self::MEDIA_SUBDIR . DIRECTORY_SEPARATOR . $folder;
+            $this->ensureDir($destBase);
 
-        foreach ($files as $file) {
-            if (!$file || !$file->isValid()) continue;
+            foreach ($files as $file) {
+                if (!$file || !$file->isValid()) continue;
 
-            // move & compute metadata
-            $ext  = strtolower($file->getClientOriginalExtension() ?: 'bin');
-            $fid  = \Illuminate\Support\Str::lower(\Illuminate\Support\Str::random(10));
-            $name = $fid.'.'.$ext;
+                // move & compute metadata
+                $ext  = strtolower($file->getClientOriginalExtension() ?: 'bin');
+                $fid  = \Illuminate\Support\Str::lower(\Illuminate\Support\Str::random(10));
+                $name = $fid.'.'.$ext;
 
-            try {
-                $file->move($destBase, $name);
-            } catch (\Throwable $e) {
-                \Illuminate\Support\Facades\Log::error('Failed to move uploaded study material file (append helper): '.$e->getMessage(), ['dest'=>$destBase,'file'=>$name]);
-                continue;
+                try {
+                    $file->move($destBase, $name);
+                } catch (\Throwable $e) {
+                    \Illuminate\Support\Facades\Log::error('Failed to move uploaded study material file (append helper): '.$e->getMessage(), ['dest'=>$destBase,'file'=>$name]);
+                    continue;
+                }
+
+                $absPath = $destBase.DIRECTORY_SEPARATOR.$name;
+                $relPath = self::MEDIA_SUBDIR . '/' . $folder . '/' . $name;
+                $mime = $file->getClientMimeType() ?: (@function_exists('mime_content_type') ? mime_content_type($absPath) : 'application/octet-stream');
+                $size = @filesize($absPath) ?: 0;
+                $sha  = @hash_file('sha256', $absPath) ?: null;
+                $url  = $this->toPublicUrl($relPath);
+
+                // dedupe by sha if present
+                if ($sha && isset($seenSha[$sha])) {
+                    // already present, skip
+                    continue;
+                }
+                if ($url && isset($seenUrl[$url])) {
+                    // exact same URL already present, skip
+                    continue;
+                }
+
+                // register seen keys
+                if ($sha) $seenSha[$sha] = true;
+                if ($url) $seenUrl[$url] = true;
+
+                $stored[] = [
+                    'id'          => $fid,
+                    'disk'        => 'public',
+                    'path'        => $relPath,
+                    'url'         => $url,
+                    'mime'        => $mime,
+                    'ext'         => $ext,
+                    'size'        => $size,
+                    'sha256'      => $sha,
+                    'uploaded_at' => \Carbon\Carbon::now()->toIso8601String(),
+                ];
             }
+        }
 
-            $absPath = $destBase.DIRECTORY_SEPARATOR.$name;
-            $relPath = self::MEDIA_SUBDIR . '/' . $folder . '/' . $name;
-            $mime = $file->getClientMimeType() ?: (@function_exists('mime_content_type') ? mime_content_type($absPath) : 'application/octet-stream');
-            $size = @filesize($absPath) ?: 0;
-            $sha  = @hash_file('sha256', $absPath) ?: null;
-            $url  = $this->toPublicUrl($relPath);
+        // 2) Handle library_urls[] (URL-based attachments)
+        $libUrls = $r->input('library_urls', []);
+        if ($libUrls && !is_array($libUrls)) $libUrls = [$libUrls];
 
-            // dedupe by sha if present
-            if ($sha && isset($seenSha[$sha])) {
-                // already present, skip
-                continue;
+        foreach ($libUrls as $u) {
+            if (!$u || !is_string($u)) continue;
+            $u = trim($u);
+            if ($u === '') continue;
+
+            // Normalize URL (avoid duplicates by exact URL)
+            if (isset($seenUrl[$u])) continue;
+
+            // Create id from hash of URL so it's stable and unique-ish
+            $id = 'lib-' . substr(hash('sha256', $u), 0, 12);
+
+            // attempt to detect extension/mime (best-effort)
+            $ext = pathinfo(parse_url($u, PHP_URL_PATH) ?: '', PATHINFO_EXTENSION);
+            $ext = strtolower((string)$ext);
+            $mime = '';
+            if ($ext) {
+                // best-effort mime map for common types (optional)
+                $map = [
+                    'pdf'=>'application/pdf',
+                    'png'=>'image/png',
+                    'jpg'=>'image/jpeg','jpeg'=>'image/jpeg',
+                    'mp4'=>'video/mp4','webm'=>'video/webm',
+                    'gif'=>'image/gif'
+                ];
+                if (isset($map[$ext])) $mime = $map[$ext];
             }
-            if ($url && isset($seenUrl[$url])) {
-                // exact same URL already present, skip
-                continue;
-            }
-
-            // register seen keys
-            if ($sha) $seenSha[$sha] = true;
-            if ($url) $seenUrl[$url] = true;
 
             $stored[] = [
-                'id'          => $fid,
-                'disk'        => 'public',
-                'path'        => $relPath,
-                'url'         => $url,
+                'id'          => $id,
+                'disk'        => 'external',
+                'path'        => $u,
+                'url'         => $u,
                 'mime'        => $mime,
                 'ext'         => $ext,
-                'size'        => $size,
-                'sha256'      => $sha,
+                'size'        => null,
+                'sha256'      => null,
                 'uploaded_at' => \Carbon\Carbon::now()->toIso8601String(),
             ];
-        }
-    }
 
-    // 2) Handle library_urls[] (URL-based attachments)
-    $libUrls = $r->input('library_urls', []);
-    if ($libUrls && !is_array($libUrls)) $libUrls = [$libUrls];
-
-    foreach ($libUrls as $u) {
-        if (!$u || !is_string($u)) continue;
-        $u = trim($u);
-        if ($u === '') continue;
-
-        // Normalize URL (avoid duplicates by exact URL)
-        if (isset($seenUrl[$u])) continue;
-
-        // Create id from hash of URL so it's stable and unique-ish
-        $id = 'lib-' . substr(hash('sha256', $u), 0, 12);
-
-        // attempt to detect extension/mime (best-effort)
-        $ext = pathinfo(parse_url($u, PHP_URL_PATH) ?: '', PATHINFO_EXTENSION);
-        $ext = strtolower((string)$ext);
-        $mime = '';
-        if ($ext) {
-            // best-effort mime map for common types (optional)
-            $map = [
-                'pdf'=>'application/pdf',
-                'png'=>'image/png',
-                'jpg'=>'image/jpeg','jpeg'=>'image/jpeg',
-                'mp4'=>'video/mp4','webm'=>'video/webm',
-                'gif'=>'image/gif'
-            ];
-            if (isset($map[$ext])) $mime = $map[$ext];
+            // mark seen
+            $seenUrl[$u] = true;
         }
 
-        $stored[] = [
-            'id'          => $id,
-            'disk'        => 'external',
-            'path'        => $u,
-            'url'         => $u,
-            'mime'        => $mime,
-            'ext'         => $ext,
-            'size'        => null,
-            'sha256'      => null,
-            'uploaded_at' => \Carbon\Carbon::now()->toIso8601String(),
-        ];
+        // Final: ensure uniqueness in $stored by url then by sha (stable)
+        $uniq = [];
+        $out = [];
+        foreach ($stored as $att) {
+            $key = '';
+            if (!empty($att['url'])) $key = 'u:'.(string)$att['url'];
+            elseif (!empty($att['sha256'])) $key = 's:'.(string)$att['sha256'];
+            elseif (!empty($att['path'])) $key = 'p:'.(string)$att['path'];
+            else $key = 'i:'.(string)($att['id'] ?? \Illuminate\Support\Str::random(6));
 
-        // mark seen
-        $seenUrl[$u] = true;
+            if (isset($uniq[$key])) continue;
+            $uniq[$key] = true;
+            $out[] = $att;
+        }
+
+        return $out;
     }
-
-    // Final: ensure uniqueness in $stored by url then by sha (stable)
-    $uniq = [];
-    $out = [];
-    foreach ($stored as $att) {
-        $key = '';
-        if (!empty($att['url'])) $key = 'u:'.(string)$att['url'];
-        elseif (!empty($att['sha256'])) $key = 's:'.(string)$att['sha256'];
-        elseif (!empty($att['path'])) $key = 'p:'.(string)$att['path'];
-        else $key = 'i:'.(string)($att['id'] ?? \Illuminate\Support\Str::random(6));
-
-        if (isset($uniq[$key])) continue;
-        $uniq[$key] = true;
-        $out[] = $att;
-    }
-
-    return $out;
-}
 
 }

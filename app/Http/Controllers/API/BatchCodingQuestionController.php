@@ -23,6 +23,39 @@ class BatchCodingQuestionController extends Controller
             'id'   => (int)($r->attributes->get('auth_tokenable_id') ?? 0),
         ];
     }
+    private function logActivity(
+    Request $request,
+    string $activity,
+    string $note,
+    string $tableName,
+    ?int $recordId = null,
+    ?array $changedFields = null,
+    $oldValues = null,   // can be array OR list(array)
+    $newValues = null    // can be array OR list(array)
+): void {
+    $a = $this->actor($request);
+
+    try {
+        DB::table('user_data_activity_log')->insert([
+            'performed_by'      => $a['id'] ?: 0,
+            'performed_by_role' => $a['role'] ?: null,
+            'ip'                => $request->ip(),
+            'user_agent'        => (string) $request->userAgent(),
+            'activity'          => $activity,
+            'module'            => 'Batch Coding Questions',
+            'table_name'        => $tableName,
+            'record_id'         => $recordId,
+            'changed_fields'    => $changedFields ? json_encode(array_values($changedFields), JSON_UNESCAPED_UNICODE) : null,
+            'old_values'        => $oldValues !== null ? json_encode($oldValues, JSON_UNESCAPED_UNICODE) : null,
+            'new_values'        => $newValues !== null ? json_encode($newValues, JSON_UNESCAPED_UNICODE) : null,
+            'log_note'          => $note,
+            'created_at'        => now(),
+            'updated_at'        => now(),
+        ]);
+    } catch (\Throwable $e) {
+        Log::warning('[BatchCodingQuestions] activity_log_failed', ['error' => $e->getMessage()]);
+    }
+}
 
     private function tableExists(string $table): bool
     {
@@ -688,38 +721,73 @@ public function assign(Request $r, $batch)
     if ($this->tableHasColumn($mapTable, 'updated_at'))  $payload['updated_at']  = now();
 
     try {
-        DB::beginTransaction();
+       DB::beginTransaction();
 
-        // Build existing selector using same key type as payload
-        $existing = DB::table($mapTable)
-            ->where($mapBatchCol, $batchId)
-            ->where($mapQCol, $payload[$mapQCol]);
+// Build existing selector using same key type as payload
+$existingQ = DB::table($mapTable)
+    ->where($mapBatchCol, $batchId)
+    ->where($mapQCol, $payload[$mapQCol]);
 
-        // ✅ IMPORTANT: include module in selector so one module doesn’t overwrite another
-        if ($mapModuleIdCol && array_key_exists($mapModuleIdCol, $payload)) {
-            $existing->where($mapModuleIdCol, $payload[$mapModuleIdCol]);
-        } elseif ($mapModuleUuidCol && array_key_exists($mapModuleUuidCol, $payload)) {
-            $existing->where($mapModuleUuidCol, $payload[$mapModuleUuidCol]);
-        }
+// ✅ include module in selector so one module doesn’t overwrite another
+if ($mapModuleIdCol && array_key_exists($mapModuleIdCol, $payload)) {
+    $existingQ->where($mapModuleIdCol, $payload[$mapModuleIdCol]);
+} elseif ($mapModuleUuidCol && array_key_exists($mapModuleUuidCol, $payload)) {
+    $existingQ->where($mapModuleUuidCol, $payload[$mapModuleUuidCol]);
+}
 
-        if ($this->tableHasColumn($mapTable, 'deleted_at')) {
-            $payload['deleted_at'] = null;
-        }
+$oldRow = $existingQ->first(); // ✅ capture old
 
-        if ($existing->exists()) {
-            if ($this->tableHasColumn($mapTable, 'uuid')) unset($payload['uuid']);
-            if (!$this->tableHasColumn($mapTable, 'created_at')) unset($payload['created_at']);
-            $existing->update($payload);
-        } else {
-            DB::table($mapTable)->insert($payload);
-        }
+if ($this->tableHasColumn($mapTable, 'deleted_at')) {
+    $payload['deleted_at'] = null;
+}
 
-        DB::commit();
+// payload used for write (so changed_fields matches what actually wrote)
+$writePayload = $payload;
 
-        return response()->json([
-            'ok' => true,
-            'message' => 'Assigned successfully',
-        ]);
+if ($oldRow) {
+    if ($this->tableHasColumn($mapTable, 'uuid')) unset($writePayload['uuid']);
+    if (!$this->tableHasColumn($mapTable, 'created_at')) unset($writePayload['created_at']);
+
+    DB::table($mapTable)
+        ->where($mapBatchCol, $batchId)
+        ->where($mapQCol, $payload[$mapQCol])
+        ->when($mapModuleIdCol && array_key_exists($mapModuleIdCol, $payload), fn($q) => $q->where($mapModuleIdCol, $payload[$mapModuleIdCol]))
+        ->when(!$mapModuleIdCol && $mapModuleUuidCol && array_key_exists($mapModuleUuidCol, $payload), fn($q) => $q->where($mapModuleUuidCol, $payload[$mapModuleUuidCol]))
+        ->update($writePayload);
+} else {
+    DB::table($mapTable)->insert($writePayload);
+}
+
+// ✅ fetch fresh row after write (for record_id + new_values)
+$newRow = DB::table($mapTable)
+    ->where($mapBatchCol, $batchId)
+    ->where($mapQCol, $payload[$mapQCol])
+    ->when($mapModuleIdCol && array_key_exists($mapModuleIdCol, $payload), fn($q) => $q->where($mapModuleIdCol, $payload[$mapModuleIdCol]))
+    ->when(!$mapModuleIdCol && $mapModuleUuidCol && array_key_exists($mapModuleUuidCol, $payload), fn($q) => $q->where($mapModuleUuidCol, $payload[$mapModuleUuidCol]))
+    ->orderByDesc('id')
+    ->first();
+
+DB::commit();
+
+// ✅ ACTIVITY LOG (DB facade)
+$this->logActivity(
+    $r,
+    $oldRow ? 'update_assign' : 'create_assign',
+    'Assigned coding question '.$questionUuid.' to batch '.$batchId
+        . ($moduleId ? ' (module_id='.$moduleId.')' : '')
+        . ($moduleUuid ? ' (module_uuid='.$moduleUuid.')' : ''),
+    $mapTable,
+    $newRow->id ?? null,
+    array_keys($writePayload),
+    $oldRow ? (array)$oldRow : null,
+    $newRow ? (array)$newRow : $writePayload
+);
+
+return response()->json([
+    'ok' => true,
+    'message' => 'Assigned successfully',
+]);
+
     } catch (\Throwable $e) {
         DB::rollBack();
         Log::error('BatchCodingQuestionController@assign failed', [
@@ -781,38 +849,61 @@ public function unassign(Request $r, $batch, string $questionUuid)
     $mapStoresId = preg_match('/_id$/', $mapQCol);
     $mapCompareValue = $mapStoresId ? $questionId : $questionUuid;
 
-    try {
-        $q = DB::table($mapTable)
-            ->where($mapBatchCol, $batchId)
-            ->where($mapQCol, $mapCompareValue);
+try {
+    $q = DB::table($mapTable)
+        ->where($mapBatchCol, $batchId)
+        ->where($mapQCol, $mapCompareValue);
 
-        // ✅ Soft unassign (preferred)
-        $update = ['assign_status' => 0];
+    // ✅ capture old rows (could be multiple if module exists)
+    $oldRows = $q->get()->map(fn($x) => (array)$x)->values()->all();
 
-        if ($this->tableHasColumn($mapTable, 'updated_at')) {
-            $update['updated_at'] = now();
-        }
-        if ($this->tableHasColumn($mapTable, 'updated_by')) {
-            $update['updated_by'] = $uid;
-        }
+    // Soft unassign (preferred)
+    $update = ['assign_status' => 0];
 
-        $q->update($update);
-
-        return response()->json([
-            'ok' => true,
-            'message' => 'Unassigned successfully'
-        ]);
-    } catch (\Throwable $e) {
-        Log::error('BatchCodingQuestionController@unassign failed', [
-            'error'    => $e->getMessage(),
-            'batchId'  => $batchId,
-            'question' => $questionUuid,
-        ]);
-
-        return response()->json(['ok' => false, 'error' => 'Unassign failed.'], 500);
+    if ($this->tableHasColumn($mapTable, 'updated_at')) {
+        $update['updated_at'] = now();
     }
-}
+    if ($this->tableHasColumn($mapTable, 'updated_by')) {
+        $update['updated_by'] = $uid;
+    }
 
+    $affected = $q->update($update);
+
+    // ✅ capture new rows
+    $newRows = DB::table($mapTable)
+        ->where($mapBatchCol, $batchId)
+        ->where($mapQCol, $mapCompareValue)
+        ->get()
+        ->map(fn($x) => (array)$x)
+        ->values()
+        ->all();
+
+    // ✅ ACTIVITY LOG (DB facade)
+    $this->logActivity(
+        $r,
+        'unassign',
+        'Unassigned coding question '.$questionUuid.' from batch '.$batchId.' (affected='.$affected.')',
+        $mapTable,
+        !empty($oldRows) ? (int)($oldRows[0]['id'] ?? 0) : null,
+        array_keys($update),
+        $oldRows,
+        $newRows
+    );
+
+    return response()->json([
+        'ok' => true,
+        'message' => 'Unassigned successfully'
+    ]);
+} catch (\Throwable $e) {
+    Log::error('BatchCodingQuestionController@unassign failed', [
+        'error'    => $e->getMessage(),
+        'batchId'  => $batchId,
+        'question' => $questionUuid,
+    ]);
+
+    return response()->json(['ok' => false, 'error' => 'Unassign failed.'], 500);
+}
+}
  public function myAttempts(Request $r, $batch, string $questionUuid)
 {
     [$mapTable, $questionTable, $attemptTable] = $this->detectTables();

@@ -7,10 +7,130 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
 class CodingModuleController extends Controller
 {
+    /* =========================================================
+     |  ACTIVITY LOG (DB FACADE) - schema safe
+     |  table: activity_logs
+     |========================================================= */
+
+    private function rowToArray($row): ?array
+    {
+        if (!$row) return null;
+        if (is_array($row)) return $row;
+        return json_decode(json_encode($row), true);
+    }
+
+    private function safeJson($val): ?string
+    {
+        try {
+            if ($val === null) return null;
+            return json_encode($val, JSON_UNESCAPED_UNICODE);
+        } catch (\Throwable $e) {
+            return null;
+        }
+    }
+
+    private function logActivity(
+        Request $request,
+        string $action,
+        string $message,
+        array $meta = [],
+        ?string $tableName = null,
+        ?int $rowId = null,
+        $oldRow = null,
+        $newRow = null
+    ): void {
+        try {
+            if (!Schema::hasTable('activity_logs')) return;
+
+            $now = now();
+            $ip  = $request->ip();
+            $ua  = substr((string)$request->userAgent(), 0, 255);
+
+            // best-effort actor (works with your token middleware style OR auth())
+            $actorId = (int) ($request->attributes->get('auth_tokenable_id')
+                ?? $request->user()?->id
+                ?? 0);
+
+            $actorRole = strtolower((string) ($request->attributes->get('auth_role')
+                ?? $request->user()?->role
+                ?? ''));
+
+            $oldArr = $this->rowToArray($oldRow);
+            $newArr = $this->rowToArray($newRow);
+
+            $changes = [];
+            if (is_array($oldArr) && is_array($newArr)) {
+                $keys = array_unique(array_merge(array_keys($oldArr), array_keys($newArr)));
+                foreach ($keys as $k) {
+                    $ov = $oldArr[$k] ?? null;
+                    $nv = $newArr[$k] ?? null;
+                    if ($ov !== $nv) $changes[$k] = ['old' => $ov, 'new' => $nv];
+                }
+            }
+
+            $ins = [];
+
+            if (Schema::hasColumn('activity_logs', 'uuid')) $ins['uuid'] = (string) Str::uuid();
+
+            if (Schema::hasColumn('activity_logs', 'module')) $ins['module'] = 'coding_modules';
+            if (Schema::hasColumn('activity_logs', 'action')) $ins['action'] = $action;
+            if (Schema::hasColumn('activity_logs', 'message')) $ins['message'] = $message;
+
+            foreach (['actor_id','user_id','created_by','created_by_user_id'] as $col) {
+                if (Schema::hasColumn('activity_logs', $col)) { $ins[$col] = $actorId ?: null; break; }
+            }
+            foreach (['actor_role','role'] as $col) {
+                if (Schema::hasColumn('activity_logs', $col)) { $ins[$col] = $actorRole ?: null; break; }
+            }
+
+            foreach (['endpoint','path','url'] as $col) {
+                if (Schema::hasColumn('activity_logs', $col)) { $ins[$col] = (string)$request->path(); break; }
+            }
+            foreach (['method','http_method'] as $col) {
+                if (Schema::hasColumn('activity_logs', $col)) { $ins[$col] = (string)$request->method(); break; }
+            }
+
+            foreach (['table_name','table','ref_table'] as $col) {
+                if (Schema::hasColumn('activity_logs', $col)) { $ins[$col] = $tableName; break; }
+            }
+            foreach (['row_id','ref_id','subject_id'] as $col) {
+                if (Schema::hasColumn('activity_logs', $col)) { $ins[$col] = $rowId; break; }
+            }
+
+            foreach (['ip','ip_address'] as $col) {
+                if (Schema::hasColumn('activity_logs', $col)) { $ins[$col] = $ip; break; }
+            }
+            foreach (['user_agent','ua'] as $col) {
+                if (Schema::hasColumn('activity_logs', $col)) { $ins[$col] = $ua; break; }
+            }
+
+            foreach (['meta_json','meta','metadata'] as $col) {
+                if (Schema::hasColumn('activity_logs', $col)) { $ins[$col] = $this->safeJson($meta); break; }
+            }
+            foreach (['old_json','old_data','old_payload'] as $col) {
+                if (Schema::hasColumn('activity_logs', $col)) { $ins[$col] = $this->safeJson($oldArr); break; }
+            }
+            foreach (['new_json','new_data','new_payload'] as $col) {
+                if (Schema::hasColumn('activity_logs', $col)) { $ins[$col] = $this->safeJson($newArr); break; }
+            }
+            foreach (['changes_json','changes'] as $col) {
+                if (Schema::hasColumn('activity_logs', $col)) { $ins[$col] = $this->safeJson($changes); break; }
+            }
+
+            if (Schema::hasColumn('activity_logs', 'created_at') && !isset($ins['created_at'])) $ins['created_at'] = $now;
+            if (Schema::hasColumn('activity_logs', 'updated_at') && !isset($ins['updated_at'])) $ins['updated_at'] = $now;
+
+            if (!empty($ins)) DB::table('activity_logs')->insert($ins);
+        } catch (\Throwable $e) {
+            Log::warning('Activity log failed', ['err' => $e->getMessage()]);
+        }
+    }
+
     /** Generate unique slug per topic (optionally ignore a given id) */
     private function uniqueSlug(string $title, int $topicId, ?int $ignoreId = null): string
     {
@@ -121,6 +241,13 @@ class CodingModuleController extends Controller
             $id = DB::table('coding_modules')->insertGetId($insert);
             $module = $this->findById($id, true);
 
+            // ✅ ACTIVITY LOG
+            $this->logActivity($r, 'coding_module_create', 'Coding module created', [
+                'coding_module_id' => (int)$id,
+                'topic_id' => (int)$data['topic_id'],
+                'slug' => (string)$slug,
+            ], 'coding_modules', (int)$id, null, $module);
+
             return response()->json([
                 'status'  => 'success',
                 'message' => 'Module created successfully.',
@@ -177,6 +304,8 @@ class CodingModuleController extends Controller
                 return response()->json(['status'=>'error','message'=>'Module not found.'], 404);
             }
 
+            $old = $module;
+
             $data = $v->validated();
             $payload = [];
 
@@ -197,6 +326,12 @@ class CodingModuleController extends Controller
             DB::table('coding_modules')->where('id', (int)$id)->update($payload);
 
             $fresh = $this->findById((int)$id, true);
+
+            // ✅ ACTIVITY LOG
+            $this->logActivity($r, 'coding_module_update', 'Coding module updated', [
+                'coding_module_id' => (int)$id,
+                'topic_id' => (int)($fresh->topic_id ?? $module->topic_id),
+            ], 'coding_modules', (int)$id, $old, $fresh);
 
             return response()->json([
                 'status'  => 'success',
@@ -221,10 +356,20 @@ class CodingModuleController extends Controller
                 return response()->json(['status'=>'error','message'=>'Module not found.'], 404);
             }
 
+            $old = $module;
+
             DB::table('coding_modules')->where('id', (int)$id)->update([
                 'deleted_at' => now(),
                 'updated_at' => now(),
             ]);
+
+            $fresh = $this->findById((int)$id, true);
+
+            // ✅ ACTIVITY LOG
+            $this->logActivity(request(), 'coding_module_soft_delete', 'Coding module deleted (soft)', [
+                'coding_module_id' => (int)$id,
+                'topic_id' => (int)($old->topic_id ?? 0),
+            ], 'coding_modules', (int)$id, $old, $fresh);
 
             return response()->json(['status'=>'success','message'=>'Module deleted.'], 200);
         } catch (\Throwable $e) {
@@ -244,12 +389,20 @@ class CodingModuleController extends Controller
                 return response()->json(['status'=>'error','message'=>'Module not found or not trashed.'], 404);
             }
 
+            $old = $module;
+
             DB::table('coding_modules')->where('id', (int)$id)->update([
                 'deleted_at' => null,
                 'updated_at' => now(),
             ]);
 
             $fresh = $this->findById((int)$id, true);
+
+            // ✅ ACTIVITY LOG
+            $this->logActivity(request(), 'coding_module_restore', 'Coding module restored', [
+                'coding_module_id' => (int)$id,
+                'topic_id' => (int)($fresh->topic_id ?? $old->topic_id ?? 0),
+            ], 'coding_modules', (int)$id, $old, $fresh);
 
             return response()->json(['status'=>'success','message'=>'Module restored.','data'=>$fresh], 200);
         } catch (\Throwable $e) {
@@ -268,11 +421,22 @@ class CodingModuleController extends Controller
                 return response()->json(['status'=>'error','message'=>'Module not found.'], 404);
             }
 
+            $old = $module;
+
             $new = ($module->status === 'active') ? 'inactive' : 'active';
             DB::table('coding_modules')->where('id', (int)$id)->update([
                 'status'     => $new,
                 'updated_at' => now(),
             ]);
+
+            $fresh = $this->findById((int)$id, true);
+
+            // ✅ ACTIVITY LOG
+            $this->logActivity(request(), 'coding_module_toggle_status', 'Coding module status toggled', [
+                'coding_module_id' => (int)$id,
+                'from' => (string)($old->status ?? ''),
+                'to'   => (string)$new,
+            ], 'coding_modules', (int)$id, $old, $fresh);
 
             return response()->json([
                 'status'     => 'success',
@@ -304,6 +468,23 @@ class CodingModuleController extends Controller
         try {
             $payload = $v->validated();
 
+            // snapshot before (only ids affected)
+            $affectedIds = [];
+            if (!empty($payload['order'])) {
+                $affectedIds = array_values(array_unique(array_map('intval', $payload['order'])));
+            } elseif (!empty($payload['items'])) {
+                $affectedIds = array_values(array_unique(array_map(fn($x) => (int)$x['id'], $payload['items'])));
+            }
+
+            $before = [];
+            if (!empty($affectedIds)) {
+                $before = DB::table('coding_modules')
+                    ->whereIn('id', $affectedIds)
+                    ->get()
+                    ->map(fn($x) => ['id'=>(int)$x->id,'sort_order'=>(int)($x->sort_order ?? 0)])
+                    ->all();
+            }
+
             DB::beginTransaction();
             if (!empty($payload['order'])) {
                 foreach ($payload['order'] as $idx => $moduleId) {
@@ -324,6 +505,23 @@ class CodingModuleController extends Controller
                 return response()->json(['status'=>'error','message'=>'No reorder data provided.'], 422);
             }
             DB::commit();
+
+            $after = [];
+            if (!empty($affectedIds)) {
+                $after = DB::table('coding_modules')
+                    ->whereIn('id', $affectedIds)
+                    ->get()
+                    ->map(fn($x) => ['id'=>(int)$x->id,'sort_order'=>(int)($x->sort_order ?? 0)])
+                    ->all();
+            }
+
+            // ✅ ACTIVITY LOG
+            $this->logActivity($r, 'coding_module_reorder', 'Coding modules reordered', [
+                'affected_ids' => $affectedIds,
+                'before' => $before,
+                'after'  => $after,
+                'mode'   => !empty($payload['order']) ? 'order_array' : 'items_array',
+            ], 'coding_modules', null, null, null);
 
             return response()->json(['status'=>'success','message'=>'Sort order updated.'], 200);
         } catch (\Throwable $e) {

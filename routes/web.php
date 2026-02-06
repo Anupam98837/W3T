@@ -201,3 +201,12 @@ Route::get('/assignments/{assignment}/students/{student}/documents', function (s
 ->whereUuid('assignment')
 ->whereUuid('student')
 ->name('assignments.student.documents');
+
+
+/*
+|--------------------------------------------------------------------------
+| user activity log  viewer 
+|--------------------------------------------------------------------------
+*/
+
+Route::get('/activity-logs', fn () => view('modules.userActivityLogs.userActivityLogsView'));

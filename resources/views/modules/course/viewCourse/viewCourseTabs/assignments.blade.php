@@ -406,7 +406,7 @@ body.role-privileged #submitAssignSend {
             <div class="col-12">
               <button type="button" id="assignAllowedBtn" class="btn btn-outline-secondary" data-bs-target="#assignAllowedTypesModal">
                 <i class="fa fa-list-check me-1"></i> Allowed submission types
-              </button>
+              </button> <span class="text-danger">*</span>
               <div id="assignSelectedTypeWrap" class="selected-types mt-2"></div>
             </div>
 
@@ -2056,23 +2056,48 @@ const role = String(window.__ROLE__ || '').toLowerCase();
 
   // Fetch user's existing submissions for this assignment (student view)
   async function fetchExistingSubmissions(assignmentKey) {
-    try {
-      const token = localStorage.getItem('token')||sessionStorage.getItem('token')||'';
-      const url = assignmentKey ? `/api/assignments/my-submissions/${encodeURIComponent(assignmentKey)}` : `/api/assignments/my-submissions`;
-      const response = await fetch(url, {
-        headers: { 'Authorization': 'Bearer ' + token, 'Accept': 'application/json' }
-      });
-      if (!response.ok) {
-        console.warn('fetchExistingSubmissions non-ok status', response.status);
-        return [];
-      }
-      const data = await response.json();
-      return (data && data.data && data.data.items) ? data.data.items : [];
-    } catch (error) {
-      console.error('Error fetching existing submissions:', error);
-      return [];
+  const TIMEOUT_MS = 8000; // 8 second timeout
+  
+  try {
+    const token = localStorage.getItem('token')||sessionStorage.getItem('token')||'';
+    const url = assignmentKey 
+      ? `/api/assignments/my-submissions/${encodeURIComponent(assignmentKey)}` 
+      : `/api/assignments/my-submissions`;
+    
+    // Create abort controller for timeout
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS);
+    
+    const response = await fetch(url, {
+      headers: { 
+        'Authorization': 'Bearer ' + token, 
+        'Accept': 'application/json' 
+      },
+      signal: controller.signal
+    });
+    
+    clearTimeout(timeoutId);
+    
+    if (!response.ok) {
+      console.warn('fetchExistingSubmissions non-ok status', response.status);
+      // Return empty array instead of throwing - student just hasn't submitted yet
+      if (response.status === 404) return [];
+      throw new Error(`HTTP ${response.status}`);
     }
+    
+    const data = await response.json();
+    return (data && data.data && data.data.items) ? data.data.items : [];
+    
+  } catch (error) {
+    if (error.name === 'AbortError') {
+      console.error('Fetch timeout: existing submissions took too long');
+      return []; // Return empty array on timeout - show "not submitted" state
+    }
+    console.error('Error fetching existing submissions:', error);
+    return []; // Return empty array on error - show "not submitted" state
   }
+}
+
 
   // Fetch all submissions for assignment (instructor/admin view) - tolerant parser
   async function fetchAssignmentSubmissionsForAdmin(assignmentKey) {
@@ -2401,61 +2426,84 @@ if (isStudent) {
 
   // Render existing submissions for student view (unchanged)
   function renderExistingSubmissions(submissions) {
-    const container = document.getElementById('submit_existing_list');
-    if (!container) return;
-    if (!submissions || submissions.length === 0) {
-      container.innerHTML = '<div class="text-muted">No previous submissions found.</div>';
-      return;
-    }
-    container.innerHTML = submissions.map(submission => `
-      <div class="card mb-2 existing-submission" data-id="${submission.id}">
-        <div class="card-body p-3">
-          <div class="d-flex justify-content-between align-items-start">
-            <div class="flex-grow-1">
-              <div class="d-flex align-items-center mb-2">
-                <div style="display:flex;gap:8px;align-items:center"><strong class="me-2">Attempt ${submission.attempt_no || submission.attemptNo || '?'}</strong>
-                <span class="badge bg-${getStatusBadgeColor(submission.status || 'submitted')}">${submission.status || 'submitted'}</span></div>
-                <small class="text-muted ms-2">${submission.submitted_at ? new Date(submission.submitted_at).toLocaleString() : (submission.created_at ? new Date(submission.created_at).toLocaleString() : '')}</small>
-              </div>
-              ${renderSubmissionAttachments(submission.attachments)}
-              ${submission.content_text ? `<div class="mt-1"><small class="text-muted">Text: ${escapeHtml((submission.content_text+'').substring(0, 100))}${(submission.content_text||'').length > 100 ? '...' : ''}</small></div>` : ''}
-              ${submission.link_url ? `<div class="mt-1"><small><a href="${submission.link_url}" target="_blank">${escapeHtml(submission.link_url)}</a></small></div>` : ''}
-            </div>
-            <div class="ms-3">
-              <button class="btn btn-sm btn-outline-danger delete-submission" data-id="${submission.id}" title="Remove Submission">&times;</button>
-            </div>
-          </div>
+  const container = document.getElementById('submit_existing_list');
+  if (!container) return;
+  
+  // Handle loading state (when submissions is explicitly undefined/null and we're still fetching)
+  if (submissions === undefined || submissions === null) {
+    container.innerHTML = `
+      <div class="alert alert-secondary d-flex align-items-center gap-3" role="alert" style="border-radius:12px;">
+        <div class="spinner-border spinner-border-sm text-secondary" role="status">
+          <span class="visually-hidden">Loading...</span>
+        </div>
+        <div>Loading submission status...</div>
+      </div>
+    `;
+    return;
+  }
+  
+  // Check if no submissions exist
+  if (!Array.isArray(submissions) || submissions.length === 0) {
+    container.innerHTML = `
+      <div class="alert alert-info d-flex align-items-center gap-3" role="alert" style="border-radius:12px;">
+        <i class="fa fa-info-circle fa-2x text-info"></i>
+        <div>
+          <strong>Status:</strong> Not Submitted
+          <div class="small text-muted mt-1">You haven't submitted this assignment yet.</div>
         </div>
       </div>
-    `).join('');
-
-    // Attach delete handlers
-    container.querySelectorAll('.delete-submission').forEach(btn => {
-      btn.addEventListener('click', async (e) => {
-        e.preventDefault();
-        const submissionId = btn.getAttribute('data-id');
-        if (!submissionId) return;
-        if (confirm('Are you sure you want to delete this submission? This action can be undone.')) {
-          btn.disabled = true;
-          const success = await softDeleteSubmission(submissionId);
-          btn.disabled = false;
-          if (success) {
-            const node = btn.closest('.existing-submission');
-            if (node) node.remove();
-            if (typeof showOk === 'function') showOk('Submission deleted successfully');
-            const assignmentKey = assignmentKeyInput.value;
-            if (assignmentKey) {
-              const info = await fetchAssignmentInfo(assignmentKey);
-              renderAssignmentInfo(info);
-            }
-          } else {
-            if (typeof showErr === 'function') showErr('Failed to delete submission');
-            else { if(alertEl){ alertEl.innerHTML = 'Failed to delete submission'; alertEl.style.display = 'block'; } }
-          }
-        }
-      });
-    });
+    `;
+    return;
   }
+  
+  // Student has submitted - show success status
+  const latestSubmission = submissions[0]; // Most recent submission
+  const submissionCount = submissions.length;
+  
+  // Get latest status for badge
+  const currentStatus = latestSubmission.status || 'submitted';
+  const statusBadgeColor = getStatusBadgeColor(currentStatus);
+  
+  container.innerHTML = `
+    <div class="alert alert-success d-flex align-items-center gap-3" role="alert" style="border-radius:12px;">
+      <i class="fa fa-check-circle fa-2x text-success"></i>
+      <div class="flex-grow-1">
+        <div class="d-flex align-items-center gap-2 mb-2">
+          <strong>Status:</strong> 
+          <span class="badge bg-success">Assignment Submitted</span>
+        </div>
+        
+        <div class="small">
+          <div class="mb-1">
+            <i class="fa fa-layer-group me-1"></i>
+            <strong>${submissionCount}</strong> ${submissionCount === 1 ? 'submission' : 'submissions'} made
+          </div>
+          
+          ${latestSubmission.submitted_at ? `
+            <div class="mb-1">
+              <i class="fa fa-clock me-1"></i>
+              Last submitted: <strong>${new Date(latestSubmission.submitted_at).toLocaleString()}</strong>
+            </div>
+          ` : ''}
+          
+          ${latestSubmission.attempt_no || latestSubmission.attemptNo ? `
+            <div class="mb-1">
+              <i class="fa fa-hashtag me-1"></i>
+              Latest attempt: <strong>#${latestSubmission.attempt_no || latestSubmission.attemptNo}</strong>
+            </div>
+          ` : ''}
+        </div>
+        
+        ${currentStatus && currentStatus !== 'submitted' ? `
+          <div class="mt-2">
+            <span class="badge bg-${statusBadgeColor}">${currentStatus.toUpperCase()}</span>
+          </div>
+        ` : ''}
+      </div>
+    </div>
+  `;
+}
+
 
   // Export helper: convert array of objects to CSV and download
   function downloadCSV(filename, rows, fields) {

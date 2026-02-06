@@ -1410,6 +1410,14 @@ if(btnLibAddSelected){
   // init UI
   renderSelectedChips();
   renderLibraryList();
+  function numOrNull(val){
+  if(val === undefined || val === null) return null;
+  const s = String(val).trim();
+  if(s === '') return null;      // IMPORTANT: don’t send empty string
+  const n = Number(s);
+  return Number.isFinite(n) ? n : null;
+}
+
   /* ===== payload builder ===== */
   function buildPayload(){
     return {
@@ -1423,8 +1431,9 @@ if(btnLibAddSelected){
       submission_type: $('submission_type').value,
       allowed_submission_types: allowedSubmissionTypes,
       attempts_allowed: Number($('attempts_allowed').value||0) || null,
-      total_marks: Number($('total_marks').value||0) || null,
-      pass_marks: Number($('pass_marks').value||0) || null,
+      total_marks: numOrNull($('total_marks').value),
+pass_marks:  numOrNull($('pass_marks').value),
+
       due_at: $('due_at').value || null,
       end_at: $('end_at').value || null,
       allow_late_submissions: allowLate.checked ? 1 : 0,
