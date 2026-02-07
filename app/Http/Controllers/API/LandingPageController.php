@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
 class LandingPageController extends Controller
@@ -36,7 +37,120 @@ class LandingPageController extends Controller
         ], $ctx));
     }
 
-     public function updatesIndex(Request $request)
+    /**
+     * Activity Log (DB facade) - safe/no-op if table/columns don't exist.
+     */
+    private function rowToArray($row): ?array
+    {
+        if (!$row) return null;
+        if (is_array($row)) return $row;
+        return json_decode(json_encode($row), true);
+    }
+
+    private function safeJson($val): ?string
+    {
+        try {
+            if ($val === null) return null;
+            return json_encode($val, JSON_UNESCAPED_UNICODE);
+        } catch (\Throwable $e) {
+            return null;
+        }
+    }
+
+    private function logActivityDb(
+        Request $request,
+        string $action,
+        string $message,
+        array $meta = [],
+        ?string $tableName = null,
+        ?int $rowId = null,
+        $oldRow = null,
+        $newRow = null
+    ): void {
+        try {
+            if (!Schema::hasTable('activity_logs')) return;
+
+            $now = now();
+            $data = [];
+
+            if (Schema::hasColumn('activity_logs', 'user_id')) {
+                $data['user_id'] = Auth::id();
+            }
+            if (Schema::hasColumn('activity_logs', 'created_by')) {
+                $data['created_by'] = Auth::id();
+            }
+            if (Schema::hasColumn('activity_logs', 'action')) {
+                $data['action'] = $action;
+            }
+            if (Schema::hasColumn('activity_logs', 'message')) {
+                $data['message'] = $message;
+            }
+            if (Schema::hasColumn('activity_logs', 'meta_json')) {
+                $data['meta_json'] = $this->safeJson($meta);
+            } elseif (Schema::hasColumn('activity_logs', 'meta')) {
+                $data['meta'] = $this->safeJson($meta);
+            }
+
+            if ($tableName !== null) {
+                if (Schema::hasColumn('activity_logs', 'table_name')) {
+                    $data['table_name'] = $tableName;
+                } elseif (Schema::hasColumn('activity_logs', 'table')) {
+                    $data['table'] = $tableName;
+                }
+            }
+
+            if ($rowId !== null) {
+                if (Schema::hasColumn('activity_logs', 'row_id')) {
+                    $data['row_id'] = $rowId;
+                } elseif (Schema::hasColumn('activity_logs', 'record_id')) {
+                    $data['record_id'] = $rowId;
+                }
+            }
+
+            $oldArr = $this->rowToArray($oldRow);
+            $newArr = $this->rowToArray($newRow);
+
+            if (Schema::hasColumn('activity_logs', 'old_row_json')) {
+                $data['old_row_json'] = $this->safeJson($oldArr);
+            } elseif (Schema::hasColumn('activity_logs', 'old_json')) {
+                $data['old_json'] = $this->safeJson($oldArr);
+            }
+
+            if (Schema::hasColumn('activity_logs', 'new_row_json')) {
+                $data['new_row_json'] = $this->safeJson($newArr);
+            } elseif (Schema::hasColumn('activity_logs', 'new_json')) {
+                $data['new_json'] = $this->safeJson($newArr);
+            }
+
+            if (Schema::hasColumn('activity_logs', 'ip')) {
+                $data['ip'] = $request->ip();
+            }
+            if (Schema::hasColumn('activity_logs', 'user_agent')) {
+                $data['user_agent'] = substr((string) $request->userAgent(), 0, 255);
+            }
+
+            if (Schema::hasColumn('activity_logs', 'created_at')) {
+                $data['created_at'] = $now;
+            }
+            if (Schema::hasColumn('activity_logs', 'updated_at')) {
+                $data['updated_at'] = $now;
+            }
+
+            if (!empty($data)) {
+                DB::table('activity_logs')->insert($data);
+            }
+        } catch (\Throwable $e) {
+            // do not affect behavior
+            Log::warning('[LandingPage] activity_logs insert skipped/failed', [
+                'error' => $e->getMessage(),
+                'action' => $action,
+                'table' => $tableName,
+                'row_id' => $rowId,
+            ]);
+        }
+    }
+
+    public function updatesIndex(Request $request)
     {
         $this->logInfo('updatesIndex: fetching updates');
 
@@ -118,6 +232,12 @@ class LandingPageController extends Controller
 
             $this->logInfo('updatesStore: insert success', ['id' => $id]);
 
+            $newRow = DB::table('landingpage_updates')->where('id', $id)->first();
+            $this->logActivityDb($request, 'create', 'landingpage_updates created', [
+                'endpoint' => 'updatesStore',
+                'payload' => $validated,
+            ], 'landingpage_updates', (int)$id, null, $newRow);
+
         } catch (\Throwable $e) {
             $this->logError($e, 'updatesStore: insert failed', ['payload' => $validated]);
 
@@ -165,6 +285,8 @@ class LandingPageController extends Controller
         try {
             $this->logInfo('updatesUpdate: updating update', ['id' => $id, 'payload' => $validated]);
 
+            $oldRow = DB::table('landingpage_updates')->where('id', $id)->whereNull('deleted_at')->first();
+
             DB::table('landingpage_updates')
                 ->where('id', $id)
                 ->whereNull('deleted_at')
@@ -176,6 +298,12 @@ class LandingPageController extends Controller
                 ]);
 
             $this->logInfo('updatesUpdate: update success', ['id' => $id]);
+
+            $newRow = DB::table('landingpage_updates')->where('id', $id)->first();
+            $this->logActivityDb($request, 'update', 'landingpage_updates updated', [
+                'endpoint' => 'updatesUpdate',
+                'payload' => $validated,
+            ], 'landingpage_updates', (int)$id, $oldRow, $newRow);
 
         } catch (\Throwable $e) {
             $this->logError($e, 'updatesUpdate: update failed', ['id' => $id, 'payload' => $validated]);
@@ -216,6 +344,8 @@ class LandingPageController extends Controller
         try {
             $this->logInfo('updatesDestroy: soft deleting update', ['id' => $id]);
 
+            $oldRow = DB::table('landingpage_updates')->where('id', $id)->whereNull('deleted_at')->first();
+
             DB::table('landingpage_updates')
                 ->where('id', $id)
                 ->whereNull('deleted_at')
@@ -225,6 +355,11 @@ class LandingPageController extends Controller
                 ]);
 
             $this->logInfo('updatesDestroy: delete success', ['id' => $id]);
+
+            $newRow = DB::table('landingpage_updates')->where('id', $id)->first();
+            $this->logActivityDb($request, 'delete', 'landingpage_updates soft-deleted', [
+                'endpoint' => 'updatesDestroy',
+            ], 'landingpage_updates', (int)$id, $oldRow, $newRow);
 
         } catch (\Throwable $e) {
             $this->logError($e, 'updatesDestroy: delete failed', ['id' => $id]);
@@ -282,6 +417,11 @@ class LandingPageController extends Controller
                 }
             });
 
+            $this->logActivityDb($request, 'reorder', 'landingpage_updates reordered', [
+                'endpoint' => 'updates_reorder',
+                'ids' => $ids,
+            ], 'landingpage_updates', null, null, null);
+
             return response()->json([
                 'status'  => 'success',
                 'message' => 'Updates reordered successfully.',
@@ -297,6 +437,7 @@ class LandingPageController extends Controller
             ], 500);
         }
     }
+
     // contacts
     public function contact_index(Request $request)
     {
@@ -403,6 +544,12 @@ class LandingPageController extends Controller
 
             $this->logInfo('contact_store: insert success', ['id' => $id]);
 
+            $newRow = DB::table('landingpage_master_contact')->where('id', $id)->first();
+            $this->logActivityDb($request, 'create', 'landingpage_master_contact created', [
+                'endpoint' => 'contact_store',
+                'payload' => $validated,
+            ], 'landingpage_master_contact', (int)$id, null, $newRow);
+
             return response()->json([
                 'success' => true,
                 'message' => 'Contact created successfully.',
@@ -446,6 +593,8 @@ class LandingPageController extends Controller
                 ], 404);
             }
 
+            $oldRow = DB::table('landingpage_master_contact')->where('id', $id)->whereNull('deleted_at')->first();
+
             $validated['updated_at'] = now();
 
             DB::table('landingpage_master_contact')
@@ -453,6 +602,12 @@ class LandingPageController extends Controller
                 ->update($validated);
 
             $this->logInfo('contact_update: update success', ['id' => $id]);
+
+            $newRow = DB::table('landingpage_master_contact')->where('id', $id)->first();
+            $this->logActivityDb($request, 'update', 'landingpage_master_contact updated', [
+                'endpoint' => 'contact_update',
+                'payload' => $validated,
+            ], 'landingpage_master_contact', (int)$id, $oldRow, $newRow);
 
             return response()->json([
                 'success' => true,
@@ -488,6 +643,8 @@ class LandingPageController extends Controller
                 ], 404);
             }
 
+            $oldRow = DB::table('landingpage_master_contact')->where('id', $id)->whereNull('deleted_at')->first();
+
             DB::table('landingpage_master_contact')
                 ->where('id', $id)
                 ->update([
@@ -496,6 +653,11 @@ class LandingPageController extends Controller
                 ]);
 
             $this->logInfo('contact_destroy: delete success', ['id' => $id]);
+
+            $newRow = DB::table('landingpage_master_contact')->where('id', $id)->first();
+            $this->logActivityDb(request(), 'delete', 'landingpage_master_contact soft-deleted', [
+                'endpoint' => 'contact_destroy',
+            ], 'landingpage_master_contact', (int)$id, $oldRow, $newRow);
 
             return response()->json([
                 'success' => true,
@@ -536,54 +698,61 @@ class LandingPageController extends Controller
             'data'   => $contacts,
         ]);
     }
-public function contact_reorder(Request $request)
-{
-    // Expect: { "ids": [3, 5, 2, 10] } in the new order
-    $data = $request->validate([
-        'ids'   => ['required', 'array', 'min:1'],
-        'ids.*' => ['integer', 'distinct'],
-    ]);
 
-    $ids = $data['ids'];
-
-    try {
-        $this->logInfo('contact_reorder: reordering contacts', [
-            'ids'     => $ids,
-            'user_id' => optional($request->user())->id,
-            'ip'      => $request->ip(),
+    public function contact_reorder(Request $request)
+    {
+        // Expect: { "ids": [3, 5, 2, 10] } in the new order
+        $data = $request->validate([
+            'ids'   => ['required', 'array', 'min:1'],
+            'ids.*' => ['integer', 'distinct'],
         ]);
 
-        DB::transaction(function () use ($ids) {
-            $now = now();
+        $ids = $data['ids'];
 
-            foreach ($ids as $index => $id) {
-                DB::table('landingpage_master_contact')
-                    ->where('id', $id)
-                    ->whereNull('deleted_at')
-                    ->update([
-                        'display_order' => $index, // or $index + 1 if you prefer 1-based
-                        'updated_at'    => $now,
-                    ]);
-            }
-        });
+        try {
+            $this->logInfo('contact_reorder: reordering contacts', [
+                'ids'     => $ids,
+                'user_id' => optional($request->user())->id,
+                'ip'      => $request->ip(),
+            ]);
 
-        return response()->json([
-            'status'  => 'success',
-            'message' => 'Contacts reordered successfully.',
-        ], 200);
-    } catch (\Throwable $e) {
-        $this->logError($e, 'contact_reorder: failed', [
-            'ids' => $ids,
-        ]);
+            DB::transaction(function () use ($ids) {
+                $now = now();
 
-        return response()->json([
-            'status'  => 'error',
-            'message' => 'Failed to reorder contacts.',
-            'error'   => $e->getMessage(), // hide in prod if needed
-        ], 500);
+                foreach ($ids as $index => $id) {
+                    DB::table('landingpage_master_contact')
+                        ->where('id', $id)
+                        ->whereNull('deleted_at')
+                        ->update([
+                            'display_order' => $index, // or $index + 1 if you prefer 1-based
+                            'updated_at'    => $now,
+                        ]);
+                }
+            });
+
+            $this->logActivityDb($request, 'reorder', 'landingpage_master_contact reordered', [
+                'endpoint' => 'contact_reorder',
+                'ids' => $ids,
+            ], 'landingpage_master_contact', null, null, null);
+
+            return response()->json([
+                'status'  => 'success',
+                'message' => 'Contacts reordered successfully.',
+            ], 200);
+        } catch (\Throwable $e) {
+            $this->logError($e, 'contact_reorder: failed', [
+                'ids' => $ids,
+            ]);
+
+            return response()->json([
+                'status'  => 'error',
+                'message' => 'Failed to reorder contacts.',
+                'error'   => $e->getMessage(), // hide in prod if needed
+            ], 500);
+        }
     }
-}
-// Hero Image
+
+    // Hero Image
     public function hero_index(Request $request)
     {
         try {
@@ -685,6 +854,11 @@ public function contact_reorder(Request $request)
 
             $this->logInfo('hero_store: insert success', ['id' => $id]);
 
+            $this->logActivityDb($request, 'create', 'landingpage_hero_image created', [
+                'endpoint' => 'hero_store',
+                'payload' => $validated,
+            ], 'landingpage_hero_image', (int)$id, null, $row);
+
             return response()->json([
                 'status'  => 'success',
                 'message' => 'Hero image created successfully.',
@@ -727,6 +901,8 @@ public function contact_reorder(Request $request)
                 ], 404);
             }
 
+            $oldRow = $row;
+
             $updateData = [
                 'img_title'     => array_key_exists('img_title', $validated)
                     ? $validated['img_title']
@@ -750,6 +926,11 @@ public function contact_reorder(Request $request)
                 ->first();
 
             $this->logInfo('hero_update: update success', ['id' => $id]);
+
+            $this->logActivityDb($request, 'update', 'landingpage_hero_image updated', [
+                'endpoint' => 'hero_update',
+                'payload' => $validated,
+            ], 'landingpage_hero_image', (int)$id, $oldRow, $fresh);
 
             return response()->json([
                 'status'  => 'success',
@@ -786,6 +967,8 @@ public function contact_reorder(Request $request)
                 ], 404);
             }
 
+            $oldRow = $row;
+
             DB::table('landingpage_hero_image')
                 ->where('id', $id)
                 ->update([
@@ -794,6 +977,11 @@ public function contact_reorder(Request $request)
                 ]);
 
             $this->logInfo('hero_destroy: delete success', ['id' => $id]);
+
+            $newRow = DB::table('landingpage_hero_image')->where('id', $id)->first();
+            $this->logActivityDb(request(), 'delete', 'landingpage_hero_image soft-deleted', [
+                'endpoint' => 'hero_destroy',
+            ], 'landingpage_hero_image', (int)$id, $oldRow, $newRow);
 
             return response()->json([
                 'status'  => 'success',
@@ -834,66 +1022,72 @@ public function contact_reorder(Request $request)
             'data'   => $rows,
         ]);
     }
+
     public function hero_reorder(Request $request)
-{
-    $data = $request->validate([
-        'ids'   => ['required', 'array', 'min:1'],
-        'ids.*' => ['integer', 'distinct'],
-    ]);
+    {
+        $data = $request->validate([
+            'ids'   => ['required', 'array', 'min:1'],
+            'ids.*' => ['integer', 'distinct'],
+        ]);
 
-    $ids = $data['ids'];
+        $ids = $data['ids'];
 
-    try {
-        $this->logInfo('hero_reorder: reordering hero images', ['ids' => $ids]);
+        try {
+            $this->logInfo('hero_reorder: reordering hero images', ['ids' => $ids]);
 
-        DB::transaction(function () use ($ids) {
-            $now = now();
+            DB::transaction(function () use ($ids) {
+                $now = now();
 
-            foreach ($ids as $index => $id) {
-                DB::table('landingpage_hero_image')
-                    ->where('id', $id)
-                    ->whereNull('deleted_at')
-                    ->update([
-                        'display_order' => $index, // or $index + 1
-                        'updated_at'    => $now,
-                    ]);
-            }
-        });
+                foreach ($ids as $index => $id) {
+                    DB::table('landingpage_hero_image')
+                        ->where('id', $id)
+                        ->whereNull('deleted_at')
+                        ->update([
+                            'display_order' => $index, // or $index + 1
+                            'updated_at'    => $now,
+                        ]);
+                }
+            });
 
-        return response()->json([
-            'status'  => 'success',
-            'message' => 'Hero images reordered successfully.',
-        ], 200);
-    } catch (\Throwable $e) {
-        $this->logError($e, 'hero_reorder: failed', ['ids' => $ids]);
+            $this->logActivityDb($request, 'reorder', 'landingpage_hero_image reordered', [
+                'endpoint' => 'hero_reorder',
+                'ids' => $ids,
+            ], 'landingpage_hero_image', null, null, null);
 
-        return response()->json([
-            'status'  => 'error',
-            'message' => 'Failed to reorder hero images.',
-            'error'   => $e->getMessage(),
-        ], 500);
+            return response()->json([
+                'status'  => 'success',
+                'message' => 'Hero images reordered successfully.',
+            ], 200);
+        } catch (\Throwable $e) {
+            $this->logError($e, 'hero_reorder: failed', ['ids' => $ids]);
+
+            return response()->json([
+                'status'  => 'error',
+                'message' => 'Failed to reorder hero images.',
+                'error'   => $e->getMessage(),
+            ], 500);
+        }
     }
-}
 
-   public function upload(Request $request)
-{
-    $request->validate([
-        'file' => ['required', 'image', 'max:5120'],
-    ]);
+    public function upload(Request $request)
+    {
+        $request->validate([
+            'file' => ['required', 'image', 'max:5120'],
+        ]);
 
-    $file = $request->file('file');
-    $filename = uniqid().'.'.$file->getClientOriginalExtension();
+        $file = $request->file('file');
+        $filename = uniqid().'.'.$file->getClientOriginalExtension();
 
-    // Path: public/uploads/hero-images/xxxx.jpg
-    $file->move(public_path('uploads/hero-images'), $filename);
+        // Path: public/uploads/hero-images/xxxx.jpg
+        $file->move(public_path('uploads/hero-images'), $filename);
 
-    $url = asset('uploads/hero-images/'.$filename);
+        $url = asset('uploads/hero-images/'.$filename);
 
-    return response()->json([
-        'url'  => $url,
-        'path' => 'uploads/hero-images/'.$filename,
-    ], 201);
-}
+        return response()->json([
+            'url'  => $url,
+            'path' => 'uploads/hero-images/'.$filename,
+        ], 201);
+    }
 
     /**
      * GET /api/media/images
@@ -902,676 +1096,722 @@ public function contact_reorder(Request $request)
      * Currently returns all hero_images; you can later expand
      * to a dedicated media table if needed.
      */
-   public function library(Request $request)
-{
-    $q = $request->query('search');
+    public function library(Request $request)
+    {
+        $q = $request->query('search');
 
-    $query = DB::table('course_featured_media')
-        ->whereNotNull('featured_url')
-        ->where('featured_url', '<>', '');
+        $query = DB::table('course_featured_media')
+            ->whereNotNull('featured_url')
+            ->where('featured_url', '<>', '');
 
-    if ($q) {
-        $query->where(function ($sub) use ($q) {
-            $sub->where('featured_url', 'like', "%{$q}%");
-        });
-    }
-
-    $images = $query
-        ->orderBy('created_at', 'desc')
-        ->get();
-
-    $data = $images->map(function ($img) {
-        $url  = $img->featured_url;
-        $name = basename(parse_url($url, PHP_URL_PATH));
-
-        return [
-            'url'  => $url,
-            'name' => $name ?: 'Image',
-            'size' => null,
-        ];
-    });
-
-    return response()->json([
-        'data' => $data,
-    ]);
-}
-//Categories
-  public function categories_index(Request $request)
-{
-    Log::info('[LandingPage] categories_index: fetching categories', [
-        'user_id'  => Auth::id(),
-        'ip'       => $request->ip(),
-        'page'     => $request->input('page'),
-        'per_page' => $request->input('per_page'),
-        'q'        => $request->input('q'),
-        'sort'     => $request->input('sort'),
-    ]);
-
-    try {
-        $perPage = (int) $request->input('per_page', 20);
-        $page    = (int) $request->input('page', 1);
-        $q       = trim((string) $request->input('q', ''));
-        $sort    = $request->input('sort', '-created_at'); // "-col" = desc
-
-        $query = DB::table('course_categories')
-            ->whereNull('deleted_at');
-
-        // 🔎 search on title / description / icon
-        if ($q !== '') {
-            $query->where(function ($qq) use ($q) {
-                $qq->where('title', 'like', "%{$q}%")
-                   ->orWhere('description', 'like', "%{$q}%")
-                   ->orWhere('icon', 'like', "%{$q}%");
+        if ($q) {
+            $query->where(function ($sub) use ($q) {
+                $sub->where('featured_url', 'like', "%{$q}%");
             });
         }
 
-        // sorting
-        $dir = ($sort[0] === '-') ? 'desc' : 'asc';
-        $col = ltrim($sort, '-');
-
-        // 🔽 allowed sort columns
-        if (!in_array($col, ['title', 'description', 'icon', 'created_at'], true)) {
-            $col = 'created_at';
-        }
-
-        $total = $query->count();
-
-        $rows = $query->orderBy($col, $dir)
-            ->orderBy('id') // stable
-            ->offset(($page - 1) * $perPage)
-            ->limit($perPage)
+        $images = $query
+            ->orderBy('created_at', 'desc')
             ->get();
 
-        Log::info('[LandingPage] categories_index: fetched categories', [
-            'user_id' => Auth::id(),
-            'ip'      => $request->ip(),
-            'count'   => $rows->count(),
-            'total'   => $total,
-        ]);
+        $data = $images->map(function ($img) {
+            $url  = $img->featured_url;
+            $name = basename(parse_url($url, PHP_URL_PATH));
 
-        return response()->json([
-            'status'     => 'success',
-            'message'    => 'Categories fetched successfully.',
-            'data'       => $rows,
-            'pagination' => [
-                'page'      => $page,
-                'per_page'  => $perPage,
-                'total'     => $total,
-            ],
-        ], 200);
-
-    } catch (\Throwable $e) {
-
-        Log::error('[LandingPage] ERROR: categories_index: fetch failed', [
-            'user_id' => Auth::id(),
-            'ip'      => $request->ip(),
-            'error'   => $e->getMessage(),
-            'line'    => $e->getLine(),
-            'file'    => $e->getFile(),
-        ]);
-
-        return response()->json([
-            'status'     => 'error',
-            'message'    => 'Failed to fetch categories.',
-            'error'      => $e->getMessage(), // hide in prod if needed
-            'data'       => [],
-            'pagination' => null,
-        ], 500);
-    }
-}
-
-public function categories_store(Request $request)
-{
-    $validated = $request->validate([
-        'title'       => ['required', 'string', 'max:255'],
-        'icon'        => ['nullable', 'string', 'max:255'],
-        'description' => ['nullable', 'string'],
-    ]);
-
-    Log::info('[LandingPage] categories_store: inserting category', [
-        'user_id' => Auth::id(),
-        'ip'      => $request->ip(),
-        'payload' => $validated,
-    ]);
-
-    try {
-        $now = now();
-
-        $id = DB::table('course_categories')->insertGetId([
-            'uuid'        => (string) Str::uuid(),
-            'created_by'  => Auth::id(),
-            'title'       => $validated['title'],
-            'icon'        => $validated['icon'] ?? null,
-            'description' => $validated['description'] ?? null,
-            'created_at'  => $now,
-            'updated_at'  => $now,
-            'deleted_at'  => null,
-        ]);
-
-        $row = DB::table('course_categories')
-            ->where('id', $id)
-            ->first();
-
-        return response()->json([
-            'status'  => 'success',
-            'message' => 'Category created successfully.',
-            'data'    => $row,
-        ], 201);
-
-    } catch (\Throwable $e) {
-
-        Log::error('[LandingPage] ERROR: categories_store: insert failed', [
-            'user_id' => Auth::id(),
-            'ip'      => $request->ip(),
-            'error'   => $e->getMessage(),
-            'line'    => $e->getLine(),
-            'file'    => $e->getFile(),
-            'payload' => $validated,
-        ]);
-
-        return response()->json([
-            'status'  => 'error',
-            'message' => 'Failed to create category.',
-            'error'   => $e->getMessage(),
-        ], 500);
-    }
-}
-
-public function categories_update(Request $request, $id)
-{
-    $validated = $request->validate([
-        'title'       => ['required', 'string', 'max:255'],
-        'icon'        => ['nullable', 'string', 'max:255'],
-        'description' => ['nullable', 'string'],
-    ]);
-
-    Log::info('[LandingPage] categories_update: updating category', [
-        'user_id' => Auth::id(),
-        'ip'      => $request->ip(),
-        'id'      => $id,
-        'payload' => $validated,
-    ]);
-
-    try {
-        $row = DB::table('course_categories')
-            ->where('id', $id)
-            ->whereNull('deleted_at')
-            ->first();
-
-        if (!$row) {
-            return response()->json([
-                'status'  => 'error',
-                'message' => 'Category not found.',
-            ], 404);
-        }
-
-        $updateData = [
-            'title'       => $validated['title'],
-            'icon'        => array_key_exists('icon', $validated)
-                ? ($validated['icon'] ?? null)
-                : $row->icon,
-            'description' => array_key_exists('description', $validated)
-                ? ($validated['description'] ?? null)
-                : $row->description,
-            'updated_at'  => now(),
-        ];
-
-        DB::table('course_categories')
-            ->where('id', $id)
-            ->update($updateData);
-
-        $fresh = DB::table('course_categories')
-            ->where('id', $id)
-            ->first();
-
-        return response()->json([
-            'status'  => 'success',
-            'message' => 'Category updated successfully.',
-            'data'    => $fresh,
-        ], 200);
-
-    } catch (\Throwable $e) {
-
-        Log::error('[LandingPage] ERROR: categories_update: update failed', [
-            'user_id' => Auth::id(),
-            'ip'      => $request->ip(),
-            'id'      => $id,
-            'error'   => $e->getMessage(),
-            'line'    => $e->getLine(),
-            'file'    => $e->getFile(),
-            'payload' => $validated,
-        ]);
-
-        return response()->json([
-            'status'  => 'error',
-            'message' => 'Failed to update category.',
-            'error'   => $e->getMessage(),
-        ], 500);
-    }
-}
-
-public function categories_destroy(Request $request, $id)
-{
-    Log::info('[LandingPage] categories_destroy: soft-deleting category', [
-        'user_id' => Auth::id(),
-        'ip'      => $request->ip(),
-        'id'      => $id,
-    ]);
-
-    try {
-        $row = DB::table('course_categories')
-            ->where('id', $id)
-            ->whereNull('deleted_at')
-            ->first();
-
-        if (!$row) {
-            return response()->json([
-                'status'  => 'error',
-                'message' => 'Category not found or already deleted.',
-            ], 404);
-        }
-
-        DB::table('course_categories')
-            ->where('id', $id)
-            ->update([
-                'deleted_at' => now(),
-                'updated_at' => now(),
-            ]);
-
-        return response()->json([
-            'status'  => 'success',
-            'message' => 'Category deleted successfully.',
-        ], 200);
-
-    } catch (\Throwable $e) {
-
-        Log::error('[LandingPage] ERROR: categories_destroy: delete failed', [
-            'user_id' => Auth::id(),
-            'ip'      => $request->ip(),
-            'id'      => $id,
-            'error'   => $e->getMessage(),
-            'line'    => $e->getLine(),
-            'file'    => $e->getFile(),
-        ]);
-
-        return response()->json([
-            'status'  => 'error',
-            'message' => 'Failed to delete category.',
-            'error'   => $e->getMessage(),
-        ], 500);
-    }
-}
-
-public function categories_display()
-{
-    Log::info('[LandingPage] categories_display: public display fetch', [
-        'user_id' => Auth::id(),
-    ]);
-
-    $rows = DB::table('course_categories')
-        ->whereNull('deleted_at')
-        ->orderBy('created_at', 'desc')
-        ->get([
-            'id',
-            'uuid',
-            'title',       // 🔹 now included
-            'icon',
-            'description',
-            'created_at',
-        ]);
-
-    return response()->json([
-        'status' => 'success',
-        'data'   => $rows,
-    ]);
-}
-public function categories_reorder(Request $request)
-{
-    $data = $request->validate([
-        'ids'   => ['required', 'array', 'min:1'],
-        'ids.*' => ['integer', 'distinct'],
-    ]);
-
-    $ids = $data['ids'];
-
-    Log::info('[LandingPage] categories_reorder: reordering', [
-        'user_id' => Auth::id(),
-        'ip'      => $request->ip(),
-        'ids'     => $ids,
-    ]);
-
-    try {
-        DB::transaction(function () use ($ids) {
-            $now = now();
-
-            foreach ($ids as $index => $id) {
-                DB::table('course_categories')
-                    ->where('id', $id)
-                    ->whereNull('deleted_at')
-                    ->update([
-                        'display_order' => $index, // or $index + 1
-                        'updated_at'    => $now,
-                    ]);
-            }
+            return [
+                'url'  => $url,
+                'name' => $name ?: 'Image',
+                'size' => null,
+            ];
         });
 
         return response()->json([
-            'status'  => 'success',
-            'message' => 'Categories reordered successfully.',
-        ], 200);
+            'data' => $data,
+        ]);
+    }
 
-    } catch (\Throwable $e) {
-
-        Log::error('[LandingPage] ERROR: categories_reorder: failed', [
-            'user_id' => Auth::id(),
-            'ip'      => $request->ip(),
-            'ids'     => $ids,
-            'error'   => $e->getMessage(),
-            'line'    => $e->getLine(),
-            'file'    => $e->getFile(),
+    //Categories
+    public function categories_index(Request $request)
+    {
+        Log::info('[LandingPage] categories_index: fetching categories', [
+            'user_id'  => Auth::id(),
+            'ip'       => $request->ip(),
+            'page'     => $request->input('page'),
+            'per_page' => $request->input('per_page'),
+            'q'        => $request->input('q'),
+            'sort'     => $request->input('sort'),
         ]);
 
-        return response()->json([
-            'status'  => 'error',
-            'message' => 'Failed to reorder categories.',
-            'error'   => $e->getMessage(),
-        ], 500);
+        try {
+            $perPage = (int) $request->input('per_page', 20);
+            $page    = (int) $request->input('page', 1);
+            $q       = trim((string) $request->input('q', ''));
+            $sort    = $request->input('sort', '-created_at'); // "-col" = desc
+
+            $query = DB::table('course_categories')
+                ->whereNull('deleted_at');
+
+            // 🔎 search on title / description / icon
+            if ($q !== '') {
+                $query->where(function ($qq) use ($q) {
+                    $qq->where('title', 'like', "%{$q}%")
+                       ->orWhere('description', 'like', "%{$q}%")
+                       ->orWhere('icon', 'like', "%{$q}%");
+                });
+            }
+
+            // sorting
+            $dir = ($sort[0] === '-') ? 'desc' : 'asc';
+            $col = ltrim($sort, '-');
+
+            // 🔽 allowed sort columns
+            if (!in_array($col, ['title', 'description', 'icon', 'created_at'], true)) {
+                $col = 'created_at';
+            }
+
+            $total = $query->count();
+
+            $rows = $query->orderBy($col, $dir)
+                ->orderBy('id') // stable
+                ->offset(($page - 1) * $perPage)
+                ->limit($perPage)
+                ->get();
+
+            Log::info('[LandingPage] categories_index: fetched categories', [
+                'user_id' => Auth::id(),
+                'ip'      => $request->ip(),
+                'count'   => $rows->count(),
+                'total'   => $total,
+            ]);
+
+            return response()->json([
+                'status'     => 'success',
+                'message'    => 'Categories fetched successfully.',
+                'data'       => $rows,
+                'pagination' => [
+                    'page'      => $page,
+                    'per_page'  => $perPage,
+                    'total'     => $total,
+                ],
+            ], 200);
+
+        } catch (\Throwable $e) {
+
+            Log::error('[LandingPage] ERROR: categories_index: fetch failed', [
+                'user_id' => Auth::id(),
+                'ip'      => $request->ip(),
+                'error'   => $e->getMessage(),
+                'line'    => $e->getLine(),
+                'file'    => $e->getFile(),
+            ]);
+
+            return response()->json([
+                'status'     => 'error',
+                'message'    => 'Failed to fetch categories.',
+                'error'      => $e->getMessage(), // hide in prod if needed
+                'data'       => [],
+                'pagination' => null,
+            ], 500);
+        }
     }
-}
-//Featured Courses
-public function featuredCourses_index(Request $request)
-{
-    Log::info('[LandingPage] featuredCourses_index: fetching featured courses (from courses table)', [
-        'user_id'  => Auth::id(),
-        'ip'       => $request->ip(),
-        'page'     => $request->input('page'),
-        'per_page' => $request->input('per_page'),
-        'q'        => $request->input('q'),
-        'sort'     => $request->input('sort'),
-    ]);
 
-    try {
+    public function categories_store(Request $request)
+    {
+        $validated = $request->validate([
+            'title'       => ['required', 'string', 'max:255'],
+            'icon'        => ['nullable', 'string', 'max:255'],
+            'description' => ['nullable', 'string'],
+        ]);
 
-        $perPage = (int) $request->input('per_page', 20);
-        $page    = (int) $request->input('page', 1);
-        $q       = trim((string) $request->input('q', ''));
-        $sort    = (string) $request->input('sort', '-featured_rank'); // "-col" => desc
+        Log::info('[LandingPage] categories_store: inserting category', [
+            'user_id' => Auth::id(),
+            'ip'      => $request->ip(),
+            'payload' => $validated,
+        ]);
 
-        // base query on courses table
-        $query = DB::table('courses')
-            ->whereNull('deleted_at');
+        try {
+            $now = now();
 
-        // Optional search (by id, title, slug)
-        if ($q !== '') {
-            $query->where(function ($qq) use ($q) {
-                $qq->where('id', 'like', "%{$q}%")
-                   ->orWhere('title', 'like', "%{$q}%")
-                   ->orWhere('slug', 'like', "%{$q}%");
-            });
+            $id = DB::table('course_categories')->insertGetId([
+                'uuid'        => (string) Str::uuid(),
+                'created_by'  => Auth::id(),
+                'title'       => $validated['title'],
+                'icon'        => $validated['icon'] ?? null,
+                'description' => $validated['description'] ?? null,
+                'created_at'  => $now,
+                'updated_at'  => $now,
+                'deleted_at'  => null,
+            ]);
+
+            $row = DB::table('course_categories')
+                ->where('id', $id)
+                ->first();
+
+            $this->logActivityDb($request, 'create', 'course_categories created', [
+                'endpoint' => 'categories_store',
+                'payload' => $validated,
+            ], 'course_categories', (int)$id, null, $row);
+
+            return response()->json([
+                'status'  => 'success',
+                'message' => 'Category created successfully.',
+                'data'    => $row,
+            ], 201);
+
+        } catch (\Throwable $e) {
+
+            Log::error('[LandingPage] ERROR: categories_store: insert failed', [
+                'user_id' => Auth::id(),
+                'ip'      => $request->ip(),
+                'error'   => $e->getMessage(),
+                'line'    => $e->getLine(),
+                'file'    => $e->getFile(),
+                'payload' => $validated,
+            ]);
+
+            return response()->json([
+                'status'  => 'error',
+                'message' => 'Failed to create category.',
+                'error'   => $e->getMessage(),
+            ], 500);
         }
+    }
 
-        // Sorting
-        $dir = (strlen($sort) && $sort[0] === '-') ? 'desc' : 'asc';
-        $col = ltrim($sort, '-');
+    public function categories_update(Request $request, $id)
+    {
+        $validated = $request->validate([
+            'title'       => ['required', 'string', 'max:255'],
+            'icon'        => ['nullable', 'string', 'max:255'],
+            'description' => ['nullable', 'string'],
+        ]);
 
-        if (!in_array($col, ['featured_rank', 'order_no', 'title', 'created_at', 'price_amount'], true)) {
-            $col = 'featured_rank';
+        Log::info('[LandingPage] categories_update: updating category', [
+            'user_id' => Auth::id(),
+            'ip'      => $request->ip(),
+            'id'      => $id,
+            'payload' => $validated,
+        ]);
+
+        try {
+            $row = DB::table('course_categories')
+                ->where('id', $id)
+                ->whereNull('deleted_at')
+                ->first();
+
+            if (!$row) {
+                return response()->json([
+                    'status'  => 'error',
+                    'message' => 'Category not found.',
+                ], 404);
+            }
+
+            $oldRow = $row;
+
+            $updateData = [
+                'title'       => $validated['title'],
+                'icon'        => array_key_exists('icon', $validated)
+                    ? ($validated['icon'] ?? null)
+                    : $row->icon,
+                'description' => array_key_exists('description', $validated)
+                    ? ($validated['description'] ?? null)
+                    : $row->description,
+                'updated_at'  => now(),
+            ];
+
+            DB::table('course_categories')
+                ->where('id', $id)
+                ->update($updateData);
+
+            $fresh = DB::table('course_categories')
+                ->where('id', $id)
+                ->first();
+
+            $this->logActivityDb($request, 'update', 'course_categories updated', [
+                'endpoint' => 'categories_update',
+                'payload' => $validated,
+            ], 'course_categories', (int)$id, $oldRow, $fresh);
+
+            return response()->json([
+                'status'  => 'success',
+                'message' => 'Category updated successfully.',
+                'data'    => $fresh,
+            ], 200);
+
+        } catch (\Throwable $e) {
+
+            Log::error('[LandingPage] ERROR: categories_update: update failed', [
+                'user_id' => Auth::id(),
+                'ip'      => $request->ip(),
+                'id'      => $id,
+                'error'   => $e->getMessage(),
+                'line'    => $e->getLine(),
+                'file'    => $e->getFile(),
+                'payload' => $validated,
+            ]);
+
+            return response()->json([
+                'status'  => 'error',
+                'message' => 'Failed to update category.',
+                'error'   => $e->getMessage(),
+            ], 500);
         }
+    }
 
-        $total = $query->count();
+    public function categories_destroy(Request $request, $id)
+    {
+        Log::info('[LandingPage] categories_destroy: soft-deleting category', [
+            'user_id' => Auth::id(),
+            'ip'      => $request->ip(),
+            'id'      => $id,
+        ]);
 
-        $rows = $query
-            ->orderBy($col, $dir)
-            ->orderBy('id')
-            ->offset(($page - 1) * $perPage)
-            ->limit($perPage)
+        try {
+            $row = DB::table('course_categories')
+                ->where('id', $id)
+                ->whereNull('deleted_at')
+                ->first();
+
+            if (!$row) {
+                return response()->json([
+                    'status'  => 'error',
+                    'message' => 'Category not found or already deleted.',
+                ], 404);
+            }
+
+            $oldRow = $row;
+
+            DB::table('course_categories')
+                ->where('id', $id)
+                ->update([
+                    'deleted_at' => now(),
+                    'updated_at' => now(),
+                ]);
+
+            $newRow = DB::table('course_categories')->where('id', $id)->first();
+            $this->logActivityDb($request, 'delete', 'course_categories soft-deleted', [
+                'endpoint' => 'categories_destroy',
+            ], 'course_categories', (int)$id, $oldRow, $newRow);
+
+            return response()->json([
+                'status'  => 'success',
+                'message' => 'Category deleted successfully.',
+            ], 200);
+
+        } catch (\Throwable $e) {
+
+            Log::error('[LandingPage] ERROR: categories_destroy: delete failed', [
+                'user_id' => Auth::id(),
+                'ip'      => $request->ip(),
+                'id'      => $id,
+                'error'   => $e->getMessage(),
+                'line'    => $e->getLine(),
+                'file'    => $e->getFile(),
+            ]);
+
+            return response()->json([
+                'status'  => 'error',
+                'message' => 'Failed to delete category.',
+                'error'   => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    public function categories_display()
+    {
+        Log::info('[LandingPage] categories_display: public display fetch', [
+            'user_id' => Auth::id(),
+        ]);
+
+        $rows = DB::table('course_categories')
+            ->whereNull('deleted_at')
+            ->orderBy('created_at', 'desc')
             ->get([
                 'id',
                 'uuid',
-                'title',
-                'slug',
-                'status',
-                'course_type',
-                'price_amount',
-                'price_currency',
-                'is_featured',
-                'featured_rank',
-                'order_no',
-                'category_id',
+                'title',       // 🔹 now included
+                'icon',
+                'description',
                 'created_at',
             ]);
 
-        // Split into featured vs non-featured on the current page
-        $featured     = $rows->filter(fn ($r) => (int) $r->is_featured === 1)->values();
-        $nonFeatured  = $rows->filter(fn ($r) => (int) $r->is_featured !== 1)->values();
-
-        Log::info('[LandingPage] featuredCourses_index: fetched', [
-            'user_id'        => Auth::id(),
-            'ip'             => $request->ip(),
-            'count'          => $rows->count(),
-            'total'          => $total,
-            'featured_count' => $featured->count(),
-            'non_count'      => $nonFeatured->count(),
-        ]);
-
         return response()->json([
-            'status'  => 'success',
-            'message' => 'Courses fetched successfully.',
-            'data'    => [
-                'featured'      => $featured,
-                'non_featured'  => $nonFeatured,
-            ],
-            'pagination' => [
-                'page'      => $page,
-                'per_page'  => $perPage,
-                'total'     => $total,
-            ],
+            'status' => 'success',
+            'data'   => $rows,
         ]);
-
-    } catch (\Throwable $e) {
-
-        Log::error('[LandingPage] ERROR: featuredCourses_index', [
-            'user_id' => Auth::id(),
-            'ip'      => $request->ip(),
-            'error'   => $e->getMessage(),
-        ]);
-
-        return response()->json([
-            'status'  => 'error',
-            'message' => 'Failed to fetch courses.',
-            'error'   => $e->getMessage(),
-        ], 500);
-    }
-}
-public function featuredCourses_display()
-{
-    Log::info('[LandingPage] featuredCourses_display: public fetch (from courses + featured media tables)');
-
-    // 1) Subquery: for each course, pick the latest media row (by id)
-    $mediaSub = DB::table('course_featured_media as cfm2')
-        ->selectRaw('cfm2.course_id, MAX(cfm2.id) as latest_media_id')
-        ->groupBy('cfm2.course_id');
-
-    $rows = DB::table('courses')
-        ->leftJoin('course_categories as lc', 'lc.id', '=', 'courses.category_id')
-        // join the subquery to know which media row is "latest" for each course
-        ->leftJoinSub($mediaSub, 'm', function ($join) {
-            $join->on('m.course_id', '=', 'courses.id');
-        })
-        // join the actual media table again to get the URL of that latest row
-        ->leftJoin('course_featured_media as cfm', function ($join) {
-            $join->on('cfm.course_id', '=', 'courses.id')
-                 ->on('cfm.id', '=', 'm.latest_media_id');
-        })
-        ->whereNull('courses.deleted_at')
-        ->where('courses.status', 'published')
-        ->orderBy('courses.featured_rank')
-        ->orderBy('courses.order_no')
-        ->orderBy('courses.id')
-        ->get([
-            'courses.id',
-            'courses.uuid',
-            'courses.title',
-            'courses.slug',
-            'courses.status',
-            'courses.course_type',
-            'courses.price_amount',
-            'courses.price_currency',
-            'courses.is_featured',
-            'courses.featured_rank',
-            'courses.order_no',
-            'courses.category_id',
-            'courses.short_description',
-            'courses.level',
-            'courses.created_at',
-            'lc.title as category_title',
-
-            // 👇 the chosen image for this course (latest media)
-            'cfm.featured_url as image_url',
-        ]);
-
-    // 1 course = 1 row already
-    $featured    = $rows->filter(fn ($r) => (int) $r->is_featured === 1)->values();
-    $nonFeatured = $rows->filter(fn ($r) => (int) $r->is_featured !== 1)->values();
-
-    return response()->json([
-        'status' => 'success',
-        'data'   => [
-            'featured'      => $featured,
-            'non_featured'  => $nonFeatured,
-        ],
-    ]);
-}
-
-public function toggleFeatured(Request $request, $courseKey)
-{
-    Log::info('[LandingPage] toggleFeatured called', [
-        'course_key'   => $courseKey,
-        'is_featured'  => $request->input('is_featured'),
-        'user_id'      => optional($request->user())->id,
-        'ip'           => $request->ip(),
-    ]);
-
-    $data = $request->validate([
-        'is_featured' => ['required', 'boolean'],
-    ]);
-
-    $isFeatured = $data['is_featured'] ? 1 : 0;
-
-    $baseQuery = DB::table('courses')
-        ->whereNull('deleted_at') // remove if no soft-deletes
-        ->where(function ($q) use ($courseKey) {
-            $q->where('uuid', $courseKey)
-              ->orWhere('id', $courseKey);
-        });
-
-    $updateData = [
-        'is_featured' => $isFeatured,
-        'updated_at'  => now(),
-    ];
-
-    // ✅ When turning OFF, set rank to 0 (NOT NULL) instead of null
-    if ($isFeatured === 0) {
-        $updateData['featured_rank'] = 0;
     }
 
-    $updated = $baseQuery->update($updateData);
-
-    if (!$updated) {
-        Log::warning('[LandingPage] toggleFeatured: course not found or not updated', [
-            'course_key' => $courseKey,
+    public function categories_reorder(Request $request)
+    {
+        $data = $request->validate([
+            'ids'   => ['required', 'array', 'min:1'],
+            'ids.*' => ['integer', 'distinct'],
         ]);
 
-        return response()->json([
-            'status'  => 'error',
-            'message' => 'Course not found or not updated.',
-        ], 404);
-    }
+        $ids = $data['ids'];
 
-    $course = DB::table('courses')
-        ->where(function ($q) use ($courseKey) {
-            $q->where('uuid', $courseKey)
-              ->orWhere('id', $courseKey);
-        })
-        ->first();
-
-    Log::info('[LandingPage] toggleFeatured: updated', [
-        'course_key'    => $courseKey,
-        'is_featured'   => $isFeatured,
-        'featured_rank' => $course->featured_rank ?? null,
-    ]);
-
-    return response()->json([
-        'status'  => 'success',
-        'message' => $isFeatured
-            ? 'Course marked as featured.'
-            : 'Course un-featured.',
-        'data'    => $course,
-    ]);
-}
-public function featuredCourses_reorder(Request $request)
-{
-    $data = $request->validate([
-        'ids'   => ['required', 'array', 'min:1'],
-        'ids.*' => ['integer', 'distinct'],
-    ]);
-
-    $ids = $data['ids'];
-
-    Log::info('[LandingPage] featuredCourses_reorder: reordering featured courses', [
-        'user_id' => Auth::id(),
-        'ip'      => $request->ip(),
-        'ids'     => $ids,
-    ]);
-
-    try {
-        DB::transaction(function () use ($ids) {
-            $now = now();
-
-            // 1) Reset all featured flags & ranks
-            DB::table('courses')
-                ->whereNull('deleted_at')
-                ->update([
-                    'is_featured'   => 0,
-                    'featured_rank' => 0,
-                    'updated_at'    => $now,
-                ]);
-
-            // 2) Apply new order for given IDs
-            foreach ($ids as $index => $id) {
-                DB::table('courses')
-                    ->where('id', $id)
-                    ->whereNull('deleted_at')
-                    ->update([
-                        'is_featured'   => 1,
-                        'featured_rank' => $index + 1, // 1-based rank
-                        'updated_at'    => $now,
-                    ]);
-            }
-        });
-
-        return response()->json([
-            'status'  => 'success',
-            'message' => 'Featured courses reordered successfully.',
-        ], 200);
-
-    } catch (\Throwable $e) {
-
-        Log::error('[LandingPage] ERROR: featuredCourses_reorder: failed', [
+        Log::info('[LandingPage] categories_reorder: reordering', [
             'user_id' => Auth::id(),
             'ip'      => $request->ip(),
             'ids'     => $ids,
-            'error'   => $e->getMessage(),
-            'line'    => $e->getLine(),
-            'file'    => $e->getFile(),
         ]);
 
-        return response()->json([
-            'status'  => 'error',
-            'message' => 'Failed to reorder featured courses.',
-            'error'   => $e->getMessage(),
-        ], 500);
-    }
-}
+        try {
+            DB::transaction(function () use ($ids) {
+                $now = now();
 
+                foreach ($ids as $index => $id) {
+                    DB::table('course_categories')
+                        ->where('id', $id)
+                        ->whereNull('deleted_at')
+                        ->update([
+                            'display_order' => $index, // or $index + 1
+                            'updated_at'    => $now,
+                        ]);
+                }
+            });
+
+            $this->logActivityDb($request, 'reorder', 'course_categories reordered', [
+                'endpoint' => 'categories_reorder',
+                'ids' => $ids,
+            ], 'course_categories', null, null, null);
+
+            return response()->json([
+                'status'  => 'success',
+                'message' => 'Categories reordered successfully.',
+            ], 200);
+
+        } catch (\Throwable $e) {
+
+            Log::error('[LandingPage] ERROR: categories_reorder: failed', [
+                'user_id' => Auth::id(),
+                'ip'      => $request->ip(),
+                'ids'     => $ids,
+                'error'   => $e->getMessage(),
+                'line'    => $e->getLine(),
+                'file'    => $e->getFile(),
+            ]);
+
+            return response()->json([
+                'status'  => 'error',
+                'message' => 'Failed to reorder categories.',
+                'error'   => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    //Featured Courses
+    public function featuredCourses_index(Request $request)
+    {
+        Log::info('[LandingPage] featuredCourses_index: fetching featured courses (from courses table)', [
+            'user_id'  => Auth::id(),
+            'ip'       => $request->ip(),
+            'page'     => $request->input('page'),
+            'per_page' => $request->input('per_page'),
+            'q'        => $request->input('q'),
+            'sort'     => $request->input('sort'),
+        ]);
+
+        try {
+
+            $perPage = (int) $request->input('per_page', 20);
+            $page    = (int) $request->input('page', 1);
+            $q       = trim((string) $request->input('q', ''));
+            $sort    = (string) $request->input('sort', '-featured_rank'); // "-col" => desc
+
+            // base query on courses table
+            $query = DB::table('courses')
+                ->whereNull('deleted_at');
+
+            // Optional search (by id, title, slug)
+            if ($q !== '') {
+                $query->where(function ($qq) use ($q) {
+                    $qq->where('id', 'like', "%{$q}%")
+                       ->orWhere('title', 'like', "%{$q}%")
+                       ->orWhere('slug', 'like', "%{$q}%");
+                });
+            }
+
+            // Sorting
+            $dir = (strlen($sort) && $sort[0] === '-') ? 'desc' : 'asc';
+            $col = ltrim($sort, '-');
+
+            if (!in_array($col, ['featured_rank', 'order_no', 'title', 'created_at', 'price_amount'], true)) {
+                $col = 'featured_rank';
+            }
+
+            $total = $query->count();
+
+            $rows = $query
+                ->orderBy($col, $dir)
+                ->orderBy('id')
+                ->offset(($page - 1) * $perPage)
+                ->limit($perPage)
+                ->get([
+                    'id',
+                    'uuid',
+                    'title',
+                    'slug',
+                    'status',
+                    'course_type',
+                    'price_amount',
+                    'price_currency',
+                    'is_featured',
+                    'featured_rank',
+                    'order_no',
+                    'category_id',
+                    'created_at',
+                ]);
+
+            // Split into featured vs non-featured on the current page
+            $featured     = $rows->filter(fn ($r) => (int) $r->is_featured === 1)->values();
+            $nonFeatured  = $rows->filter(fn ($r) => (int) $r->is_featured !== 1)->values();
+
+            Log::info('[LandingPage] featuredCourses_index: fetched', [
+                'user_id'        => Auth::id(),
+                'ip'             => $request->ip(),
+                'count'          => $rows->count(),
+                'total'          => $total,
+                'featured_count' => $featured->count(),
+                'non_count'      => $nonFeatured->count(),
+            ]);
+
+            return response()->json([
+                'status'  => 'success',
+                'message' => 'Courses fetched successfully.',
+                'data'    => [
+                    'featured'      => $featured,
+                    'non_featured'  => $nonFeatured,
+                ],
+                'pagination' => [
+                    'page'      => $page,
+                    'per_page'  => $perPage,
+                    'total'     => $total,
+                ],
+            ]);
+
+        } catch (\Throwable $e) {
+
+            Log::error('[LandingPage] ERROR: featuredCourses_index', [
+                'user_id' => Auth::id(),
+                'ip'      => $request->ip(),
+                'error'   => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'status'  => 'error',
+                'message' => 'Failed to fetch courses.',
+                'error'   => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    public function featuredCourses_display()
+    {
+        Log::info('[LandingPage] featuredCourses_display: public fetch (from courses + featured media tables)');
+
+        // 1) Subquery: for each course, pick the latest media row (by id)
+        $mediaSub = DB::table('course_featured_media as cfm2')
+            ->selectRaw('cfm2.course_id, MAX(cfm2.id) as latest_media_id')
+            ->groupBy('cfm2.course_id');
+
+        $rows = DB::table('courses')
+            ->leftJoin('course_categories as lc', 'lc.id', '=', 'courses.category_id')
+            // join the subquery to know which media row is "latest" for each course
+            ->leftJoinSub($mediaSub, 'm', function ($join) {
+                $join->on('m.course_id', '=', 'courses.id');
+            })
+            // join the actual media table again to get the URL of that latest row
+            ->leftJoin('course_featured_media as cfm', function ($join) {
+                $join->on('cfm.course_id', '=', 'courses.id')
+                     ->on('cfm.id', '=', 'm.latest_media_id');
+            })
+            ->whereNull('courses.deleted_at')
+            ->where('courses.status', 'published')
+            ->orderBy('courses.featured_rank')
+            ->orderBy('courses.order_no')
+            ->orderBy('courses.id')
+            ->get([
+                'courses.id',
+                'courses.uuid',
+                'courses.title',
+                'courses.slug',
+                'courses.status',
+                'courses.course_type',
+                'courses.price_amount',
+                'courses.price_currency',
+                'courses.is_featured',
+                'courses.featured_rank',
+                'courses.order_no',
+                'courses.category_id',
+                'courses.short_description',
+                'courses.level',
+                'courses.created_at',
+                'lc.title as category_title',
+
+                // 👇 the chosen image for this course (latest media)
+                'cfm.featured_url as image_url',
+            ]);
+
+        // 1 course = 1 row already
+        $featured    = $rows->filter(fn ($r) => (int) $r->is_featured === 1)->values();
+        $nonFeatured = $rows->filter(fn ($r) => (int) $r->is_featured !== 1)->values();
+
+        return response()->json([
+            'status' => 'success',
+            'data'   => [
+                'featured'      => $featured,
+                'non_featured'  => $nonFeatured,
+            ],
+        ]);
+    }
+
+    public function toggleFeatured(Request $request, $courseKey)
+    {
+        Log::info('[LandingPage] toggleFeatured called', [
+            'course_key'   => $courseKey,
+            'is_featured'  => $request->input('is_featured'),
+            'user_id'      => optional($request->user())->id,
+            'ip'           => $request->ip(),
+        ]);
+
+        $data = $request->validate([
+            'is_featured' => ['required', 'boolean'],
+        ]);
+
+        $isFeatured = $data['is_featured'] ? 1 : 0;
+
+        $oldCourse = DB::table('courses')
+            ->where(function ($q) use ($courseKey) {
+                $q->where('uuid', $courseKey)
+                  ->orWhere('id', $courseKey);
+            })
+            ->first();
+
+        $baseQuery = DB::table('courses')
+            ->whereNull('deleted_at') // remove if no soft-deletes
+            ->where(function ($q) use ($courseKey) {
+                $q->where('uuid', $courseKey)
+                  ->orWhere('id', $courseKey);
+            });
+
+        $updateData = [
+            'is_featured' => $isFeatured,
+            'updated_at'  => now(),
+        ];
+
+        // ✅ When turning OFF, set rank to 0 (NOT NULL) instead of null
+        if ($isFeatured === 0) {
+            $updateData['featured_rank'] = 0;
+        }
+
+        $updated = $baseQuery->update($updateData);
+
+        if (!$updated) {
+            Log::warning('[LandingPage] toggleFeatured: course not found or not updated', [
+                'course_key' => $courseKey,
+            ]);
+
+            return response()->json([
+                'status'  => 'error',
+                'message' => 'Course not found or not updated.',
+            ], 404);
+        }
+
+        $course = DB::table('courses')
+            ->where(function ($q) use ($courseKey) {
+                $q->where('uuid', $courseKey)
+                  ->orWhere('id', $courseKey);
+            })
+            ->first();
+
+        Log::info('[LandingPage] toggleFeatured: updated', [
+            'course_key'    => $courseKey,
+            'is_featured'   => $isFeatured,
+            'featured_rank' => $course->featured_rank ?? null,
+        ]);
+
+        $this->logActivityDb($request, 'update', 'courses toggleFeatured updated', [
+            'endpoint' => 'toggleFeatured',
+            'course_key' => $courseKey,
+            'is_featured' => $isFeatured,
+        ], 'courses', isset($course->id) ? (int)$course->id : null, $oldCourse, $course);
+
+        return response()->json([
+            'status'  => 'success',
+            'message' => $isFeatured
+                ? 'Course marked as featured.'
+                : 'Course un-featured.',
+            'data'    => $course,
+        ]);
+    }
+
+    public function featuredCourses_reorder(Request $request)
+    {
+        $data = $request->validate([
+            'ids'   => ['required', 'array', 'min:1'],
+            'ids.*' => ['integer', 'distinct'],
+        ]);
+
+        $ids = $data['ids'];
+
+        Log::info('[LandingPage] featuredCourses_reorder: reordering featured courses', [
+            'user_id' => Auth::id(),
+            'ip'      => $request->ip(),
+            'ids'     => $ids,
+        ]);
+
+        try {
+            DB::transaction(function () use ($ids) {
+                $now = now();
+
+                // 1) Reset all featured flags & ranks
+                DB::table('courses')
+                    ->whereNull('deleted_at')
+                    ->update([
+                        'is_featured'   => 0,
+                        'featured_rank' => 0,
+                        'updated_at'    => $now,
+                    ]);
+
+                // 2) Apply new order for given IDs
+                foreach ($ids as $index => $id) {
+                    DB::table('courses')
+                        ->where('id', $id)
+                        ->whereNull('deleted_at')
+                        ->update([
+                            'is_featured'   => 1,
+                            'featured_rank' => $index + 1, // 1-based rank
+                            'updated_at'    => $now,
+                        ]);
+                }
+            });
+
+            $this->logActivityDb($request, 'reorder', 'courses featuredCourses_reorder applied', [
+                'endpoint' => 'featuredCourses_reorder',
+                'ids' => $ids,
+            ], 'courses', null, null, null);
+
+            return response()->json([
+                'status'  => 'success',
+                'message' => 'Featured courses reordered successfully.',
+            ], 200);
+
+        } catch (\Throwable $e) {
+
+            Log::error('[LandingPage] ERROR: featuredCourses_reorder: failed', [
+                'user_id' => Auth::id(),
+                'ip'      => $request->ip(),
+                'ids'     => $ids,
+                'error'   => $e->getMessage(),
+                'line'    => $e->getLine(),
+                'file'    => $e->getFile(),
+            ]);
+
+            return response()->json([
+                'status'  => 'error',
+                'message' => 'Failed to reorder featured courses.',
+                'error'   => $e->getMessage(),
+            ], 500);
+        }
+    }
 }

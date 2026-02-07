@@ -646,6 +646,9 @@
       </div>
       <nav class="w3-menu" aria-label="Operations (All)">
         <a href="/mailers/manage" class="w3-link"><i class="fa-solid fa-gear"></i><span>Mailer</span></a>
+         <a href="/activity-logs" class="w3-link" id="activityLogsLink">
+    <i class="fa-solid fa-clipboard-list"></i><span>Activity Logs</span>
+  </a>
       </nav>
     </div>
 
@@ -869,6 +872,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const dynamicMenuWrap = document.getElementById('dynamicMenuWrap');
   const dynamicMenu = document.getElementById('dynamicMenu');
   const noAcademicAccess = document.getElementById('noAcademicAccess'); // ✅ NEW
+  const activityLogsLink = document.getElementById('activityLogsLink');
+
 
   function safeText(v){ return (v ?? '').toString(); }
 
@@ -992,6 +997,67 @@ document.addEventListener('DOMContentLoaded', () => {
     try { localStorage.removeItem('token'); } catch(e){}
     try { localStorage.removeItem('role'); } catch(e){}
   }
+// ===== SESSION TOKEN CHECK (GLOBAL) =====================================
+const TOKEN_CHECK_API = '/api/auth/token/check'; // your API
+const AUTH_LOGIN_PAGE = '/'; // change to /login if needed
+
+async function showTokenExpiredSwal(message){
+  const msg = message || 'Token expired. Login again.';
+
+  await Swal.fire({
+    icon: 'warning',
+    title: 'Session Expired',
+    text: msg,
+    confirmButtonText: 'Login',
+    allowOutsideClick: false,
+    allowEscapeKey: false
+  });
+
+  clearAuthStorage();
+  window.location.replace(AUTH_LOGIN_PAGE);
+}
+
+// returns true if valid, false if expired/missing/invalid
+async function ensureSessionValid(){
+  const token = getBearerToken();
+
+  // If no token => treat as not logged in
+  if (!token){
+    await showTokenExpiredSwal('Login required. Please login again.');
+    return false;
+  }
+
+  try{
+    const res = await fetch(TOKEN_CHECK_API, {
+      method: 'GET',
+      headers: { 'Authorization': 'Bearer ' + token, 'Accept': 'application/json' }
+    });
+
+    if (res.status === 401){
+      const j = await res.json().catch(() => null);
+      await showTokenExpiredSwal(j?.message || 'Token expired. Login again.');
+      return false;
+    }
+
+    if (!res.ok){
+      // If API is down, don’t block page hard — just allow
+      console.warn('Token check failed:', res.status);
+      return true;
+    }
+
+    const j = await res.json().catch(() => null);
+    if (j?.code === 'TOKEN_EXPIRED' || j?.code === 'SESSION_EXPIRED'){
+      await showTokenExpiredSwal(j?.message || 'Token expired. Login again.');
+      return false;
+    }
+
+    return true;
+  }catch(e){
+    console.warn('Token check error:', e);
+    // network error -> allow page (optional behavior)
+    return true;
+  }
+}
 
   async function performLogout(){
     const token = getBearerToken();
@@ -1039,15 +1105,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // ===== INIT (Overlay stays until everything ready)
   (async () => {
-    try{
-      bindSubmenuToggles(document);
-      await loadSidebarFromNewApi();   // ✅ load menu first
-      markActiveLinks();              // ✅ then mark active
-    } finally {
-      // ✅ hide overlay when environment is ready
-      hideBoot();
-    }
-  })();
+  bindSubmenuToggles(document);
+
+  // ✅ 1) check token first
+  const ok = await ensureSessionValid();
+  if (!ok) return; // don’t hide overlay; swal will handle + redirect
+
+  // ✅ 2) then load sidebar
+  await loadSidebarFromNewApi();
+  markActiveLinks();
+
+  // ✅ 3) finally hide boot overlay
+  hideBoot();
+})();
+
 });
 </script>
 

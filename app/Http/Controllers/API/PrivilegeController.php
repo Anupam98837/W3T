@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Validation\Rule;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
@@ -15,115 +16,135 @@ use Exception;
 class PrivilegeController extends Controller
 {
     /**
+     * Basic activity logger (best-effort; does not affect flow)
+     */
+    private function logActivity(Request $request, string $action, array $payload = []): void
+    {
+        try {
+            $userId = (int) (optional($request->user())->id ?? ($request->attributes->get('auth_tokenable_id') ?? 0));
+
+            DB::table('user_data_activity_log')->insert([
+                'user_id'    => $userId,
+                'action'     => $action,
+                'payload'    => json_encode($payload, JSON_UNESCAPED_SLASHES),
+                'ip_address' => $request->ip(),
+                'created_at' => now(),
+            ]);
+        } catch (\Throwable $e) {
+            Log::warning('privilege.activity.log.fail', ['e' => $e->getMessage()]);
+        }
+    }
+
+    /**
      * List privileges (filter by module_id optional - accepts module id or uuid)
      */
     public function index(Request $request)
-{
-    try {
-        $perPage = max(1, min(200, (int) $request->query('per_page', 20)));
-        $moduleKey = $request->query('module_id');
+    {
+        try {
+            $perPage = max(1, min(200, (int) $request->query('per_page', 20)));
+            $moduleKey = $request->query('module_id');
 
-        // Build select columns defensively (include module name)
-        $cols = [
-            'privileges.id',
-            'privileges.uuid',
-            'privileges.module_id',
-            'privileges.action',
-            'privileges.description',
-            'privileges.created_at',
-            'privileges.updated_at',
-            'modules.name as module_name',
-        ];
-        if (Schema::hasColumn('privileges', 'order_no')) {
-            $cols[] = 'privileges.order_no';
-        }
-        if (Schema::hasColumn('privileges', 'status')) {
-            $cols[] = 'privileges.status';
-        }
+            // Build select columns defensively (include module name)
+            $cols = [
+                'privileges.id',
+                'privileges.uuid',
+                'privileges.module_id',
+                'privileges.action',
+                'privileges.description',
+                'privileges.created_at',
+                'privileges.updated_at',
+                'modules.name as module_name',
+            ];
+            if (Schema::hasColumn('privileges', 'order_no')) {
+                $cols[] = 'privileges.order_no';
+            }
+            if (Schema::hasColumn('privileges', 'status')) {
+                $cols[] = 'privileges.status';
+            }
 
-        $query = DB::table('privileges')
-            ->leftJoin('modules', 'modules.id', '=', 'privileges.module_id')
-            ->whereNull('privileges.deleted_at')
-            ->select($cols);
+            $query = DB::table('privileges')
+                ->leftJoin('modules', 'modules.id', '=', 'privileges.module_id')
+                ->whereNull('privileges.deleted_at')
+                ->select($cols);
 
-        // Module filtering by id or uuid
-        if ($moduleKey) {
-            if (ctype_digit((string)$moduleKey)) {
-                $query->where('privileges.module_id', (int)$moduleKey);
-            } elseif (Str::isUuid((string)$moduleKey)) {
-                $module = DB::table('modules')
-                    ->where('uuid', (string)$moduleKey)
-                    ->whereNull('deleted_at')
-                    ->first();
-                if ($module) {
-                    $query->where('privileges.module_id', $module->id);
+            // Module filtering by id or uuid
+            if ($moduleKey) {
+                if (ctype_digit((string)$moduleKey)) {
+                    $query->where('privileges.module_id', (int)$moduleKey);
+                } elseif (Str::isUuid((string)$moduleKey)) {
+                    $module = DB::table('modules')
+                        ->where('uuid', (string)$moduleKey)
+                        ->whereNull('deleted_at')
+                        ->first();
+                    if ($module) {
+                        $query->where('privileges.module_id', $module->id);
+                    } else {
+                        return response()->json([
+                            'data' => [],
+                            'pagination' => ['page' => 1, 'per_page' => $perPage, 'total' => 0, 'last_page' => 1],
+                        ]);
+                    }
                 } else {
-                    return response()->json([
-                        'data' => [],
-                        'pagination' => ['page' => 1, 'per_page' => $perPage, 'total' => 0, 'last_page' => 1],
-                    ]);
+                    // ignore invalid moduleKey
+                }
+            }
+
+            // STATUS handling:
+            // - if caller passed ?status=... we respect it
+            //   - status=archived => only archived
+            //   - status=all => include all (no status filter)
+            // - if no status provided, exclude archived by default
+            if ($request->filled('status') && Schema::hasColumn('privileges', 'status')) {
+                $status = (string) $request->query('status');
+                if ($status === 'all') {
+                    // no status filter; return everything (subject to deleted_at)
+                } elseif ($status === 'archived') {
+                    $query->where('privileges.status', 'archived');
+                } else {
+                    $query->where('privileges.status', $status);
                 }
             } else {
-                // ignore invalid moduleKey
+                // default: exclude archived (if status column exists)
+                if (Schema::hasColumn('privileges', 'status')) {
+                    $query->where(function ($q) {
+                        $q->whereNull('privileges.status')
+                          ->orWhere('privileges.status', '!=', 'archived');
+                    });
+                }
             }
-        }
 
-        // STATUS handling:
-        // - if caller passed ?status=... we respect it
-        //   - status=archived => only archived
-        //   - status=all => include all (no status filter)
-        // - if no status provided, exclude archived by default
-        if ($request->filled('status') && Schema::hasColumn('privileges', 'status')) {
-            $status = (string) $request->query('status');
-            if ($status === 'all') {
-                // no status filter; return everything (subject to deleted_at)
-            } elseif ($status === 'archived') {
-                $query->where('privileges.status', 'archived');
-            } else {
-                $query->where('privileges.status', $status);
+            // stable order for pagination
+            $paginator = $query->orderBy('privileges.id', 'desc')->paginate($perPage);
+
+            return response()->json([
+                'data' => $paginator->items(),
+                'pagination' => [
+                    'page' => $paginator->currentPage(),
+                    'per_page' => $paginator->perPage(),
+                    'total' => $paginator->total(),
+                    'last_page' => $paginator->lastPage(),
+                ],
+            ]);
+        } catch (\Throwable $e) {
+            // Log error
+            try {
+                \Log::error('PrivilegeController::index exception: '.$e->getMessage().' in '.$e->getFile().':'.$e->getLine());
+            } catch (\Throwable $inner) {
+                // ignore logging failure
             }
-        } else {
-            // default: exclude archived (if status column exists)
-            if (Schema::hasColumn('privileges', 'status')) {
-                $query->where(function ($q) {
-                    $q->whereNull('privileges.status')
-                      ->orWhere('privileges.status', '!=', 'archived');
-                });
-            }
+
+            // DEBUG INFO: include message and short trace (remove in production)
+            $trace = collect($e->getTrace())->map(function ($t) {
+                return Arr::only($t, ['file', 'line', 'function', 'class']);
+            })->all();
+
+            return response()->json([
+                'message' => 'Server error fetching privileges (see logs)',
+                'error' => $e->getMessage(),
+                'trace' => $trace,
+            ], 500);
         }
-
-        // stable order for pagination
-        $paginator = $query->orderBy('privileges.id', 'desc')->paginate($perPage);
-
-        return response()->json([
-            'data' => $paginator->items(),
-            'pagination' => [
-                'page' => $paginator->currentPage(),
-                'per_page' => $paginator->perPage(),
-                'total' => $paginator->total(),
-                'last_page' => $paginator->lastPage(),
-            ],
-        ]);
-    } catch (\Throwable $e) {
-        // Log error
-        try {
-            \Log::error('PrivilegeController::index exception: '.$e->getMessage().' in '.$e->getFile().':'.$e->getLine());
-        } catch (\Throwable $inner) {
-            // ignore logging failure
-        }
-
-        // DEBUG INFO: include message and short trace (remove in production)
-        $trace = collect($e->getTrace())->map(function ($t) {
-            return Arr::only($t, ['file', 'line', 'function', 'class']);
-        })->all();
-
-        return response()->json([
-            'message' => 'Server error fetching privileges (see logs)',
-            'error' => $e->getMessage(),
-            'trace' => $trace,
-        ], 500);
     }
-}
 
     /**
      * Bin (soft-deleted privileges)
@@ -152,6 +173,13 @@ class PrivilegeController extends Controller
      */
     public function store(Request $request)
     {
+        $this->logActivity($request, 'privilege.create.request', [
+            'module_id'    => $request->input('module_id'),
+            'action'       => $request->input('action'),
+            'has_desc'     => $request->has('description'),
+            'has_order_no' => $request->has('order_no'),
+        ]);
+
         $v = Validator::make($request->all(), [
             'module_id' => 'required',
             'action' => 'required|string|max:50',
@@ -159,6 +187,9 @@ class PrivilegeController extends Controller
         ]);
 
         if ($v->fails()) {
+            $this->logActivity($request, 'privilege.create.validation_failed', [
+                'errors' => $v->errors(),
+            ]);
             return response()->json(['errors' => $v->errors()], 422);
         }
 
@@ -170,10 +201,16 @@ class PrivilegeController extends Controller
         } elseif (Str::isUuid((string)$rawModule)) {
             $module = DB::table('modules')->where('uuid', (string)$rawModule)->whereNull('deleted_at')->first();
         } else {
+            $this->logActivity($request, 'privilege.create.invalid_module_identifier', [
+                'module_id' => $rawModule,
+            ]);
             return response()->json(['errors' => ['module_id' => ['Invalid module identifier']]], 422);
         }
 
         if (!$module) {
+            $this->logActivity($request, 'privilege.create.module_not_found', [
+                'module_id' => $rawModule,
+            ]);
             return response()->json(['errors' => ['module_id' => ['Module not found']]], 422);
         }
 
@@ -188,6 +225,10 @@ class PrivilegeController extends Controller
             ->exists();
 
         if ($exists) {
+            $this->logActivity($request, 'privilege.create.conflict', [
+                'module_id' => $moduleId,
+                'action'    => $action,
+            ]);
             return response()->json(['message' => 'Action already exists for this module'], 409);
         }
 
@@ -216,8 +257,21 @@ class PrivilegeController extends Controller
             });
 
             $priv = DB::table('privileges')->where('id', $id)->first();
+
+            $this->logActivity($request, 'privilege.create.success', [
+                'id'        => $id,
+                'uuid'      => $priv->uuid ?? null,
+                'module_id' => $priv->module_id ?? null,
+                'action'    => $priv->action ?? null,
+            ]);
+
             return response()->json(['privilege' => $priv], 201);
         } catch (Exception $e) {
+            $this->logActivity($request, 'privilege.create.failed', [
+                'module_id' => $moduleId,
+                'action'    => $action,
+                'error'     => $e->getMessage(),
+            ]);
             return response()->json(['message' => 'Could not create privilege', 'error' => $e->getMessage()], 500);
         }
     }
@@ -258,8 +312,18 @@ class PrivilegeController extends Controller
      */
     public function update(Request $request, $identifier)
     {
+        $this->logActivity($request, 'privilege.update.request', [
+            'identifier'  => $identifier,
+            'has_module'  => $request->has('module_id'),
+            'has_action'  => $request->has('action'),
+            'has_desc'    => $request->has('description'),
+        ]);
+
         $priv = $this->resolvePrivilege($identifier, false);
         if (!$priv) {
+            $this->logActivity($request, 'privilege.update.not_found', [
+                'identifier' => $identifier,
+            ]);
             return response()->json(['message' => 'Privilege not found'], 404);
         }
 
@@ -270,6 +334,10 @@ class PrivilegeController extends Controller
         ]);
 
         if ($v->fails()) {
+            $this->logActivity($request, 'privilege.update.validation_failed', [
+                'identifier' => $identifier,
+                'errors'     => $v->errors(),
+            ]);
             return response()->json(['errors' => $v->errors()], 422);
         }
 
@@ -283,9 +351,17 @@ class PrivilegeController extends Controller
             } elseif (Str::isUuid((string)$rawModule)) {
                 $module = DB::table('modules')->where('uuid', (string)$rawModule)->whereNull('deleted_at')->first();
             } else {
+                $this->logActivity($request, 'privilege.update.invalid_module_identifier', [
+                    'identifier' => $identifier,
+                    'module_id'  => $rawModule,
+                ]);
                 return response()->json(['errors' => ['module_id' => ['Invalid module identifier']]], 422);
             }
             if (!$module) {
+                $this->logActivity($request, 'privilege.update.module_not_found', [
+                    'identifier' => $identifier,
+                    'module_id'  => $rawModule,
+                ]);
                 return response()->json(['errors' => ['module_id' => ['Module not found']]], 422);
             }
             $newModuleId = (int)$module->id;
@@ -302,6 +378,12 @@ class PrivilegeController extends Controller
             ->exists();
 
         if ($exists) {
+            $this->logActivity($request, 'privilege.update.conflict', [
+                'identifier' => $identifier,
+                'id'         => $priv->id,
+                'module_id'  => $newModuleId,
+                'action'     => $newAction,
+            ]);
             return response()->json(['message' => 'Action already exists for this module'], 409);
         }
 
@@ -313,6 +395,10 @@ class PrivilegeController extends Controller
         ], function ($v) { return $v !== null; });
 
         if (empty($update) || (count($update) === 1 && array_key_exists('updated_at', $update))) {
+            $this->logActivity($request, 'privilege.update.nothing_to_update', [
+                'identifier' => $identifier,
+                'id'         => $priv->id,
+            ]);
             return response()->json(['message' => 'Nothing to update'], 400);
         }
 
@@ -322,8 +408,22 @@ class PrivilegeController extends Controller
             });
 
             $priv = DB::table('privileges')->where('id', $priv->id)->first();
+
+            $this->logActivity($request, 'privilege.update.success', [
+                'identifier' => $identifier,
+                'id'         => $priv->id ?? null,
+                'uuid'       => $priv->uuid ?? null,
+                'module_id'  => $priv->module_id ?? null,
+                'action'     => $priv->action ?? null,
+            ]);
+
             return response()->json(['privilege' => $priv]);
         } catch (Exception $e) {
+            $this->logActivity($request, 'privilege.update.failed', [
+                'identifier' => $identifier,
+                'id'         => $priv->id,
+                'error'      => $e->getMessage(),
+            ]);
             return response()->json(['message' => 'Could not update privilege', 'error' => $e->getMessage()], 500);
         }
     }
@@ -333,15 +433,34 @@ class PrivilegeController extends Controller
      */
     public function destroy(Request $request, $identifier)
     {
+        $this->logActivity($request, 'privilege.delete.request', [
+            'identifier' => $identifier,
+        ]);
+
         $priv = $this->resolvePrivilege($identifier, false);
         if (!$priv) {
+            $this->logActivity($request, 'privilege.delete.not_found', [
+                'identifier' => $identifier,
+            ]);
             return response()->json(['message' => 'Privilege not found or already deleted'], 404);
         }
 
         try {
             DB::table('privileges')->where('id', $priv->id)->update(['deleted_at' => now(), 'updated_at' => now()]);
+
+            $this->logActivity($request, 'privilege.delete.success', [
+                'identifier' => $identifier,
+                'id'         => $priv->id,
+                'uuid'       => $priv->uuid ?? null,
+            ]);
+
             return response()->json(['message' => 'Privilege soft-deleted']);
         } catch (Exception $e) {
+            $this->logActivity($request, 'privilege.delete.failed', [
+                'identifier' => $identifier,
+                'id'         => $priv->id,
+                'error'      => $e->getMessage(),
+            ]);
             return response()->json(['message' => 'Could not delete privilege', 'error' => $e->getMessage()], 500);
         }
     }
@@ -351,16 +470,35 @@ class PrivilegeController extends Controller
      */
     public function restore(Request $request, $identifier)
     {
+        $this->logActivity($request, 'privilege.restore.request', [
+            'identifier' => $identifier,
+        ]);
+
         $priv = $this->resolvePrivilege($identifier, true);
         if (!$priv || $priv->deleted_at === null) {
+            $this->logActivity($request, 'privilege.restore.not_found', [
+                'identifier' => $identifier,
+            ]);
             return response()->json(['message' => 'Privilege not found or not deleted'], 404);
         }
 
         try {
             DB::table('privileges')->where('id', $priv->id)->update(['deleted_at' => null, 'updated_at' => now()]);
             $priv = DB::table('privileges')->where('id', $priv->id)->first();
+
+            $this->logActivity($request, 'privilege.restore.success', [
+                'identifier' => $identifier,
+                'id'         => $priv->id ?? null,
+                'uuid'       => $priv->uuid ?? null,
+            ]);
+
             return response()->json(['privilege' => $priv, 'message' => 'Privilege restored']);
         } catch (Exception $e) {
+            $this->logActivity($request, 'privilege.restore.failed', [
+                'identifier' => $identifier,
+                'id'         => $priv->id,
+                'error'      => $e->getMessage(),
+            ]);
             return response()->json(['message' => 'Could not restore privilege', 'error' => $e->getMessage()], 500);
         }
     }
@@ -425,19 +563,41 @@ class PrivilegeController extends Controller
      */
     public function archive(Request $request, $identifier)
     {
+        $this->logActivity($request, 'privilege.archive.request', [
+            'identifier' => $identifier,
+        ]);
+
         if (! Schema::hasColumn('privileges', 'status')) {
+            $this->logActivity($request, 'privilege.archive.not_supported', [
+                'identifier' => $identifier,
+            ]);
             return response()->json(['message' => 'Archive not supported for privileges (no status column)'], 400);
         }
 
         $priv = $this->resolvePrivilege($identifier, false);
         if (!$priv) {
+            $this->logActivity($request, 'privilege.archive.not_found', [
+                'identifier' => $identifier,
+            ]);
             return response()->json(['message' => 'Privilege not found'], 404);
         }
 
         try {
             DB::table('privileges')->where('id', $priv->id)->update(['status' => 'archived', 'updated_at' => now()]);
+
+            $this->logActivity($request, 'privilege.archive.success', [
+                'identifier' => $identifier,
+                'id'         => $priv->id,
+                'uuid'       => $priv->uuid ?? null,
+            ]);
+
             return response()->json(['message' => 'Privilege archived']);
         } catch (Exception $e) {
+            $this->logActivity($request, 'privilege.archive.failed', [
+                'identifier' => $identifier,
+                'id'         => $priv->id,
+                'error'      => $e->getMessage(),
+            ]);
             return response()->json(['message' => 'Could not archive privilege', 'error' => $e->getMessage()], 500);
         }
     }
@@ -447,19 +607,41 @@ class PrivilegeController extends Controller
      */
     public function unarchive(Request $request, $identifier)
     {
+        $this->logActivity($request, 'privilege.unarchive.request', [
+            'identifier' => $identifier,
+        ]);
+
         if (! Schema::hasColumn('privileges', 'status')) {
+            $this->logActivity($request, 'privilege.unarchive.not_supported', [
+                'identifier' => $identifier,
+            ]);
             return response()->json(['message' => 'Unarchive not supported for privileges (no status column)'], 400);
         }
 
         $priv = $this->resolvePrivilege($identifier, false);
         if (!$priv) {
+            $this->logActivity($request, 'privilege.unarchive.not_found', [
+                'identifier' => $identifier,
+            ]);
             return response()->json(['message' => 'Privilege not found'], 404);
         }
 
         try {
             DB::table('privileges')->where('id', $priv->id)->update(['status' => 'draft', 'updated_at' => now()]);
+
+            $this->logActivity($request, 'privilege.unarchive.success', [
+                'identifier' => $identifier,
+                'id'         => $priv->id,
+                'uuid'       => $priv->uuid ?? null,
+            ]);
+
             return response()->json(['message' => 'Privilege unarchived']);
         } catch (Exception $e) {
+            $this->logActivity($request, 'privilege.unarchive.failed', [
+                'identifier' => $identifier,
+                'id'         => $priv->id,
+                'error'      => $e->getMessage(),
+            ]);
             return response()->json(['message' => 'Could not unarchive privilege', 'error' => $e->getMessage()], 500);
         }
     }
@@ -469,8 +651,15 @@ class PrivilegeController extends Controller
      */
     public function forceDelete(Request $request, $identifier)
     {
+        $this->logActivity($request, 'privilege.force_delete.request', [
+            'identifier' => $identifier,
+        ]);
+
         $priv = $this->resolvePrivilege($identifier, true);
         if (!$priv) {
+            $this->logActivity($request, 'privilege.force_delete.not_found', [
+                'identifier' => $identifier,
+            ]);
             return response()->json(['message' => 'Privilege not found'], 404);
         }
 
@@ -478,8 +667,20 @@ class PrivilegeController extends Controller
             DB::transaction(function () use ($priv) {
                 DB::table('privileges')->where('id', $priv->id)->delete();
             });
+
+            $this->logActivity($request, 'privilege.force_delete.success', [
+                'identifier' => $identifier,
+                'id'         => $priv->id,
+                'uuid'       => $priv->uuid ?? null,
+            ]);
+
             return response()->json(['message' => 'Privilege permanently deleted']);
         } catch (Exception $e) {
+            $this->logActivity($request, 'privilege.force_delete.failed', [
+                'identifier' => $identifier,
+                'id'         => $priv->id,
+                'error'      => $e->getMessage(),
+            ]);
             return response()->json(['message' => 'Could not permanently delete privilege', 'error' => $e->getMessage()], 500);
         }
     }
@@ -491,7 +692,12 @@ class PrivilegeController extends Controller
      */
     public function reorder(Request $request)
     {
+        $this->logActivity($request, 'privilege.reorder.request', [
+            'ids' => $request->input('ids'),
+        ]);
+
         if (! Schema::hasColumn('privileges', 'order_no')) {
+            $this->logActivity($request, 'privilege.reorder.not_supported', []);
             return response()->json(['message' => 'Reorder not supported: privileges.order_no column missing'], 400);
         }
 
@@ -499,7 +705,12 @@ class PrivilegeController extends Controller
             'ids' => 'required|array|min:1',
             'ids.*' => 'integer|min:1',
         ]);
-        if ($v->fails()) return response()->json(['errors' => $v->errors()], 422);
+        if ($v->fails()) {
+            $this->logActivity($request, 'privilege.reorder.validation_failed', [
+                'errors' => $v->errors(),
+            ]);
+            return response()->json(['errors' => $v->errors()], 422);
+        }
 
         $ids = $request->input('ids');
 
@@ -509,8 +720,16 @@ class PrivilegeController extends Controller
                     DB::table('privileges')->where('id', $id)->update(['order_no' => $idx, 'updated_at' => now()]);
                 }
             });
+
+            $this->logActivity($request, 'privilege.reorder.success', [
+                'count' => is_array($ids) ? count($ids) : null,
+            ]);
+
             return response()->json(['message' => 'Order updated']);
         } catch (Exception $e) {
+            $this->logActivity($request, 'privilege.reorder.failed', [
+                'error' => $e->getMessage(),
+            ]);
             return response()->json(['message' => 'Could not update order', 'error' => $e->getMessage()], 500);
         }
     }

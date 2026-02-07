@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Carbon\Carbon;
 
@@ -29,6 +30,44 @@ class TermsController extends Controller
         return DB::table('terms_and_conditions')->exists();
     }
 
+    /* =========================================================
+     | Activity Log (added)
+     * ========================================================= */
+    private function logActivity(
+        Request $request,
+        string $activity, // store | update
+        string $note,
+        string $tableName,
+        ?int $recordId = null,
+        ?array $changedFields = null,
+        ?array $oldValues = null,
+        ?array $newValues = null
+    ): void {
+        $actorRole = $request->attributes->get('auth_role');
+        $actorId   = (int) ($request->attributes->get('auth_tokenable_id') ?? 0);
+
+        try {
+            DB::table('user_data_activity_log')->insert([
+                'performed_by'       => $actorId ?: 0,
+                'performed_by_role'  => $actorRole ?: null,
+                'ip'                 => $request->ip(),
+                'user_agent'         => (string) $request->userAgent(),
+                'activity'           => $activity,
+                'module'             => 'TermsAndConditions',
+                'table_name'         => $tableName,
+                'record_id'          => $recordId,
+                'changed_fields'     => $changedFields ? json_encode(array_values($changedFields), JSON_UNESCAPED_UNICODE) : null,
+                'old_values'         => $oldValues ? json_encode($oldValues, JSON_UNESCAPED_UNICODE) : null,
+                'new_values'         => $newValues ? json_encode($newValues, JSON_UNESCAPED_UNICODE) : null,
+                'log_note'           => $note,
+                'created_at'         => now(),
+                'updated_at'         => now(),
+            ]);
+        } catch (\Throwable $e) {
+            Log::error('[TermsAndConditions] user_data_activity_log insert failed', ['error' => $e->getMessage()]);
+        }
+    }
+
     /**
      * GET /api/terms
      * Public endpoint to view terms
@@ -36,7 +75,7 @@ class TermsController extends Controller
     public function index(Request $request)
     {
         $terms = $this->getTermsEntry();
-        
+
         if (!$terms) {
             return response()->json([
                 'success' => false,
@@ -80,7 +119,8 @@ class TermsController extends Controller
         if ($exists) {
             // UPDATE existing record
             $existing = $this->getTermsEntry();
-            
+            $before   = $existing ? (array)$existing : null;
+
             DB::table('terms_and_conditions')
                 ->where('id', $existing->id)
                 ->update([
@@ -90,6 +130,18 @@ class TermsController extends Controller
                 ]);
 
             $terms = DB::table('terms_and_conditions')->where('id', $existing->id)->first();
+
+            // ✅ ACTIVITY LOG (POST -> update)
+            $this->logActivity(
+                $request,
+                'update',
+                'Updated terms and conditions (via POST)',
+                'terms_and_conditions',
+                (int)$existing->id,
+                ['title', 'content'],
+                $before,
+                $terms ? (array)$terms : null
+            );
 
             return response()->json([
                 'success' => true,
@@ -113,6 +165,18 @@ class TermsController extends Controller
 
             $terms = DB::table('terms_and_conditions')->where('id', $id)->first();
 
+            // ✅ ACTIVITY LOG (POST -> store)
+            $this->logActivity(
+                $request,
+                'store',
+                'Created terms and conditions',
+                'terms_and_conditions',
+                (int)$id,
+                ['title', 'content'],
+                null,
+                $terms ? (array)$terms : null
+            );
+
             return response()->json([
                 'success' => true,
                 'message' => 'Terms and conditions created successfully',
@@ -126,34 +190,48 @@ class TermsController extends Controller
             ], 201);
         }
     }
+
     public function update(Request $request)
-{
-    $terms = $this->getTermsEntry();
+    {
+        $terms = $this->getTermsEntry();
 
-    if (!$terms) {
+        if (!$terms) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Terms not found'
+            ], 404);
+        }
+
+        $before = (array)$terms;
+
+        DB::table('terms_and_conditions')
+            ->where('id', $terms->id)
+            ->update([
+                'title' => $request->title,
+                'content' => $request->content,
+                'updated_at' => now()
+            ]);
+
+        $updated = $this->getTermsEntry();
+
+        // ✅ ACTIVITY LOG (PUT/PATCH -> update)
+        $this->logActivity(
+            $request,
+            'update',
+            'Updated terms and conditions (via PUT/PATCH)',
+            'terms_and_conditions',
+            (int)$terms->id,
+            ['title', 'content'],
+            $before,
+            $updated ? (array)$updated : null
+        );
+
         return response()->json([
-            'success' => false,
-            'message' => 'Terms not found'
-        ], 404);
-    }
-
-    DB::table('terms_and_conditions')
-        ->where('id', $terms->id)
-        ->update([
-            'title' => $request->title,
-            'content' => $request->content,
-            'updated_at' => now()
+            'success' => true,
+            'message' => 'Terms updated successfully',
+            'terms' => $updated
         ]);
-
-    $updated = $this->getTermsEntry();
-
-    return response()->json([
-        'success' => true,
-        'message' => 'Terms updated successfully',
-        'terms' => $updated
-    ]);
-}
-
+    }
 
     /**
      * GET /api/terms/check
@@ -190,7 +268,7 @@ class TermsController extends Controller
     public function destroy(Request $request)
     {
         $exists = $this->recordExists();
-        
+
         if (!$exists) {
             return response()->json([
                 'success' => false,
@@ -199,7 +277,7 @@ class TermsController extends Controller
         }
 
         $terms = $this->getTermsEntry();
-        
+
         DB::table('terms_and_conditions')->where('id', $terms->id)->delete();
 
         return response()->json([

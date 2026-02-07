@@ -31,6 +31,147 @@ class UserController extends Controller
         'student'     => 'STD',
         'author'      => 'AUT',
     ];
+/* =========================================================
+ |                  ACTIVITY LOG HELPERS
+ |=========================================================*/
+
+private static ?array $AL_COLS_CACHE = null;
+
+/**
+ * Get column list for user_data_activity_log table (cached).
+ * If table doesn't exist, returns empty array.
+ */
+private function alColumns(): array
+{
+    if (self::$AL_COLS_CACHE !== null) return self::$AL_COLS_CACHE;
+
+    try {
+        self::$AL_COLS_CACHE = DB::getSchemaBuilder()->getColumnListing('user_data_activity_log');
+    } catch (\Throwable $e) {
+        self::$AL_COLS_CACHE = [];
+    }
+    return self::$AL_COLS_CACHE;
+}
+
+/** Safe JSON encoder (never throws). */
+private function safeJson($val): ?string
+{
+    try {
+        if ($val === null) return null;
+        return json_encode($val, JSON_UNESCAPED_UNICODE);
+    } catch (\Throwable $e) {
+        return null;
+    }
+}
+
+/** Build a safe snapshot of user fields (no password). */
+private function userSnapshot($user): array
+{
+    if (!$user) return [];
+
+    // object -> array
+    if (is_object($user)) $user = json_decode(json_encode($user), true);
+    if (!is_array($user)) return [];
+
+    $safeKeys = [
+        'id','uuid','name','email','phone_number','alternative_email','alternative_phone_number',
+        'whatsapp_number','address','role','role_short_form','slug','status','image',
+        'last_login_at','last_login_ip','deleted_at','created_at','updated_at'
+    ];
+
+    $out = [];
+    foreach ($safeKeys as $k) {
+        if (array_key_exists($k, $user)) $out[$k] = $user[$k];
+    }
+    return $out;
+}
+
+/**
+ * Resolve actor context.
+ * - For login/register you can force actor id/role.
+ * - Otherwise it tries token -> current user.
+ */
+private function actorContext(Request $request, ?int $forcedId = null, ?string $forcedRole = null): array
+{
+    $id = $forcedId ?? $this->currentUserId($request);
+
+    $name = null;
+    $role = $forcedRole;
+
+    if ($id) {
+        $u = DB::table('users')->select('id','name','role')->where('id', $id)->first();
+        if ($u) {
+            $name = $u->name ?? null;
+            if (!$role) $role = $u->role ?? null;
+        }
+    }
+
+    return [
+        'id'   => $id ?: 0,
+        'name' => $name,
+        'role' => $role,
+    ];
+}
+
+/**
+ * Insert a log row into user_data_activity_log (best-effort).
+ * Will only insert keys that exist in your table columns.
+ */
+private function logActivity(
+    Request $request,
+    string $module,
+    string $activity,
+    string $note,
+    ?string $tableName = null,
+    ?int $recordId = null,
+    array $changedFields = [],
+    $oldValues = null,
+    $newValues = null,
+    array $meta = [],
+    ?int $forcedActorId = null,
+    ?string $forcedActorRole = null
+): void {
+    try {
+        $cols = $this->alColumns();
+        if (empty($cols)) return;
+
+        $actor = $this->actorContext($request, $forcedActorId, $forcedActorRole);
+
+        $payload = [
+            'performed_by'       => (int)($actor['id'] ?? 0),
+            'performed_by_role'  => $actor['role'] ?? null,
+            'performed_by_name'  => $actor['name'] ?? null,
+
+            'module'             => $module,
+            'activity'           => $activity,
+            'log_note'           => $note,
+
+            'table_name'         => $tableName,
+            'record_id'          => $recordId,
+
+            'endpoint'           => '/' . ltrim($request->path(), '/'),
+            'method'             => $request->method(),
+            'ip'                 => $request->ip(),
+            'user_agent'         => substr((string)$request->userAgent(), 0, 500),
+
+            'changed_fields'     => $this->safeJson($changedFields),
+            'old_values'         => $this->safeJson($oldValues),
+            'new_values'         => $this->safeJson($newValues),
+            'meta_json'          => $this->safeJson($meta),
+
+            'created_at'         => now(),
+            'updated_at'         => now(), // will be filtered out if your table doesn't have it
+        ];
+
+        // Filter only existing columns (prevents SQL errors)
+        $filtered = array_intersect_key($payload, array_flip($cols));
+
+        DB::table('user_data_activity_log')->insert($filtered);
+    } catch (\Throwable $e) {
+        // never break main API
+        Log::warning('[ActivityLog] insert failed', ['err' => $e->getMessage()]);
+    }
+}
 
     /* =========================================================
      |                       AUTH
@@ -42,88 +183,169 @@ class UserController extends Controller
      * Returns: { access_token, token_type, expires_at?, user: {...} }
      */
     public function login(Request $request)
-    {
-        Log::info('[Auth Login] begin', ['ip' => $request->ip()]);
+{
+    Log::info('[Auth Login] begin', ['ip' => $request->ip()]);
 
-        $validated = $request->validate([
-            'email'    => 'required|email',
-            'password' => 'required|string',
-            'remember' => 'sometimes|boolean',
-        ]);
+    $validated = $request->validate([
+        'email'    => 'required|email',
+        'password' => 'required|string',
+        'remember' => 'sometimes|boolean',
+    ]);
 
-        $user = DB::table('users')
-            ->where('email', $validated['email'])
-            ->whereNull('deleted_at')
-            ->first();
+    $user = DB::table('users')
+        ->where('email', $validated['email'])
+        ->whereNull('deleted_at')
+        ->first();
 
-        if (!$user) {
-            Log::warning('[Auth Login] user not found', ['email' => $validated['email']]);
-            return response()->json(['status'=>'error','message'=>'Invalid credentials'], 401);
-        }
+    if (!$user) {
+        $this->logActivity(
+            $request,
+            'users',
+            'login_failed',
+            'Login failed: user not found',
+            'users',
+            null,
+            [],
+            null,
+            null,
+            ['email' => $validated['email']],
+            0,
+            null
+        );
 
-        if (isset($user->status) && $user->status !== 'active') {
-            Log::warning('[Auth Login] inactive user', ['user_id'=>$user->id,'status'=>$user->status]);
-            return response()->json(['status'=>'error','message'=>'Account is not active'], 403);
-        }
-
-        if (!Hash::check($validated['password'], $user->password)) {
-            Log::warning('[Auth Login] password mismatch', ['user_id'=>$user->id]);
-            return response()->json(['status'=>'error','message'=>'Invalid credentials'], 401);
-        }
-
-        // Remember-me -> longer expiry. Otherwise, short TTL.
-        $remember  = (bool)($validated['remember'] ?? false);
-        $expiresAt = $remember ? now()->addDays(30) : now()->addHours(12);
-
-        $plainToken = $this->issueToken((int)$user->id, $expiresAt);
-
-        // Update last login markers
-        DB::table('users')->where('id', $user->id)->update([
-            'last_login_at' => now(),
-            'last_login_ip' => $request->ip(),
-            'updated_at'    => now(),
-        ]);
-
-        $payloadUser = $this->publicUserPayload($user);
-
-        Log::info('[Auth Login] success', ['user_id'=>$user->id,'role'=>$payloadUser['role'] ?? null]);
-
-        return response()->json([
-            'status'       => 'success',
-            'message'      => 'Login successful',
-            'access_token' => $plainToken,
-            'token_type'   => 'Bearer',
-            'expires_at'   => $expiresAt->toIso8601String(),
-            'user'         => $payloadUser,
-        ]);
+        Log::warning('[Auth Login] user not found', ['email' => $validated['email']]);
+        return response()->json(['status'=>'error','message'=>'Invalid credentials'], 401);
     }
+
+    if (isset($user->status) && $user->status !== 'active') {
+        $this->logActivity(
+            $request,
+            'users',
+            'login_failed',
+            'Login failed: inactive user',
+            'users',
+            (int)$user->id,
+            [],
+            null,
+            null,
+            ['status' => $user->status],
+            (int)$user->id,
+            (string)($user->role ?? null)
+        );
+
+        Log::warning('[Auth Login] inactive user', ['user_id'=>$user->id,'status'=>$user->status]);
+        return response()->json(['status'=>'error','message'=>'Account is not active'], 403);
+    }
+
+    if (!Hash::check($validated['password'], $user->password)) {
+        $this->logActivity(
+            $request,
+            'users',
+            'login_failed',
+            'Login failed: password mismatch',
+            'users',
+            (int)$user->id,
+            [],
+            null,
+            null,
+            ['email' => $validated['email']],
+            (int)$user->id,
+            (string)($user->role ?? null)
+        );
+
+        Log::warning('[Auth Login] password mismatch', ['user_id'=>$user->id]);
+        return response()->json(['status'=>'error','message'=>'Invalid credentials'], 401);
+    }
+
+    $remember  = (bool)($validated['remember'] ?? false);
+    $expiresAt = $remember ? now()->addDays(30) : now()->addHours(12);
+
+    $plainToken = $this->issueToken((int)$user->id, $expiresAt);
+
+    DB::table('users')->where('id', $user->id)->update([
+        'last_login_at' => now(),
+        'last_login_ip' => $request->ip(),
+        'updated_at'    => now(),
+    ]);
+
+    // activity log: success
+    $this->logActivity(
+        $request,
+        'users',
+        'login',
+        'Login successful',
+        'users',
+        (int)$user->id,
+        ['last_login_at','last_login_ip'],
+        null,
+        null,
+        ['remember' => $remember],
+        (int)$user->id,
+        (string)($user->role ?? null)
+    );
+
+    $payloadUser = $this->publicUserPayload($user);
+
+    Log::info('[Auth Login] success', ['user_id'=>$user->id,'role'=>$payloadUser['role'] ?? null]);
+
+    return response()->json([
+        'status'       => 'success',
+        'message'      => 'Login successful',
+        'access_token' => $plainToken,
+        'token_type'   => 'Bearer',
+        'expires_at'   => $expiresAt->toIso8601String(),
+        'user'         => $payloadUser,
+    ]);
+}
 
     /**
      * POST /api/auth/logout
      * Header: Authorization: Bearer <token>
      */
     public function logout(Request $request)
-    {
-        Log::info('[Auth Logout] begin', ['ip' => $request->ip()]);
+{
+    Log::info('[Auth Logout] begin', ['ip' => $request->ip()]);
 
-        $plain = $this->extractToken($request);
-        if (!$plain) {
-            Log::warning('[Auth Logout] missing token');
-            return response()->json(['status'=>'error','message'=>'Token not provided'], 401);
-        }
+    $plain = $this->extractToken($request);
+    if (!$plain) {
+        $this->logActivity(
+            $request,
+            'users',
+            'logout_failed',
+            'Logout failed: token not provided',
+            'personal_access_tokens',
+            null
+        );
 
-        $deleted = DB::table('personal_access_tokens')
-            ->where('token', hash('sha256', $plain))
-            ->where('tokenable_type', self::USER_TYPE)
-            ->delete();
-
-        Log::info('[Auth Logout] token removed', ['deleted'=>(bool)$deleted]);
-
-        return response()->json([
-            'status'  => $deleted ? 'success' : 'error',
-            'message' => $deleted ? 'Logged out successfully' : 'Invalid token',
-        ], $deleted ? 200 : 401);
+        Log::warning('[Auth Logout] missing token');
+        return response()->json(['status'=>'error','message'=>'Token not provided'], 401);
     }
+
+    $deleted = DB::table('personal_access_tokens')
+        ->where('token', hash('sha256', $plain))
+        ->where('tokenable_type', self::USER_TYPE)
+        ->delete();
+
+    $this->logActivity(
+        $request,
+        'users',
+        'logout',
+        $deleted ? 'Logout successful' : 'Logout failed: invalid token',
+        'personal_access_tokens',
+        null,
+        [],
+        null,
+        null,
+        ['deleted' => (bool)$deleted]
+    );
+
+    Log::info('[Auth Logout] token removed', ['deleted'=>(bool)$deleted]);
+
+    return response()->json([
+        'status'  => $deleted ? 'success' : 'error',
+        'message' => $deleted ? 'Logged out successfully' : 'Invalid token',
+    ], $deleted ? 200 : 401);
+}
 
     /**
      * GET /api/auth/check
@@ -177,103 +399,112 @@ class UserController extends Controller
      * Create user (with optional image). Stores image in /Public/UserProfileImage.
      */
     public function store(Request $request)
-    {
-        $v = Validator::make($request->all(), [
-            'name'                     => 'required|string|max:150',
-            'email'                    => 'required|email|max:255',
-            'password'                 => 'required|string|min:8',
-            'phone_number'             => 'sometimes|nullable|string|max:32',
-            'alternative_email'        => 'sometimes|nullable|email|max:255',
-            'alternative_phone_number' => 'sometimes|nullable|string|max:32',
-            'whatsapp_number'          => 'sometimes|nullable|string|max:32',
-            'address'                  => 'sometimes|nullable|string',
-            'role'                     => 'sometimes|nullable|string|max:50',
-            'role_short_form'          => 'sometimes|nullable|string|max:10',
-            'status'                   => 'sometimes|in:active,inactive',
-            'image'                    => 'sometimes|file|mimes:jpg,jpeg,png,webp,gif,svg|max:5120',
-        ]);
-        if ($v->fails()) {
-            return response()->json(['status'=>'error','errors'=>$v->errors()], 422);
-        }
-        $data = $v->validated();
+{
+    $v = Validator::make($request->all(), [
+        'name'                     => 'required|string|max:150',
+        'email'                    => 'required|email|max:255',
+        'password'                 => 'required|string|min:8',
+        'phone_number'             => 'sometimes|nullable|string|max:32',
+        'alternative_email'        => 'sometimes|nullable|email|max:255',
+        'alternative_phone_number' => 'sometimes|nullable|string|max:32',
+        'whatsapp_number'          => 'sometimes|nullable|string|max:32',
+        'address'                  => 'sometimes|nullable|string',
+        'role'                     => 'sometimes|nullable|string|max:50',
+        'role_short_form'          => 'sometimes|nullable|string|max:10',
+        'status'                   => 'sometimes|in:active,inactive',
+        'image'                    => 'sometimes|file|mimes:jpg,jpeg,png,webp,gif,svg|max:5120',
+    ]);
+    if ($v->fails()) {
+        return response()->json(['status'=>'error','errors'=>$v->errors()], 422);
+    }
+    $data = $v->validated();
 
-        // Uniqueness pre-checks
-        if (DB::table('users')->where('email', $data['email'])->exists()) {
-            return response()->json(['status'=>'error','message'=>'Email already exists'], 422);
-        }
-        if (!empty($data['phone_number']) &&
-            DB::table('users')->where('phone_number', $data['phone_number'])->exists()) {
-            return response()->json(['status'=>'error','message'=>'Phone number already exists'], 422);
-        }
+    if (DB::table('users')->where('email', $data['email'])->exists()) {
+        return response()->json(['status'=>'error','message'=>'Email already exists'], 422);
+    }
+    if (!empty($data['phone_number']) &&
+        DB::table('users')->where('phone_number', $data['phone_number'])->exists()) {
+        return response()->json(['status'=>'error','message'=>'Phone number already exists'], 422);
+    }
 
-        // UUID & unique slug
-        do { $uuid = (string) Str::uuid(); }
-        while (DB::table('users')->where('uuid', $uuid)->exists());
+    do { $uuid = (string) Str::uuid(); }
+    while (DB::table('users')->where('uuid', $uuid)->exists());
 
-        $base = Str::slug($data['name']);
-        do { $slug = $base . '-' . Str::lower(Str::random(24)); }
-        while (DB::table('users')->where('slug', $slug)->exists());
+    $base = Str::slug($data['name']);
+    do { $slug = $base . '-' . Str::lower(Str::random(24)); }
+    while (DB::table('users')->where('slug', $slug)->exists());
 
-        // Role normalization
-        [$role, $roleShort] = $this->normalizeRole(
-            $data['role'] ?? 'student',
-            $data['role_short_form'] ?? null
-        );
+    [$role, $roleShort] = $this->normalizeRole(
+        $data['role'] ?? 'student',
+        $data['role_short_form'] ?? null
+    );
 
-        // Optional image upload
-        $imageUrl = null;
-        if ($request->hasFile('image')) {
-            $imageUrl = $this->saveProfileImage($request->file('image'));
-            if ($imageUrl === false) {
-                return response()->json(['status'=>'error','message'=>'Invalid image upload'], 422);
-            }
-        }
-
-        // Creator (from token)
-        $createdBy = $this->currentUserId($request);
-
-        try {
-            $now = now();
-            DB::table('users')->insert([
-                'uuid'                     => $uuid,
-                'name'                     => $data['name'],
-                'email'                    => $data['email'],
-                'phone_number'             => $data['phone_number'] ?? null,
-                'alternative_email'        => $data['alternative_email'] ?? null,
-                'alternative_phone_number' => $data['alternative_phone_number'] ?? null,
-                'whatsapp_number'          => $data['whatsapp_number'] ?? null,
-                'password'                 => Hash::make($data['password']),
-                'image'                    => $imageUrl,
-                'address'                  => $data['address'] ?? null,
-                'role'                     => $role,
-                'role_short_form'          => $roleShort,
-                'slug'                     => $slug,
-                'status'                   => $data['status'] ?? 'active',
-                'remember_token'           => Str::random(60),
-                'created_by'               => $createdBy,
-                'created_at'               => $now,
-                'created_at_ip'            => $request->ip(),
-                'updated_at'               => $now,
-                'metadata'                 => json_encode([
-                    'timezone' => 'Asia/Kolkata',
-                    'source'   => 'api_store',
-                ], JSON_UNESCAPED_UNICODE),
-            ]);
-
-            $user = DB::table('users')->where('email', $data['email'])->first();
-
-            return response()->json([
-                'status'  => 'success',
-                'message' => 'User created',
-                'user'    => $this->publicUserPayload($user),
-            ], 201);
-        } catch (\Throwable $e) {
-            // cleanup file if DB failed
-            if ($imageUrl) $this->deleteManagedProfileImage($imageUrl);
-            Log::error('[Users Store] failed', ['error'=>$e->getMessage()]);
-            return response()->json(['status'=>'error','message'=>'Could not create user'], 500);
+    $imageUrl = null;
+    if ($request->hasFile('image')) {
+        $imageUrl = $this->saveProfileImage($request->file('image'));
+        if ($imageUrl === false) {
+            return response()->json(['status'=>'error','message'=>'Invalid image upload'], 422);
         }
     }
+
+    $createdBy = $this->currentUserId($request);
+
+    try {
+        $now = now();
+        DB::table('users')->insert([
+            'uuid'                     => $uuid,
+            'name'                     => $data['name'],
+            'email'                    => $data['email'],
+            'phone_number'             => $data['phone_number'] ?? null,
+            'alternative_email'        => $data['alternative_email'] ?? null,
+            'alternative_phone_number' => $data['alternative_phone_number'] ?? null,
+            'whatsapp_number'          => $data['whatsapp_number'] ?? null,
+            'password'                 => Hash::make($data['password']),
+            'image'                    => $imageUrl,
+            'address'                  => $data['address'] ?? null,
+            'role'                     => $role,
+            'role_short_form'          => $roleShort,
+            'slug'                     => $slug,
+            'status'                   => $data['status'] ?? 'active',
+            'remember_token'           => Str::random(60),
+            'created_by'               => $createdBy,
+            'created_at'               => $now,
+            'created_at_ip'            => $request->ip(),
+            'updated_at'               => $now,
+            'metadata'                 => json_encode([
+                'timezone' => 'Asia/Kolkata',
+                'source'   => 'api_store',
+            ], JSON_UNESCAPED_UNICODE),
+        ]);
+
+        $user = DB::table('users')->where('email', $data['email'])->first();
+
+        // activity log
+        $this->logActivity(
+            $request,
+            'users',
+            'create',
+            'User created: '.$data['name'].' ('.$data['email'].')',
+            'users',
+            (int)$user->id,
+            array_keys($this->userSnapshot($user)),
+            null,
+            $this->userSnapshot($user),
+            ['source' => 'api_store']
+        );
+
+        return response()->json([
+            'status'  => 'success',
+            'message' => 'User created',
+            'user'    => $this->publicUserPayload($user),
+        ], 201);
+
+    } catch (\Throwable $e) {
+        if ($imageUrl) $this->deleteManagedProfileImage($imageUrl);
+        Log::error('[Users Store] failed', ['error'=>$e->getMessage()]);
+        return response()->json(['status'=>'error','message'=>'Could not create user'], 500);
+    }
+}
 
     /**
      * GET /api/users/all?q=&status=&limit=
@@ -400,141 +631,188 @@ public function index(Request $request)
      * Partial update. If name changes, slug is regenerated.
      */
     public function update(Request $request, int $id)
-    {
-        $v = Validator::make($request->all(), [
-            'name'                     => 'sometimes|string|max:150',
-            'email'                    => 'sometimes|email|max:255',
-            'phone_number'             => 'sometimes|nullable|string|max:32',
-            'alternative_email'        => 'sometimes|nullable|email|max:255',
-            'alternative_phone_number' => 'sometimes|nullable|string|max:32',
-            'whatsapp_number'          => 'sometimes|nullable|string|max:32',
-            'address'                  => 'sometimes|nullable|string',
-            'role'                     => 'sometimes|nullable|string|max:50',
-            'role_short_form'          => 'sometimes|nullable|string|max:10',
-            'status'                   => 'sometimes|in:active,inactive',
-            'image'                    => 'sometimes|file|mimes:jpg,jpeg,png,webp,gif,svg|max:5120',
-        ]);
-        if ($v->fails()) {
-            return response()->json(['status'=>'error','errors'=>$v->errors()], 422);
-        }
-        $data = $v->validated();
-
-        $existing = DB::table('users')->where('id', $id)->whereNull('deleted_at')->first();
-        if (!$existing) {
-            return response()->json(['status'=>'error','message'=>'User not found'], 404);
-        }
-
-        // Uniqueness if changed
-        if (array_key_exists('email', $data)) {
-            if (DB::table('users')->where('email', $data['email'])->where('id','!=',$id)->exists()) {
-                return response()->json(['status'=>'error','message'=>'Email already exists'], 422);
-            }
-        }
-        if (array_key_exists('phone_number', $data) && !empty($data['phone_number'])) {
-            if (DB::table('users')->where('phone_number', $data['phone_number'])->where('id','!=',$id)->exists()) {
-                return response()->json(['status'=>'error','message'=>'Phone number already exists'], 422);
-            }
-        }
-
-        $updates = [];
-        foreach ([
-            'name','email','phone_number','alternative_email','alternative_phone_number',
-            'whatsapp_number','address','status'
-        ] as $key) {
-            if (array_key_exists($key, $data)) {
-                $updates[$key] = $data[$key];
-            }
-        }
-
-        // Role normalization if provided
-        if (array_key_exists('role', $data) || array_key_exists('role_short_form', $data)) {
-            [$normRole, $normShort] = $this->normalizeRole(
-                $data['role'] ?? $existing->role,
-                $data['role_short_form'] ?? $existing->role_short_form
-            );
-            $updates['role'] = $normRole;
-            $updates['role_short_form'] = $normShort;
-        }
-
-        // Regenerate slug if name changed
-        if (array_key_exists('name', $updates) && $updates['name'] !== $existing->name) {
-            $base = Str::slug($updates['name']);
-            do { $slug = $base . '-' . Str::lower(Str::random(24)); }
-            while (DB::table('users')->where('slug', $slug)->where('id','!=',$id)->exists());
-            $updates['slug'] = $slug;
-        }
-
-        // Optional image update
-        if ($request->hasFile('image')) {
-            $newUrl = $this->saveProfileImage($request->file('image'));
-            if ($newUrl === false) {
-                return response()->json(['status'=>'error','message'=>'Invalid image upload'], 422);
-            }
-
-            // remove old if managed by us
-            $this->deleteManagedProfileImage($existing->image);
-            $updates['image'] = $newUrl;
-        }
-
-        if (empty($updates)) {
-            return response()->json(['status'=>'error','message'=>'Nothing to update'], 400);
-        }
-
-        $updates['updated_at'] = now();
-
-        DB::table('users')->where('id', $id)->update($updates);
-
-        $fresh = DB::table('users')->where('id', $id)->first();
-        return response()->json([
-            'status'=>'success',
-            'message'=>'User updated',
-            'user'=>$this->publicUserPayload($fresh),
-        ]);
+{
+    $v = Validator::make($request->all(), [
+        'name'                     => 'sometimes|string|max:150',
+        'email'                    => 'sometimes|email|max:255',
+        'phone_number'             => 'sometimes|nullable|string|max:32',
+        'alternative_email'        => 'sometimes|nullable|email|max:255',
+        'alternative_phone_number' => 'sometimes|nullable|string|max:32',
+        'whatsapp_number'          => 'sometimes|nullable|string|max:32',
+        'address'                  => 'sometimes|nullable|string',
+        'role'                     => 'sometimes|nullable|string|max:50',
+        'role_short_form'          => 'sometimes|nullable|string|max:10',
+        'status'                   => 'sometimes|in:active,inactive',
+        'image'                    => 'sometimes|file|mimes:jpg,jpeg,png,webp,gif,svg|max:5120',
+    ]);
+    if ($v->fails()) {
+        return response()->json(['status'=>'error','errors'=>$v->errors()], 422);
     }
+    $data = $v->validated();
+
+    $existing = DB::table('users')->where('id', $id)->whereNull('deleted_at')->first();
+    if (!$existing) {
+        return response()->json(['status'=>'error','message'=>'User not found'], 404);
+    }
+
+    $oldSnap = $this->userSnapshot($existing);
+
+    if (array_key_exists('email', $data)) {
+        if (DB::table('users')->where('email', $data['email'])->where('id','!=',$id)->exists()) {
+            return response()->json(['status'=>'error','message'=>'Email already exists'], 422);
+        }
+    }
+    if (array_key_exists('phone_number', $data) && !empty($data['phone_number'])) {
+        if (DB::table('users')->where('phone_number', $data['phone_number'])->where('id','!=',$id)->exists()) {
+            return response()->json(['status'=>'error','message'=>'Phone number already exists'], 422);
+        }
+    }
+
+    $updates = [];
+    foreach ([
+        'name','email','phone_number','alternative_email','alternative_phone_number',
+        'whatsapp_number','address','status'
+    ] as $key) {
+        if (array_key_exists($key, $data)) {
+            $updates[$key] = $data[$key];
+        }
+    }
+
+    if (array_key_exists('role', $data) || array_key_exists('role_short_form', $data)) {
+        [$normRole, $normShort] = $this->normalizeRole(
+            $data['role'] ?? $existing->role,
+            $data['role_short_form'] ?? $existing->role_short_form
+        );
+        $updates['role'] = $normRole;
+        $updates['role_short_form'] = $normShort;
+    }
+
+    if (array_key_exists('name', $updates) && $updates['name'] !== $existing->name) {
+        $base = Str::slug($updates['name']);
+        do { $slug = $base . '-' . Str::lower(Str::random(24)); }
+        while (DB::table('users')->where('slug', $slug)->where('id','!=',$id)->exists());
+        $updates['slug'] = $slug;
+    }
+
+    if ($request->hasFile('image')) {
+        $newUrl = $this->saveProfileImage($request->file('image'));
+        if ($newUrl === false) {
+            return response()->json(['status'=>'error','message'=>'Invalid image upload'], 422);
+        }
+        $this->deleteManagedProfileImage($existing->image);
+        $updates['image'] = $newUrl;
+    }
+
+    if (empty($updates)) {
+        return response()->json(['status'=>'error','message'=>'Nothing to update'], 400);
+    }
+
+    $updates['updated_at'] = now();
+    DB::table('users')->where('id', $id)->update($updates);
+
+    $fresh = DB::table('users')->where('id', $id)->first();
+    $newSnap = $this->userSnapshot($fresh);
+
+    $changed = array_values(array_filter(array_keys($updates), fn($k)=>$k !== 'updated_at'));
+
+    $this->logActivity(
+        $request,
+        'users',
+        'update',
+        'User updated: ID '.$id,
+        'users',
+        (int)$id,
+        $changed,
+        $oldSnap,
+        $newSnap
+    );
+
+    return response()->json([
+        'status'=>'success',
+        'message'=>'User updated',
+        'user'=>$this->publicUserPayload($fresh),
+    ]);
+}
 
     /**
      * DELETE /api/users/{id}
      * Soft delete (prevents self-delete).
      */
     public function destroy(Request $request, int $id)
-    {
-        $actorId = $this->currentUserId($request);
-        if ($actorId !== null && $actorId === $id) {
-            return response()->json(['status'=>'error','message'=>"You can't delete your own account"], 422);
-        }
-
-        $user = DB::table('users')->where('id', $id)->whereNull('deleted_at')->first();
-        if (!$user) {
-            return response()->json(['status'=>'error','message'=>'User not found'], 404);
-        }
-
-        DB::table('users')->where('id', $id)->update([
-            'deleted_at' => now(),
-            'status'     => 'inactive',
-            'updated_at' => now(),
-        ]);
-
-        return response()->json(['status'=>'success','message'=>'User soft-deleted']);
+{
+    $actorId = $this->currentUserId($request);
+    if ($actorId !== null && $actorId === $id) {
+        return response()->json(['status'=>'error','message'=>"You can't delete your own account"], 422);
     }
+
+    $user = DB::table('users')->where('id', $id)->whereNull('deleted_at')->first();
+    if (!$user) {
+        return response()->json(['status'=>'error','message'=>'User not found'], 404);
+    }
+
+    $oldSnap = $this->userSnapshot($user);
+
+    DB::table('users')->where('id', $id)->update([
+        'deleted_at' => now(),
+        'status'     => 'inactive',
+        'updated_at' => now(),
+    ]);
+
+    $fresh = DB::table('users')->where('id', $id)->first();
+    $newSnap = $this->userSnapshot($fresh);
+
+    $this->logActivity(
+        $request,
+        'users',
+        'delete',
+        'User soft-deleted: ID '.$id,
+        'users',
+        (int)$id,
+        ['deleted_at','status'],
+        $oldSnap,
+        $newSnap
+    );
+
+    return response()->json(['status'=>'success','message'=>'User soft-deleted']);
+}
+
 
     /**
      * POST /api/users/{id}/restore
      */
     public function restore(Request $request, int $id)
-    {
-        $user = DB::table('users')->where('id', $id)->whereNotNull('deleted_at')->first();
-        if (!$user) {
-            return response()->json(['status'=>'error','message'=>'User not found or not deleted'], 404);
-        }
-
-        DB::table('users')->where('id', $id)->update([
-            'deleted_at' => null,
-            'status'     => 'active',
-            'updated_at' => now(),
-        ]);
-
-        return response()->json(['status'=>'success','message'=>'User restored']);
+{
+    $user = DB::table('users')->where('id', $id)->whereNotNull('deleted_at')->first();
+    if (!$user) {
+        return response()->json(['status'=>'error','message'=>'User not found or not deleted'], 404);
     }
+
+    $oldSnap = $this->userSnapshot($user);
+
+    DB::table('users')->where('id', $id)->update([
+        'deleted_at' => null,
+        'status'     => 'active',
+        'updated_at' => now(),
+    ]);
+
+    $fresh = DB::table('users')->where('id', $id)->first();
+    $newSnap = $this->userSnapshot($fresh);
+
+    $this->logActivity(
+        $request,
+        'users',
+        'restore',
+        'User restored: ID '.$id,
+        'users',
+        (int)$id,
+        ['deleted_at','status'],
+        $oldSnap,
+        $newSnap
+    );
+
+    return response()->json(['status'=>'success','message'=>'User restored']);
+}
+
 
     /**
      * DELETE /api/users/{id}/force
@@ -563,66 +841,95 @@ public function index(Request $request)
      * PATCH /api/users/{id}/password
      * Body: { password }
      */
-    public function updatePassword(Request $request, int $id)
-    {
-        $v = Validator::make($request->all(), [
-            'password' => 'required|string|min:8',
-        ]);
-        if ($v->fails()) {
-            return response()->json(['status'=>'error','errors'=>$v->errors()], 422);
-        }
-
-        $user = DB::table('users')->where('id', $id)->whereNull('deleted_at')->first();
-        if (!$user) {
-            return response()->json(['status'=>'error','message'=>'User not found'], 404);
-        }
-
-        DB::table('users')->where('id', $id)->update([
-            'password'   => Hash::make($v->validated()['password']),
-            'updated_at' => now(),
-        ]);
-
-        return response()->json(['status'=>'success','message'=>'Password updated']);
+   public function updatePassword(Request $request, int $id)
+{
+    $v = Validator::make($request->all(), [
+        'password' => 'required|string|min:8',
+    ]);
+    if ($v->fails()) {
+        return response()->json(['status'=>'error','errors'=>$v->errors()], 422);
     }
+
+    $user = DB::table('users')->where('id', $id)->whereNull('deleted_at')->first();
+    if (!$user) {
+        return response()->json(['status'=>'error','message'=>'User not found'], 404);
+    }
+
+    DB::table('users')->where('id', $id)->update([
+        'password'   => Hash::make($v->validated()['password']),
+        'updated_at' => now(),
+    ]);
+
+    $this->logActivity(
+        $request,
+        'users',
+        'update_password',
+        'Password updated for user ID '.$id,
+        'users',
+        (int)$id,
+        ['password'],
+        null,
+        null,
+        ['note' => 'password not stored in logs']
+    );
+
+    return response()->json(['status'=>'success','message'=>'Password updated']);
+}
+
 
     /**
      * POST /api/users/{id}/image
      * file: image (multipart/form-data)
      */
     public function updateImage(Request $request, int $id)
-    {
-        $v = Validator::make($request->all(), [
-            'image' => 'required|file|mimes:jpg,jpeg,png,webp,gif,svg|max:5120',
-        ]);
-        if ($v->fails()) {
-            return response()->json(['status'=>'error','errors'=>$v->errors()], 422);
-        }
-
-        $user = DB::table('users')->where('id', $id)->whereNull('deleted_at')->first();
-        if (!$user) {
-            return response()->json(['status'=>'error','message'=>'User not found'], 404);
-        }
-
-        $newUrl = $this->saveProfileImage($request->file('image'));
-        if ($newUrl === false) {
-            return response()->json(['status'=>'error','message'=>'Invalid image upload'], 422);
-        }
-
-        $this->deleteManagedProfileImage($user->image);
-
-        DB::table('users')->where('id', $id)->update([
-            'image'      => $newUrl,
-            'updated_at' => now(),
-        ]);
-
-        $fresh = DB::table('users')->where('id', $id)->first();
-
-        return response()->json([
-            'status'=>'success',
-            'message'=>'Image updated',
-            'user'=>$this->publicUserPayload($fresh),
-        ]);
+{
+    $v = Validator::make($request->all(), [
+        'image' => 'required|file|mimes:jpg,jpeg,png,webp,gif,svg|max:5120',
+    ]);
+    if ($v->fails()) {
+        return response()->json(['status'=>'error','errors'=>$v->errors()], 422);
     }
+
+    $user = DB::table('users')->where('id', $id)->whereNull('deleted_at')->first();
+    if (!$user) {
+        return response()->json(['status'=>'error','message'=>'User not found'], 404);
+    }
+
+    $oldSnap = $this->userSnapshot($user);
+
+    $newUrl = $this->saveProfileImage($request->file('image'));
+    if ($newUrl === false) {
+        return response()->json(['status'=>'error','message'=>'Invalid image upload'], 422);
+    }
+
+    $this->deleteManagedProfileImage($user->image);
+
+    DB::table('users')->where('id', $id)->update([
+        'image'      => $newUrl,
+        'updated_at' => now(),
+    ]);
+
+    $fresh = DB::table('users')->where('id', $id)->first();
+    $newSnap = $this->userSnapshot($fresh);
+
+    $this->logActivity(
+        $request,
+        'users',
+        'update_image',
+        'Profile image updated: ID '.$id,
+        'users',
+        (int)$id,
+        ['image'],
+        $oldSnap,
+        $newSnap
+    );
+
+    return response()->json([
+        'status'=>'success',
+        'message'=>'Image updated',
+        'user'=>$this->publicUserPayload($fresh),
+    ]);
+}
 
         /**
      * GET /api/auth/my-role
@@ -826,7 +1133,7 @@ public function register(Request $request)
         'name'              => 'required|string|max:150',
         'email'             => 'required|email|max:255',
         'phone_number'      => 'required|string|max:32',
-        'password'          => 'required|string|min:8|confirmed', // expects password_confirmation
+        'password'          => 'required|string|min:8|confirmed',
     ]);
 
     if ($v->fails()) {
@@ -835,7 +1142,6 @@ public function register(Request $request)
 
     $data = $v->validated();
 
-    // Uniqueness checks
     if (DB::table('users')->where('email', $data['email'])->exists()) {
         return response()->json(['status'=>'error','message'=>'Email already exists'], 422);
     }
@@ -844,7 +1150,6 @@ public function register(Request $request)
         return response()->json(['status'=>'error','message'=>'Phone number already exists'], 422);
     }
 
-    // UUID & unique slug
     do { $uuid = (string) Str::uuid(); }
     while (DB::table('users')->where('uuid', $uuid)->exists());
 
@@ -852,7 +1157,6 @@ public function register(Request $request)
     do { $slug = $base . '-' . Str::lower(Str::random(24)); }
     while (DB::table('users')->where('slug', $slug)->exists());
 
-    // Force role to student (normalized)
     [$role, $roleShort] = $this->normalizeRole('student', null);
 
     try {
@@ -882,16 +1186,30 @@ public function register(Request $request)
 
         $user = DB::table('users')->where('id', $userId)->first();
 
-        // Issue an access token (short TTL). Adjust TTL if you want "remember me" here.
         $expiresAt = now()->addHours(12);
         $plainToken = $this->issueToken((int)$userId, $expiresAt);
 
-        // Update last_login markers (optional: treat registration as first login)
         DB::table('users')->where('id', $userId)->update([
             'last_login_at' => now(),
             'last_login_ip' => $request->ip(),
             'updated_at'    => now(),
         ]);
+
+        // activity log
+        $this->logActivity(
+            $request,
+            'users',
+            'register',
+            'Registration successful',
+            'users',
+            (int)$userId,
+            ['name','email','phone_number','role','role_short_form','slug','status'],
+            null,
+            $this->userSnapshot($user),
+            ['source' => 'api_register'],
+            (int)$userId,
+            (string)($user->role ?? 'student')
+        );
 
         return response()->json([
             'status'       => 'success',
@@ -907,6 +1225,7 @@ public function register(Request $request)
         return response()->json(['status'=>'error','message'=>'Could not register user'], 500);
     }
 }
+
 public function getProfile(Request $request)
 {
     $userId = $this->currentUserId($request);

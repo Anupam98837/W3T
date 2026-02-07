@@ -81,6 +81,44 @@ class TopicController extends Controller
         return $row;
     }
 
+    /* =========================================================
+     | Activity Log (added)
+     * ========================================================= */
+    private function logActivity(
+        Request $request,
+        string $activity, // store | update | destroy
+        string $note,
+        string $tableName,
+        ?int $recordId = null,
+        ?array $changedFields = null,
+        ?array $oldValues = null,
+        ?array $newValues = null
+    ): void {
+        $actorRole = $request->attributes->get('auth_role');
+        $actorId   = (int) ($request->attributes->get('auth_tokenable_id') ?? 0);
+
+        try {
+            DB::table('user_data_activity_log')->insert([
+                'performed_by'       => $actorId ?: 0,
+                'performed_by_role'  => $actorRole ?: null,
+                'ip'                 => $request->ip(),
+                'user_agent'         => (string) $request->userAgent(),
+                'activity'           => $activity,
+                'module'             => 'Topic',
+                'table_name'         => $tableName,
+                'record_id'          => $recordId,
+                'changed_fields'     => $changedFields ? json_encode(array_values($changedFields), JSON_UNESCAPED_UNICODE) : null,
+                'old_values'         => $oldValues ? json_encode($oldValues, JSON_UNESCAPED_UNICODE) : null,
+                'new_values'         => $newValues ? json_encode($newValues, JSON_UNESCAPED_UNICODE) : null,
+                'log_note'           => $note,
+                'created_at'         => now(),
+                'updated_at'         => now(),
+            ]);
+        } catch (\Throwable $e) {
+            Log::error('[Topic] user_data_activity_log insert failed', ['error' => $e->getMessage()]);
+        }
+    }
+
     /** -----------------------
      *  List (with filters)
      *  ---------------------- */
@@ -155,21 +193,33 @@ class TopicController extends Controller
                 $imagePath = $this->saveImage($r->file('image'), $slug);
             }
 
-           $insert = [
-    'uuid'        => (string) Str::uuid(),
-    'title'       => $data['title'],
-    'slug'        => $slug,
-    'description' => $data['description'] ?? null,
-    'image_path'  => $imagePath,
-    'status'      => $data['status'] ?? 'active',
-    'sort_order'  => $data['sort_order'] ?? 0,
-    'extras'      => array_key_exists('extras', $data) ? json_encode($data['extras']) : null,
-    'created_at'  => now(),
-    'updated_at'  => now(),
-];
+            $insert = [
+                'uuid'        => (string) Str::uuid(),
+                'title'       => $data['title'],
+                'slug'        => $slug,
+                'description' => $data['description'] ?? null,
+                'image_path'  => $imagePath,
+                'status'      => $data['status'] ?? 'active',
+                'sort_order'  => $data['sort_order'] ?? 0,
+                'extras'      => array_key_exists('extras', $data) ? json_encode($data['extras']) : null,
+                'created_at'  => now(),
+                'updated_at'  => now(),
+            ];
 
             $id = DB::table('topics')->insertGetId($insert);
             $topic = $this->decodeExtrasOnObject($this->findById($id, true));
+
+            // ✅ ADDED ACTIVITY LOG
+            $this->logActivity(
+                $r,
+                'store',
+                'Created topic: "'.($topic->title ?? $data['title']).'"',
+                'topics',
+                (int)$id,
+                array_keys($insert),
+                null,
+                $topic ? (array)$topic : null
+            );
 
             return response()->json([
                 'status'  => 'success',
@@ -230,6 +280,8 @@ class TopicController extends Controller
                 return response()->json(['status'=>'error','message'=>'Topic not found.'], 404);
             }
 
+            $before = $this->decodeExtrasOnObject(clone $topic);
+
             $data = $v->validated();
             $payload = [];
 
@@ -266,6 +318,18 @@ class TopicController extends Controller
 
             $fresh = $this->decodeExtrasOnObject($this->findById((int)$id, true));
 
+            // ✅ ADDED ACTIVITY LOG
+            $this->logActivity(
+                $r,
+                'update',
+                'Updated topic: "'.($fresh->title ?? $before->title ?? 'N/A').'"',
+                'topics',
+                (int)$id,
+                array_keys($payload),
+                $before ? (array)$before : null,
+                $fresh ? (array)$fresh : null
+            );
+
             return response()->json([
                 'status'  => 'success',
                 'message' => 'Topic updated successfully.',
@@ -289,10 +353,26 @@ class TopicController extends Controller
                 return response()->json(['status'=>'error','message'=>'Topic not found.'], 404);
             }
 
+            $before = $this->decodeExtrasOnObject(clone $topic);
+
             DB::table('topics')->where('id', (int)$id)->update([
                 'deleted_at' => now(),
                 'updated_at' => now(),
             ]);
+
+            $after = $this->decodeExtrasOnObject($this->findById((int)$id, true));
+
+            // ✅ ADDED ACTIVITY LOG
+            $this->logActivity(
+                request(), // no Request param in signature; keep minimal impact
+                'destroy',
+                'Deleted topic: "'.($before->title ?? 'N/A').'"',
+                'topics',
+                (int)$id,
+                ['deleted_at'],
+                $before ? (array)$before : null,
+                $after ? (array)$after : null
+            );
 
             return response()->json(['status'=>'success','message'=>'Topic deleted.'], 200);
         } catch (\Throwable $e) {
@@ -354,9 +434,6 @@ class TopicController extends Controller
 
     /** -----------------------
      *  Reorder (by sort_order)
-     *  Accepts either:
-     *   - { "order": [5,2,9] }       // index becomes sort_order (0..n)
-     *   - { "items": [{id:5,sort_order:10}, ...] }
      *  ---------------------- */
     public function reorder(Request $r)
     {

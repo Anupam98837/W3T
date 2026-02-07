@@ -6,11 +6,50 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\Log;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 use Carbon\Carbon;
 
 class ContactUsController extends Controller
 {
+    /* =========================================================
+     | Activity Log (added)
+     * ========================================================= */
+    private function logActivity(
+        Request $request,
+        string $activity, // store | update | destroy
+        string $note,
+        string $tableName,
+        ?int $recordId = null,
+        ?array $changedFields = null,
+        ?array $oldValues = null,
+        ?array $newValues = null
+    ): void {
+        $actorRole = $request->attributes->get('auth_role');
+        $actorId   = (int) ($request->attributes->get('auth_tokenable_id') ?? 0);
+
+        try {
+            DB::table('user_data_activity_log')->insert([
+                'performed_by'       => $actorId ?: 0,
+                'performed_by_role'  => $actorRole ?: null,
+                'ip'                 => $request->ip(),
+                'user_agent'         => (string) $request->userAgent(),
+                'activity'           => $activity,
+                'module'             => 'ContactUs',
+                'table_name'         => $tableName,
+                'record_id'          => $recordId,
+                'changed_fields'     => $changedFields ? json_encode(array_values($changedFields), JSON_UNESCAPED_UNICODE) : null,
+                'old_values'         => $oldValues ? json_encode($oldValues, JSON_UNESCAPED_UNICODE) : null,
+                'new_values'         => $newValues ? json_encode($newValues, JSON_UNESCAPED_UNICODE) : null,
+                'log_note'           => $note,
+                'created_at'         => now(),
+                'updated_at'         => now(),
+            ]);
+        } catch (\Throwable $e) {
+            Log::error('[ContactUs] user_data_activity_log insert failed', ['error' => $e->getMessage()]);
+        }
+    }
+
     /**
      * POST /api/contact-us
      * Public contact form submit
@@ -40,6 +79,19 @@ class ContactUsController extends Controller
             'created_at' => Carbon::now(),
             'updated_at' => Carbon::now(),
         ]);
+
+        // ✅ ACTIVITY LOG (POST -> store)
+        $created = DB::table('contact_us')->orderByDesc('id')->first();
+        $this->logActivity(
+            $request,
+            'store',
+            'Created contact-us enquiry',
+            'contact_us',
+            $created ? (int)$created->id : null,
+            ['name','email','phone','message','is_read'],
+            null,
+            $created ? (array)$created : null
+        );
 
         return response()->json([
             'success' => true,
@@ -115,6 +167,8 @@ class ContactUsController extends Controller
         }
 
         if ((int) $msg->is_read === 0) {
+            $before = (array)$msg;
+
             DB::table('contact_us')
                 ->where('id', $id)
                 ->update([
@@ -122,7 +176,19 @@ class ContactUsController extends Controller
                     'updated_at' => Carbon::now(),
                 ]);
 
-            $msg->is_read = 1;
+            $msg = DB::table('contact_us')->where('id', $id)->first();
+
+            // ✅ ACTIVITY LOG (implicit PATCH-like update inside GET show)
+            $this->logActivity(
+                request(),
+                'update',
+                'Auto-marked contact-us enquiry as read (via show)',
+                'contact_us',
+                (int)$id,
+                ['is_read'],
+                $before,
+                $msg ? (array)$msg : null
+            );
         }
 
         return response()->json([
@@ -153,12 +219,28 @@ class ContactUsController extends Controller
             ]);
         }
 
+        $before = (array)$msg;
+
         DB::table('contact_us')
             ->where('id', $id)
             ->update([
                 'is_read' => 1,
                 'updated_at' => Carbon::now(),
             ]);
+
+        $after = DB::table('contact_us')->where('id', $id)->first();
+
+        // ✅ ACTIVITY LOG (PATCH -> update)
+        $this->logActivity(
+            request(),
+            'update',
+            'Marked contact-us enquiry as read (via PATCH)',
+            'contact_us',
+            (int)$id,
+            ['is_read'],
+            $before,
+            $after ? (array)$after : null
+        );
 
         return response()->json([
             'success' => true,
@@ -172,16 +254,30 @@ class ContactUsController extends Controller
      */
     public function destroy($id)
     {
-        $exists = DB::table('contact_us')->where('id', $id)->exists();
+        $msg = DB::table('contact_us')->where('id', $id)->first();
 
-        if (!$exists) {
+        if (!$msg) {
             return response()->json([
                 'success' => false,
                 'message' => 'Message not found'
             ], 404);
         }
 
+        $before = (array)$msg;
+
         DB::table('contact_us')->where('id', $id)->delete();
+
+        // ✅ ACTIVITY LOG (DELETE -> destroy)
+        $this->logActivity(
+            request(),
+            'destroy',
+            'Deleted contact-us enquiry',
+            'contact_us',
+            (int)$id,
+            null,
+            $before,
+            null
+        );
 
         return response()->json([
             'success' => true,

@@ -196,105 +196,102 @@ class QuestionController extends Controller
 
     private const DIFFICULTIES = ['easy','medium','hard'];
 
-
     /* =========================================================
      |  GET /api/quizz/questions?quiz_id=…  OR ?quiz=uuid|id
      |  List questions (+answers) for a quiz
      * ========================================================= */
-public function index(Request $request)
-{
-    if ($resp = $this->requireRole($request, ['admin','super_admin'])) return $resp;
+    public function index(Request $request)
+    {
+        if ($resp = $this->requireRole($request, ['admin','super_admin'])) return $resp;
 
-    $quiz = $this->resolveQuizIdAndUuid($request);
-    if (!$quiz) {
-        return response()->json(['success'=>false,'message'=>'Missing or invalid quiz / quiz_id'], 422);
-    }
-
-    // NEW: optional difficulty filter (easy|medium|hard), case-insensitive
-    // NEW: optional difficulty filter (easy|medium|hard)
-$difficulty = strtolower((string) $request->query('difficulty', ''));
-$difficulty = in_array($difficulty, ['easy','medium','hard'], true) ? $difficulty : null;
-
-$rows = DB::table('quizz_questions as q')
-    ->leftJoin('quizz_question_answers as a', 'q.id', '=', 'a.belongs_question_id')
-    ->where('q.quiz_id', $quiz['id'])
-    ->when($difficulty, fn($qb) => $qb->where('q.question_difficulty', $difficulty)) // <-- fix
-    ->orderBy('q.question_order')
-    ->orderBy('a.answer_order')
-    ->select([
-        'q.id   as question_id',
-        'q.uuid as question_uuid',
-        'q.quiz_id',
-        'q.quiz_uuid',
-        'q.question_title',
-        'q.question_description',
-        'q.answer_explanation',
-        'q.question_type',
-        'q.question_mark',
-        'q.question_difficulty as question_difficulty',     // <-- fix
-        'q.question_settings',
-        'q.question_order',
-        'q.created_at as question_created_at',
-
-        'a.id   as answer_id',
-        'a.uuid as answer_uuid',
-        'a.answer_title',
-        'a.is_correct',
-        'a.answer_order',
-        'a.belongs_question_type',
-        'a.belongs_question_uuid',
-        'a.image_id',
-        'a.answer_two_gap_match',
-        'a.answer_view_format',
-        'a.answer_settings',
-    ])
-    ->get();
-
-
-    $questions = [];
-    foreach ($rows as $r) {
-        $qid = (int) $r->question_id;
-        if (! isset($questions[$qid])) {
-            $questions[$qid] = [
-                'question_id'          => $qid,
-                'question_uuid'        => $r->question_uuid,
-                'quiz_id'              => (int) $r->quiz_id,
-                'quiz_uuid'            => (string) $r->quiz_uuid,
-                'question_title'       => $r->question_title,
-                'question_description' => $r->question_description,
-                'answer_explanation'   => $r->answer_explanation,
-                'question_type'        => $r->question_type,
-                'question_mark'        => (int) $r->question_mark,
-                'question_difficulty'  => $r->question_difficulty ?: 'medium', // <-- NEW: surfaced to API
-                'question_settings'    => $r->question_settings,
-                'question_order'       => (int) $r->question_order,
-                'created_at'           => $r->question_created_at,
-                'answers'              => [],
-            ];
+        $quiz = $this->resolveQuizIdAndUuid($request);
+        if (!$quiz) {
+            return response()->json(['success'=>false,'message'=>'Missing or invalid quiz / quiz_id'], 422);
         }
-        if ($r->answer_id !== null) {
-            $questions[$qid]['answers'][] = [
-                'answer_id'             => (int) $r->answer_id,
-                'answer_uuid'           => $r->answer_uuid,
-                'answer_title'          => $r->answer_title,
-                'is_correct'            => (bool) $r->is_correct,
-                'answer_order'          => (int) ($r->answer_order ?? 0),
-                'belongs_question_type' => $r->belongs_question_type,
-                'belongs_question_uuid' => $r->belongs_question_uuid,
-                'image_id'              => $r->image_id ? (int)$r->image_id : null,
-                'answer_two_gap_match'  => $r->answer_two_gap_match,
-                'answer_view_format'    => $r->answer_view_format,
-                'answer_settings'       => $r->answer_settings,
-            ];
+
+        // NEW: optional difficulty filter (easy|medium|hard), case-insensitive
+        // NEW: optional difficulty filter (easy|medium|hard)
+        $difficulty = strtolower((string) $request->query('difficulty', ''));
+        $difficulty = in_array($difficulty, ['easy','medium','hard'], true) ? $difficulty : null;
+
+        $rows = DB::table('quizz_questions as q')
+            ->leftJoin('quizz_question_answers as a', 'q.id', '=', 'a.belongs_question_id')
+            ->where('q.quiz_id', $quiz['id'])
+            ->when($difficulty, fn($qb) => $qb->where('q.question_difficulty', $difficulty)) // <-- fix
+            ->orderBy('q.question_order')
+            ->orderBy('a.answer_order')
+            ->select([
+                'q.id   as question_id',
+                'q.uuid as question_uuid',
+                'q.quiz_id',
+                'q.quiz_uuid',
+                'q.question_title',
+                'q.question_description',
+                'q.answer_explanation',
+                'q.question_type',
+                'q.question_mark',
+                'q.question_difficulty as question_difficulty',     // <-- fix
+                'q.question_settings',
+                'q.question_order',
+                'q.created_at as question_created_at',
+
+                'a.id   as answer_id',
+                'a.uuid as answer_uuid',
+                'a.answer_title',
+                'a.is_correct',
+                'a.answer_order',
+                'a.belongs_question_type',
+                'a.belongs_question_uuid',
+                'a.image_id',
+                'a.answer_two_gap_match',
+                'a.answer_view_format',
+                'a.answer_settings',
+            ])
+            ->get();
+
+        $questions = [];
+        foreach ($rows as $r) {
+            $qid = (int) $r->question_id;
+            if (! isset($questions[$qid])) {
+                $questions[$qid] = [
+                    'question_id'          => $qid,
+                    'question_uuid'        => $r->question_uuid,
+                    'quiz_id'              => (int) $r->quiz_id,
+                    'quiz_uuid'            => (string) $r->quiz_uuid,
+                    'question_title'       => $r->question_title,
+                    'question_description' => $r->question_description,
+                    'answer_explanation'   => $r->answer_explanation,
+                    'question_type'        => $r->question_type,
+                    'question_mark'        => (int) $r->question_mark,
+                    'question_difficulty'  => $r->question_difficulty ?: 'medium', // <-- NEW: surfaced to API
+                    'question_settings'    => $r->question_settings,
+                    'question_order'       => (int) $r->question_order,
+                    'created_at'           => $r->question_created_at,
+                    'answers'              => [],
+                ];
+            }
+            if ($r->answer_id !== null) {
+                $questions[$qid]['answers'][] = [
+                    'answer_id'             => (int) $r->answer_id,
+                    'answer_uuid'           => $r->answer_uuid,
+                    'answer_title'          => $r->answer_title,
+                    'is_correct'            => (bool) $r->is_correct,
+                    'answer_order'          => (int) ($r->answer_order ?? 0),
+                    'belongs_question_type' => $r->belongs_question_type,
+                    'belongs_question_uuid' => $r->belongs_question_uuid,
+                    'image_id'              => $r->image_id ? (int)$r->image_id : null,
+                    'answer_two_gap_match'  => $r->answer_two_gap_match,
+                    'answer_view_format'    => $r->answer_view_format,
+                    'answer_settings'       => $r->answer_settings,
+                ];
+            }
         }
+
+        return response()->json([
+            'success' => true,
+            'data'    => array_values($questions),
+        ]);
     }
-
-    return response()->json([
-        'success' => true,
-        'data'    => array_values($questions),
-    ]);
-}
-
 
     /* =========================================================
      |  GET /api/quizz/questions/{key}   (key = id or uuid)
@@ -309,39 +306,38 @@ $rows = DB::table('quizz_questions as q')
             return response()->json(['success'=>false,'message'=>"No question found with key {$key}."], 404);
         }
 
-       $rows = DB::table('quizz_questions as q')
-    ->leftJoin('quizz_question_answers as a', 'q.id', '=', 'a.belongs_question_id')
-    ->where('q.id', $id)
-    ->orderBy('a.answer_order')
-    ->select([
-        'q.id   as question_id',
-        'q.uuid as question_uuid',
-        'q.quiz_id',
-        'q.quiz_uuid',
-        'q.question_title',
-        'q.question_description',
-        'q.answer_explanation',
-        'q.question_type',
-        'q.question_mark',
-        'q.question_difficulty as question_difficulty',     // <-- fix
-        'q.question_settings',
-        'q.question_order',
-        'q.created_at as question_created_at',
+        $rows = DB::table('quizz_questions as q')
+            ->leftJoin('quizz_question_answers as a', 'q.id', '=', 'a.belongs_question_id')
+            ->where('q.id', $id)
+            ->orderBy('a.answer_order')
+            ->select([
+                'q.id   as question_id',
+                'q.uuid as question_uuid',
+                'q.quiz_id',
+                'q.quiz_uuid',
+                'q.question_title',
+                'q.question_description',
+                'q.answer_explanation',
+                'q.question_type',
+                'q.question_mark',
+                'q.question_difficulty as question_difficulty',     // <-- fix
+                'q.question_settings',
+                'q.question_order',
+                'q.created_at as question_created_at',
 
-        'a.id   as answer_id',
-        'a.uuid as answer_uuid',
-        'a.answer_title',
-        'a.is_correct',
-        'a.answer_order',
-        'a.belongs_question_type',
-        'a.belongs_question_uuid',
-        'a.image_id',
-        'a.answer_two_gap_match',
-        'a.answer_view_format',
-        'a.answer_settings',
-    ])
-    ->get();
-
+                'a.id   as answer_id',
+                'a.uuid as answer_uuid',
+                'a.answer_title',
+                'a.is_correct',
+                'a.answer_order',
+                'a.belongs_question_type',
+                'a.belongs_question_uuid',
+                'a.image_id',
+                'a.answer_two_gap_match',
+                'a.answer_view_format',
+                'a.answer_settings',
+            ])
+            ->get();
 
         if ($rows->isEmpty()) {
             return response()->json(['success'=>false,'message'=>"No question found with ID {$id}."], 404);
@@ -407,7 +403,7 @@ $rows = DB::table('quizz_questions as q')
             'answer_explanation'     => ['nullable','string'],
             'question_type'          => ['required', Rule::in(['mcq','multiple_choice','single_choice','true_false','fill_in_the_blank'])],
             'question_mark'          => ['required','integer','min:1'],
-            'question_difficulty' => ['nullable','string', Rule::in(self::DIFFICULTIES)],
+            'question_difficulty'    => ['nullable','string', Rule::in(self::DIFFICULTIES)],
             'question_settings'      => ['nullable','array'],
             'question_order'         => ['required','integer','min:1'],
 
@@ -431,26 +427,25 @@ $rows = DB::table('quizz_questions as q')
             // 1) Insert question (with uuid + quiz_uuid + audit)
             $questionUuid = (string) Str::uuid();
             $qid = DB::table('quizz_questions')->insertGetId([
-    'uuid'                 => $questionUuid,
-    'quiz_id'              => $quiz['id'],
-    'quiz_uuid'            => $quiz['uuid'] ?? null,
-    'question_title'       => $data['question_title'],
-    'question_description' => $data['question_description'] ?? null,
-    'answer_explanation'   => $data['answer_explanation'] ?? null,
-    'question_type'        => $this->mapType($data['question_type']),
-    'question_mark'        => (int) $data['question_mark'],
-    'question_difficulty'  => strtolower($data['question_difficulty'] ?? 'medium'), // <-- fix
-    'question_settings'    => isset($data['question_settings'])
-                                ? json_encode($data['question_settings'], JSON_UNESCAPED_UNICODE)
-                                : null,
-    'question_order'       => (int) $data['question_order'],
-    'created_by'           => $a['id'] ?: null,
-    'updated_by'           => $a['id'] ?: null,
-    'created_at_ip'        => $ip,
-    'created_at'           => now(),
-    'updated_at'           => now(),
-]);
-
+                'uuid'                 => $questionUuid,
+                'quiz_id'              => $quiz['id'],
+                'quiz_uuid'            => $quiz['uuid'] ?? null,
+                'question_title'       => $data['question_title'],
+                'question_description' => $data['question_description'] ?? null,
+                'answer_explanation'   => $data['answer_explanation'] ?? null,
+                'question_type'        => $this->mapType($data['question_type']),
+                'question_mark'        => (int) $data['question_mark'],
+                'question_difficulty'  => strtolower($data['question_difficulty'] ?? 'medium'), // <-- fix
+                'question_settings'    => isset($data['question_settings'])
+                                            ? json_encode($data['question_settings'], JSON_UNESCAPED_UNICODE)
+                                            : null,
+                'question_order'       => (int) $data['question_order'],
+                'created_by'           => $a['id'] ?: null,
+                'updated_by'           => $a['id'] ?: null,
+                'created_at_ip'        => $ip,
+                'created_at'           => now(),
+                'updated_at'           => now(),
+            ]);
 
             // 2) Insert answers (with uuid + belongs_question_uuid + audit)
             $rows = [];
@@ -487,13 +482,14 @@ $rows = DB::table('quizz_questions as q')
 
             $fresh = DB::table('quizz_questions')->where('id', $qid)->first();
 
+            // ✅ ADDED LOG (no other change)
             $this->logActivity(
                 $request,
                 'store',
                 'Created question: "'.($fresh->question_title ?? 'N/A').'"',
                 'quizz_questions',
                 $qid,
-                ['quiz_id','question_title','question_type','question_mark','question_order','question_difficulty'], // <-- fix
+                ['quiz_id','question_title','question_type','question_mark','question_order','question_difficulty'],
                 null,
                 $fresh ? (array)$fresh : null
             );
@@ -542,7 +538,7 @@ $rows = DB::table('quizz_questions as q')
             'answer_explanation'        => ['nullable','string'],
             'question_type'             => ['sometimes','required', Rule::in(['mcq','multiple_choice','single_choice','true_false','fill_in_the_blank'])],
             'question_mark'             => ['sometimes','required','integer','min:1'],
-            'question_difficulty' => ['sometimes','string', Rule::in(self::DIFFICULTIES)],
+            'question_difficulty'       => ['sometimes','string', Rule::in(self::DIFFICULTIES)],
             'question_settings'         => ['nullable','array'],
             'question_order'            => ['sometimes','required','integer','min:1'],
 
@@ -578,10 +574,9 @@ $rows = DB::table('quizz_questions as q')
             if (array_key_exists('question_description', $data)) $upd['question_description'] = $data['question_description'];
             if (array_key_exists('answer_explanation', $data))   $upd['answer_explanation']   = $data['answer_explanation'];
             if (array_key_exists('question_mark', $data))        $upd['question_mark']        = (int) $data['question_mark'];
-           if (array_key_exists('question_difficulty', $data)) {
-    $upd['question_difficulty'] = strtolower($data['question_difficulty']); // <-- fix
-}
-
+            if (array_key_exists('question_difficulty', $data)) {
+                $upd['question_difficulty'] = strtolower($data['question_difficulty']); // <-- fix
+            }
             if (array_key_exists('question_order', $data))       $upd['question_order']       = (int) $data['question_order'];
 
             if (array_key_exists('question_type', $data)) {
@@ -640,6 +635,7 @@ $rows = DB::table('quizz_questions as q')
 
             $after = DB::table('quizz_questions')->where('id', $id)->first();
 
+            // ✅ ADDED LOG (no other change)
             $this->logActivity(
                 $request,
                 'update',
@@ -706,6 +702,7 @@ $rows = DB::table('quizz_questions as q')
 
             DB::commit();
 
+            // ✅ ADDED LOG (no other change)
             $this->logActivity(
                 $request,
                 'destroy',

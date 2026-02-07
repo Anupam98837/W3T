@@ -812,7 +812,167 @@ document.addEventListener('DOMContentLoaded', async () => {
     tok = '';
   }
   const auth = tok ? { 'Authorization': 'Bearer ' + tok } : {};
+// Add this to your existing script section in viewCourseLayout.blade.php
 
+// ===== Token Expiration Checker =========================================
+const setupTokenExpirationCheck = () => {
+  let checkInterval = null;
+  let warningShown = false;
+  
+  const checkTokenValidity = async () => {
+    try {
+      const token = sessionStorage.getItem('token') || localStorage.getItem('token');
+      
+      if (!token) {
+        if (checkInterval) clearInterval(checkInterval);
+        return;
+      }
+      
+      const response = await fetch('/api/auth/token/check', {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Accept': 'application/json'
+        }
+      });
+      
+      const data = await response.json();
+      
+      // Token is invalid or expired
+      if (!response.ok || !data.success) {
+        if (checkInterval) clearInterval(checkInterval);
+        
+        // Prevent multiple alerts
+        if (warningShown) return;
+        warningShown = true;
+        
+        const reason = data?.meta?.reason || 'unknown';
+        let alertText = 'Your session has expired. Please log in again.';
+        
+        if (reason === 'missing_token') {
+          alertText = 'Authentication token is missing. Please log in again.';
+        } else if (reason === 'invalid_token') {
+          alertText = 'Your session is invalid. Please log in again.';
+        }
+        
+        Swal.fire({
+          icon: 'warning',
+          title: 'Session Expired',
+          text: alertText,
+          confirmButtonText: 'Login Now',
+          allowOutsideClick: false,
+          allowEscapeKey: false,
+          customClass: {
+            confirmButton: 'btn btn-primary'
+          }
+        }).then((result) => {
+          if (result.isConfirmed) {
+            // Clear stored tokens
+            try {
+              sessionStorage.removeItem('token');
+              localStorage.removeItem('token');
+            } catch (e) {
+              console.error('Failed to clear tokens:', e);
+            }
+            
+            // Redirect to login page
+            window.location.href = '/login';
+          }
+        });
+        
+        return;
+      }
+      
+      // Token is valid - optionally show warning if expiring soon
+      if (data.success && data.data?.seconds_left) {
+        const secondsLeft = parseInt(data.data.seconds_left);
+        const minutesLeft = Math.floor(secondsLeft / 60);
+        
+        // Warn if less than 5 minutes remaining (adjust as needed)
+        if (minutesLeft <= 5 && minutesLeft > 0 && !warningShown) {
+          warningShown = true;
+          
+          Swal.fire({
+            icon: 'info',
+            title: 'Session Expiring Soon',
+            text: `Your session will expire in ${minutesLeft} minute${minutesLeft !== 1 ? 's' : ''}. Please save your work.`,
+            confirmButtonText: 'OK',
+            timer: 10000,
+            timerProgressBar: true,
+            customClass: {
+              confirmButton: 'btn btn-primary'
+            }
+          }).then(() => {
+            // Allow showing the warning again later
+            setTimeout(() => { warningShown = false; }, 60000);
+          });
+        }
+      }
+      
+    } catch (error) {
+      console.error('Token check failed:', error);
+      // Don't show error to user for network issues, just log it
+    }
+  };
+  
+  // Check token validity every 2 minutes (120000 ms)
+  // Adjust based on your token expiration time
+  checkInterval = setInterval(checkTokenValidity, 120000);
+  
+  // Also check immediately on page load
+  checkTokenValidity();
+  
+  // Store interval ID globally so it can be cleared if needed
+  window.__tokenCheckInterval = checkInterval;
+};
+
+// ===== Enhanced Fetch Helper with Token Check ===========================
+const fetchWithTokenCheck = async (url, options = {}) => {
+  try {
+    const response = await fetch(url, options);
+    
+    // If unauthorized, check token validity
+    if (response.status === 401) {
+      const token = sessionStorage.getItem('token') || localStorage.getItem('token');
+      
+      if (token) {
+        const tokenCheck = await fetch('/api/auth/token/check', {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Accept': 'application/json'
+          }
+        });
+        
+        const tokenData = await tokenCheck.json();
+        
+        if (!tokenCheck.ok || !tokenData.success) {
+          Swal.fire({
+            icon: 'warning',
+            title: 'Session Expired',
+            text: 'Your session has expired. Please log in again.',
+            confirmButtonText: 'Login Now',
+            allowOutsideClick: false,
+            allowEscapeKey: false,
+            customClass: {
+              confirmButton: 'btn btn-primary'
+            }
+          }).then(() => {
+            sessionStorage.removeItem('token');
+            localStorage.removeItem('token');
+            window.location.href = '/login';
+          });
+          
+          throw new Error('Token expired');
+        }
+      }
+    }
+    
+    return response;
+  } catch (error) {
+    throw error;
+  }
+};
   // Global auth cache (in-memory only)
   window.__AUTH_CACHE__ = window.__AUTH_CACHE__ || {
     role: null,
@@ -888,6 +1048,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Fetch role once on page load
   if (tok) {
     await getMyRoleCached(tok);
+        setupTokenExpirationCheck();
+
   }
 
   // Local alias (optional, but keeps your existing logic intact)

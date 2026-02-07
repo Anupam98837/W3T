@@ -38,6 +38,7 @@ use App\Http\Controllers\API\BlogController;
 use App\Http\Controllers\API\ForgotPasswordController;
 use App\Http\Controllers\API\BatchCourseModuleController;
 use App\Http\Controllers\API\UserActivityLogsController;
+use App\Http\Controllers\API\SessionTokenController;
 
 
 // Auth Routes
@@ -51,6 +52,7 @@ Route::post('/auth/register', [UserController::class, 'register']);
 Route::get('/user', function (Request $request) {
     return $request->user();
 })->middleware('auth:sanctum');
+Route::get('/auth/token/check', [SessionTokenController::class, 'check']);
 
 Route::post('/auth/forgot-password/send-otp', [ForgotPasswordController::class, 'sendOtp']);
 Route::post('/auth/forgot-password/verify-otp', [ForgotPasswordController::class, 'verifyOtp']);

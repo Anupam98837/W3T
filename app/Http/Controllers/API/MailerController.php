@@ -232,6 +232,9 @@ class MailerController extends Controller
         $this->normalize($request);
         $v = $this->validator($request, false);
         if ($v->fails()) {
+            $this->audit($request, 'store', null, ['validation_failed'], null, [
+                'errors' => $v->errors(),
+            ]);
             return response()->json(['status'=>'error','message'=>'Validation failed','errors'=>$v->errors()], 422);
         }
 
@@ -265,6 +268,9 @@ class MailerController extends Controller
             return response()->json(['status'=>'success','message'=>'Mailer setting created.','data'=>(object)$fresh], 201);
         } catch (Throwable $e) {
             DB::rollBack();
+            $this->audit($request, 'store', null, ['exception'], null, [
+                'error' => $e->getMessage(),
+            ]);
             Log::error('Mailer create failed', ['err'=>$e->getMessage()]);
             return response()->json(['status'=>'error','message'=>'Could not create','error'=>$e->getMessage()], 500);
         }
@@ -293,12 +299,16 @@ class MailerController extends Controller
 
         $existing = $this->base($ownerType, $ownerId)->where('id', $id)->first();
         if (!$existing) {
+            $this->audit($request, 'update', $id, ['not_found'], null, null);
             return response()->json(['status'=>'error','message'=>'Not found'], 404);
         }
 
         $this->normalize($request);
         $v = $this->validator($request, true);
         if ($v->fails()) {
+            $this->audit($request, 'update', $id, ['validation_failed'], $this->redact((array) $existing), [
+                'errors' => $v->errors(),
+            ]);
             return response()->json(['status'=>'error','message'=>'Validation failed','errors'=>$v->errors()], 422);
         }
 
@@ -334,6 +344,9 @@ class MailerController extends Controller
             return response()->json(['status'=>'success','message'=>'Mailer setting updated.','data'=>(object)$fresh]);
         } catch (Throwable $e) {
             DB::rollBack();
+            $this->audit($request, 'update', $id, ['exception'], $this->redact((array) $existing), [
+                'error' => $e->getMessage(),
+            ]);
             Log::error('Mailer update failed', ['err'=>$e->getMessage()]);
             return response()->json(['status'=>'error','message'=>'Could not update','error'=>$e->getMessage()], 500);
         }
@@ -346,6 +359,7 @@ class MailerController extends Controller
 
         $exists = $this->base($ownerType, $ownerId)->where('id', $id)->exists();
         if (!$exists) {
+            $this->audit($request, 'default', $id, ['not_found'], null, null);
             return response()->json(['status'=>'error','message'=>'Not found'], 404);
         }
 
@@ -365,6 +379,9 @@ class MailerController extends Controller
             return response()->json(['status'=>'success','message'=>'Default mailer set.','data'=>$list]);
         } catch (Throwable $e) {
             DB::rollBack();
+            $this->audit($request, 'default', $id, ['exception'], null, [
+                'error' => $e->getMessage(),
+            ]);
             Log::error('Mailer setDefault failed', ['err'=>$e->getMessage()]);
             return response()->json(['status'=>'error','message'=>'Could not set default','error'=>$e->getMessage()], 500);
         }
@@ -377,6 +394,7 @@ class MailerController extends Controller
 
         $row = $this->base($ownerType, $ownerId)->where('id', $id)->first();
         if (!$row) {
+            $this->audit($request, 'destroy', $id, ['not_found'], null, null);
             return response()->json(['status'=>'error','message'=>'Not found'], 404);
         }
 
@@ -402,6 +420,9 @@ class MailerController extends Controller
             return response()->json(['status'=>'success','message'=>'Mailer setting deleted.']);
         } catch (Throwable $e) {
             DB::rollBack();
+            $this->audit($request, 'destroy', $id, ['exception'], $this->redact((array) $row), [
+                'error' => $e->getMessage(),
+            ]);
             Log::error('Mailer delete failed', ['err'=>$e->getMessage()]);
             return response()->json(['status'=>'error','message'=>'Could not delete','error'=>$e->getMessage()], 500);
         }

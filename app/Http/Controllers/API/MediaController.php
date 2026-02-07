@@ -202,13 +202,33 @@ class MediaController extends Controller
         ]);
 
         if ($v->fails()) {
+            // activity log (POST fail)
+            $this->logActivity($actor['id'], 'media.create.validation_failed', [
+                'errors' => $v->errors(),
+            ]);
+
             return response()->json(['success' => false, 'errors' => $v->errors()], 422);
         }
 
         $file = $request->file('file');
         if (!$file || !$file->isValid()) {
+            // activity log (POST fail)
+            $this->logActivity($actor['id'], 'media.create.invalid_file', [
+                'has_file' => (bool) $request->hasFile('file'),
+            ]);
+
             return response()->json(['success' => false, 'error' => 'Invalid file upload'], 422);
         }
+
+        // activity log (POST request)
+        $this->logActivity($actor['id'], 'media.create.request', [
+            'original_name' => $file->getClientOriginalName(),
+            'mime'          => $file->getClientMimeType(),
+            'size'          => (int) ($file->getSize() ?? 0),
+            'title'         => $request->input('title'),
+            'usage_tag'     => $request->input('usage_tag'),
+            'status'        => $request->input('status', 'active'),
+        ]);
 
         $uuid   = (string) Str::uuid();
         $ext    = strtolower($file->getClientOriginalExtension() ?: $file->extension() ?: '');
@@ -261,11 +281,22 @@ class MediaController extends Controller
         try {
             $id = DB::table('media')->insertGetId($row);
             $created = DB::table('media')->where('id', $id)->first();
+
+            // activity log (POST success) - existing
             $this->logActivity($actor['id'], 'media.create', ['id' => $id, 'uuid' => $uuid, 'url' => $absUrl]);
+
             return response()->json(['success' => true, 'data' => $created], 201);
         } catch (\Throwable $e) {
             // Cleanup file on DB failure
             try { if (File::exists($fpath)) File::delete($fpath); } catch (\Throwable $e2) {}
+
+            // activity log (POST fail)
+            $this->logActivity($actor['id'], 'media.create.db_failed', [
+                'uuid'  => $uuid,
+                'url'   => $absUrl,
+                'error' => $e->getMessage(),
+            ]);
+
             Log::error('media.store.db_fail', ['e' => $e->getMessage()]);
             return response()->json(['success' => false, 'error' => 'Failed to save media'], 500);
         }
@@ -280,8 +311,20 @@ class MediaController extends Controller
         $actor = $this->actor($request);
         $hard  = filter_var($request->query('hard', false), FILTER_VALIDATE_BOOLEAN);
 
+        // activity log (DELETE request)
+        $this->logActivity($actor['id'], 'media.delete.request', [
+            'id_or_uuid' => $idOrUuid,
+            'hard'       => (bool) $hard,
+        ]);
+
         $row = $this->findMediaRow($idOrUuid, true);
         if (!$row) {
+            // activity log (DELETE not found)
+            $this->logActivity($actor['id'], 'media.delete.not_found', [
+                'id_or_uuid' => $idOrUuid,
+                'hard'       => (bool) $hard,
+            ]);
+
             return response()->json(['success' => false, 'error' => 'Not found'], 404);
         }
 
@@ -303,6 +346,14 @@ class MediaController extends Controller
                 DB::table('media')->where('id', $row->id)->delete(); // ensure removed if soft
                 DB::table('media')->where('id', $row->id)->forceDelete(); // in case of softDeletes trait behavior
             } catch (\Throwable $e) {
+                // activity log (DELETE hard fallback)
+                $this->logActivity($actor['id'], 'media.delete.force.fallback', [
+                    'id'    => $row->id,
+                    'uuid'  => $row->uuid,
+                    'url'   => $row->url,
+                    'error' => $e->getMessage(),
+                ]);
+
                 // On pure query builder tables, forceDelete() is not available—fallback:
                 DB::table('media')->where('id', $row->id)->delete();
                 DB::table('media')->where('id', $row->id)->whereNotNull('deleted_at')->delete();
@@ -311,7 +362,9 @@ class MediaController extends Controller
             // Remove file
             try { if ($fpath && File::exists($fpath)) File::delete($fpath); } catch (\Throwable $e) {}
 
+            // activity log (DELETE hard success) - existing
             $this->logActivity($actor['id'], 'media.delete.force', ['id' => $row->id, 'uuid' => $row->uuid, 'url' => $row->url]);
+
             return response()->json(['success' => true, 'deleted' => 'hard', 'id' => $row->id]);
         }
 
@@ -321,7 +374,10 @@ class MediaController extends Controller
             'updated_by' => $actor['id'] ?: null,
             'updated_at' => Carbon::now(),
         ]);
+
+        // activity log (DELETE soft success) - existing
         $this->logActivity($actor['id'], 'media.delete.soft', ['id' => $row->id, 'uuid' => $row->uuid]);
+
         return response()->json(['success' => true, 'deleted' => 'soft', 'id' => $row->id]);
     }
 }

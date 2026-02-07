@@ -183,7 +183,7 @@ html.theme-dark .select2-container--default .select2-results__option--highlighte
             <th style="width:170px">Action</th>
             <th class="al-col-msg">Message</th>
             <th style="width:220px">Course / Batch</th>
-            <th class="al-col-ep">Endpoint</th>
+            <th class="al-col-ep d-none">Endpoint</th>
             <th style="width:120px">IP</th>
             <th style="width:110px">Details</th>
           </tr>
@@ -241,15 +241,30 @@ html.theme-dark .select2-container--default .select2-results__option--highlighte
               <option value="">All roles</option>
               <option value="admin">admin</option>
               <option value="superadmin">superadmin</option>
-              <option value="director">director</option>
-              <option value="principal">principal</option>
-              <option value="hod">hod</option>
-              <option value="faculty">faculty</option>
-              <option value="technical_assistant">technical_assistant</option>
-              <option value="it_person">it_person</option>
-              <option value="placement_officer">placement_officer</option>
               <option value="student">student</option>
               <option value="instructor">instructor</option>
+            </select>
+          </div>
+
+          {{-- NEW: Action dropdown --}}
+          <div class="col-12 col-md-4">
+            <label class="form-label">Action</label>
+            <select class="form-select" id="alAction">
+              <option value="">All actions</option>
+              <option value="create">Create</option>
+              <option value="update">Update</option>
+              <option value="delete">Delete</option>
+              <option value="submit">Submit</option>
+              <option value="view">View</option>
+              <option value="download">Download</option>
+              <option value="upload">Upload</option>
+              <option value="login">Login</option>
+              <option value="logout">Logout</option>
+              <option value="approve">Approve</option>
+              <option value="reject">Reject</option>
+              <option value="restore">Restore</option>
+              <option value="grade">Grade</option>
+              <option value="enroll">Enroll</option>
             </select>
           </div>
 
@@ -261,20 +276,20 @@ html.theme-dark .select2-container--default .select2-results__option--highlighte
             <div class="al-muted mt-1" style="font-size:11px">Loads from API (best-effort)</div>
           </div>
 
-          <div class="col-12 col-md-4">
-            <label class="form-label">Batch</label>
-            <select class="form-select" id="alBatch">
-              <option value="">All batches</option>
-            </select>
-            <div class="al-muted mt-1" style="font-size:11px">Loads from API if available</div>
-          </div>
-
           <div class="col-12 col-md-6">
             <label class="form-label">Course</label>
             <select class="form-select" id="alCourse">
               <option value="">All courses</option>
             </select>
             <div class="al-muted mt-1" style="font-size:11px">Loads from API if available</div>
+          </div>
+
+          <div class="col-12 col-md-6">
+            <label class="form-label">Batch</label>
+            <select class="form-select" id="alBatch">
+              <option value="">All batches</option>
+            </select>
+            <div class="al-muted mt-1" style="font-size:11px">Select course first</div>
           </div>
 
           <div class="col-12 col-md-6">
@@ -333,9 +348,11 @@ html.theme-dark .select2-container--default .select2-results__option--highlighte
             </div>
           </div>
 
+          {{-- CHANGED: Text input for advanced partial matching --}}
           <div class="col-12">
-            <label class="form-label">Action contains</label>
-            <input id="alActionLike" class="form-control" placeholder="e.g. create, update, delete, submit..." />
+            <label class="form-label">Action contains (advanced)</label>
+            <input id="alActionLike" class="form-control" placeholder="e.g. partial match like 'creat' for create/created/creating..." />
+            <div class="al-muted mt-1" style="font-size:11px">Use this for partial/custom action searches. Use dropdown above for exact matches.</div>
           </div>
 
           <div class="col-12 col-md-6">
@@ -427,7 +444,7 @@ html.theme-dark .select2-container--default .select2-results__option--highlighte
             </div>
           </div>
 
-          <div class="col-12 col-lg-6">
+          <div class="col-12 col-lg-6 d-none">
             <div class="al-pill w-100 justify-content-between">
               <span class="k">Endpoint</span>
               <span class="v" id="dEndpoint">—</span>
@@ -476,52 +493,22 @@ html.theme-dark .select2-container--default .select2-results__option--highlighte
 
 @push('scripts')
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-
-{{-- jQuery + Select2 --}}
 <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
 
 <script>
 (function(){
   // =========================
-  // Config (adjust if needed)
+  // Config
   // =========================
   const API_LIST   = '/api/activity-logs';
+  const API_USERS  = '/api/users/all?per_page=200';
+  const API_COURSE = '/api/courses?per_page=200';
   const API_BATCH  = '/api/batches';
-  const API_COURSE = '/api/courses';
-
-  // Best-effort lookup endpoints (try in order)
-  const API_USERS_TRY = [
-    '/api/users?per_page=500',
-    '/api/users?per_page=300',
-    '/api/users',
-  ];
-
-  const API_QUIZZES_TRY = [
-    '/api/quizzes?per_page=500',
-    '/api/quizz?per_page=500',
-    '/api/quizzes',
-    '/api/quizz',
-  ];
-
-  const API_ASSIGNMENTS_TRY = [
-    '/api/assignments?per_page=500',
-    '/api/assignments',
-  ];
-
-  const API_STUDY_MATERIALS_TRY = [
-    '/api/study-materials?per_page=500',
-    '/api/study_materials?per_page=500',
-    '/api/study-materials',
-    '/api/study_materials',
-  ];
-
-  const API_CODING_QUESTIONS_TRY = [
-    '/api/coding-questions?per_page=500',
-    '/api/coding_questions?per_page=500',
-    '/api/coding-questions',
-    '/api/coding_questions',
-  ];
+  const API_QUIZZES = '/api/quizz';
+  const API_ASSIGNMENTS = '/api/assignments?per_page=200';
+  const API_STUDY_MATERIALS = '/api/study-materials?per_page=200';
 
   // =========================
   // State
@@ -530,39 +517,39 @@ html.theme-dark .select2-container--default .select2-results__option--highlighte
     page: 1,
     per_page: 20,
     search: '',
-    name: '',          // text filter by actor name
+    name: '',
     role: '',
-    user_id: '',       // dropdown filter (performed_by)
+    user_id: '',
     batch_id: '',
     course_id: '',
     modules: [],
-    action_like: '',
+    action: '',        // NEW: exact action from dropdown
+    action_like: '',   // partial action match
     from: '',
     to: '',
 
-    // specific targets
     quiz_id: '',
     assignment_id: '',
     study_material_id: '',
     coding_question_id: '',
 
-    // cache lookup for names (for table display fallback)
-    batchMap: {},   // id -> title/name
-    courseMap: {},  // id -> title/name
+    batchMap: {},
+    courseMap: {},
+    batchesByCourse: {},
 
     lookupsLoaded: {
       select2: false,
       users: false,
-      batches: false,
       courses: false,
       quizzes: false,
       assignments: false,
       study_materials: false,
-      coding_questions: false,
     },
 
     last: { total: 0, last_page: 1 }
   };
+
+  const loadingPromises = {};
 
   // =========================
   // Helpers
@@ -589,22 +576,22 @@ html.theme-dark .select2-container--default .select2-results__option--highlighte
     if (typeof v === 'object') return v;
     try { return JSON.parse(v); } catch(e){ return null; }
   }
+
   function safeHtml(html){
-  const s = String(html ?? '');
-  // If DOMPurify isn't available, fallback to escaped text
-  if (typeof DOMPurify === 'undefined') return esc(s);
+    const s = String(html ?? '');
+    if (typeof DOMPurify === 'undefined') return esc(s);
 
-  // Sanitize and allow common formatting tags + attributes
-  return DOMPurify.sanitize(s, {
-    ALLOWED_TAGS: [
-      'b','strong','i','em','u','br','p','div','span','ul','ol','li',
-      'table','thead','tbody','tr','th','td',
-      'code','pre','small','sup','sub','hr','a'
-    ],
-    ALLOWED_ATTR: ['class','style','href','target','rel','title','data-*']
-  });
-}
-
+    return DOMPurify.sanitize(s, {
+      ALLOWED_TAGS: [
+        'b','strong','i','em','u','br','p','div','span','ul','ol','li',
+        'table','thead','tbody','tr','th','td',
+        'code','pre','small','sup','sub','hr','a'
+      ],
+      ALLOWED_ATTR: ['class','style','href','target','rel','title'],
+      ALLOW_DATA_ATTR: true,
+      FORBID_TAGS: ['script','style','iframe','object','embed']
+    });
+  }
 
   function pretty(v){
     const obj = safeJsonParse(v);
@@ -637,19 +624,15 @@ html.theme-dark .select2-container--default .select2-results__option--highlighte
   }
 
   function normalizeListResponse(json){
-    // supports:
-    // { data: [...], meta:{page,per_page,total,last_page} }
-    // { data: [...], pagination:{page,per_page,total,last_page} }
     const meta = json?.meta || json?.pagination || {};
-    const page = parseInt(meta.page || 1,10);
-    const per  = parseInt(meta.per_page || meta.perPage || state.per_page,10);
-    const total = parseInt(meta.total || 0,10);
-    const last = parseInt(meta.last_page || Math.ceil(total / Math.max(1,per)) || 1,10);
+    const page = parseInt(meta.page || meta.current_page || 1, 10);
+    const per  = parseInt(meta.per_page || meta.perPage || state.per_page, 10);
+    const total = parseInt(meta.total || 0, 10);
+    const last = parseInt(meta.last_page || Math.ceil(total / Math.max(1,per)) || 1, 10);
     return { rows: json?.data || [], meta: { page, per_page: per, total, last_page: last } };
   }
 
   function normalizeArrayFromAny(json){
-    // tries common patterns
     if (!json) return [];
     if (Array.isArray(json)) return json;
     if (Array.isArray(json.data)) return json.data;
@@ -658,16 +641,24 @@ html.theme-dark .select2-container--default .select2-results__option--highlighte
     return [];
   }
 
-  async function fetchFirstOk(urls){
-    for (const url of urls){
-      try{
-        const r = await fetch(url, { headers: headers() });
-        if (!r.ok) continue;
-        const j = await r.json();
-        return { url, json: j };
-      }catch(e){}
+  async function fetchAPI(url, fallbackEmpty = true){
+    try{
+      const r = await fetch(url, { headers: headers() });
+      
+      if (!r.ok) {
+        const errText = await r.text();
+        console.warn(`❌ API ${url} returned ${r.status}:`, errText);
+        if (fallbackEmpty) return [];
+        throw new Error(`HTTP ${r.status}`);
+      }
+      
+      const j = await r.json();
+      return normalizeArrayFromAny(j);
+    }catch(e){
+      console.error('❌ Fetch error for', url, ':', e);
+      if (fallbackEmpty) return [];
+      throw e;
     }
-    return null;
   }
 
   function buildQuery(){
@@ -685,6 +676,9 @@ html.theme-dark .select2-container--default .select2-results__option--highlighte
     if (state.course_id) q.set('course_id', state.course_id);
 
     if (state.modules.length) q.set('modules', state.modules.join(','));
+    
+    // NEW: Action filters
+    if (state.action) q.set('action', state.action);
     if (state.action_like) q.set('action_like', state.action_like);
 
     if (state.quiz_id) q.set('quiz_id', state.quiz_id);
@@ -702,7 +696,6 @@ html.theme-dark .select2-container--default .select2-results__option--highlighte
   }
 
   function extractCourseBatchNames(row){
-    // Prefer backend normalized fields (your updated index should send course_name/batch_name)
     const cn = row.course_name || row.course_title || (row.course && (row.course.title || row.course.name)) || '';
     const bn = row.batch_name  || row.batch_title  || (row.batch && (row.batch.title || row.batch.name)) || '';
 
@@ -754,7 +747,16 @@ html.theme-dark .select2-container--default .select2-results__option--highlighte
     state.lookupsLoaded.select2 = true;
 
     const parent = $('#alFilterModal');
+    
     $('#alRole').select2({ dropdownParent: parent, width:'100%' });
+
+    // NEW: Action dropdown with Select2
+    $('#alAction').select2({ 
+      dropdownParent: parent, 
+      width:'100%',
+      placeholder: 'All actions',
+      allowClear: true
+    });
 
     $('#alUser').select2({
       dropdownParent: parent,
@@ -763,18 +765,19 @@ html.theme-dark .select2-container--default .select2-results__option--highlighte
       allowClear: true
     });
 
-    $('#alBatch').select2({
-      dropdownParent: parent,
-      width:'100%',
-      placeholder: 'All batches',
-      allowClear: true
-    });
-
     $('#alCourse').select2({
       dropdownParent: parent,
       width:'100%',
       placeholder: 'All courses',
       allowClear: true
+    });
+
+    $('#alBatch').select2({
+      dropdownParent: parent,
+      width:'100%',
+      placeholder: 'Select course first',
+      allowClear: true,
+      disabled: true
     });
 
     $('#alQuiz').select2({
@@ -801,8 +804,17 @@ html.theme-dark .select2-container--default .select2-results__option--highlighte
     $('#alCodingQuestion').select2({
       dropdownParent: parent,
       width:'100%',
-      placeholder: 'All coding questions',
+      placeholder: 'All coding questions (optional)',
       allowClear: true
+    });
+
+    $('#alCourse').on('change', function() {
+      const courseId = $(this).val();
+      if (courseId) {
+        loadBatchesForCourse(courseId);
+      } else {
+        $('#alBatch').prop('disabled', true).html('<option value="">Select course first</option>').trigger('change');
+      }
     });
   }
 
@@ -813,6 +825,53 @@ html.theme-dark .select2-container--default .select2-results__option--highlighte
       opts.push(`<option value="${esc(it.id)}">${esc(it.text || it.title || it.name || ('#'+it.id))}</option>`);
     });
     selectEl.innerHTML = opts.join('');
+  }
+
+  async function loadBatchesForCourse(courseId){
+    const cacheKey = `batches_${courseId}`;
+    
+    if (state.batchesByCourse[courseId]) {
+      fillSelectNative($id('alBatch'), 'All batches', state.batchesByCourse[courseId]);
+      $('#alBatch').prop('disabled', false).trigger('change.select2');
+      return;
+    }
+
+    if (loadingPromises[cacheKey]) {
+      await loadingPromises[cacheKey];
+      return;
+    }
+
+    loadingPromises[cacheKey] = (async () => {
+      try {
+        $('#alBatch').html('<option value="">Loading batches...</option>').trigger('change');
+        
+        const url = `${API_BATCH}?course_id=${courseId}&per_page=200`;
+        const items = await fetchAPI(url);
+        
+        const out = items.map(b => {
+          const id = b.id ?? '';
+          const title = b.badge_title || b.title || b.name || b.slug || ('Batch #' + id);
+          return { id, text: title };
+        }).filter(x => x.id !== '');
+
+        state.batchesByCourse[courseId] = out;
+        
+        out.forEach(b => {
+          state.batchMap[String(b.id)] = b.text;
+        });
+
+        fillSelectNative($id('alBatch'), 'All batches', out);
+        $('#alBatch').prop('disabled', false).trigger('change.select2');
+        
+      } catch(e) {
+        console.error('Failed to load batches for course', courseId, ':', e);
+        $('#alBatch').html('<option value="">Error loading batches</option>').trigger('change');
+      } finally {
+        delete loadingPromises[cacheKey];
+      }
+    })();
+
+    await loadingPromises[cacheKey];
   }
 
   // =========================
@@ -849,7 +908,6 @@ html.theme-dark .select2-container--default .select2-results__option--highlighte
 
       const { cn, bn } = extractCourseBatchNames(r);
 
-      // show quiz/assignment/material/coding title if present
       const extra = (r.quiz_name || r.assignment_title || r.study_material_title || r.coding_question_title)
         ? `<div class="al-muted" style="font-size:12px;margin-top:4px">
              ${r.quiz_name ? ('Quiz: '+esc(r.quiz_name)) : ''}
@@ -877,7 +935,7 @@ html.theme-dark .select2-container--default .select2-results__option--highlighte
           <td><span class="al-pill"><i class="fa-solid fa-bolt"></i> ${esc(act)}</span></td>
 
           <td class="al-col-msg">
-<div style="font-weight:700;color:var(--ink)" class="al-msg-html">${safeHtml(msg)}</div>
+            <div style="font-weight:700;color:var(--ink)" class="al-msg-html">${safeHtml(msg)}</div>
             <div class="al-muted" style="font-size:12px">
               ${r.table_name ? ('Table: '+esc(r.table_name)) : ''}
               ${r.record_id ? (' • Row: '+esc(r.record_id)) : ''}
@@ -892,7 +950,7 @@ html.theme-dark .select2-container--default .select2-results__option--highlighte
             </div>
           </td>
 
-          <td class="al-col-ep"><code style="font-size:12px;color:var(--ink)">${esc(ep)}</code></td>
+          <td class="al-col-ep d-none"><code style="font-size:12px;color:var(--ink)">${esc(ep)}</code></td>
           <td><span class="al-pill"><i class="fa-solid fa-network-wired"></i> ${esc(ip)}</span></td>
 
           <td>
@@ -907,52 +965,53 @@ html.theme-dark .select2-container--default .select2-results__option--highlighte
 
     $id('alTbody').innerHTML = html;
     renderPager(meta);
-
-    // bind details
-    document.querySelectorAll('.alBtnDetails').forEach(btn=>{
-      btn.addEventListener('click', ()=>{
-        let row = null;
-        try { row = JSON.parse(btn.getAttribute('data-row')); } catch(e){ row = null; }
-        if (!row) return;
-
-        const an = actorName(row);
-        const ar = actorRole(row);
-        const aid = actorId(row);
-
-        const mod = moduleVal(row);
-        const act = actionVal(row);
-        const msg = messageVal(row);
-
-        const ep  = row.endpoint || row.path || row.url || '—';
-        const ip  = row.ip || row.ip_address || '—';
-        const method = row.method || row.http_method || '—';
-        const ua = row.user_agent || row.ua || '—';
-
-        const { cn, bn } = extractCourseBatchNames(row);
-
-        $id('dTime').textContent = fmtTime(row.created_at || row.time || row.createdAt);
-        $id('dActor').textContent = an + (aid ? (' (ID '+aid+')') : '');
-        $id('dRole').textContent = ar;
-        $id('dModule').textContent = mod;
-        $id('dAction').textContent = act;
-$id('dMessage').innerHTML = safeHtml(msg);
-        $id('dCourse').textContent = cn;
-        $id('dBatch').textContent = bn;
-        $id('dEndpoint').textContent = ep;
-        $id('dMethod').textContent = method;
-        $id('dIp').textContent = ip;
-
-        // Your log table fields:
-        $id('dChanges').textContent = pretty(row.changed_fields);
-        $id('dOld').textContent = pretty(row.old_values);
-        $id('dNew').textContent = pretty(row.new_values);
-        $id('dUa').textContent = String(ua);
-
-        const modal = new bootstrap.Modal(document.getElementById('alDetailsModal'));
-        modal.show();
-      });
-    });
   }
+
+  document.addEventListener('DOMContentLoaded', function() {
+    document.getElementById('alTbody').addEventListener('click', function(e) {
+      const btn = e.target.closest('.alBtnDetails');
+      if (!btn) return;
+
+      let row = null;
+      try { row = JSON.parse(btn.getAttribute('data-row')); } catch(e){ return; }
+      if (!row) return;
+
+      const an = actorName(row);
+      const ar = actorRole(row);
+      const aid = actorId(row);
+
+      const mod = moduleVal(row);
+      const act = actionVal(row);
+      const msg = messageVal(row);
+
+      const ep  = row.endpoint || row.path || row.url || '—';
+      const ip  = row.ip || row.ip_address || '—';
+      const method = row.method || row.http_method || '—';
+      const ua = row.user_agent || row.ua || '—';
+
+      const { cn, bn } = extractCourseBatchNames(row);
+
+      $id('dTime').textContent = fmtTime(row.created_at || row.time || row.createdAt);
+      $id('dActor').textContent = an + (aid ? (' (ID '+aid+')') : '');
+      $id('dRole').textContent = ar;
+      $id('dModule').textContent = mod;
+      $id('dAction').textContent = act;
+      $id('dMessage').innerHTML = safeHtml(msg);
+      $id('dCourse').textContent = cn;
+      $id('dBatch').textContent = bn;
+      $id('dEndpoint').textContent = ep;
+      $id('dMethod').textContent = method;
+      $id('dIp').textContent = ip;
+
+      $id('dChanges').textContent = pretty(row.changed_fields);
+      $id('dOld').textContent = pretty(row.old_values);
+      $id('dNew').textContent = pretty(row.new_values);
+      $id('dUa').textContent = String(ua);
+
+      const modal = new bootstrap.Modal(document.getElementById('alDetailsModal'));
+      modal.show();
+    });
+  });
 
   function renderPager(meta){
     state.last.total = meta.total;
@@ -1038,147 +1097,100 @@ $id('dMessage').innerHTML = safeHtml(msg);
     }
   }
 
-  async function loadBatchCourseMaps(){
-    // Used only for display fallback if backend doesn't return course_name/batch_name
-    // batches
+  async function loadCourseMap(){
     try{
-      const u = API_BATCH + '?per_page=500';
-      const r = await fetch(u, { headers: headers() });
-      if (r.ok){
-        const j = await r.json();
-        const items = normalizeArrayFromAny(j);
-        items.forEach(b=>{
-          const id = b.id ?? '';
-          const title = b.badge_title || b.title || b.name || b.slug || ('Batch #' + id);
-          if (id !== '') state.batchMap[String(id)] = title;
-        });
-      }
-    }catch(e){}
-
-    // courses
-    try{
-      const u = API_COURSE + '?per_page=500';
-      const r = await fetch(u, { headers: headers() });
-      if (r.ok){
-        const j = await r.json();
-        const items = normalizeArrayFromAny(j);
-        items.forEach(c=>{
-          const id = c.id ?? '';
-          const title = c.title || c.name || c.slug || ('Course #' + id);
-          if (id !== '') state.courseMap[String(id)] = title;
-        });
-      }
+      const items = await fetchAPI(API_COURSE);
+      items.forEach(c=>{
+        const id = c.id ?? '';
+        const title = c.title || c.name || c.slug || ('Course #' + id);
+        if (id !== '') state.courseMap[String(id)] = title;
+      });
     }catch(e){}
   }
 
   async function loadLookupsIfNeeded(){
     initSelect2Once();
 
-    // USERS
-    if (!state.lookupsLoaded.users){
-      state.lookupsLoaded.users = true;
-      const got = await fetchFirstOk(API_USERS_TRY);
-      const items = got ? normalizeArrayFromAny(got.json) : [];
-      const out = items.map(u=>{
-        const id = u.id ?? u.user_id ?? '';
-        const name = u.name || u.full_name || u.username || ('User #' + id);
-        const email = u.email ? (' • ' + u.email) : '';
-        return { id, text: name + email };
-      }).filter(x=>x.id!=='');
-
-      fillSelectNative($id('alUser'), 'All users', out);
-      $('#alUser').trigger('change.select2');
-    }
-
-    // BATCHES
-    if (!state.lookupsLoaded.batches){
-      state.lookupsLoaded.batches = true;
-      try{
-        const r = await fetch(API_BATCH + '?per_page=500', { headers: headers() });
-        const j = r.ok ? await r.json() : null;
-        const items = normalizeArrayFromAny(j);
-        const out = items.map(b=>{
-          const id = b.id ?? '';
-          const title = b.badge_title || b.title || b.name || b.slug || ('Batch #' + id);
-          return { id, text: title };
+    if (!state.lookupsLoaded.users && !loadingPromises.users){
+      loadingPromises.users = (async () => {
+        const items = await fetchAPI(API_USERS);
+        const out = items.map(u=>{
+          const id = u.id ?? u.user_id ?? '';
+          const name = u.name || u.full_name || u.username || ('User #' + id);
+          const email = u.email ? (' • ' + u.email) : '';
+          return { id, text: name + email };
         }).filter(x=>x.id!=='');
-        fillSelectNative($id('alBatch'), 'All batches', out);
-        $('#alBatch').trigger('change.select2');
-      }catch(e){}
-    }
 
-    // COURSES
-    if (!state.lookupsLoaded.courses){
-      state.lookupsLoaded.courses = true;
-      try{
-        const r = await fetch(API_COURSE + '?per_page=500', { headers: headers() });
-        const j = r.ok ? await r.json() : null;
-        const items = normalizeArrayFromAny(j);
+        fillSelectNative($id('alUser'), 'All users', out);
+        $('#alUser').trigger('change.select2');
+        state.lookupsLoaded.users = true;
+      })();
+    }
+    await loadingPromises.users;
+
+    if (!state.lookupsLoaded.courses && !loadingPromises.courses){
+      loadingPromises.courses = (async () => {
+        const items = await fetchAPI(API_COURSE);
         const out = items.map(c=>{
           const id = c.id ?? '';
           const title = c.title || c.name || c.slug || ('Course #' + id);
           return { id, text: title };
         }).filter(x=>x.id!=='');
+        
         fillSelectNative($id('alCourse'), 'All courses', out);
         $('#alCourse').trigger('change.select2');
-      }catch(e){}
+        state.lookupsLoaded.courses = true;
+      })();
     }
+    await loadingPromises.courses;
 
-    // QUIZZES
-    if (!state.lookupsLoaded.quizzes){
-      state.lookupsLoaded.quizzes = true;
-      const got = await fetchFirstOk(API_QUIZZES_TRY);
-      const items = got ? normalizeArrayFromAny(got.json) : [];
-      const out = items.map(q=>{
-        const id = q.id ?? q.quiz_id ?? '';
-        const title = q.quiz_name || q.title || q.name || ('Quiz #' + id);
-        return { id, text: title };
-      }).filter(x=>x.id!=='');
-      fillSelectNative($id('alQuiz'), 'All quizzes', out);
-      $('#alQuiz').trigger('change.select2');
+    if (!state.lookupsLoaded.quizzes && !loadingPromises.quizzes){
+      loadingPromises.quizzes = (async () => {
+        const items = await fetchAPI(API_QUIZZES);
+        const out = items.map(q=>{
+          const id = q.id ?? q.quiz_id ?? '';
+          const title = q.quiz_name || q.title || q.name || ('Quiz #' + id);
+          return { id, text: title };
+        }).filter(x=>x.id!=='');
+        
+        fillSelectNative($id('alQuiz'), 'All quizzes', out);
+        $('#alQuiz').trigger('change.select2');
+        state.lookupsLoaded.quizzes = true;
+      })();
     }
+    await loadingPromises.quizzes;
 
-    // ASSIGNMENTS
-    if (!state.lookupsLoaded.assignments){
-      state.lookupsLoaded.assignments = true;
-      const got = await fetchFirstOk(API_ASSIGNMENTS_TRY);
-      const items = got ? normalizeArrayFromAny(got.json) : [];
-      const out = items.map(a=>{
-        const id = a.id ?? '';
-        const title = a.title || a.name || a.slug || ('Assignment #' + id);
-        return { id, text: title };
-      }).filter(x=>x.id!=='');
-      fillSelectNative($id('alAssignment'), 'All assignments', out);
-      $('#alAssignment').trigger('change.select2');
+    if (!state.lookupsLoaded.assignments && !loadingPromises.assignments){
+      loadingPromises.assignments = (async () => {
+        const items = await fetchAPI(API_ASSIGNMENTS);
+        const out = items.map(a=>{
+          const id = a.id ?? '';
+          const title = a.title || a.name || a.slug || ('Assignment #' + id);
+          return { id, text: title };
+        }).filter(x=>x.id!=='');
+        
+        fillSelectNative($id('alAssignment'), 'All assignments', out);
+        $('#alAssignment').trigger('change.select2');
+        state.lookupsLoaded.assignments = true;
+      })();
     }
+    await loadingPromises.assignments;
 
-    // STUDY MATERIALS
-    if (!state.lookupsLoaded.study_materials){
-      state.lookupsLoaded.study_materials = true;
-      const got = await fetchFirstOk(API_STUDY_MATERIALS_TRY);
-      const items = got ? normalizeArrayFromAny(got.json) : [];
-      const out = items.map(sm=>{
-        const id = sm.id ?? '';
-        const title = sm.title || sm.name || sm.slug || ('Material #' + id);
-        return { id, text: title };
-      }).filter(x=>x.id!=='');
-      fillSelectNative($id('alStudyMaterial'), 'All study materials', out);
-      $('#alStudyMaterial').trigger('change.select2');
+    if (!state.lookupsLoaded.study_materials && !loadingPromises.study_materials){
+      loadingPromises.study_materials = (async () => {
+        const items = await fetchAPI(API_STUDY_MATERIALS);
+        const out = items.map(sm=>{
+          const id = sm.id ?? '';
+          const title = sm.title || sm.name || sm.slug || ('Material #' + id);
+          return { id, text: title };
+        }).filter(x=>x.id!=='');
+        
+        fillSelectNative($id('alStudyMaterial'), 'All study materials', out);
+        $('#alStudyMaterial').trigger('change.select2');
+        state.lookupsLoaded.study_materials = true;
+      })();
     }
-
-    // CODING QUESTIONS
-    if (!state.lookupsLoaded.coding_questions){
-      state.lookupsLoaded.coding_questions = true;
-      const got = await fetchFirstOk(API_CODING_QUESTIONS_TRY);
-      const items = got ? normalizeArrayFromAny(got.json) : [];
-      const out = items.map(cq=>{
-        const id = cq.id ?? '';
-        const title = cq.title || cq.name || cq.slug || ('Coding Question #' + id);
-        return { id, text: title };
-      }).filter(x=>x.id!=='');
-      fillSelectNative($id('alCodingQuestion'), 'All coding questions', out);
-      $('#alCodingQuestion').trigger('change.select2');
-    }
+    await loadingPromises.study_materials;
   }
 
   function openFiltersAndFocus(focusId){
@@ -1186,7 +1198,6 @@ $id('dMessage').innerHTML = safeHtml(msg);
     const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
     modal.show();
 
-    // ensure lookups + select2 ready, then open the dropdown search
     setTimeout(async ()=>{
       await loadLookupsIfNeeded();
       if (focusId && document.getElementById(focusId)) {
@@ -1235,7 +1246,6 @@ $id('dMessage').innerHTML = safeHtml(msg);
     openFiltersAndFocus(null);
   });
 
-  // chipbar: toggle module AND open modal focusing target dropdown
   document.querySelectorAll('#alChipbar .al-chip').forEach(chip=>{
     chip.addEventListener('click', ()=>{
       const m = chip.getAttribute('data-module');
@@ -1249,37 +1259,32 @@ $id('dMessage').innerHTML = safeHtml(msg);
       if (turningOn) state.modules.push(m);
       else state.modules.splice(idx,1);
 
-      // If turning OFF a module, also clear its specific target filter
       if (!turningOn){
         if (m === 'quizzes') state.quiz_id = '';
         if (m === 'assignments') state.assignment_id = '';
         if (m === 'study_materials') state.study_material_id = '';
         if (m === 'coding_tests') state.coding_question_id = '';
-        // keep course_id (courses chip maps to course filter; user might still want it)
       }
 
-      // sync chip active
       chip.classList.toggle('active', state.modules.includes(m));
-
-      // open filters modal and focus correct searchable dropdown
       openFiltersAndFocus(focusId);
 
-      // sync modal checkboxes immediately
       document.querySelectorAll('.alMod').forEach(cb=>{
         if (cb.value === m) cb.checked = state.modules.includes(m);
       });
     });
   });
 
-  // When filter modal opens, init select2 + load lookups (best-effort)
   document.getElementById('alFilterModal').addEventListener('show.bs.modal', ()=>{
     loadLookupsIfNeeded();
   });
 
   $id('alApplyFilters').addEventListener('click', ()=>{
     state.role = $id('alRole').value || '';
+    
+    // NEW: Get action from dropdown
+    state.action = $id('alAction').value || '';
 
-    // dropdown filters
     state.user_id = $id('alUser').value || '';
     state.batch_id = $id('alBatch').value || '';
     state.course_id = $id('alCourse').value || '';
@@ -1293,18 +1298,15 @@ $id('dMessage').innerHTML = safeHtml(msg);
     state.from = $id('alFrom').value || '';
     state.to = $id('alTo').value || '';
 
-    // modules from modal
     const mods = [];
     document.querySelectorAll('.alMod:checked').forEach(cb=>mods.push(cb.value));
     state.modules = mods;
 
-    // sync chips
     document.querySelectorAll('#alChipbar .al-chip').forEach(chip=>{
       const m = chip.getAttribute('data-module');
       chip.classList.toggle('active', state.modules.includes(m));
     });
 
-    // If user is selected from dropdown, clear the top name input to avoid confusion
     if (state.user_id){
       state.name = '';
       $id('alName').value = '';
@@ -1316,11 +1318,15 @@ $id('dMessage').innerHTML = safeHtml(msg);
 
   $id('alClearFilters').addEventListener('click', ()=>{
     $id('alRole').value = '';
+    
+    // NEW: Clear action dropdown
+    $id('alAction').value = '';
+    $('#alAction').val('').trigger('change');
+    
     $id('alActionLike').value = '';
     $id('alFrom').value = '';
     $id('alTo').value = '';
 
-    // reset selects (native + select2)
     ['alUser','alBatch','alCourse','alQuiz','alAssignment','alStudyMaterial','alCodingQuestion'].forEach(id=>{
       const el = document.getElementById(id);
       if (el){
@@ -1329,9 +1335,12 @@ $id('dMessage').innerHTML = safeHtml(msg);
       }
     });
 
+    $('#alBatch').prop('disabled', true).html('<option value="">Select course first</option>').trigger('change');
+
     document.querySelectorAll('.alMod').forEach(cb=>cb.checked=false);
 
     state.role = '';
+    state.action = '';      // NEW: Reset action state
     state.user_id = '';
     state.batch_id = '';
     state.course_id = '';
@@ -1354,7 +1363,7 @@ $id('dMessage').innerHTML = safeHtml(msg);
   // =========================
   // Init
   // =========================
-  loadBatchCourseMaps().finally(load);
+  loadCourseMap().finally(load);
 
 })();
 </script>

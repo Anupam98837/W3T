@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\Log;
 use Carbon\Carbon;
 
 class AboutUsController extends Controller
@@ -28,38 +29,76 @@ class AboutUsController extends Controller
         return DB::table('about_us')->exists();
     }
 
+    /* =========================================================
+     | Activity Log (added)
+     * ========================================================= */
+    private function logActivity(
+        Request $request,
+        string $activity, // store | update | destroy
+        string $note,
+        string $tableName,
+        ?int $recordId = null,
+        ?array $changedFields = null,
+        ?array $oldValues = null,
+        ?array $newValues = null
+    ): void {
+        $actorRole = $request->attributes->get('auth_role');
+        $actorId   = (int) ($request->attributes->get('auth_tokenable_id') ?? 0);
+
+        try {
+            DB::table('user_data_activity_log')->insert([
+                'performed_by'       => $actorId ?: 0,
+                'performed_by_role'  => $actorRole ?: null,
+                'ip'                 => $request->ip(),
+                'user_agent'         => (string) $request->userAgent(),
+                'activity'           => $activity,
+                'module'             => 'AboutUs',
+                'table_name'         => $tableName,
+                'record_id'          => $recordId,
+                'changed_fields'     => $changedFields ? json_encode(array_values($changedFields), JSON_UNESCAPED_UNICODE) : null,
+                'old_values'         => $oldValues ? json_encode($oldValues, JSON_UNESCAPED_UNICODE) : null,
+                'new_values'         => $newValues ? json_encode($newValues, JSON_UNESCAPED_UNICODE) : null,
+                'log_note'           => $note,
+                'created_at'         => now(),
+                'updated_at'         => now(),
+            ]);
+        } catch (\Throwable $e) {
+            Log::error('[AboutUs] user_data_activity_log insert failed', ['error' => $e->getMessage()]);
+        }
+    }
+
     /**
      * Handle image upload
      */
     private function uploadImage(?object $existing, Request $request): ?string
-{
-    if (!$request->hasFile('image')) {
-        return $existing->image ?? null;
-    }
-
-    // Ensure directory exists
-    $dest = public_path(self::MEDIA_SUBDIR);
-    if (!is_dir($dest)) {
-        mkdir($dest, 0755, true);
-    }
-
-    // Delete old image (best-effort)
-    if ($existing && $existing->image) {
-        $oldPath = public_path($existing->image);
-        if (is_file($oldPath)) {
-            @unlink($oldPath);
+    {
+        if (!$request->hasFile('image')) {
+            return $existing->image ?? null;
         }
+
+        // Ensure directory exists
+        $dest = public_path(self::MEDIA_SUBDIR);
+        if (!is_dir($dest)) {
+            mkdir($dest, 0755, true);
+        }
+
+        // Delete old image (best-effort)
+        if ($existing && $existing->image) {
+            $oldPath = public_path($existing->image);
+            if (is_file($oldPath)) {
+                @unlink($oldPath);
+            }
+        }
+
+        $file = $request->file('image');
+        $ext  = strtolower($file->getClientOriginalExtension() ?: 'webp');
+        $name = 'about_' . time() . '_' . uniqid() . '.' . $ext;
+
+        $file->move($dest, $name);
+
+        // Store RELATIVE public path
+        return self::MEDIA_SUBDIR . '/' . $name;
     }
-
-    $file = $request->file('image');
-    $ext  = strtolower($file->getClientOriginalExtension() ?: 'webp');
-    $name = 'about_' . time() . '_' . uniqid() . '.' . $ext;
-
-    $file->move($dest, $name);
-
-    // Store RELATIVE public path
-    return self::MEDIA_SUBDIR . '/' . $name;
-}
 
     /**
      * GET /api/about-us
@@ -109,6 +148,8 @@ class AboutUsController extends Controller
 
         $now = Carbon::now();
         $existing = $this->getAboutUsEntry();
+        $before = $existing ? (array)$existing : null;
+
         $imagePath = $this->uploadImage($existing, $request);
 
         if ($existing) {
@@ -121,6 +162,18 @@ class AboutUsController extends Controller
             ]);
 
             $about = $this->getAboutUsEntry();
+
+            // ✅ ACTIVITY LOG (POST -> update)
+            $this->logActivity(
+                $request,
+                'update',
+                'Updated About Us (via POST)',
+                'about_us',
+                (int)$existing->id,
+                ['title', 'content', 'image'],
+                $before,
+                $about ? (array)$about : null
+            );
 
             return response()->json([
                 'success' => true,
@@ -138,10 +191,24 @@ class AboutUsController extends Controller
             'updated_at' => $now,
         ]);
 
+        $created = $this->getAboutUsEntry();
+
+        // ✅ ACTIVITY LOG (POST -> store)
+        $this->logActivity(
+            $request,
+            'store',
+            'Created About Us',
+            'about_us',
+            $created ? (int)$created->id : null,
+            ['title', 'content', 'image'],
+            null,
+            $created ? (array)$created : null
+        );
+
         return response()->json([
             'success' => true,
             'message' => 'About Us created successfully',
-            'about'   => $this->getAboutUsEntry()
+            'about'   => $created
         ], 201);
     }
 
@@ -179,59 +246,89 @@ class AboutUsController extends Controller
             ], 404);
         }
 
+        $before = (array)$about;
+
         if ($about->image && file_exists(public_path($about->image))) {
             unlink(public_path($about->image));
         }
 
         DB::table('about_us')->where('id', $about->id)->delete();
 
+        // ✅ ACTIVITY LOG (DELETE -> destroy)
+        $this->logActivity(
+            request(),
+            'destroy',
+            'Deleted About Us',
+            'about_us',
+            (int)$about->id,
+            null,
+            $before,
+            null
+        );
+
         return response()->json([
             'success' => true,
             'message' => 'About Us deleted successfully'
         ]);
     }
+
     /**
      * PUT /api/about-us
      * Separate update endpoint (optional)
      */
-   public function update(Request $request)
-{
-    $about = $this->getAboutUsEntry();
+    public function update(Request $request)
+    {
+        $about = $this->getAboutUsEntry();
 
-    if (!$about) {
+        if (!$about) {
+            return response()->json([
+                'success' => false,
+                'message' => 'About Us not found'
+            ], 404);
+        }
+
+        $validator = Validator::make($request->all(), [
+            'title'   => ['required', 'string', 'max:255'],
+            'content' => ['required', 'string'],
+            'image'   => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'errors'  => $validator->errors()
+            ], 422);
+        }
+
+        $before = (array)$about;
+
+        $imagePath = $this->uploadImage($about, $request);
+
+        DB::table('about_us')->where('id', $about->id)->update([
+            'title'      => $request->title,
+            'content'    => $request->content,
+            'image'      => $imagePath,
+            'updated_at' => now(),
+        ]);
+
+        $fresh = $this->getAboutUsEntry();
+
+        // ✅ ACTIVITY LOG (PUT/PATCH -> update)
+        $this->logActivity(
+            $request,
+            'update',
+            'Updated About Us (via PUT/PATCH)',
+            'about_us',
+            (int)$about->id,
+            ['title', 'content', 'image'],
+            $before,
+            $fresh ? (array)$fresh : null
+        );
+
         return response()->json([
-            'success' => false,
-            'message' => 'About Us not found'
-        ], 404);
+            'success' => true,
+            'message' => 'About Us updated successfully',
+            'about'   => $fresh
+        ]);
     }
-
-    $validator = Validator::make($request->all(), [
-        'title'   => ['required', 'string', 'max:255'],
-        'content' => ['required', 'string'],
-        'image'   => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
-    ]);
-
-    if ($validator->fails()) {
-        return response()->json([
-            'success' => false,
-            'errors'  => $validator->errors()
-        ], 422);
-    }
-
-    $imagePath = $this->uploadImage($about, $request);
-
-    DB::table('about_us')->where('id', $about->id)->update([
-        'title'      => $request->title,
-        'content'    => $request->content,
-        'image'      => $imagePath,
-        'updated_at' => now(),
-    ]);
-
-    return response()->json([
-        'success' => true,
-        'message' => 'About Us updated successfully',
-        'about'   => $this->getAboutUsEntry()
-    ]);
-}
-
 }

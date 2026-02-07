@@ -12,6 +12,52 @@ use Illuminate\Support\Str;
 
 class ForgotPasswordController extends Controller
 {
+    /* =========================================================
+     | Activity Log (added)
+     * ========================================================= */
+
+    private function activityActor(Request $r): array
+    {
+        return [
+            'role' => $r->attributes->get('auth_role'),
+            'id'   => (int) ($r->attributes->get('auth_tokenable_id') ?? 0),
+        ];
+    }
+
+    private function logActivity(
+        Request $request,
+        string $activity, // store | update | destroy
+        string $note,
+        string $tableName,
+        ?int $recordId = null,
+        ?array $changedFields = null,
+        ?array $oldValues = null,
+        ?array $newValues = null
+    ): void {
+        $a = $this->activityActor($request);
+
+        try {
+            DB::table('user_data_activity_log')->insert([
+                'performed_by'       => $a['id'] ?: 0,
+                'performed_by_role'  => $a['role'] ?: null,
+                'ip'                 => $request->ip(),
+                'user_agent'         => (string) $request->userAgent(),
+                'activity'           => $activity,
+                'module'             => 'ForgotPassword',
+                'table_name'         => $tableName,
+                'record_id'          => $recordId,
+                'changed_fields'     => $changedFields ? json_encode(array_values($changedFields), JSON_UNESCAPED_UNICODE) : null,
+                'old_values'         => $oldValues ? json_encode($oldValues, JSON_UNESCAPED_UNICODE) : null,
+                'new_values'         => $newValues ? json_encode($newValues, JSON_UNESCAPED_UNICODE) : null,
+                'log_note'           => $note,
+                'created_at'         => now(),
+                'updated_at'         => now(),
+            ]);
+        } catch (\Throwable $e) {
+            Log::error('[ForgotPassword] user_data_activity_log insert failed', ['error' => $e->getMessage()]);
+        }
+    }
+
     /**
      * POST /api/auth/forgot-password/send-otp
      * body: { email }
@@ -52,6 +98,18 @@ class ForgotPasswordController extends Controller
         ]);
 
         if (!$userExists) {
+            // ✅ activity log (silent success path)
+            $this->logActivity(
+                $r,
+                'store',
+                'Forgot password OTP requested (user not found; silent success)',
+                'password_reset_tokens',
+                null,
+                ['email'],
+                null,
+                ['email' => $email, 'request_id' => $reqId]
+            );
+
             $response = [
                 'status'  => 'success',
                 'message' => 'If the account exists, an OTP has been sent.',
@@ -111,6 +169,23 @@ class ForgotPasswordController extends Controller
                 'request_id' => $reqId,
                 'email'      => $email,
             ]);
+
+            // ✅ activity log (OTP created)
+            $this->logActivity(
+                $r,
+                'store',
+                'Forgot password OTP generated',
+                'password_reset_tokens',
+                null,
+                ['email', 'otp_expires_at', 'is_valid'],
+                null,
+                [
+                    'email'          => $email,
+                    'otp_expires_at' => $otpExpiresAt->toDateTimeString(),
+                    'is_valid'       => 1,
+                    'request_id'     => $reqId,
+                ]
+            );
         } catch (\Throwable $e) {
             Log::channel('daily')->error('FP_SEND_OTP:INSERT_FAILED', [
                 'request_id' => $reqId,
@@ -152,7 +227,6 @@ class ForgotPasswordController extends Controller
         return response()->json($response);
     }
 
-
     /**
      * POST /api/auth/forgot-password/verify-otp
      * body: { email, otp }
@@ -185,6 +259,18 @@ class ForgotPasswordController extends Controller
         if (!empty($row->otp_expires_at) && Carbon::parse($row->otp_expires_at)->isPast()) {
             DB::table('password_reset_tokens')->where('id', $row->id)->update(['is_valid' => 0]);
 
+            // ✅ activity log (expired -> invalidated)
+            $this->logActivity(
+                $r,
+                'update',
+                'OTP expired; invalidated reset token request',
+                'password_reset_tokens',
+                (int) $row->id,
+                ['is_valid'],
+                ['is_valid' => 1, 'email' => $email],
+                ['is_valid' => 0, 'email' => $email]
+            );
+
             return response()->json([
                 'status'  => 'error',
                 'message' => 'OTP expired. Please request a new OTP.',
@@ -211,6 +297,18 @@ class ForgotPasswordController extends Controller
             'otp'            => null,
             'otp_expires_at' => $newExpiry,
         ]);
+
+        // ✅ activity log (OTP verified -> token issued)
+        $this->logActivity(
+            $r,
+            'update',
+            'OTP verified; issued reset token',
+            'password_reset_tokens',
+            (int) $row->id,
+            ['otp', 'token', 'otp_expires_at'],
+            ['email' => $email, 'otp_expires_at' => (string) $row->otp_expires_at],
+            ['email' => $email, 'otp_expires_at' => $newExpiry->toDateTimeString()]
+        );
 
         return response()->json([
             'status'  => 'success',
@@ -254,6 +352,18 @@ class ForgotPasswordController extends Controller
         if (!empty($row->otp_expires_at) && Carbon::parse($row->otp_expires_at)->isPast()) {
             DB::table('password_reset_tokens')->where('id', $row->id)->update(['is_valid' => 0]);
 
+            // ✅ activity log (expired -> invalidated)
+            $this->logActivity(
+                $r,
+                'update',
+                'Reset token expired; invalidated reset session',
+                'password_reset_tokens',
+                (int) $row->id,
+                ['is_valid'],
+                ['is_valid' => 1, 'email' => $email],
+                ['is_valid' => 0, 'email' => $email]
+            );
+
             return response()->json([
                 'status'  => 'error',
                 'message' => 'Reset token expired. Please request OTP again.',
@@ -272,22 +382,61 @@ class ForgotPasswordController extends Controller
         if (!$userExists) {
             DB::table('password_reset_tokens')->where('id', $row->id)->update(['is_valid' => 0]);
 
+            // ✅ activity log (user missing -> invalidated)
+            $this->logActivity(
+                $r,
+                'update',
+                'User not found; invalidated reset session',
+                'password_reset_tokens',
+                (int) $row->id,
+                ['is_valid'],
+                ['is_valid' => 1, 'email' => $email],
+                ['is_valid' => 0, 'email' => $email]
+            );
+
             return response()->json([
                 'status'  => 'error',
                 'message' => 'User not found.',
             ], 404);
         }
 
+        // (optional for recordId logging only)
+        $userRow = DB::table('users')->select('id')->where('email', $email)->first();
+
         DB::table('users')->where('email', $email)->update([
             'password'   => Hash::make($r->password),
             'updated_at' => Carbon::now(),
         ]);
+
+        // ✅ activity log (password updated)
+        $this->logActivity(
+            $r,
+            'update',
+            'Password reset successful (user password updated)',
+            'users',
+            $userRow ? (int)$userRow->id : null,
+            ['password', 'updated_at'],
+            ['email' => $email],
+            ['email' => $email]
+        );
 
         // Invalidate token
         DB::table('password_reset_tokens')->where('id', $row->id)->update([
             'is_valid' => 0,
             'token'    => Hash::make(Str::random(40)), // token NOT NULL
         ]);
+
+        // ✅ activity log (reset session invalidated)
+        $this->logActivity(
+            $r,
+            'update',
+            'Reset session invalidated after password reset',
+            'password_reset_tokens',
+            (int) $row->id,
+            ['is_valid', 'token'],
+            ['is_valid' => 1, 'email' => $email],
+            ['is_valid' => 0, 'email' => $email]
+        );
 
         return response()->json([
             'status'  => 'success',

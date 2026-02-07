@@ -198,16 +198,45 @@ class BatchMessageController extends Controller
     }
 
     /* =========================================================
+     | Activity Log (added)
+     * ========================================================= */
+    private function logActivity(
+        Request $request,
+        string $activity, // store
+        string $note,
+        string $tableName,
+        ?int $recordId = null,
+        ?array $changedFields = null,
+        ?array $oldValues = null,
+        ?array $newValues = null
+    ): void {
+        $a = $this->actor($request);
+
+        try {
+            DB::table('user_data_activity_log')->insert([
+                'performed_by'       => $a['id'] ?: 0,
+                'performed_by_role'  => $a['role'] ?: null,
+                'ip'                 => $request->ip(),
+                'user_agent'         => (string) $request->userAgent(),
+                'activity'           => $activity,
+                'module'             => 'BatchChat',
+                'table_name'         => $tableName,
+                'record_id'          => $recordId,
+                'changed_fields'     => $changedFields ? json_encode(array_values($changedFields), JSON_UNESCAPED_UNICODE) : null,
+                'old_values'         => $oldValues ? json_encode($oldValues, JSON_UNESCAPED_UNICODE) : null,
+                'new_values'         => $newValues ? json_encode($newValues, JSON_UNESCAPED_UNICODE) : null,
+                'log_note'           => $note,
+                'created_at'         => now(),
+                'updated_at'         => now(),
+            ]);
+        } catch (\Throwable $e) {
+            Log::error('[BatchChat] user_data_activity_log insert failed', ['error' => $e->getMessage()]);
+        }
+    }
+
+    /* =========================================================
      | GET /api/batches/{batchKey}/messages
      | List chat messages for a batch
-     |
-     | Query params:
-     |   limit     (optional, default 50, max 100)
-     |   before_id (optional, load older messages)
-     |   after_id  (optional, poll newer messages)
-     |
-     | Initial load (no before_id/after_id):
-     |   - Only messages from last 3 days
      * ========================================================= */
     public function index(Request $r, string $batchKey)
     {
@@ -373,12 +402,6 @@ class BatchMessageController extends Controller
     /* =========================================================
      | POST /api/batches/{batchKey}/messages
      | Create a new chat message
-     |
-     | Body (multipart/form-data):
-     |   message?        -> plain text
-     |   message_html?   -> optional HTML
-     |   message_text?   -> optional text (overrides auto)
-     |   attachments[]?  -> files (stored under public/chatFiles)
      * ========================================================= */
     public function store(Request $r, string $batchKey)
     {
@@ -487,8 +510,10 @@ class BatchMessageController extends Controller
             'attachments' => $attachmentsMeta,
         ];
 
+        $uuid = (string) Str::uuid();
+
         $id = DB::table('batch_messages')->insertGetId([
-            'uuid'            => (string) Str::uuid(),
+            'uuid'            => $uuid,
             'batch_id'        => $batch->id,
             'sender_type'     => $r->attributes->get('auth_tokenable_type'),
             'sender_id'       => $uid,
@@ -502,6 +527,19 @@ class BatchMessageController extends Controller
             'created_at'      => $now,
             'updated_at'      => $now,
         ]);
+
+        // ✅ ADDED ACTIVITY LOG (only change requested)
+        $fresh = DB::table('batch_messages')->where('id', $id)->first();
+        $this->logActivity(
+            $r,
+            'store',
+            'Created batch chat message',
+            'batch_messages',
+            $id,
+            ['batch_id','sender_id','sender_role','has_attachments'],
+            null,
+            $fresh ? (array)$fresh : null
+        );
 
         // Sender has obviously "seen" their own message → upsert read row
         DB::table('batch_message_reads')->updateOrInsert(
@@ -553,15 +591,6 @@ class BatchMessageController extends Controller
     /* =========================================================
      | POST /api/batches/{batchKey}/messages/read
      | Mark messages as "seen" by current user.
-     |
-     | Body:
-     |   up_to_id      (int)   -> mark all messages in this batch
-     |                            with id <= up_to_id as read
-     |   OR
-     |   message_ids[] (array) -> explicit message ids for this batch
-     *
-     | You can support whichever is easier from frontend. If both
-     | are provided, message_ids[] wins.
      * ========================================================= */
     public function markRead(Request $r, string $batchKey)
     {

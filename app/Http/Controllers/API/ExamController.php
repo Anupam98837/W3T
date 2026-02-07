@@ -1302,114 +1302,357 @@ public function saveAnswer(Request $request, string $attemptUuid)
 }
 
 
+private function activityLogTable(): ?string
+{
+    if (Schema::hasTable('activity_logs')) return 'activity_logs';
+    if (Schema::hasTable('activity_log'))  return 'activity_log';
+    return null;
+}
 
-    public function submit(Request $request, string $attemptUuid)
-    {
-        $user = $this->getUserFromToken($request);
-        if (!$user) return response()->json(['success'=>false,'message'=>'Unauthorized'], 401);
+private function safeJson($val): ?string
+{
+    try {
+        if ($val === null) return null;
+        return json_encode($val, JSON_UNESCAPED_UNICODE);
+    } catch (\Throwable $e) {
+        return null;
+    }
+}
 
-        $attempt = DB::table('quizz_attempts')->where('uuid', $attemptUuid)->first();
-        if (!$attempt || (int)$attempt->user_id !== (int)$user->id) {
-            return response()->json(['success'=>false,'message'=>'Attempt not found'], 404);
-        }
+private function rowToArray($row): ?array
+{
+    if (!$row) return null;
+    if (is_array($row)) return $row;
+    return json_decode(json_encode($row), true);
+}
 
-        // If already closed, return summary
-        if (in_array($attempt->status, ['submitted','auto_submitted'], true)) {
-            $summary = $this->resultSummaryForAttempt($attempt);
-            return response()->json(['success'=>true] + $summary, 200);
-        }
+/**
+ * DB Activity Log (safe)
+ * - inserts into activity_logs/activity_log if present
+ * - only fills columns that exist (Schema::hasColumn)
+ */
+private function logActivityDb(
+    Request $request,
+    string $action,
+    string $message,
+    array $meta = [],
+    ?string $tableName = null,
+    ?int $rowId = null,
+    $oldRow = null,
+    $newRow = null
+): void {
+    $tbl = $this->activityLogTable();
+    if (!$tbl) return;
 
-        // If timed out, auto-finalize first
-        if ($this->deadlinePassed($attempt)) {
-            $attempt = $this->autoFinalize($attempt, true);
-            $summary = $this->resultSummaryForAttempt($attempt);
-            return response()->json(['success'=>true] + $summary, 200);
-        }
+    $payload = [];
 
-        // attribute final time slice for the currently open question
-        $now = Carbon::now();
-        DB::beginTransaction();
-        try {
-            if ($attempt->current_question_id && $attempt->current_q_started_at) {
-                $prevQ = (int)$attempt->current_question_id;
-                $slice = max(0, $now->diffInSeconds(Carbon::parse($attempt->current_q_started_at)));
-                if ($slice > 0) {
-                    $row = DB::table('quizz_attempt_answers')
-                        ->where('attempt_id', $attempt->id)
-                        ->where('question_id', $prevQ)
-                        ->lockForUpdate()
-                        ->first();
+    // common columns (only if exist)
+    if (Schema::hasColumn($tbl, 'action'))       $payload['action'] = $action;
+    if (Schema::hasColumn($tbl, 'message'))      $payload['message'] = $message;
 
-                    if ($row) {
-                        DB::table('quizz_attempt_answers')->where('id', $row->id)->update([
-                            'time_spent_sec' => (int)$row->time_spent_sec + $slice,
-                            'updated_at'     => $now,
-                        ]);
-                    } else {
-                        DB::table('quizz_attempt_answers')->insert([
-                            'attempt_id'     => $attempt->id,
-                            'question_id'    => $prevQ,
-                            'question_type'  => $this->questionType($prevQ),
-                            'selected_raw'   => json_encode(null),
-                            'time_spent_sec' => $slice,
-                            'created_at'     => $now,
-                            'updated_at'     => $now,
-                        ]);
-                    }
+    // actor fields (if you have them)
+    $actorId = (int)($meta['actor_user_id'] ?? 0);
+    if (Schema::hasColumn($tbl, 'actor_id'))     $payload['actor_id'] = $actorId ?: null;
+    if (Schema::hasColumn($tbl, 'user_id'))      $payload['user_id'] = $actorId ?: null; // some schemas use user_id as actor
+    if (Schema::hasColumn($tbl, 'actor_role'))   $payload['actor_role'] = $meta['actor_role'] ?? null;
+    if (Schema::hasColumn($tbl, 'actor_type'))   $payload['actor_type'] = $meta['actor_type'] ?? null;
+
+    // request info
+    if (Schema::hasColumn($tbl, 'ip'))           $payload['ip'] = $request->ip();
+    if (Schema::hasColumn($tbl, 'user_agent'))   $payload['user_agent'] = substr((string)$request->userAgent(), 0, 255);
+
+    // target/table info
+    if (Schema::hasColumn($tbl, 'table_name'))   $payload['table_name'] = $tableName;
+    if (Schema::hasColumn($tbl, 'row_id'))       $payload['row_id'] = $rowId;
+
+    // meta json
+    $metaJson = $this->safeJson($meta);
+    if (Schema::hasColumn($tbl, 'meta'))         $payload['meta'] = $metaJson;
+    if (Schema::hasColumn($tbl, 'meta_json'))    $payload['meta_json'] = $metaJson;
+
+    // old/new
+    $oldJson = $this->safeJson($this->rowToArray($oldRow));
+    $newJson = $this->safeJson($this->rowToArray($newRow));
+    if (Schema::hasColumn($tbl, 'old_row'))      $payload['old_row'] = $oldJson;
+    if (Schema::hasColumn($tbl, 'new_row'))      $payload['new_row'] = $newJson;
+    if (Schema::hasColumn($tbl, 'old_data'))     $payload['old_data'] = $oldJson;
+    if (Schema::hasColumn($tbl, 'new_data'))     $payload['new_data'] = $newJson;
+
+    // timestamps
+    $now = now();
+    if (Schema::hasColumn($tbl, 'created_at'))   $payload['created_at'] = $now;
+    if (Schema::hasColumn($tbl, 'updated_at'))   $payload['updated_at'] = $now;
+
+    try {
+        DB::table($tbl)->insert($payload);
+    } catch (\Throwable $e) {
+        // never break main flow
+        Log::warning('[ACTIVITY_LOG_DB] insert failed', ['err' => $e->getMessage(), 'action' => $action]);
+    }
+}
+
+
+public function submit(Request $request, string $attemptUuid)
+{
+    $user = $this->getUserFromToken($request);
+
+    if (!$user) {
+        $this->logActivityDb(
+            $request,
+            'QUIZZ_SUBMIT_UNAUTHORIZED',
+            'Submit attempted without valid token',
+            ['attempt_uuid' => $attemptUuid]
+        );
+
+        return response()->json(['success'=>false,'message'=>'Unauthorized'], 401);
+    }
+
+    $attempt = DB::table('quizz_attempts')->where('uuid', $attemptUuid)->first();
+
+    if (!$attempt || (int)$attempt->user_id !== (int)$user->id) {
+        $this->logActivityDb(
+            $request,
+            'QUIZZ_SUBMIT_ATTEMPT_NOT_FOUND',
+            'Attempt not found or does not belong to user',
+            [
+                'attempt_uuid' => $attemptUuid,
+                'actor_user_id' => (int)$user->id,
+                'attempt_exists' => (bool)$attempt,
+                'attempt_user_id' => $attempt ? (int)$attempt->user_id : null,
+            ],
+            'quizz_attempts',
+            $attempt ? (int)$attempt->id : null,
+            $attempt,
+            null
+        );
+
+        return response()->json(['success'=>false,'message'=>'Attempt not found'], 404);
+    }
+
+    // If already closed, return summary
+    if (in_array($attempt->status, ['submitted','auto_submitted'], true)) {
+        $this->logActivityDb(
+            $request,
+            'QUIZZ_SUBMIT_ALREADY_CLOSED',
+            'Attempt already submitted; returning summary',
+            [
+                'actor_user_id' => (int)$user->id,
+                'attempt_uuid' => $attemptUuid,
+                'attempt_id' => (int)$attempt->id,
+                'status' => (string)$attempt->status,
+                'result_id' => $attempt->result_id ?? null,
+            ],
+            'quizz_attempts',
+            (int)$attempt->id,
+            $attempt,
+            null
+        );
+
+        $summary = $this->resultSummaryForAttempt($attempt);
+        return response()->json(['success'=>true] + $summary, 200);
+    }
+
+    // If timed out, auto-finalize first
+    if ($this->deadlinePassed($attempt)) {
+        $this->logActivityDb(
+            $request,
+            'QUIZZ_SUBMIT_DEADLINE_PASSED',
+            'Deadline passed; auto-finalizing attempt',
+            [
+                'actor_user_id' => (int)$user->id,
+                'attempt_uuid' => $attemptUuid,
+                'attempt_id' => (int)$attempt->id,
+                'quiz_id' => (int)$attempt->quiz_id,
+            ],
+            'quizz_attempts',
+            (int)$attempt->id,
+            $attempt,
+            null
+        );
+
+        $attempt = $this->autoFinalize($attempt, true);
+        $summary = $this->resultSummaryForAttempt($attempt);
+
+        $this->logActivityDb(
+            $request,
+            'QUIZZ_SUBMIT_AUTO_FINALIZED',
+            'Auto-finalize completed; returning summary',
+            [
+                'actor_user_id' => (int)$user->id,
+                'attempt_id' => (int)$attempt->id,
+                'status' => (string)$attempt->status,
+                'result_id' => $attempt->result_id ?? null,
+            ],
+            'quizz_attempts',
+            (int)$attempt->id,
+            null,
+            $attempt
+        );
+
+        return response()->json(['success'=>true] + $summary, 200);
+    }
+
+    // attribute final time slice for the currently open question
+    $now = Carbon::now();
+
+    DB::beginTransaction();
+    try {
+        if ($attempt->current_question_id && $attempt->current_q_started_at) {
+            $prevQ = (int)$attempt->current_question_id;
+            $slice = max(0, $now->diffInSeconds(Carbon::parse($attempt->current_q_started_at)));
+
+            if ($slice > 0) {
+                $row = DB::table('quizz_attempt_answers')
+                    ->where('attempt_id', $attempt->id)
+                    ->where('question_id', $prevQ)
+                    ->lockForUpdate()
+                    ->first();
+
+                if ($row) {
+                    $oldRow = $row;
+
+                    DB::table('quizz_attempt_answers')->where('id', $row->id)->update([
+                        'time_spent_sec' => (int)$row->time_spent_sec + $slice,
+                        'updated_at'     => $now,
+                    ]);
+
+                    $newRow = DB::table('quizz_attempt_answers')->where('id', $row->id)->first();
+
+                    $this->logActivityDb(
+                        $request,
+                        'QUIZZ_SUBMIT_TIME_SLICE_UPDATE',
+                        'Updated time slice for previous question',
+                        [
+                            'actor_user_id' => (int)$user->id,
+                            'attempt_id' => (int)$attempt->id,
+                            'question_id' => (int)$prevQ,
+                            'slice_sec' => (int)$slice,
+                        ],
+                        'quizz_attempt_answers',
+                        (int)$row->id,
+                        $oldRow,
+                        $newRow
+                    );
+                } else {
+                    DB::table('quizz_attempt_answers')->insert([
+                        'attempt_id'     => $attempt->id,
+                        'question_id'    => $prevQ,
+                        'question_type'  => $this->questionType($prevQ),
+                        'selected_raw'   => json_encode(null),
+                        'time_spent_sec' => $slice,
+                        'created_at'     => $now,
+                        'updated_at'     => $now,
+                    ]);
+
+                    $this->logActivityDb(
+                        $request,
+                        'QUIZZ_SUBMIT_TIME_SLICE_INSERT',
+                        'Inserted time slice for previous question (no existing row)',
+                        [
+                            'actor_user_id' => (int)$user->id,
+                            'attempt_id' => (int)$attempt->id,
+                            'question_id' => (int)$prevQ,
+                            'slice_sec' => (int)$slice,
+                        ],
+                        'quizz_attempt_answers',
+                        null,
+                        null,
+                        null
+                    );
                 }
             }
-
-            // Score & persist result
-$scored  = $this->scoreAttempt($attempt->id);
-$this->writeAttemptAnswerDerived($attempt->id, $scored['answers']);
-$publish = $this->shouldPublishToStudent((int)$attempt->quiz_id);
-
-$cnt = $scored['counters'];
-$pct = $scored['total_marks'] ? round($scored['marks_obtained'] / $scored['total_marks'] * 100, 2) : 0;
-
-$resultId = DB::table('quizz_results')->insertGetId([
-    'uuid'               => (string) Str::uuid(),
-    'attempt_id'         => (int) $attempt->id,
-    'quiz_id'            => (int) $attempt->quiz_id,
-    'user_id'            => (int) $attempt->user_id,
-    'marks_obtained'     => (int) $scored['marks_obtained'],
-    'total_marks'        => (int) $scored['total_marks'],
-    'marks_total'        => (int) $scored['total_marks'],   // keeps both columns in sync
-    'total_questions'    => (int) $cnt['total_questions'],
-    'total_correct'      => (int) $cnt['total_correct'],
-    'total_incorrect'    => (int) $cnt['total_incorrect'],
-    'total_skipped'      => (int) $cnt['total_skipped'],
-    'percentage'         => $pct,
-    'attempt_number'     => (int) $this->attemptNumberForUser((int)$attempt->quiz_id, (int)$attempt->user_id) + 1,
-    'students_answer'    => json_encode($scored['answers'], JSON_UNESCAPED_UNICODE),
-    'publish_to_student' => $publish ? 1 : 0,
-    'result_set_up_type' => DB::table('quizz')->where('id',$attempt->quiz_id)->value('result_set_up_type') ?? 'Immediately',
-    'result_release_date'=> DB::table('quizz')->where('id',$attempt->quiz_id)->value('result_release_date'),
-    'created_at'         => $now,
-    'updated_at'         => $now,
-]);
-
-
-            DB::table('quizz_attempts')->where('id', $attempt->id)->update([
-                'status'       => 'submitted',
-                'finished_at'  => $now,
-                'updated_at'   => $now,
-                'result_id'    => $resultId,
-            ]);
-
-            DB::commit();
-
-            // fresh attempt row
-            $attempt = DB::table('quizz_attempts')->where('id', $attempt->id)->first();
-            $summary = $this->resultSummaryForAttempt($attempt);
-
-            return response()->json(['success'=>true] + $summary, 201);
-        } catch (\Throwable $e) {
-            DB::rollBack();
-            Log::error('[Exam submit] failed', ['e'=>$e->getMessage()]);
-            return response()->json(['success'=>false,'message'=>'Failed to submit'], 500);
         }
+
+        // Score & persist result
+        $scored  = $this->scoreAttempt($attempt->id);
+        $this->writeAttemptAnswerDerived($attempt->id, $scored['answers']);
+        $publish = $this->shouldPublishToStudent((int)$attempt->quiz_id);
+
+        $cnt = $scored['counters'];
+        $pct = $scored['total_marks'] ? round($scored['marks_obtained'] / $scored['total_marks'] * 100, 2) : 0;
+
+        $resultId = DB::table('quizz_results')->insertGetId([
+            'uuid'               => (string) Str::uuid(),
+            'attempt_id'         => (int) $attempt->id,
+            'quiz_id'            => (int) $attempt->quiz_id,
+            'user_id'            => (int) $attempt->user_id,
+            'marks_obtained'     => (int) $scored['marks_obtained'],
+            'total_marks'        => (int) $scored['total_marks'],
+            'marks_total'        => (int) $scored['total_marks'],   // keeps both columns in sync
+            'total_questions'    => (int) $cnt['total_questions'],
+            'total_correct'      => (int) $cnt['total_correct'],
+            'total_incorrect'    => (int) $cnt['total_incorrect'],
+            'total_skipped'      => (int) $cnt['total_skipped'],
+            'percentage'         => $pct,
+            'attempt_number'     => (int) $this->attemptNumberForUser((int)$attempt->quiz_id, (int)$attempt->user_id) + 1,
+            'students_answer'    => json_encode($scored['answers'], JSON_UNESCAPED_UNICODE),
+            'publish_to_student' => $publish ? 1 : 0,
+            'result_set_up_type' => DB::table('quizz')->where('id',$attempt->quiz_id)->value('result_set_up_type') ?? 'Immediately',
+            'result_release_date'=> DB::table('quizz')->where('id',$attempt->quiz_id)->value('result_release_date'),
+            'created_at'         => $now,
+            'updated_at'         => $now,
+        ]);
+
+        $oldAttempt = $attempt;
+
+        DB::table('quizz_attempts')->where('id', $attempt->id)->update([
+            'status'       => 'submitted',
+            'finished_at'  => $now,
+            'updated_at'   => $now,
+            'result_id'    => $resultId,
+        ]);
+
+        DB::commit();
+
+        // fresh attempt row
+        $attempt = DB::table('quizz_attempts')->where('id', $attempt->id)->first();
+        $summary = $this->resultSummaryForAttempt($attempt);
+
+        $this->logActivityDb(
+            $request,
+            'QUIZZ_SUBMIT_SUCCESS',
+            'Attempt submitted successfully',
+            [
+                'actor_user_id' => (int)$user->id,
+                'attempt_uuid' => $attemptUuid,
+                'attempt_id' => (int)$attempt->id,
+                'quiz_id' => (int)$attempt->quiz_id,
+                'result_id' => (int)$resultId,
+                'marks_obtained' => (int)($scored['marks_obtained'] ?? 0),
+                'total_marks' => (int)($scored['total_marks'] ?? 0),
+                'percentage' => $pct,
+            ],
+            'quizz_attempts',
+            (int)$attempt->id,
+            $oldAttempt,
+            $attempt
+        );
+
+        return response()->json(['success'=>true] + $summary, 201);
+    } catch (\Throwable $e) {
+        DB::rollBack();
+
+        $this->logActivityDb(
+            $request,
+            'QUIZZ_SUBMIT_FAILED',
+            'Submit failed and transaction rolled back',
+            [
+                'actor_user_id' => isset($user->id) ? (int)$user->id : null,
+                'attempt_uuid' => $attemptUuid,
+                'attempt_id' => isset($attempt->id) ? (int)$attempt->id : null,
+                'quiz_id' => isset($attempt->quiz_id) ? (int)$attempt->quiz_id : null,
+                'error' => $e->getMessage(),
+            ],
+            'quizz_attempts',
+            isset($attempt->id) ? (int)$attempt->id : null,
+            $attempt,
+            null
+        );
+
+        Log::error('[Exam submit] failed', ['e'=>$e->getMessage()]);
+        return response()->json(['success'=>false,'message'=>'Failed to submit'], 500);
     }
+}
 
     /* ============================================
      | GET /api/exam/attempts/{attempt}/status
