@@ -7,7 +7,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Manage Questions</title>
-    
+    <link rel="icon" type="image/png" sizes="32x32" href="{{ asset('assets/media/images/web/favicon.png') }}">
+
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"/>
     <link rel="stylesheet" href="{{ asset('assets/css/common/main.css') }}"/>
 
@@ -1104,6 +1105,43 @@ html.theme-dark .preview-option.correct{
         0 0 0 1px rgba(34,197,94,0.55),
         0 12px 30px rgba(22,163,74,0.45);
 }
+/* Inline error near buttons */
+.btn-inline-error{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  padding:8px 12px;
+  border-radius:10px;
+  border:1px solid rgba(239,68,68,.35);
+  background: rgba(239,68,68,.08);
+  color: #b91c1c;
+  font-size: 12.5px;
+  max-width: 520px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+html.theme-dark .btn-inline-error{
+  background: rgba(239,68,68,.15);
+  border-color: rgba(239,68,68,.35);
+  color: #fecaca;
+}
+
+/* ✅ Media picker: selected state border highlight */
+.mp-card.selected{
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px rgba(79,70,229,.18);
+  transform: translateY(-1px);
+}
+.mp-card.selected .mp-meta{
+  background: rgba(79,70,229,.04);
+}
+html.theme-dark .mp-card.selected{
+  box-shadow: 0 0 0 2px rgba(99,102,241,.28);
+}
+
+
 
 mjx-container,
     mjx-container[display="block"],
@@ -1198,6 +1236,10 @@ mjx-container,
                         <div class="section-title">
                             <i class="fa fa-info-circle"></i> Basic Information
                         </div>
+                        <div class="form-group">
+                            <label class="form-label">Group Title (Optional)</label>
+                            <input id="qGroupTitle" type="text" class="form-control" placeholder="e.g., Algebra - Part A">
+                          </div>
                         
                         <div class="row">
                             <div class="col">
@@ -1348,6 +1390,13 @@ mjx-container,
 
                 <div class="content-footer">
                     <button id="btnCancel" class="btn btn-light">Cancel</button>
+                
+                    <!-- INLINE ERROR (near buttons) -->
+                    <div id="btnInlineError" class="btn-inline-error" style="display:none;" role="alert" aria-live="polite">
+                        <i class="fa fa-triangle-exclamation"></i>
+                        <span id="btnInlineErrorMsg">Error</span>
+                    </div>
+                
                     <button id="btnDelete" class="btn btn-danger" style="display: none;">
                         <i class="fa fa-trash"></i> Delete Question
                     </button>
@@ -1355,6 +1404,7 @@ mjx-container,
                         <i class="fa fa-save"></i> Save Question
                     </button>
                 </div>
+                
             </div>
         </div>
     </div>
@@ -1479,12 +1529,33 @@ mjx-container,
         var quizMeta = null; 
 
         function typesetMath(root) {
-        if (!window.MathJax || !window.MathJax.typesetPromise) return;
-        const nodes = root ? [root] : undefined;
-        MathJax.typesetPromise(nodes).catch(function (err) {
-            console.error('MathJax typeset error:', err);
+  if (!window.MathJax) return;
+
+  const nodes = root ? [root] : undefined;
+
+  // MathJax v3: wait until startup is ready, then clear + typeset
+  const doTypeset = () => {
+    try {
+      if (window.MathJax.typesetClear && nodes) window.MathJax.typesetClear(nodes);
+      if (window.MathJax.typesetPromise) {
+        return window.MathJax.typesetPromise(nodes).catch(err => {
+          console.error('MathJax typeset error:', err);
         });
+      }
+    } catch (e) {
+      console.error('MathJax typeset exception:', e);
     }
+  };
+
+  // If startup exists, wait for it
+  if (window.MathJax.startup && window.MathJax.startup.promise) {
+    window.MathJax.startup.promise.then(doTypeset);
+  } else {
+    // fallback
+    setTimeout(doTypeset, 0);
+  }
+}
+
         var previewOverlay = document.getElementById('previewOverlay');
 var previewTitle   = document.getElementById('previewTitle');
 var previewDesc    = document.getElementById('previewDesc');
@@ -1496,12 +1567,85 @@ function openPreviewModal(){
     if (!previewOverlay) return;
     previewOverlay.style.display = 'flex';
     document.body.style.overflow = 'hidden';
+
+    requestAnimationFrame(() => typesetMath(previewOverlay));
+
 }
 function closePreviewModal(){
     if (!previewOverlay) return;
     previewOverlay.style.display = 'none';
     document.body.style.overflow = '';
 }
+
+function attachPasteImageUpload(editorArea, usageTag = 'question') {
+  editorArea.addEventListener('paste', async (e) => {
+    const cb = e.clipboardData;
+    if (!cb) return;
+
+    // 1) If user pasted images (multiple), upload and insert
+    const imgFiles = [];
+    for (const item of cb.items) {
+      if (item.type && item.type.startsWith('image/')) {
+        const f = item.getAsFile();
+        if (f) imgFiles.push(f);
+      }
+    }
+
+    if (imgFiles.length) {
+      e.preventDefault();
+
+      // keep cursor
+      saveCursorPosition(editorArea);
+
+      for (const file of imgFiles) {
+        try {
+          const fd = new FormData();
+          fd.append('file', file);
+          fd.append('status', 'active');
+          fd.append('usage_tag', usageTag);
+
+          const resp = await apiFetch('/api/media', { method: 'POST', body: fd });
+          if (!resp.ok) { handleApiFailure('Upload failed', resp); continue; }
+
+          const created = resp.isJson ? (resp.data?.data || resp.data) : null;
+          const url = created?.url;
+          if (!url) continue;
+
+          restoreCursorPosition();
+
+          const html = `<img src="${url}" style="max-width:100%;height:auto;border-radius:4px;margin:4px 0;display:block;cursor:move;">`;
+          document.execCommand('insertHTML', false, html);
+        } catch (err) {
+          console.error(err);
+          showToast('error', 'Paste upload failed');
+          showInlineError('error', 'Paste upload failed');
+
+        }
+      }
+
+      return;
+    }
+
+    // 2) If Word/Outlook pasted HTML, remove file:/// images
+    const html = cb.getData('text/html');
+    if (html && /src=["']file:\/\//i.test(html)) {
+      e.preventDefault();
+
+      // Remove <img ... src="file://..."> entirely
+      const cleaned = html.replace(/<img\b[^>]*\bsrc=["']file:\/\/\/?[^"']*["'][^>]*>/gi, '');
+
+      // Insert cleaned HTML
+      saveCursorPosition(editorArea);
+      restoreCursorPosition();
+      document.execCommand('insertHTML', false, cleaned);
+
+      showToast('error', 'Some pasted images were local (file://) and were removed. Please upload them.');
+      showInlineError('error', 'Some pasted images were local (file://) and were removed. Please upload them.');
+
+    }
+  });
+}
+
 
 document.getElementById('previewCloseBtn')?.addEventListener('click', closePreviewModal);
 document.getElementById('previewCloseBtn2')?.addEventListener('click', closePreviewModal);
@@ -1558,6 +1702,36 @@ document.getElementById('btnHelp')?.addEventListener('click', function(){
             }
         }
 
+        function showInlineError(msg, anchorId = 'btnSave'){
+            const box = document.getElementById('btnInlineError');
+            const txt = document.getElementById('btnInlineErrorMsg');
+            if (!box || !txt) return;
+
+            txt.textContent = msg || 'Error';
+            box.style.display = 'flex';
+
+            // Optional: also add a tooltip on the anchor button
+            const anchor = document.getElementById(anchorId);
+            if (anchor){
+                anchor.setAttribute('title', msg || 'Error');
+                anchor.setAttribute('aria-invalid', 'true');
+            }
+            }
+
+            function clearInlineError(anchorId = 'btnSave'){
+            const box = document.getElementById('btnInlineError');
+            const txt = document.getElementById('btnInlineErrorMsg');
+            if (txt) txt.textContent = '';
+            if (box) box.style.display = 'none';
+
+            const anchor = document.getElementById(anchorId);
+            if (anchor){
+                anchor.removeAttribute('title');
+                anchor.removeAttribute('aria-invalid');
+            }
+            }
+
+
         function esc(s){ 
             var m={'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'};
             return String(s||'').replace(/[&<>"']/g, function(c){ return m[c]; }); 
@@ -1579,6 +1753,37 @@ document.getElementById('btnHelp')?.addEventListener('click', function(){
             // Return text content for preview, or sanitized HTML for editing
             return d.textContent || ''; 
         }
+
+        function sanitizePreviewHtml(html){
+            if (!html) return '';
+
+            const d = document.createElement('div');
+            d.innerHTML = html;
+
+            // remove dangerous / useless tags
+            d.querySelectorAll('script,style,head,meta,link,title,iframe,object,embed').forEach(el => el.remove());
+
+            // remove inline event handlers: onclick, onerror, etc.
+            d.querySelectorAll('*').forEach(el => {
+                [...el.attributes].forEach(attr => {
+                if (/^on/i.test(attr.name)) el.removeAttribute(attr.name);
+                });
+            });
+
+            // ensure imgs are visible & responsive in preview
+            d.querySelectorAll('img').forEach(img => {
+                img.removeAttribute('srcset');
+                img.removeAttribute('sizes');
+                img.style.maxWidth = '100%';
+                img.style.height = 'auto';
+                img.style.display = 'block';
+                img.style.margin = '6px 0';
+                img.style.borderRadius = '8px';
+            });
+
+            return d.innerHTML;
+            }
+
 
         // Function to truncate text to 3-4 words
         function truncateText(text, maxWords = 4) {
@@ -1718,51 +1923,65 @@ document.getElementById('btnHelp')?.addEventListener('click', function(){
 
   function renderGrid(){
     if (!mpList.length){
-      mpEmpty.style.display = 'flex';
-      mpGrid.innerHTML = '';
-      return;
+        mpEmpty.style.display = 'flex';
+        mpGrid.innerHTML = '';
+        return;
     }
     mpEmpty.style.display = 'none';
+
     mpGrid.innerHTML = mpList.map(item => {
-      const thumb = item.category === 'image' ? item.url : iconFor(item.category);
-      return `
-      <div class="mp-card" data-id="${item.id}" data-uuid="${item.uuid}">
+        return `
+        <div class="mp-card" data-id="${item.id}" data-uuid="${item.uuid}">
         ${item.category === 'image'
-          ? `<img class="mp-thumb" src="${item.url}" alt="">`
-          : `<div class="mp-thumb" style="display:flex;align-items:center;justify-content:center;font-size:32px">${iconFor(item.category)}</div>`
+            ? `<img class="mp-thumb" src="${item.url}" alt="">`
+            : `<div class="mp-thumb" style="display:flex;align-items:center;justify-content:center;font-size:32px">${iconFor(item.category)}</div>`
         }
         <div class="mp-meta">
-          <div class="mp-title-sm" title="${esc(item.title||'')}">${esc(item.title|| (item.ext?('.'+item.ext):' (untitled)'))}</div>
-          <div class="d-flex align-items-center gap-2">
+            <div class="mp-title-sm" title="${esc(item.title||'')}">${esc(item.title|| (item.ext?('.'+item.ext):' (untitled)'))}</div>
+            <div class="d-flex align-items-center gap-2">
             ${item.usage_tag ? `<span class="mp-tag">${esc(item.usage_tag)}</span>`:''}
             <button class="mp-del" title="Delete" data-del="${item.id}"><i class="fa fa-trash"></i></button>
-          </div>
+            </div>
         </div>
-      </div>`;
+        </div>`;
     }).join('');
+
+    // ✅ re-apply highlight if mpSel exists (after search/refresh)
+    if (mpSel) {
+        mpGrid.querySelectorAll('.mp-card').forEach(el => el.classList.remove('selected'));
+        const selEl = mpGrid.querySelector(`.mp-card[data-id="${mpSel.id}"]`);
+        if (selEl) selEl.classList.add('selected');
+    }
 
     // Select/Insert on click
     mpGrid.querySelectorAll('.mp-card').forEach(card => {
-      card.addEventListener('click', async (e) => {
+        card.addEventListener('click', async (e) => {
         // delete?
         const delBtn = e.target.closest('[data-del]');
         if (delBtn){
-          e.stopPropagation();
-          await deleteMedia(delBtn.getAttribute('data-del'));
-          return;
+            e.stopPropagation();
+            await deleteMedia(delBtn.getAttribute('data-del'));
+            return;
         }
+
         const id = card.getAttribute('data-id');
         const row = mpList.find(x => String(x.id) === String(id));
         if (!row) return;
 
+        // ✅ remove selection from all, add to clicked
+        mpGrid.querySelectorAll('.mp-card').forEach(el => el.classList.remove('selected'));
+        card.classList.add('selected');
+
         // select + enable insert
-        mpSel = row; setSelectedInfo();
+        mpSel = row;
+        setSelectedInfo();
 
         // UX: single click = select; double-click = insert immediately
         if (e.detail >= 2) insertSelected();
-      });
+        });
     });
-  }
+    }
+
 
   function setSelectedInfo(){
     if (!mpSel){ mpSelected.textContent = 'Selected: —'; mpInsert.disabled = true; return; }
@@ -1784,8 +2003,21 @@ async function deleteMedia(id){
   const resp = await apiFetch('/api/media/' + encodeURIComponent(id) + '?hard=true', { method:'DELETE' });
   if (!resp.ok){ handleApiFailure('Delete failed', resp); return; }
   showToast('success', 'Deleted permanently');
+  showInlineError('success', 'Deleted permanently');
+
   await loadLibrary();
 }
+
+        function updateSelectedCardUI(){
+        if (!mpGrid) return;
+        mpGrid.querySelectorAll('.mp-card').forEach(el => el.classList.remove('selected'));
+
+        if (!mpSel) return;
+
+        const selEl = mpGrid.querySelector(`.mp-card[data-id="${mpSel.id}"]`);
+        if (selEl) selEl.classList.add('selected');
+        }
+
 
 
   function insertSelected(){
@@ -1853,7 +2085,13 @@ async function deleteMedia(id){
 
   mpUploadBtn.addEventListener('click', async ()=>{
     const f = mpFileObj;
-    if (!f){ showToast('error', 'Choose a file'); return; }
+    if (!f){
+        const msg = 'Choose a file';
+        showToast('error', msg);
+        showInlineError(msg, 'mpUploadBtn');   // inline error + tooltip on Upload
+        return;
+}
+
 
     // Prepare form-data
     const fd = new FormData();
@@ -1874,6 +2112,8 @@ async function deleteMedia(id){
     if (!created){ showToast('error','Server returned no row'); return; }
 
     showToast('success','Uploaded');
+    showInlineError('success','Uploaded');
+
     clearPreview();
     // refresh library, preselect the uploaded item
     await loadLibrary();
@@ -1900,14 +2140,20 @@ async function deleteMedia(id){
         function handleApiFailure(prefix, resp){
             if (resp.looksHtml){
                 showToast('error', prefix + ': Session expired or invalid response');
+                showInlineError('error', prefix + ': Session expired or invalid response');
+
                 if (resp.status === 401 || resp.status === 419) {
                     setTimeout(function(){ location.href = '/'; }, 2000);
                 }
             } else if (resp.isJson){
                 const j = resp.data || {};
                 showToast('error', j.message || j.error || (prefix + ': HTTP ' + resp.status));
+                showInlineError('error', j.message || j.error || (prefix + ': HTTP ' + resp.status));
+
             } else {
                 showToast('error', prefix + ': HTTP ' + resp.status);
+                showInlineError('error', prefix + ': HTTP ' + resp.status);
+
             }
         }
 
@@ -1962,18 +2208,28 @@ async function deleteMedia(id){
         // Function to save cursor position
         function saveCursorPosition(editorArea) {
             currentEditor = editorArea;
-            currentSelection = window.getSelection().getRangeAt(0);
+
+            const sel = window.getSelection();
+            if (!sel || sel.rangeCount === 0) {
+                currentSelection = null;
+                return;
+            }
+            currentSelection = sel.getRangeAt(0).cloneRange();
         }
+
 
         // Function to restore cursor position
         function restoreCursorPosition() {
-            if (currentEditor && currentSelection) {
-                var sel = window.getSelection();
-                sel.removeAllRanges();
-                sel.addRange(currentSelection);
-                currentEditor.focus();
-            }
+            if (!currentEditor || !currentSelection) return;
+
+            const sel = window.getSelection();
+            if (!sel) return;
+
+            sel.removeAllRanges();
+            sel.addRange(currentSelection);
+            currentEditor.focus();
         }
+
 
         // Function to switch between visual and code editor
         function setupEditorTabs(editorWrapper) {
@@ -2093,6 +2349,8 @@ async function deleteMedia(id){
                         document.execCommand('insertHTML', false, imgHtml);
                         currentEditor.focus();
                         showToast('error', 'Image inserted but may not load correctly');
+                        showInlineError('error', 'Image inserted but may not load correctly');
+
                         
                         // Add resize handles even to failed images
                         setTimeout(() => {
@@ -2264,8 +2522,17 @@ async function deleteMedia(id){
         // Initialize image resizing for existing images when editors are focused
         function initImageResizing() {
             document.querySelectorAll('.rte-area').forEach(area => {
+
+                // ✅ bind paste upload ONCE
+                if (!area.dataset.pasteBound) {
+                    attachPasteImageUpload(area, 'question');
+                    area.dataset.pasteBound = '1';
+                }
+
+                // ✅ click only saves cursor + enables resizing
                 area.addEventListener('click', function() {
-                    // Add resizable functionality to all images in this editor
+                    saveCursorPosition(this);
+
                     const images = this.querySelectorAll('img');
                     images.forEach(img => {
                         makeImageResizable(img);
@@ -2273,6 +2540,7 @@ async function deleteMedia(id){
                 });
             });
         }
+
 
         function makeEditor(root){
             if (!root) return;
@@ -2485,6 +2753,8 @@ async function deleteMedia(id){
                     wrap.remove();
                 } else {
                     showToast('error', 'At least one answer is required');
+                    showInlineError('error', 'At least one answer is required');
+
                 }
             });
 
@@ -2680,6 +2950,8 @@ li.innerHTML = `
                     }
                     
                     showToast('success', 'Question deleted');
+                    showInlineError('success', 'Question deleted');
+
                     loadList(); 
                     resetForm();
                 });
@@ -2737,10 +3009,12 @@ typesetMath(box);
             if (qType) qType.value = 'multiple_choice';
 
             if (qType) qType.disabled = false;
-var qDifficulty = document.getElementById('qDifficulty');
-if (qDifficulty) qDifficulty.value = 'medium';
+            var qDifficulty = document.getElementById('qDifficulty');
+            if (qDifficulty) qDifficulty.value = 'medium';
 
-            
+            var qGroupTitle = document.getElementById('qGroupTitle');
+            if (qGroupTitle) qGroupTitle.value = '';
+
             var qMarks = document.getElementById('qMarks');
             if (qMarks) qMarks.value = '1';
             
@@ -2832,95 +3106,92 @@ if (qDifficulty) qDifficulty.value = 'medium';
           return (anySingleFlag || correctCount === 1) ? 'single_choice' : 'multiple_choice';
         }
 
-function renderQuestionPreview(q){
-    if (!previewTitle) return;
-    const uiType = guessUiType(q);
-    const diff   = (q.question_difficulty || 'medium').toLowerCase();
-    const typeMeta = typeMetaForList(q);
+        function renderQuestionPreview(q){
+            if (!previewTitle) return;
+            const uiType = guessUiType(q);
+            const diff   = (q.question_difficulty || 'medium').toLowerCase();
+            const typeMeta = typeMetaForList(q);
 
-    // chips
-    previewChips.innerHTML = `
-        <span class="preview-chip diff-${diff}">${diff.charAt(0).toUpperCase()+diff.slice(1)}</span>
-        <span class="preview-chip">${typeMeta.label}</span>
-        <span class="preview-chip">${q.question_mark || 1} mark${(q.question_mark||1) > 1 ? 's':''}</span>
-    `;
+            // chips
+            previewChips.innerHTML = `
+                <span class="preview-chip diff-${diff}">${diff.charAt(0).toUpperCase()+diff.slice(1)}</span>
+                <span class="preview-chip">${typeMeta.label}</span>
+                <span class="preview-chip">${q.question_mark || 1} mark${(q.question_mark||1) > 1 ? 's':''}</span>
+            `;
 
-    // ---- TITLE: strip HTML so TeX is contiguous ----
-    const rawTitle   = q.question_title || 'Untitled question';
-    const plainTitle = stripHtml(rawTitle); // remove <p>, <br>, etc.
-    let   titleHtml  = plainTitle;
+            // ✅ TITLE: keep HTML (so images show) + sanitize
+            let titleHtml = sanitizePreviewHtml(q.question_title || 'Untitled question');
 
-    if (uiType === 'fill_in_the_blank') {
-        // turn {dash} tokens into blanks
-        titleHtml = plainTitle.replace(/{dash}/g, '<span class="preview-blank"></span>');
-    }
-    previewTitle.innerHTML = titleHtml;
+            // fill blank: convert {dash} tokens to blanks
+            if (uiType === 'fill_in_the_blank') {
+                titleHtml = titleHtml.replace(/{dash}/g, '<span class="preview-blank"></span>');
+            }
+            previewTitle.innerHTML = titleHtml;
 
-    // ---- DESCRIPTION (also flattened so TeX works) ----
-    const descPlain = stripHtml(q.question_description || '');
-    if (descPlain.trim().length){
-        previewDesc.style.display = 'block';
-        previewDesc.innerHTML = esc(descPlain);
-    } else {
-        previewDesc.style.display = 'none';
-        previewDesc.innerHTML = '';
-    }
+            // ✅ DESCRIPTION: keep HTML + sanitize
+            const descHtml = sanitizePreviewHtml(q.question_description || '');
+            if (descHtml.replace(/<[^>]*>/g,'').trim().length){
+                previewDesc.style.display = 'block';
+                previewDesc.innerHTML = descHtml;
+            } else {
+                previewDesc.style.display = 'none';
+                previewDesc.innerHTML = '';
+            }
 
-    // ---- OPTIONS ----
-    previewOptions.innerHTML = '';
-    const answers = Array.isArray(q.answers) ? q.answers.slice() : [];
-    answers.sort((a,b) => (a.answer_order||0) - (b.answer_order||0));
+            // ✅ OPTIONS: keep HTML + sanitize (so option images show)
+            previewOptions.innerHTML = '';
+            const answers = Array.isArray(q.answers) ? q.answers.slice() : [];
+            answers.sort((a,b) => (a.answer_order||0) - (b.answer_order||0));
 
-    if (uiType === 'fill_in_the_blank') {
-        if (answers.length){
-            const heading = document.createElement('div');
-            heading.className = 'preview-extra-title';
-            heading.textContent = 'Correct answers';
-            previewOptions.appendChild(heading);
+            if (uiType === 'fill_in_the_blank') {
+                if (answers.length){
+                const heading = document.createElement('div');
+                heading.className = 'preview-extra-title';
+                heading.textContent = 'Correct answers';
+                previewOptions.appendChild(heading);
 
-            answers.forEach((ans, idx) => {
-                const text = stripHtml(ans.answer_title || '');
-                const wrap = document.createElement('div');
-                wrap.className = 'preview-option correct';
-                wrap.innerHTML = `
+                answers.forEach((ans, idx) => {
+                    const wrap = document.createElement('div');
+                    wrap.className = 'preview-option correct';
+                    wrap.innerHTML = `
                     <div class="preview-option-label">${idx+1}</div>
-                    <div class="preview-option-content">${esc(text)}</div>
+                    <div class="preview-option-content">${sanitizePreviewHtml(ans.answer_title || '')}</div>
+                    `;
+                    previewOptions.appendChild(wrap);
+                });
+                }
+            } else {
+                const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+                answers.forEach((ans, idx) => {
+                const correct = !!ans.is_correct;
+                const wrap    = document.createElement('div');
+                const letter  = letters[idx] || '?';
+
+                wrap.className = 'preview-option' + (correct ? ' correct' : '');
+                wrap.innerHTML = `
+                    <div class="preview-option-label">${letter}</div>
+                    <div class="preview-option-content">${sanitizePreviewHtml(ans.answer_title || '')}</div>
                 `;
                 previewOptions.appendChild(wrap);
-            });
-        }
-    } else {
-        const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-        answers.forEach((ans, idx) => {
-            const text    = stripHtml(ans.answer_title || '');
-            const correct = !!ans.is_correct;
-            const wrap    = document.createElement('div');
-            const letter  = letters[idx] || '?';
+                });
+            }
 
-            wrap.className = 'preview-option' + (correct ? ' correct' : '');
-            wrap.innerHTML = `
-                <div class="preview-option-label">${letter}</div>
-                <div class="preview-option-content">${esc(text)}</div>
-            `;
-            previewOptions.appendChild(wrap);
-        });
-    }
+            // ✅ EXPLANATION: keep HTML + sanitize
+            const explHtml = sanitizePreviewHtml(q.answer_explanation || '');
+            if (explHtml.replace(/<[^>]*>/g,'').trim().length){
+                previewExtra.innerHTML = `
+                <div class="preview-extra-title">Explanation</div>
+                <div>${explHtml}</div>
+                `;
+            } else {
+                previewExtra.innerHTML = '';
+            }
 
-    // ---- EXPLANATION ----
-    const explPlain = stripHtml(q.answer_explanation || '');
-    if (explPlain.trim().length){
-        previewExtra.innerHTML = `
-            <div class="preview-extra-title">Explanation</div>
-            <div>${esc(explPlain)}</div>
-        `;
-    } else {
-        previewExtra.innerHTML = '';
-    }
+            // typeset math after inserting HTML
+            const previewRoot = document.getElementById('previewOverlay');
+            typesetMath(previewRoot);
+            }
 
-    // finally typeset the whole modal (header + body)
-    const previewRoot = document.getElementById('previewOverlay');
-    typesetMath(previewRoot);
-}
 
 
 async function viewQuestion(id){
@@ -2938,6 +3209,8 @@ async function viewQuestion(id){
     const q = resp.isJson ? (resp.data.data || resp.data) : null;
     if (!q){
         showToast('error', 'Failed to load question');
+        showInlineError('error', 'Failed to load question');
+
         return;
     }
     renderQuestionPreview(q);
@@ -3010,6 +3283,8 @@ function typeMetaForList(q){
             var q = resp.isJson ? (resp.data.data || resp.data) : null;
             if(!q){ 
                 showToast('error', 'Failed to load question'); 
+                showInlineError('error', 'Failed to load question'); 
+
                 return; 
             }
 
@@ -3026,6 +3301,9 @@ function typeMetaForList(q){
             }
              if (qTypeEl) qTypeEl.disabled = true;
 
+             var qGroupTitle = document.getElementById('qGroupTitle');
+             if (qGroupTitle) qGroupTitle.value = (q.question_group_title || q.group_title || '');
+
             var qType = document.getElementById('qType');
             if (qType) qType.value = uiType;
             
@@ -3033,9 +3311,8 @@ function typeMetaForList(q){
             if (qMarks) qMarks.value = (q.question_mark != null ? q.question_mark : 1);
 
             var qDifficulty = document.getElementById('qDifficulty');
-if (qDifficulty) qDifficulty.value = (q.question_difficulty || 'medium');
+            if (qDifficulty) qDifficulty.value = (q.question_difficulty || 'medium');
 
-            
             var qOrder = document.getElementById('qOrder');
             if (qOrder) qOrder.value = (q.question_order != null ? q.question_order : 1);
 
@@ -3108,6 +3385,8 @@ if (qDifficulty) qDifficulty.value = (q.question_difficulty || 'medium');
         }
         
         async function submitForm(){
+            clearInlineError('btnSave');
+
             // Get content from visual editors (code editors are synced automatically)
             var edTitleArea = document.querySelector('#edTitle .rte-area');
             if (!edTitleArea) return;
@@ -3115,9 +3394,12 @@ if (qDifficulty) qDifficulty.value = (q.question_difficulty || 'medium');
             var titleHTML = edTitleArea.innerHTML.trim();
             
             if (!stripHtml(titleHTML).trim()){
-                showToast('error', 'Please enter question text');
+                const msg = 'Please enter question text';
+                showToast('error', msg);
+                showInlineError(msg, 'btnSave');
                 return;
             }
+
 
             var qType = document.getElementById('qType');
             if (!qType) return;
@@ -3135,11 +3417,14 @@ if (qDifficulty) qDifficulty.value = (q.question_difficulty || 'medium');
                 
                 if (dashCount === 0) {
                     showToast('error', 'For Fill in the Blank questions, add at least one {dash} placeholder using the "Add Dash" button');
+                    showInlineError('error', 'For Fill in the Blank questions, add at least one {dash} placeholder using the "Add Dash" button');
                     return;
                 }
                 
                 if (fillBlankAnswers.length !== dashCount) {
                     showToast('error', `Please provide answers for all ${dashCount} blank(s)`);
+                    showInlineError('error', `Please provide answers for all ${dashCount} blank(s)`);
+
                     return;
                 }
                 
@@ -3168,6 +3453,9 @@ if (qDifficulty) qDifficulty.value = (q.question_difficulty || 'medium');
 
                 if (!answers.length){
                     showToast('error', 'Add at least one answer option');
+                    showInlineError('error', 'Add at least one answer option');
+
+                    
                     return;
                 }
                 
@@ -3176,10 +3464,14 @@ if (qDifficulty) qDifficulty.value = (q.question_difficulty || 'medium');
                     answers.forEach(function(a){ if(a.is_correct===1) ccount++; });
                     if (ccount !== 1){ 
                         showToast('error', 'Select exactly one correct answer');
+                        showInlineError('error', 'Select exactly one correct answer');
+
                         return; 
                     }
                 } else if (!hasCorrect){
                     showToast('error', 'Mark at least one correct answer');
+                    showInlineError('error', 'Mark at least one correct answer');
+
                     return;
                 }
             }
@@ -3189,18 +3481,23 @@ if (qDifficulty) qDifficulty.value = (q.question_difficulty || 'medium');
 
             var edExplainArea = document.querySelector('#edExplain .rte-area');
             var explHTML = edExplainArea ? (edExplainArea.innerHTML || '') : '';
+            var groupTitle = (document.getElementById('qGroupTitle')?.value || '').trim();
+
 
             var body = {
-  quiz_id: quizId,
-  question_title: titleHTML,
-  question_description: descHTML,
-  answer_explanation: explHTML,
-  question_type: type,
-  question_mark: Number(document.getElementById('qMarks')?.value || 1),
-  question_order: Number(document.getElementById('qOrder')?.value || 1),
-  question_difficulty: (document.getElementById('qDifficulty')?.value || 'medium'),
-  answers: answers
-};
+                quiz_id: quizId,
+                question_group_title: groupTitle || null,
+                group_title: groupTitle || null, // optional
+                question_title: titleHTML,
+                question_description: descHTML,
+                answer_explanation: explHTML,
+                question_type: type,
+                question_mark: Number(document.getElementById('qMarks')?.value || 1),
+                question_order: Number(document.getElementById('qOrder')?.value || 1),
+                question_difficulty: (document.getElementById('qDifficulty')?.value || 'medium'),
+                answers: answers
+                };
+
 
 
             var btn = document.getElementById('btnSave');
@@ -3223,6 +3520,7 @@ if (qDifficulty) qDifficulty.value = (q.question_difficulty || 'medium');
                 handleApiFailure('Save failed', resp); 
             } else { 
                 showToast('success', editingId ? 'Question updated' : 'Question created'); 
+                showInlineError('success', editingId ? 'Question updated' : 'Question created');
                 loadList(); 
                 resetForm(); 
             }
@@ -3256,6 +3554,8 @@ if (qDifficulty) qDifficulty.value = (q.question_difficulty || 'medium');
                 }
                 
                 showToast('success', 'Question deleted');
+                showInlineError('success', 'Question deleted');
+
                 loadList(); 
                 resetForm();
             });
