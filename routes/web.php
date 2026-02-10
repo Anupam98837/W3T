@@ -210,3 +210,7 @@ Route::get('/assignments/{assignment}/students/{student}/documents', function (s
 */
 
 Route::get('/activity-logs', fn () => view('modules.userActivityLogs.userActivityLogsView'));
+
+Route::get('/meta-tags/manage', function () {
+    return view('pages.users.pages.metaTags.manageMetaTags');
+});

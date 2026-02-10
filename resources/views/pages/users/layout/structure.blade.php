@@ -636,6 +636,11 @@
           </div>
         </div>
 
+                      <!-- Meta Tags -->
+        <a href="/meta-tags/manage" class="w3-link">
+          <i class="fa-solid fa-tags"></i><span>Meta Tags</span>
+        </a>
+
       </nav>
 
       <!-- OPERATIONS -->
