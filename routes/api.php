@@ -39,6 +39,7 @@ use App\Http\Controllers\API\ForgotPasswordController;
 use App\Http\Controllers\API\BatchCourseModuleController;
 use App\Http\Controllers\API\UserActivityLogsController;
 use App\Http\Controllers\API\SessionTokenController;
+use App\Http\Controllers\API\MetaTagController;
 
 
 // Auth Routes
@@ -830,3 +831,45 @@ Route::middleware('checkRole')->prefix('batch-course-modules')->group(function (
 
 
 Route::middleware('checkRole')->get('/activity-logs', [UserActivityLogsController::class, 'index']);
+
+
+/*
+|--------------------------------------------------------------------------
+| Meta Tags Routes
+|--------------------------------------------------------------------------
+*/
+
+// Read-only (authenticated) - optional, keep if you want admin screens to load via auth
+Route::middleware('checkRole')->group(function () {
+    Route::get('/meta-tags',                 [MetaTagController::class, 'index']);
+    Route::get('/meta-tags/trash',           [MetaTagController::class, 'trash']);
+    Route::get('/meta-tags/resolve',         [MetaTagController::class, 'resolve']);
+
+    Route::get('/meta-tags/{identifier}',    [MetaTagController::class, 'show'])
+        ->where('identifier', '[0-9]+|[0-9a-fA-F\-]{36}');
+});
+
+// Modify (authenticated role-based)
+Route::middleware('checkRole:admin,super_admin,director')->group(function () {
+    Route::post('/meta-tags', [MetaTagController::class, 'store']);
+
+    Route::post('/meta-tags/bulk', [MetaTagController::class, 'bulk']);
+
+    Route::match(['put','patch'], '/meta-tags/{identifier}', [MetaTagController::class, 'update'])
+        ->where('identifier', '[0-9]+|[0-9a-fA-F\-]{36}');
+
+    Route::delete('/meta-tags/{identifier}', [MetaTagController::class, 'destroy'])
+        ->where('identifier', '[0-9]+|[0-9a-fA-F\-]{36}');
+
+    Route::post('/meta-tags/{identifier}/restore', [MetaTagController::class, 'restore'])
+        ->where('identifier', '[0-9]+|[0-9a-fA-F\-]{36}');
+
+    Route::delete('/meta-tags/{identifier}/force', [MetaTagController::class, 'forceDelete'])
+        ->where('identifier', '[0-9]+|[0-9a-fA-F\-]{36}');
+});
+
+// Public (no auth) - website usage
+Route::prefix('public')->group(function () {
+    // recommended: pass ?page_link=/about or full URL, etc.
+    Route::get('/meta-tags', [MetaTagController::class, 'publicIndex']);
+});

@@ -347,63 +347,64 @@
     html.theme-dark .w3-sidebar-scroll::-webkit-scrollbar { width: 6px !important; }
     html.theme-dark .w3-sidebar-scroll::-webkit-scrollbar-track { background: #1e293b !important; }
     html.theme-dark .w3-sidebar-scroll::-webkit-scrollbar-thumb { background: #475569 !important; }
+
     /* Admin user pill button (isolated from .btn-primary conflicts) */
-.admin-pill-btn{
-  background: var(--primary-color);
-  border: 1px solid var(--primary-color);
-  color:#fff;
-}
-.admin-pill-btn:hover{
-  background: var(--secondary-color);
-  border-color: var(--secondary-color);
-  color:#fff;
-}
-.admin-pill-btn:focus{
-  box-shadow: 0 0 0 .2rem rgba(158,54,58,.25);
-}
-/* User dropdown (isolated classes to avoid conflicts) */
-.admin-user-menu{
-  border-radius: 14px;
-  border: 1px solid var(--line-strong);
-  box-shadow: var(--shadow-2);
-  min-width: 220px;
-  padding: .4rem;
-}
+    .admin-pill-btn{
+      background: var(--primary-color);
+      border: 1px solid var(--primary-color);
+      color:#fff;
+    }
+    .admin-pill-btn:hover{
+      background: var(--secondary-color);
+      border-color: var(--secondary-color);
+      color:#fff;
+    }
+    .admin-pill-btn:focus{
+      box-shadow: 0 0 0 .2rem rgba(158,54,58,.25);
+    }
 
-.admin-user-menu__header{
-  font-size: .78rem;
-  color: var(--muted);
-  padding: .35rem .75rem;
-}
+    /* User dropdown (isolated classes to avoid conflicts) */
+    .admin-user-menu{
+      border-radius: 14px;
+      border: 1px solid var(--line-strong);
+      box-shadow: var(--shadow-2);
+      min-width: 220px;
+      padding: .4rem;
+    }
 
-.admin-user-menu__item{
-  border-radius: 10px;
-  padding: .55rem .75rem;
-}
+    .admin-user-menu__header{
+      font-size: .78rem;
+      color: var(--muted);
+      padding: .35rem .75rem;
+    }
 
-.admin-user-menu__item:hover,
-.admin-user-menu__item:focus{
-  background: rgba(201,75,80,.10);
-}
+    .admin-user-menu__item{
+      border-radius: 10px;
+      padding: .55rem .75rem;
+    }
 
-.admin-user-menu__divider{
-  margin: .35rem .4rem;
-}
+    .admin-user-menu__item:hover,
+    .admin-user-menu__item:focus{
+      background: rgba(201,75,80,.10);
+    }
 
-.admin-user-menu__item--danger{
-  color: var(--danger-color) !important;
-}
-.admin-user-menu__item--danger:hover{
-  background: rgba(220,53,69,.10);
-}
+    .admin-user-menu__divider{
+      margin: .35rem .4rem;
+    }
 
+    .admin-user-menu__item--danger{
+      color: var(--danger-color) !important;
+    }
+    .admin-user-menu__item--danger:hover{
+      background: rgba(220,53,69,.10);
+    }
   </style>
 </head>
 <body>
 
 <!-- ✅ BOOT LOADING OVERLAY (NEW) -->
 <div id="w3BootOverlay" aria-live="polite" aria-busy="true">
-    @include('partials.overlay')
+  @include('partials.overlay')
 </div>
 
 <!-- Sidebar -->
@@ -424,8 +425,6 @@
     </div>
     <nav class="w3-menu" aria-label="Overview">
       <a href="/dashboard" class="w3-link"><i class="fa-solid fa-gauge"></i><span>Dashboard</span></a>
-
-      <!-- ✅ Default for all users (NEW) -->
     </nav>
 
     <!-- ACADEMICS heading -->
@@ -434,10 +433,10 @@
       <div class="w3-section-rule"></div>
     </div>
     <nav id="defaultAcademicsMenu" class="w3-menu" aria-label="Academics (Default)">
-  <a href="/running-courses" class="w3-link">
-    <i class="fa-solid fa-person-chalkboard"></i><span>My Courses</span>
-  </a>
-</nav>
+      <a href="/running-courses" class="w3-link">
+        <i class="fa-solid fa-person-chalkboard"></i><span>My Courses</span>
+      </a>
+    </nav>
 
     <div id="allMenuWrap" style="display:none">
       <nav class="w3-menu" aria-label="Academics (All)">
@@ -637,6 +636,11 @@
           </div>
         </div>
 
+                      <!-- Meta Tags -->
+        <a href="/meta-tags/manage" class="w3-link">
+          <i class="fa-solid fa-tags"></i><span>Meta Tags</span>
+        </a>
+
       </nav>
 
       <!-- OPERATIONS -->
@@ -646,9 +650,9 @@
       </div>
       <nav class="w3-menu" aria-label="Operations (All)">
         <a href="/mailers/manage" class="w3-link"><i class="fa-solid fa-gear"></i><span>Mailer</span></a>
-         <a href="/activity-logs" class="w3-link" id="activityLogsLink">
-    <i class="fa-solid fa-clipboard-list"></i><span>Activity Logs</span>
-  </a>
+        <a href="/activity-logs" class="w3-link" id="activityLogsLink">
+          <i class="fa-solid fa-clipboard-list"></i><span>Activity Logs</span>
+        </a>
       </nav>
     </div>
 
@@ -666,12 +670,10 @@
       </div>
     </div>
 
-
   </div>
 
   <div class="w3-sidebar-foot">
     <a href="/profile" class="w3-link"><i class="fa-regular fa-circle-user"></i><span>Profile</span></a>
-    {{-- <a href="/settings" class="w3-link"><i class="fa fa-gear"></i><span>Settings</span></a> --}}
 
     <a href="#" id="logoutBtnSidebar" class="w3-link" style="padding:8px 10px">
       <i class="fa fa-right-from-bracket"></i><span>Logout</span>
@@ -719,36 +721,31 @@
       </div>
 
       <div class="dropdown d-none d-lg-block">
-       <a href="#"
-   class="btn admin-pill-btn rounded-pill d-flex align-items-center gap-2 px-3"
-   id="userMenu" data-bs-toggle="dropdown" aria-expanded="false">
-  <i class="fa-regular fa-user"></i>
-  <span id="userRoleLabel" class="d-none d-xl-inline">Admin</span>
-</a>
-<ul class="dropdown-menu dropdown-menu-end admin-user-menu">
-  <li class="dropdown-header admin-user-menu__header">Account</li>
-
-  <!-- ✅ default routes -->
-  <li>
-    <a class="dropdown-item admin-user-menu__item" href="/profile">
-      <i class="fa fa-id-badge me-2"></i>Profile
-    </a>
-  </li>
-  <li>
-    <a class="dropdown-item admin-user-menu__item" href="/settings">
-      <i class="fa fa-gear me-2"></i>Settings
-    </a>
-  </li>
-
-  <li><hr class="dropdown-divider admin-user-menu__divider"></li>
-
-  <li>
-    <a class="dropdown-item admin-user-menu__item admin-user-menu__item--danger" href="#" id="logoutBtn">
-      <i class="fa fa-right-from-bracket me-2"></i>Logout
-    </a>
-  </li>
-</ul>
-
+        <a href="#"
+           class="btn admin-pill-btn rounded-pill d-flex align-items-center gap-2 px-3"
+           id="userMenu" data-bs-toggle="dropdown" aria-expanded="false">
+          <i class="fa-regular fa-user"></i>
+          <span id="userRoleLabel" class="d-none d-xl-inline">Admin</span>
+        </a>
+        <ul class="dropdown-menu dropdown-menu-end admin-user-menu">
+          <li class="dropdown-header admin-user-menu__header">Account</li>
+          <li>
+            <a class="dropdown-item admin-user-menu__item" href="/profile">
+              <i class="fa fa-id-badge me-2"></i>Profile
+            </a>
+          </li>
+          <li>
+            <a class="dropdown-item admin-user-menu__item" href="/settings">
+              <i class="fa fa-gear me-2"></i>Settings
+            </a>
+          </li>
+          <li><hr class="dropdown-divider admin-user-menu__divider"></li>
+          <li>
+            <a class="dropdown-item admin-user-menu__item admin-user-menu__item--danger" href="#" id="logoutBtn">
+              <i class="fa fa-right-from-bracket me-2"></i>Logout
+            </a>
+          </li>
+        </ul>
       </div>
     </div>
   </div>
@@ -775,10 +772,19 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnTheme = document.getElementById('btnTheme');
   const themeIcon = document.getElementById('themeIcon');
 
-  // ✅ overlay helpers (NEW)
+  // ✅ overlay helpers
   const bootOverlay = document.getElementById('w3BootOverlay');
-  const showBoot = () => { try{ bootOverlay?.classList.remove('w3-hide'); }catch(e){} };
+  const showBoot = () => { try{ bootOverlay?.classList.remove('w3-hide'); bootOverlay && (bootOverlay.style.display = 'flex'); }catch(e){} };
   const hideBoot = () => { try{ bootOverlay?.classList.add('w3-hide'); }catch(e){} };
+
+  // ✅ HARD hide: ensures Swal is visible (fixes infinite loading)
+  const hardHideBoot = () => {
+    try{
+      if (!bootOverlay) return;
+      bootOverlay.classList.add('w3-hide');
+      bootOverlay.style.display = 'none';
+    }catch(e){}
+  };
 
   // show immediately on DOM ready
   showBoot();
@@ -872,8 +878,6 @@ document.addEventListener('DOMContentLoaded', () => {
   const dynamicMenuWrap = document.getElementById('dynamicMenuWrap');
   const dynamicMenu = document.getElementById('dynamicMenu');
   const noAcademicAccess = document.getElementById('noAcademicAccess'); // ✅ NEW
-  const activityLogsLink = document.getElementById('activityLogsLink');
-
 
   function safeText(v){ return (v ?? '').toString(); }
 
@@ -929,7 +933,7 @@ document.addEventListener('DOMContentLoaded', () => {
   async function loadSidebarFromNewApi(){
     const token = getBearerToken();
 
-    // reset visibility (NEW)
+    // reset visibility
     noAcademicAccess && (noAcademicAccess.style.display = 'none');
 
     if (!token){
@@ -948,10 +952,16 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       });
 
+      // ✅ SESSION EXPIRED -> show swal instead of infinite loading
+      if (res.status === 401){
+        const j = await res.json().catch(() => null);
+        await showTokenExpiredSwal(j?.message || 'Your session has expired. Please login again.');
+        return;
+      }
+
       if (!res.ok){
         allMenuWrap && (allMenuWrap.style.display = 'none');
         dynamicMenuWrap && (dynamicMenuWrap.style.display = 'none');
-        // keep message hidden on API error
         noAcademicAccess && (noAcademicAccess.style.display = 'none');
         return;
       }
@@ -961,7 +971,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (data === 'all' || data?.tree === 'all') {
         allMenuWrap && (allMenuWrap.style.display = '');
         dynamicMenuWrap && (dynamicMenuWrap.style.display = 'none');
-        noAcademicAccess && (noAcademicAccess.style.display = 'none'); // ✅ NEW
+        noAcademicAccess && (noAcademicAccess.style.display = 'none');
         bindSubmenuToggles(allMenuWrap || document);
         return;
       }
@@ -970,10 +980,9 @@ document.addEventListener('DOMContentLoaded', () => {
       if (tree.length) {
         allMenuWrap && (allMenuWrap.style.display = 'none');
         dynamicMenuWrap && (dynamicMenuWrap.style.display = '');
-        noAcademicAccess && (noAcademicAccess.style.display = 'none'); // ✅ NEW
+        noAcademicAccess && (noAcademicAccess.style.display = 'none');
         renderDynamicTree(tree);
       } else {
-        // ✅ NEW: show message when user has no academics routes assigned
         allMenuWrap && (allMenuWrap.style.display = 'none');
         dynamicMenuWrap && (dynamicMenuWrap.style.display = 'none');
         noAcademicAccess && (noAcademicAccess.style.display = '');
@@ -982,7 +991,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }catch(e){
       allMenuWrap && (allMenuWrap.style.display = 'none');
       dynamicMenuWrap && (dynamicMenuWrap.style.display = 'none');
-      // keep message hidden on unexpected error
       noAcademicAccess && (noAcademicAccess.style.display = 'none');
     }
   }
@@ -997,67 +1005,77 @@ document.addEventListener('DOMContentLoaded', () => {
     try { localStorage.removeItem('token'); } catch(e){}
     try { localStorage.removeItem('role'); } catch(e){}
   }
-// ===== SESSION TOKEN CHECK (GLOBAL) =====================================
-const TOKEN_CHECK_API = '/api/auth/token/check'; // your API
-const AUTH_LOGIN_PAGE = '/'; // change to /login if needed
 
-async function showTokenExpiredSwal(message){
-  const msg = message || 'Token expired. Login again.';
+  // ===== SESSION TOKEN CHECK (GLOBAL) =====================================
+  const TOKEN_CHECK_API = '/api/auth/token/check';
+  const AUTH_LOGIN_PAGE = '/';
 
-  await Swal.fire({
-    icon: 'warning',
-    title: 'Session Expired',
-    text: msg,
-    confirmButtonText: 'Login',
-    allowOutsideClick: false,
-    allowEscapeKey: false
-  });
+  let __SESSION_EXPIRED_SHOWN__ = false;
 
-  clearAuthStorage();
-  window.location.replace(AUTH_LOGIN_PAGE);
-}
+  async function showTokenExpiredSwal(message){
+    if (__SESSION_EXPIRED_SHOWN__) return;
+    __SESSION_EXPIRED_SHOWN__ = true;
 
-// returns true if valid, false if expired/missing/invalid
-async function ensureSessionValid(){
-  const token = getBearerToken();
+    // ✅ FIX: remove loader so swal is visible/clickable
+    hardHideBoot();
 
-  // If no token => treat as not logged in
-  if (!token){
-    await showTokenExpiredSwal('Login required. Please login again.');
-    return false;
-  }
+    const msg = message || 'Token expired. Login again.';
 
-  try{
-    const res = await fetch(TOKEN_CHECK_API, {
-      method: 'GET',
-      headers: { 'Authorization': 'Bearer ' + token, 'Accept': 'application/json' }
+    await Swal.fire({
+      icon: 'warning',
+      title: 'Session Expired',
+      text: msg,
+      confirmButtonText: 'Login',
+      allowOutsideClick: false,
+      allowEscapeKey: false,
+      didOpen: () => {
+        // ensure swal is above everything
+        const c = document.querySelector('.swal2-container');
+        if (c) c.style.zIndex = '10000';
+      }
     });
 
-    if (res.status === 401){
-      const j = await res.json().catch(() => null);
-      await showTokenExpiredSwal(j?.message || 'Token expired. Login again.');
+    clearAuthStorage();
+    window.location.replace(AUTH_LOGIN_PAGE);
+  }
+
+  async function ensureSessionValid(){
+    const token = getBearerToken();
+
+    if (!token){
+      await showTokenExpiredSwal('Login required. Please login again.');
       return false;
     }
 
-    if (!res.ok){
-      // If API is down, don’t block page hard — just allow
-      console.warn('Token check failed:', res.status);
+    try{
+      const res = await fetch(TOKEN_CHECK_API, {
+        method: 'GET',
+        headers: { 'Authorization': 'Bearer ' + token, 'Accept': 'application/json' }
+      });
+
+      if (res.status === 401){
+        const j = await res.json().catch(() => null);
+        await showTokenExpiredSwal(j?.message || 'Token expired. Login again.');
+        return false;
+      }
+
+      if (!res.ok){
+        console.warn('Token check failed:', res.status);
+        return true;
+      }
+
+      const j = await res.json().catch(() => null);
+      if (j?.code === 'TOKEN_EXPIRED' || j?.code === 'SESSION_EXPIRED' || j?.success === false){
+        await showTokenExpiredSwal(j?.message || 'Token expired. Login again.');
+        return false;
+      }
+
+      return true;
+    }catch(e){
+      console.warn('Token check error:', e);
       return true;
     }
-
-    const j = await res.json().catch(() => null);
-    if (j?.code === 'TOKEN_EXPIRED' || j?.code === 'SESSION_EXPIRED'){
-      await showTokenExpiredSwal(j?.message || 'Token expired. Login again.');
-      return false;
-    }
-
-    return true;
-  }catch(e){
-    console.warn('Token check error:', e);
-    // network error -> allow page (optional behavior)
-    return true;
   }
-}
 
   async function performLogout(){
     const token = getBearerToken();
@@ -1105,19 +1123,25 @@ async function ensureSessionValid(){
 
   // ===== INIT (Overlay stays until everything ready)
   (async () => {
-  bindSubmenuToggles(document);
+    try{
+      bindSubmenuToggles(document);
 
-  // ✅ 1) check token first
-  const ok = await ensureSessionValid();
-  if (!ok) return; // don’t hide overlay; swal will handle + redirect
+      // 1) check token first
+      const ok = await ensureSessionValid();
+      if (!ok) return; // swal handles redirect
 
-  // ✅ 2) then load sidebar
-  await loadSidebarFromNewApi();
-  markActiveLinks();
+      // 2) then load sidebar
+      await loadSidebarFromNewApi();
+      markActiveLinks();
 
-  // ✅ 3) finally hide boot overlay
-  hideBoot();
-})();
+      // 3) finally hide boot overlay
+      hideBoot();
+    }catch(err){
+      console.error('INIT failed:', err);
+      // avoid infinite loading even on unexpected crash
+      hideBoot();
+    }
+  })();
 
 });
 </script>

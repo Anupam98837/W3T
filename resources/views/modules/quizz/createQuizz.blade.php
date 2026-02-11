@@ -1,5 +1,6 @@
 {{-- resources/views/modules/quizz/createQuizz.blade.php --}}
 @section('title','Create Quizz')
+<link rel="icon" type="image/png" sizes="32x32" href="{{ asset('assets/media/images/web/favicon.png') }}">
 
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"/>
 <link rel="stylesheet" href="{{ asset('assets/css/common/main.css') }}"/>
