@@ -359,260 +359,285 @@ class BatchCourseModuleController extends Controller
 
         return response()->json(['success' => true, 'data' => $row]);
     }
+/**
+ * POST /api/batch-course-modules/assign
+ * Handles BOTH assign (assigned:true) and unassign (assigned:false)
+ *
+ * ✅ Fix: prevents "Duplicate entry batch_id-course_module_id" when a soft-deleted
+ * row already exists (unique index ignores deleted_at). We RESTORE via upsert.
+ */
+public function assign(Request $r)
+{
+    $this->assertManageAccess($r);
+    [, $uid] = $this->actor($r);
 
-    /**
-     * POST /api/batch-course-modules/assign
-     * Handles BOTH assign (assigned:true) and unassign (assigned:false)
-     */
-    public function assign(Request $r)
-    {
-        $this->assertManageAccess($r);
-        [, $uid] = $this->actor($r);
+    $reqId = (string) Str::uuid();
+    $ip    = $r->ip();
 
-        $reqId = (string) Str::uuid();
-        $ip    = $r->ip();
+    Log::info('BatchCourseModule.assign:start', [
+        'req_id' => $reqId,
+        'ip' => $ip,
+        'actor_id' => $uid,
+        'payload_keys' => array_keys($r->all() ?? []),
+    ]);
 
-        Log::info('BatchCourseModule.assign:start', [
-            'req_id' => $reqId,
-            'ip' => $ip,
-            'actor_id' => $uid,
-            'payload_keys' => array_keys($r->all() ?? []),
-        ]);
+    $payload = $r->validate([
+        'batch_id'   => ['nullable','integer','required_without_all:batch_uuid,batch_key'],
+        'batch_uuid' => ['nullable','string','required_without_all:batch_id,batch_key'],
+        'batch_key'  => ['nullable','string','required_without_all:batch_id,batch_uuid'],
 
-        $payload = $r->validate([
-            'batch_id'   => ['nullable','integer','required_without_all:batch_uuid,batch_key'],
-            'batch_uuid' => ['nullable','string','required_without_all:batch_id,batch_key'],
-            'batch_key'  => ['nullable','string','required_without_all:batch_id,batch_uuid'],
+        'course_id'   => ['nullable','integer'],
+        'course_uuid' => ['nullable','string'],
 
-            'course_id'   => ['nullable','integer'],
-            'course_uuid' => ['nullable','string'],
+        'course_module_ids'   => ['nullable','array','min:1','required_without_all:course_module_id,course_module_uuid'],
+        'course_module_ids.*' => ['integer'],
 
-            'course_module_ids'   => ['nullable','array','min:1','required_without_all:course_module_id,course_module_uuid'],
-            'course_module_ids.*' => ['integer'],
+        'course_module_id'    => ['nullable','integer','required_without_all:course_module_ids,course_module_uuid'],
+        'course_module_uuid'  => ['nullable','string','required_without_all:course_module_ids,course_module_id'],
 
-            'course_module_id'    => ['nullable','integer','required_without_all:course_module_ids,course_module_uuid'],
-            'course_module_uuid'  => ['nullable','string','required_without_all:course_module_ids,course_module_id'],
+        'overwrite_existing'  => ['nullable', Rule::in([0,1,'0','1',true,false])],
 
-            'overwrite_existing'  => ['nullable', Rule::in([0,1,'0','1',true,false])],
+        'assigned'            => ['nullable', Rule::in([0,1,'0','1',true,false])],
+        'is_assigned'         => ['nullable', Rule::in([0,1,'0','1',true,false])],
+    ]);
 
-            'assigned'            => ['nullable', Rule::in([0,1,'0','1',true,false])],
-            'is_assigned'         => ['nullable', Rule::in([0,1,'0','1',true,false])],
-        ]);
+    // -------- Normalize modules into $ids --------
+    $ids = [];
 
-        // -------- Normalize modules into $ids --------
-        $ids = [];
+    if (!empty($payload['course_module_ids'])) {
+        $ids = $payload['course_module_ids'];
+    } elseif (!empty($payload['course_module_id'])) {
+        $ids = [(int)$payload['course_module_id']];
+    } elseif (!empty($payload['course_module_uuid'])) {
+        $mid = DB::table('course_modules')
+            ->whereNull('deleted_at')
+            ->where('uuid', $payload['course_module_uuid'])
+            ->value('id');
 
-        if (!empty($payload['course_module_ids'])) {
-            $ids = $payload['course_module_ids'];
-        } elseif (!empty($payload['course_module_id'])) {
-            $ids = [(int)$payload['course_module_id']];
-        } elseif (!empty($payload['course_module_uuid'])) {
-            $mid = DB::table('course_modules')
-                ->whereNull('deleted_at')
-                ->where('uuid', $payload['course_module_uuid'])
-                ->value('id');
-
-            if (!$mid) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'course_module_uuid not found',
-                ], 422);
-            }
-            $ids = [(int)$mid];
+        if (!$mid) {
+            return response()->json([
+                'success' => false,
+                'message' => 'course_module_uuid not found',
+            ], 422);
         }
+        $ids = [(int)$mid];
+    }
 
-        $ids = array_values(array_unique(array_map('intval', $ids)));
+    $ids = array_values(array_unique(array_map('intval', $ids)));
 
-        $batchId  = $this->resolveBatchIdFromRequest($r);
-        $courseId = $this->resolveCourseIdFromRequest($r, true);
+    $batchId  = $this->resolveBatchIdFromRequest($r);
+    $courseId = $this->resolveCourseIdFromRequest($r, true);
 
-        $wantAssigned = true;
-        if (array_key_exists('assigned', $payload)) {
-            $wantAssigned = (bool) ((string)$payload['assigned'] === 'true' ? 1 : (int)$payload['assigned']);
-        } elseif (array_key_exists('is_assigned', $payload)) {
-            $wantAssigned = (bool) ((string)$payload['is_assigned'] === 'true' ? 1 : (int)$payload['is_assigned']);
-        }
+    $wantAssigned = true;
+    if (array_key_exists('assigned', $payload)) {
+        $wantAssigned = (bool) ((string)$payload['assigned'] === 'true' ? 1 : (int)$payload['assigned']);
+    } elseif (array_key_exists('is_assigned', $payload)) {
+        $wantAssigned = (bool) ((string)$payload['is_assigned'] === 'true' ? 1 : (int)$payload['is_assigned']);
+    }
 
-        $overwrite = (int) ((string)($payload['overwrite_existing'] ?? 0) === 'true'
-            ? 1
-            : ($payload['overwrite_existing'] ?? 0));
+    $overwrite = (int) ((string)($payload['overwrite_existing'] ?? 0) === 'true'
+        ? 1
+        : ($payload['overwrite_existing'] ?? 0));
 
-        Log::info('BatchCourseModule.assign:resolved', [
+    Log::info('BatchCourseModule.assign:resolved', [
+        'req_id' => $reqId,
+        'batch_id' => $batchId,
+        'course_id' => $courseId,
+        'want_assigned' => $wantAssigned,
+        'overwrite' => $overwrite,
+        'module_ids_count' => count($ids),
+        'module_ids' => $ids,
+    ]);
+
+    // UNASSIGN PATH
+    if (!$wantAssigned) {
+        return $this->unassignModules($r, $reqId, $batchId, $courseId, $ids);
+    }
+
+    // ASSIGN PATH
+    $modules = DB::table('course_modules')
+        ->whereNull('deleted_at')
+        ->where('course_id', $courseId)
+        ->whereIn('id', $ids)
+        ->get();
+
+    Log::info('BatchCourseModule.assign:modules_fetched', [
+        'req_id' => $reqId,
+        'fetched_count' => $modules->count(),
+        'expected_count' => count($ids),
+    ]);
+
+    if ($modules->count() !== count($ids)) {
+        $found   = $modules->pluck('id')->all();
+        $missing = array_values(array_diff($ids, $found));
+
+        Log::warning('BatchCourseModule.assign:missing_modules', [
             'req_id' => $reqId,
             'batch_id' => $batchId,
             'course_id' => $courseId,
-            'want_assigned' => $wantAssigned,
-            'overwrite' => $overwrite,
-            'module_ids_count' => count($ids),
-            'module_ids' => $ids,
+            'missing_course_module_ids' => $missing,
+            'found_course_module_ids' => $found,
         ]);
 
-        // UNASSIGN PATH
-        if (!$wantAssigned) {
-            return $this->unassignModules($r, $reqId, $batchId, $courseId, $ids);
-        }
+        return response()->json([
+            'success' => false,
+            'message' => 'Some course_module_ids not found for this course_id',
+            'missing_course_module_ids' => $missing,
+        ], 422);
+    }
 
-        // ASSIGN PATH
-        $modules = DB::table('course_modules')
-            ->whereNull('deleted_at')
-            ->where('course_id', $courseId)
-            ->whereIn('id', $ids)
-            ->get();
+    $now = now();
 
-        Log::info('BatchCourseModule.assign:modules_fetched', [
+    DB::beginTransaction();
+    try {
+        Log::info('BatchCourseModule.assign:tx_begin', [
             'req_id' => $reqId,
-            'fetched_count' => $modules->count(),
-            'expected_count' => count($ids),
+            'batch_id' => $batchId,
+            'course_id' => $courseId,
         ]);
 
-        if ($modules->count() !== count($ids)) {
-            $found   = $modules->pluck('id')->all();
-            $missing = array_values(array_diff($ids, $found));
+        $inserted     = [];
+        $skipped      = [];
+        $overwritten  = [];
+        $restored     = [];
 
-            Log::warning('BatchCourseModule.assign:missing_modules', [
-                'req_id' => $reqId,
-                'batch_id' => $batchId,
-                'course_id' => $courseId,
-                'missing_course_module_ids' => $missing,
-                'found_course_module_ids' => $found,
-            ]);
+        // ✅ Lock existing rows (including soft-deleted) to reduce race issues
+        $existingMap = DB::table('batch_course_module')
+            ->where('batch_id', $batchId)
+            ->whereIn('course_module_id', $ids)
+            ->lockForUpdate()
+            ->get(['course_module_id', 'deleted_at'])
+            ->keyBy('course_module_id');
 
-            return response()->json([
-                'success' => false,
-                'message' => 'Some course_module_ids not found for this course_id',
-                'missing_course_module_ids' => $missing,
-            ], 422);
-        }
+        $rowsToUpsert = [];
 
-        $now = now();
+        foreach ($modules as $m) {
+            $mid = (int) $m->id;
+            $ex  = $existingMap->get($mid);
 
-        DB::beginTransaction();
-        try {
-            Log::info('BatchCourseModule.assign:tx_begin', [
-                'req_id' => $reqId,
-                'batch_id' => $batchId,
-                'course_id' => $courseId,
-            ]);
+            // If active already and overwrite OFF => skip
+            if ($ex && $ex->deleted_at === null && !$overwrite) {
+                $skipped[] = $mid;
 
-            $inserted = [];
-            $skipped  = [];
-            $overwritten = [];
-
-            foreach ($modules as $m) {
-                $mid = (int) $m->id;
-
-                if ($overwrite) {
-                    $affected = DB::table('batch_course_module')
-                        ->whereNull('deleted_at')
-                        ->where('batch_id', $batchId)
-                        ->where('course_module_id', $mid)
-                        ->update(['deleted_at' => $now, 'updated_at' => $now]);
-
-                    if ($affected > 0) {
-                        $overwritten[] = $mid;
-                        Log::info('BatchCourseModule.assign:overwrite_soft_deleted', [
-                            'req_id' => $reqId,
-                            'batch_id' => $batchId,
-                            'course_module_id' => $mid,
-                            'affected_rows' => $affected,
-                        ]);
-                    }
-                }
-
-                $exists = DB::table('batch_course_module')
-                    ->whereNull('deleted_at')
-                    ->where('batch_id', $batchId)
-                    ->where('course_module_id', $mid)
-                    ->exists();
-
-                if ($exists) {
-                    $skipped[] = $mid;
-                    Log::info('BatchCourseModule.assign:skip_exists', [
-                        'req_id' => $reqId,
-                        'batch_id' => $batchId,
-                        'course_module_id' => $mid,
-                    ]);
-                    continue;
-                }
-
-                DB::table('batch_course_module')->insert([
-                    'uuid'              => (string) Str::uuid(),
-                    'batch_id'          => $batchId,
-                    'course_module_id'  => $mid,
-                    'course_id'         => (int)$m->course_id,
-
-                    'is_completed'      => 0,
-
-                    'title'             => (string) $m->title,
-                    'short_description' => $m->short_description,
-                    'long_description'  => $m->long_description,
-                    'order_no'          => (int) ($m->order_no ?? 0),
-                    'status'            => (string) ($m->status ?? 'draft'),
-                    'metadata'          => $m->metadata,
-
-                    'created_by'        => $uid ?: null,
-                    'created_at_ip'     => $ip,
-                    'created_at'        => $now,
-                    'updated_at'        => $now,
-                ]);
-
-                $inserted[] = $mid;
-
-                Log::info('BatchCourseModule.assign:inserted', [
+                Log::info('BatchCourseModule.assign:skip_exists', [
                     'req_id' => $reqId,
                     'batch_id' => $batchId,
                     'course_module_id' => $mid,
-                    'title' => (string) $m->title,
-                    'order_no' => (int) ($m->order_no ?? 0),
-                    'status' => (string) ($m->status ?? 'draft'),
                 ]);
+                continue;
             }
 
-            DB::commit();
+            // Classify for response/logs
+            if (!$ex) {
+                $inserted[] = $mid;          // new assignment
+            } elseif ($ex->deleted_at !== null && !$overwrite) {
+                $restored[] = $mid;          // restore soft-deleted assignment
+            } else {
+                $overwritten[] = $mid;       // overwrite/update existing assignment (active or soft-deleted)
+            }
 
-            // ✅ ACTIVITY LOG
-            $this->logActivity($r, 'assign_modules', 'Modules assigned to batch', [
-                'req_id' => $reqId,
-                'batch_id' => $batchId,
-                'course_id' => $courseId,
-                'overwrite_existing' => (int)$overwrite,
-                'inserted_course_module_ids' => $inserted,
-                'skipped_course_module_ids'  => $skipped,
-                'overwritten_course_module_ids' => $overwritten,
-            ], 'batch_course_module', null);
+            // Prepare row for atomic upsert (restores deleted_at = NULL)
+            $rowsToUpsert[] = [
+                'uuid'              => (string) Str::uuid(), // used only if it inserts
+                'batch_id'          => $batchId,
+                'course_module_id'  => $mid,
+                'course_id'         => (int) $m->course_id,
 
-            Log::info('BatchCourseModule.assign:committed', [
-                'req_id' => $reqId,
-                'batch_id' => $batchId,
-                'course_id' => $courseId,
-                'inserted_count' => count($inserted),
-                'skipped_count' => count($skipped),
-                'overwritten_count' => count($overwritten),
-            ]);
+                'is_completed'      => 0,
 
-            return response()->json([
-                'success' => true,
-                'message' => 'Modules assigned to batch',
-                'batch_id' => $batchId,
-                'course_id' => $courseId,
-                'inserted_course_module_ids' => $inserted,
-                'skipped_course_module_ids'  => $skipped,
-            ]);
-        } catch (\Throwable $e) {
-            DB::rollBack();
+                'title'             => (string) $m->title,
+                'short_description' => $m->short_description,
+                'long_description'  => $m->long_description,
+                'order_no'          => (int) ($m->order_no ?? 0),
+                'status'            => (string) ($m->status ?? 'draft'),
+                'metadata'          => $m->metadata,
 
-            Log::error('BatchCourseModule.assign:failed', [
-                'req_id' => $reqId,
-                'batch_id' => $batchId ?? null,
-                'course_id' => $courseId ?? null,
-                'overwrite' => $overwrite ?? null,
-                'err' => $e->getMessage(),
-                'trace' => $e->getTraceAsString(),
-            ]);
+                'deleted_at'        => null, // ✅ restore if previously soft-deleted
 
-            return response()->json(['success' => false, 'message' => 'Failed to assign modules'], 500);
+                'created_by'        => $uid ?: null,
+                'created_at_ip'     => $ip,
+                'created_at'        => $now,
+                'updated_at'        => $now,
+            ];
         }
+
+        if (!empty($rowsToUpsert)) {
+            // ✅ Atomic: prevents duplicate key crash even if row exists (soft-deleted or not)
+            DB::table('batch_course_module')->upsert(
+                $rowsToUpsert,
+                ['batch_id', 'course_module_id'], // must match your unique constraint intent
+                [
+                    // DO NOT update uuid / created_at / created_by / created_at_ip on conflict
+                    'course_id',
+                    'is_completed',
+                    'title',
+                    'short_description',
+                    'long_description',
+                    'order_no',
+                    'status',
+                    'metadata',
+                    'deleted_at',  // ✅ restore (NULL)
+                    'updated_at',
+                ]
+            );
+
+            Log::info('BatchCourseModule.assign:upsert_done', [
+                'req_id' => $reqId,
+                'batch_id' => $batchId,
+                'course_id' => $courseId,
+                'rows' => count($rowsToUpsert),
+            ]);
+        }
+
+        DB::commit();
+
+        // ✅ ACTIVITY LOG
+        $this->logActivity($r, 'assign_modules', 'Modules assigned to batch', [
+            'req_id' => $reqId,
+            'batch_id' => $batchId,
+            'course_id' => $courseId,
+            'overwrite_existing' => (int)$overwrite,
+            'inserted_course_module_ids' => $inserted,
+            'restored_course_module_ids' => $restored,
+            'skipped_course_module_ids'  => $skipped,
+            'overwritten_course_module_ids' => $overwritten,
+        ], 'batch_course_module', null);
+
+        Log::info('BatchCourseModule.assign:committed', [
+            'req_id' => $reqId,
+            'batch_id' => $batchId,
+            'course_id' => $courseId,
+            'inserted_count' => count($inserted),
+            'restored_count' => count($restored),
+            'skipped_count' => count($skipped),
+            'overwritten_count' => count($overwritten),
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Modules assigned to batch',
+            'batch_id' => $batchId,
+            'course_id' => $courseId,
+            'inserted_course_module_ids' => $inserted,
+            'restored_course_module_ids' => $restored,
+            'skipped_course_module_ids'  => $skipped,
+            'overwritten_course_module_ids' => $overwritten,
+        ]);
+    } catch (\Throwable $e) {
+        DB::rollBack();
+
+        Log::error('BatchCourseModule.assign:failed', [
+            'req_id' => $reqId,
+            'batch_id' => $batchId ?? null,
+            'course_id' => $courseId ?? null,
+            'overwrite' => $overwrite ?? null,
+            'err' => $e->getMessage(),
+            'trace' => $e->getTraceAsString(),
+        ]);
+
+        return response()->json(['success' => false, 'message' => 'Failed to assign modules'], 500);
     }
+}
 
     /**
      * Helper method to unassign (soft-delete) modules
