@@ -623,7 +623,7 @@ Route::post('/landing/contacts/reorder', [LandingPageController::class, 'contact
     ->name('landing.contact.reorder');
  
 Route::get   ('landing/contacts',        [LandingPageController::class, 'contact_index'])->name('landing.contact.index');
-Route::get('landing/contact', [LandingPageController::class, 'contactsDisplay']);
+Route::get   ('landing/contact', [LandingPageController::class, 'contactsDisplay']);
 Route::post  ('landing/contact',        [LandingPageController::class, 'contact_store'])->name('landing.contact.store');
 Route::put   ('landing/contact/{id}',   [LandingPageController::class, 'contact_update'])->name('landing.contact.update');
 Route::patch ('landing/contact/{id}',   [LandingPageController::class, 'contact_update']);
