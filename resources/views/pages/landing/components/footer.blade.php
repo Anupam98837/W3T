@@ -560,7 +560,7 @@ const renderCategoriesGrid = categories => {
       meta.appendChild(spanDiff);
 
       const spanLang = document.createElement('span');
-      spanLang.innerHTML = `<i class="fa fa-language"></i> ${languageText}`;
+      spanLang.innerHTML = `<i class="fa fa-language style="position: relative; top: 2px;""></i> ${languageText}`;
       meta.appendChild(spanLang);
 
       const summaryEl = document.createElement('div');

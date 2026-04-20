@@ -18,17 +18,19 @@
   <link rel="stylesheet" href="{{ asset('/assets/css/common/main.css') }}"/>
 
   <style>
-    html, body { height:100%; }
+    html, body { height:100%; overflow-x: hidden;
+  overflow-y: auto;  }
     body.lx-auth-body{
-      height:100%;
-      overflow:hidden;
+       min-height: 100vh;  /* was height:100% */
+  overflow-x: hidden;
+  overflow-y: auto; 
       background:var(--bg-body);
       color:var(--text-color);
       font-family:var(--font-sans);
     }
 
     .lx-grid{
-      height:100vh;
+     min-height:100vh;
       display:grid;
       grid-template-columns: minmax(420px,560px) 1fr;
     }
@@ -36,7 +38,8 @@
 
     /* LEFT: form column */
     .lx-left{
-      height:100vh;
+      top:-50px;
+      min-height:100vh;
       display:flex; flex-direction:column;
       justify-content:center; align-items:center;
       padding:clamp(22px,5vw,56px);
@@ -143,7 +146,7 @@
 
     /* RIGHT visuals (hidden on mobile) */
     .lx-right{
-      position:relative; height:100vh; display:grid; place-items:center;
+      position:relative; min-height:100vh; display:grid; place-items:center;
       background: radial-gradient(120% 100% at 10% 10%, rgba(149,30,170,.12) 0%, rgba(7,13,42,0) 55%),
                   linear-gradient(180deg,#070d2a,#081337);
       padding: clamp(24px, 4vw, 60px);
@@ -271,9 +274,9 @@
                  placeholder="Type the captcha shown above" autocomplete="off" required>
         </div>
 
-        <div class="small text-muted mt-2">
+        <!-- <div class="small text-muted mt-2">
           This captcha is front-end only (basic bot protection). For production, use reCAPTCHA/hCaptcha.
-        </div>
+        </div> -->
       </div>
 
       <button class="lx-login" id="rp_btn" type="submit">
@@ -318,233 +321,261 @@
     </div>
   </aside>
 </div>
-
 <script>
-  (function(){
-    const RESET_API   = "/api/auth/forgot-password/reset";
-    const LOGIN_PAGE  = "/login";
+(function(){
+  // ✅ Use absolute URLs (safer if project runs in subfolder / different domain)
+  const RESET_API  = @json(url('/api/auth/forgot-password/reset'));
+  const LOGIN_PAGE = @json(url('/login'));
 
-    const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+  const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
 
-    const form = document.getElementById('rp_form');
-    const emailIn = document.getElementById('rp_email');
-    const pwIn = document.getElementById('rp_pw');
-    const pw2In = document.getElementById('rp_pw2');
-    const capCodeEl = document.getElementById('rp_captcha_code');
-    const capIn = document.getElementById('rp_captcha_in');
-    const capRefresh = document.getElementById('rp_captcha_refresh');
+  const form       = document.getElementById('rp_form');
+  const emailIn    = document.getElementById('rp_email');
+  const pwIn       = document.getElementById('rp_pw');
+  const pw2In      = document.getElementById('rp_pw2');
+  const capCodeEl  = document.getElementById('rp_captcha_code');
+  const capIn      = document.getElementById('rp_captcha_in');
+  const capRefresh = document.getElementById('rp_captcha_refresh');
 
-    const btn = document.getElementById('rp_btn');
-    const alertEl = document.getElementById('rp_alert');
-    const backBtn = document.getElementById('rp_back');
+  const btn     = document.getElementById('rp_btn');
+  const alertEl = document.getElementById('rp_alert');
+  const backBtn = document.getElementById('rp_back');
 
-    const t1 = document.getElementById('rp_togglePw');
-    const t2 = document.getElementById('rp_togglePw2');
+  const t1 = document.getElementById('rp_togglePw');
+  const t2 = document.getElementById('rp_togglePw2');
 
-    function setBusy(b){
-      btn.disabled = b;
-      btn.innerHTML = b
-        ? '<i class="fa-solid fa-spinner fa-spin me-2"></i>Resetting…'
-        : '<span class="me-2"><i class="fa-solid fa-lock"></i></span> Reset Password';
+  // ✅ Read from URL: /reset-password?token=...&email=...
+  const urlParams = new URLSearchParams(window.location.search);
+  const urlToken  = (urlParams.get('token') || '').trim();
+  const urlEmail  = (urlParams.get('email') || '').trim().toLowerCase();
+
+  function setBusy(b){
+    btn.disabled = b;
+    btn.innerHTML = b
+      ? '<i class="fa-solid fa-spinner fa-spin me-2"></i>Resetting…'
+      : '<span class="me-2"><i class="fa-solid fa-lock"></i></span> Reset Password';
+  }
+
+  function showAlert(kind, msg){
+    alertEl.classList.remove('d-none', 'alert-danger', 'alert-success', 'alert-warning');
+    alertEl.classList.add(
+      'alert',
+      kind === 'error' ? 'alert-danger' : (kind === 'warn' ? 'alert-warning' : 'alert-success')
+    );
+    alertEl.textContent = msg;
+  }
+
+  function clearAlert(){
+    alertEl.classList.add('d-none');
+    alertEl.textContent = '';
+  }
+
+  // Password eye toggles
+  t1?.addEventListener('click', () => {
+    const show = pwIn.type === 'password';
+    pwIn.type = show ? 'text' : 'password';
+    t1.innerHTML = show ? '<i class="fa-regular fa-eye"></i>' : '<i class="fa-regular fa-eye-slash"></i>';
+  });
+
+  t2?.addEventListener('click', () => {
+    const show = pw2In.type === 'password';
+    pw2In.type = show ? 'text' : 'password';
+    t2.innerHTML = show ? '<i class="fa-regular fa-eye"></i>' : '<i class="fa-regular fa-eye-slash"></i>';
+  });
+
+  backBtn?.addEventListener('click', () => window.location.href = LOGIN_PAGE);
+
+  // Basic captcha
+  function genCaptcha(){
+    const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+    let out = "";
+    for(let i=0;i<6;i++) out += alphabet[Math.floor(Math.random()*alphabet.length)];
+    sessionStorage.setItem('rp_captcha', out);
+    capCodeEl.textContent = out;
+  }
+  capRefresh?.addEventListener('click', genCaptcha);
+
+  document.addEventListener('DOMContentLoaded', () => {
+    genCaptcha();
+
+    // ✅ Prefill email from URL (and lock it)
+    if (urlEmail) {
+      emailIn.value = urlEmail;
+      emailIn.readOnly = true;   // optional but recommended
     }
-    function showAlert(kind, msg){
-      alertEl.classList.remove('d-none', 'alert-danger', 'alert-success', 'alert-warning');
-      alertEl.classList.add('alert', kind === 'error' ? 'alert-danger' : (kind === 'warn' ? 'alert-warning' : 'alert-success'));
-      alertEl.textContent = msg;
+
+    // ✅ Token must exist in URL
+    if (!urlToken) {
+      showAlert('warn', 'Reset token missing or invalid link. Please request a new reset link.');
     }
-    function clearAlert(){
-      alertEl.classList.add('d-none');
-      alertEl.textContent = '';
-    }
+  });
 
-    // Password eye toggles
-    t1?.addEventListener('click', () => {
-      const show = pwIn.type === 'password';
-      pwIn.type = show ? 'text' : 'password';
-      t1.innerHTML = show ? '<i class="fa-regular fa-eye"></i>' : '<i class="fa-regular fa-eye-slash"></i>';
-    });
-    t2?.addEventListener('click', () => {
-      const show = pw2In.type === 'password';
-      pw2In.type = show ? 'text' : 'password';
-      t2.innerHTML = show ? '<i class="fa-regular fa-eye"></i>' : '<i class="fa-regular fa-eye-slash"></i>';
-    });
+  form?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    clearAlert();
 
-    backBtn?.addEventListener('click', () => window.location.href = LOGIN_PAGE);
+    const email = (emailIn.value || '').trim().toLowerCase();
+    const p1    = pwIn.value || '';
+    const p2    = pw2In.value || '';
+    const cap   = (capIn.value || '').trim().toUpperCase();
 
-    // Basic captcha
-    function genCaptcha(){
-      const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // no confusing chars
-      let out = "";
-      for(let i=0;i<6;i++) out += alphabet[Math.floor(Math.random()*alphabet.length)];
-      sessionStorage.setItem('rp_captcha', out);
-      capCodeEl.textContent = out;
-    }
-    capRefresh?.addEventListener('click', genCaptcha);
+    const expectedCap = (sessionStorage.getItem('rp_captcha') || '').toUpperCase();
 
-    // Prefill email from sessionStorage (from forgot-password flow)
-    document.addEventListener('DOMContentLoaded', () => {
+    if(!email){ showAlert('error','Please enter your email.'); return; }
+    if(!p1 || p1.length < 8){ showAlert('error','Password must be at least 8 characters.'); return; }
+    if(p1 !== p2){ showAlert('error','Password and confirm password do not match.'); return; }
+
+    if(!cap){ showAlert('error','Please enter captcha.'); return; }
+    if(!expectedCap || cap !== expectedCap){
+      showAlert('error','Captcha does not match. Please try again.');
       genCaptcha();
-      const savedEmail = sessionStorage.getItem('fp_email');
-      if (savedEmail) emailIn.value = savedEmail;
+      capIn.value = '';
+      capIn.focus();
+      return;
+    }
 
-      // Must have reset_token from verify-otp
-      const tok = sessionStorage.getItem('fp_reset_token');
-      if (!tok){
-        showAlert('warn','Reset token not found. Please verify OTP again.');
-      }
-    });
+    // ✅ Must come from URL
+    if(!urlToken){
+      showAlert('error','Reset token missing. Please request a new reset link.');
+      return;
+    }
 
-    form?.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      clearAlert();
+    setBusy(true);
+    try{
+      const res = await fetch(RESET_API, {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-TOKEN': csrf,
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify({
+          email: email,
+          token: urlToken,               // ✅ IMPORTANT: use "token" for reset-link flow
+          password: p1,
+          password_confirmation: p2
+        })
+      });
 
-      const email = (emailIn.value || '').trim().toLowerCase();
-      const p1 = pwIn.value || '';
-      const p2 = pw2In.value || '';
-      const cap = (capIn.value || '').trim().toUpperCase();
+      const data = await res.json().catch(() => ({}));
 
-      const expectedCap = (sessionStorage.getItem('rp_captcha') || '').toUpperCase();
-      const resetToken = sessionStorage.getItem('fp_reset_token') || '';
-
-      if(!email){ showAlert('error','Please enter your email.'); return; }
-      if(!p1 || p1.length < 8){ showAlert('error','Password must be at least 8 characters.'); return; }
-      if(p1 !== p2){ showAlert('error','Password and confirm password do not match.'); return; }
-
-      if(!cap){ showAlert('error','Please enter captcha.'); return; }
-      if(!expectedCap || cap !== expectedCap){
-        showAlert('error','Captcha does not match. Please try again.');
+      if(!res.ok){
+        const msg = data?.message || data?.error ||
+                    (data?.errors ? Object.values(data.errors).flat().join(', ') : 'Unable to reset password.');
+        showAlert('error', msg);
         genCaptcha();
         capIn.value = '';
-        capIn.focus();
         return;
       }
 
-      if(!resetToken){
-        showAlert('error','Reset token missing. Please verify OTP again.');
-        return;
+      // Optional: clear any old flow keys if present
+      sessionStorage.removeItem('fp_reset_token');
+      sessionStorage.removeItem('fp_otp');
+      sessionStorage.removeItem('fp_request_id');
+      sessionStorage.removeItem('fp_expires_in_minutes');
+      sessionStorage.removeItem('fp_email');
+
+      showAlert('success', data?.message || 'Password reset successful. Redirecting to login…');
+
+      setTimeout(() => {
+        window.location.assign(LOGIN_PAGE);
+      }, 900);
+
+    } catch(err){
+      showAlert('error','Network error. Please try again.');
+    } finally {
+      setBusy(false);
+    }
+  });
+
+  // Parallax (same as login)
+  (function(){
+    const stage  = document.getElementById('lx_visual');
+    const hero   = document.getElementById('lx_hero');
+    const frame  = document.querySelector('.lx-hero-frame');
+    const img    = document.querySelector('.lx-hero-img img');
+    if (!stage || !frame || !img || !hero) return;
+
+    const mq = window.matchMedia('(max-width: 992px)');
+    let targetTX = 0, targetTY = 0, targetRX = 0, targetRY = 0;
+    let currTX = 0, currTY = 0, currRX = 0, currRY = 0;
+    let rafId = null;
+
+    const MAX_T = 18, MAX_RX = 6, MAX_RY = 8, LERP = 0.12;
+
+    function onMove(e){
+      const rect = stage.getBoundingClientRect();
+      const cx = rect.left + rect.width/2;
+      const cy = rect.top  + rect.height/2;
+      const dx = (e.clientX - cx) / (rect.width/2);
+      const dy = (e.clientY - cy) / (rect.height/2);
+      const ndx = Math.max(-1, Math.min(1, dx));
+      const ndy = Math.max(-1, Math.min(1, dy));
+
+      targetTX = ndx * MAX_T;
+      targetTY = ndy * MAX_T;
+      targetRY = ndx * MAX_RY;
+      targetRX = -ndy * MAX_RX;
+
+      if (!hero.classList.contains('is-tracking')){
+        hero.classList.add('is-tracking');
+        tick();
       }
+    }
 
-      setBusy(true);
-      try{
-        const res = await fetch(RESET_API, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-CSRF-TOKEN': csrf,
-            'Accept': 'application/json'
-          },
-          body: JSON.stringify({
-            email,
-            reset_token: resetToken,
-            password: p1,
-            password_confirmation: p2
-          })
-        });
+    function onLeave(){ targetTX = targetTY = targetRX = targetRY = 0; }
 
-        const data = await res.json().catch(() => ({}));
+    function tick(){
+      currTX += (targetTX - currTX) * LERP;
+      currTY += (targetTY - currTY) * LERP;
+      currRX += (targetRX - currRX) * LERP;
+      currRY += (targetRY - currRY) * LERP;
 
-        if(!res.ok){
-          const msg = data?.message || data?.error ||
-                      (data?.errors ? Object.values(data.errors).flat().join(', ') : 'Unable to reset password.');
-          showAlert('error', msg);
-          genCaptcha();
-          capIn.value = '';
-          return;
-        }
+      frame.style.transform =
+        `translate3d(${currTX.toFixed(2)}px, ${currTY.toFixed(2)}px, 0)
+         rotateX(${currRX.toFixed(2)}deg)
+         rotateY(${currRY.toFixed(2)}deg)`;
 
-        // Clear reset flow keys
-        sessionStorage.removeItem('fp_reset_token');
-        sessionStorage.removeItem('fp_otp');
-        sessionStorage.removeItem('fp_request_id');
-        sessionStorage.removeItem('fp_expires_in_minutes');
+      const ix = (-currTX * 0.6).toFixed(2);
+      const iy = (-currTY * 0.6).toFixed(2);
+      img.style.transform = `translate3d(${ix}px, ${iy}px, 0) scale(1.05)`;
 
-        showAlert('success', data?.message || 'Password reset successful. Redirecting to login…');
+      const nearZero =
+        Math.abs(currTX) < 0.15 && Math.abs(currTY) < 0.15 &&
+        Math.abs(currRX) < 0.08 && Math.abs(currRY) < 0.08 &&
+        Math.abs(targetTX) < 0.15 && Math.abs(targetTY) < 0.15 &&
+        Math.abs(targetRX) < 0.08 && Math.abs(targetRY) < 0.08;
 
-        setTimeout(() => {
-          window.location.assign(LOGIN_PAGE);
-        }, 700);
-
-      } catch(err){
-        showAlert('error','Network error. Please try again.');
-      } finally {
-        setBusy(false);
+      if (!nearZero){
+        rafId = requestAnimationFrame(tick);
+      } else {
+        frame.style.transform = 'translate3d(0,0,0) rotateX(0) rotateY(0)';
+        img.style.transform = 'translate3d(0,0,0) scale(1)';
+        hero.classList.remove('is-tracking');
+        if (rafId) cancelAnimationFrame(rafId);
+        rafId = null;
       }
-    });
+    }
 
-    // Parallax (same as login)
-    (function(){
-      const stage  = document.getElementById('lx_visual');
-      const hero   = document.getElementById('lx_hero');
-      const frame  = document.querySelector('.lx-hero-frame');
-      const img    = document.querySelector('.lx-hero-img img');
-      if (!stage || !frame || !img || !hero) return;
+    function attach(){
+      if (mq.matches) return;
+      stage.addEventListener('mousemove', onMove);
+      stage.addEventListener('mouseleave', onLeave);
+    }
 
-      const mq = window.matchMedia('(max-width: 992px)');
-      let targetTX = 0, targetTY = 0, targetRX = 0, targetRY = 0;
-      let currTX = 0, currTY = 0, currRX = 0, currRY = 0;
-      let rafId = null;
+    function detach(){
+      stage.removeEventListener('mousemove', onMove);
+      stage.removeEventListener('mouseleave', onLeave);
+      onLeave();
+    }
 
-      const MAX_T = 18, MAX_RX = 6, MAX_RY = 8, LERP = 0.12;
-
-      function onMove(e){
-        const rect = stage.getBoundingClientRect();
-        const cx = rect.left + rect.width/2;
-        const cy = rect.top  + rect.height/2;
-        const dx = (e.clientX - cx) / (rect.width/2);
-        const dy = (e.clientY - cy) / (rect.height/2);
-        const ndx = Math.max(-1, Math.min(1, dx));
-        const ndy = Math.max(-1, Math.min(1, dy));
-
-        targetTX = ndx * MAX_T;
-        targetTY = ndy * MAX_T;
-        targetRY = ndx * MAX_RY;
-        targetRX = -ndy * MAX_RX;
-
-        if (!hero.classList.contains('is-tracking')){
-          hero.classList.add('is-tracking');
-          tick();
-        }
-      }
-      function onLeave(){ targetTX = targetTY = targetRX = targetRY = 0; }
-      function tick(){
-        currTX += (targetTX - currTX) * LERP;
-        currTY += (targetTY - currTY) * LERP;
-        currRX += (targetRX - currRX) * LERP;
-        currRY += (targetRY - currRY) * LERP;
-
-        frame.style.transform =
-          `translate3d(${currTX.toFixed(2)}px, ${currTY.toFixed(2)}px, 0)
-           rotateX(${currRX.toFixed(2)}deg)
-           rotateY(${currRY.toFixed(2)}deg)`;
-
-        const ix = (-currTX * 0.6).toFixed(2);
-        const iy = (-currTY * 0.6).toFixed(2);
-        img.style.transform = `translate3d(${ix}px, ${iy}px, 0) scale(1.05)`;
-
-        const nearZero =
-          Math.abs(currTX) < 0.15 && Math.abs(currTY) < 0.15 &&
-          Math.abs(currRX) < 0.08 && Math.abs(currRY) < 0.08 &&
-          Math.abs(targetTX) < 0.15 && Math.abs(targetTY) < 0.15 &&
-          Math.abs(targetRX) < 0.08 && Math.abs(targetRY) < 0.08;
-
-        if (!nearZero){
-          rafId = requestAnimationFrame(tick);
-        } else {
-          frame.style.transform = 'translate3d(0,0,0) rotateX(0) rotateY(0)';
-          img.style.transform = 'translate3d(0,0,0) scale(1)';
-          hero.classList.remove('is-tracking');
-          rafId && cancelAnimationFrame(rafId);
-          rafId = null;
-        }
-      }
-      function attach(){ if (mq.matches) return; stage.addEventListener('mousemove', onMove); stage.addEventListener('mouseleave', onLeave); }
-      function detach(){ stage.removeEventListener('mousemove', onMove); stage.removeEventListener('mouseleave', onLeave); onLeave(); }
-
-      attach();
-      mq.addEventListener('change', () => { detach(); attach(); });
-      window.addEventListener('blur', onLeave);
-    })();
+    attach();
+    mq.addEventListener('change', () => { detach(); attach(); });
+    window.addEventListener('blur', onLeave);
   })();
+
+})();
 </script>
 </body>
 </html>

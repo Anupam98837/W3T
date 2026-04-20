@@ -40,6 +40,7 @@ use App\Http\Controllers\API\BatchCourseModuleController;
 use App\Http\Controllers\API\UserActivityLogsController;
 use App\Http\Controllers\API\SessionTokenController;
 use App\Http\Controllers\API\MetaTagController;
+use App\Http\Controllers\API\NotificationController;
 
 
 // Auth Routes
@@ -55,10 +56,10 @@ Route::get('/user', function (Request $request) {
 })->middleware('auth:sanctum');
 Route::get('/auth/token/check', [SessionTokenController::class, 'check']);
 
-Route::post('/auth/forgot-password/send-otp', [ForgotPasswordController::class, 'sendOtp']);
-Route::post('/auth/forgot-password/verify-otp', [ForgotPasswordController::class, 'verifyOtp']);
-Route::post('/auth/forgot-password/reset', [ForgotPasswordController::class, 'resetPassword']);
-
+Route::prefix('auth/forgot-password')->group(function () {
+    Route::post('send-link', [ForgotPasswordController::class, 'sendLink']);
+    Route::post('reset',     [ForgotPasswordController::class, 'resetPassword']);
+});
 
  
 // Users Routes
@@ -82,6 +83,7 @@ Route::middleware(['checkRole:admin,super_admin'])->group(function () {
 });
  
  
+    Route::get   ('/courses',              [CourseController::class, 'index']);
 
 Route::middleware('checkRole:admin,super_admin,student,instructor')->group(function () {
     // Courses
@@ -116,7 +118,6 @@ Route::middleware('checkRole:admin,super_admin,student,instructor')->group(funct
  
 });
 // Course Routes
-    Route::get   ('/courses',              [CourseController::class, 'index']);
     Route::get('/courses/{course}/view', [CourseController::class, 'viewCourse']);
     Route::get   ('/courses/{course}',     [CourseController::class, 'show']);    // {id|uuid}
  
@@ -872,4 +873,27 @@ Route::middleware('checkRole:admin,super_admin,director')->group(function () {
 Route::prefix('public')->group(function () {
     // recommended: pass ?page_link=/about or full URL, etc.
     Route::get('/meta-tags', [MetaTagController::class, 'publicIndex']);
+});
+/** ---------------- Notifications ---------------- */
+Route::middleware(['checkRole:admin,super_admin,student,instructor'])->group(function () {
+
+    // List + unread count  →  ?count_only=1 | ?unread=1 | ?role= &type= &priority= &status= &limit= &page= &before_id= &since_id=
+    Route::get('/notifications', [NotificationController::class, 'index'])
+        ->name('notifications.index');
+
+    // Single notification
+    Route::get('/notifications/{id}', [NotificationController::class, 'show'])
+        ->name('notifications.show');
+
+    // Create a notification
+    Route::post('/notifications', [NotificationController::class, 'store'])
+        ->name('notifications.store');
+
+    // All mutations: read/unread (single or many), mark-all-read, archive, delete
+    // body: { action: "read"|"read_all"|"archive"|"delete", read?: bool, role?: string, ids?: int[] }
+Route::patch('/notifications',      [NotificationController::class, 'update']);  // mark_all, bulk ids
+Route::patch('/notifications/{id}', [NotificationController::class, 'update']);  // single id
+Route::get('/exam/results/batches', [ExamController::class, 'resultBatches']);
+Route::get('/exam/quizzes/{quizKey}/results', [ExamController::class, 'allStudentResults']);
+
 });

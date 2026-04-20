@@ -17,8 +17,13 @@ Route::get('/login', fn () => view('pages.auth.login'));
 Route::get('/register', fn () => view('pages.auth.register'));
 
 Route::get('/forgot-password', fn () => view('pages.auth.forgotPassword'));
-Route::get('/reset-password', fn () => view('pages.auth.resetPassword'));
+Route::get('/reset-password', function (Request $request) {
+    if (!$request->query('token') || !$request->query('email')) {
+        return redirect('/login')->with('error', 'Invalid or incomplete reset link.');
+    }
 
+    return view('pages.auth.resetPassword');
+})->name('password.reset');
 Route::get('/courses/all', fn () => view('pages.landing.pages.allCourse'));
 Route::get('/categories/all', fn () => view('pages.landing.pages.allCategory'));
 Route::get('/updates/all', fn () => view('pages.landing.pages.viewUpdates'));
@@ -99,6 +104,12 @@ Route::get('/notice/create', fn () => view('pages.users.pages.notices.createNoti
 /* Quiz */
 Route::get('/quizz/create', fn () => view('pages.users.pages.quizz.createQuizz'));
 Route::get('/quizz/manage', fn () => view('pages.users.pages.quizz.manageQuizz'));
+Route::get('/quizz/results', function (Request $request) {
+    return view('pages.users.pages.quizz.quizResults', [
+        'initialQuizKey'  => $request->query('quiz'),
+        'initialBatchKey' => $request->query('batch'),
+    ]);
+})->name('quizz.results');
 Route::get('/quizz/questions/manage', fn () => view('pages.users.pages.questions.manageQuestion'));
 
 /*
@@ -213,4 +224,8 @@ Route::get('/activity-logs', fn () => view('modules.userActivityLogs.userActivit
 
 Route::get('/meta-tags/manage', function () {
     return view('pages.users.pages.metaTags.manageMetaTags');
+});
+
+Route::get('/notifications', function () {
+    return view('pages/users/pages/notifications/notificationPage');
 });

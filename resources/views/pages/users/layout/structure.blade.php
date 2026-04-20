@@ -121,7 +121,7 @@
     }
     .w3-brand{display:flex; align-items:center; gap:10px; text-decoration:none}
     .w3-brand img{height:26px}
-    .w3-brand span{font-family:var(--font-head); font-weight:700; color:var(--ink); font-size:1.02rem}
+    .w3-brand span{font-family:var(--font-head); font-weight:700; color:var(--ink); font-size:1.02rem ; margin-top:10px;}
 
     .w3-sidebar-scroll{flex:1; overflow:auto; padding:8px 10px}
 
@@ -398,6 +398,144 @@
     .admin-user-menu__item--danger:hover{
       background: rgba(220,53,69,.10);
     }
+    /* ════════════════════════════════
+   W3N — Notification Widget CSS
+   Fully namespaced, zero conflicts
+   ════════════════════════════════ */
+.w3n-badge{
+  position:absolute;top:-4px;right:-4px;
+  min-width:17px;height:17px;padding:0 4px;
+  background:#ef4444;color:#fff;font-size:9px;font-weight:700;
+  border-radius:999px;display:inline-flex;align-items:center;
+  justify-content:center;line-height:1;
+  border:2px solid var(--surface,#fff);pointer-events:none;
+}
+html.theme-dark .w3n-badge{border-color:var(--surface,#0f172a);}
+
+.w3n-panel{
+  min-width:340px!important;max-width:380px!important;
+  padding:0!important;border-radius:16px!important;
+  border:1px solid var(--line-strong,#e5e7eb)!important;
+  box-shadow:0 8px 32px rgba(0,0,0,.13)!important;
+  overflow:hidden;background:var(--surface,#fff)!important;
+}
+html.theme-dark .w3n-panel{
+  background:var(--surface,#0f172a)!important;
+  border-color:var(--line-strong,#1f2937)!important;
+}
+
+.w3n-header{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:10px 14px;gap:8px;
+  border-bottom:1px solid var(--line-strong,#e5e7eb);
+  background:var(--surface,#fff);
+}
+html.theme-dark .w3n-header{
+  background:var(--surface,#0f172a);
+  border-color:var(--line-strong,#1f2937);
+}
+.w3n-header-left{display:flex;align-items:center;gap:7px;}
+.w3n-header-right{display:flex;align-items:center;gap:10px;}
+
+.w3n-title{font-size:.9rem;font-weight:700;color:var(--ink,#111827);}
+html.theme-dark .w3n-title{color:#e5e7eb;}
+
+.w3n-count-pill{
+  background:#ef4444;color:#fff;font-size:9px;font-weight:700;
+  padding:2px 6px;border-radius:999px;line-height:1.4;
+}
+
+.w3n-text-btn{
+  background:none;border:none;padding:0;
+  font-size:.75rem;color:var(--muted-color,#6b7280);
+  cursor:pointer;text-decoration:none;transition:color .15s;white-space:nowrap;
+}
+.w3n-text-btn:hover{color:var(--ink,#111827);}
+.w3n-text-btn--accent{color:var(--accent-color,#2563eb);}
+.w3n-text-btn--accent:hover{color:var(--accent-color,#1d4ed8);}
+html.theme-dark .w3n-text-btn{color:#94a3b8;}
+html.theme-dark .w3n-text-btn:hover{color:#e5e7eb;}
+
+.w3n-list{
+  max-height:370px;overflow-y:auto;
+  background:var(--surface,#fff);
+}
+html.theme-dark .w3n-list{background:var(--surface,#0f172a);}
+.w3n-list::-webkit-scrollbar{width:5px;}
+.w3n-list::-webkit-scrollbar-track{background:transparent;}
+.w3n-list::-webkit-scrollbar-thumb{background:var(--line-strong,#d1d5db);border-radius:3px;}
+
+.w3n-state{
+  display:flex;flex-direction:column;align-items:center;
+  justify-content:center;gap:8px;padding:28px 16px;
+}
+.w3n-state-icon{font-size:1.6rem;color:var(--muted-color,#9ca3af);}
+.w3n-state-text{font-size:.8rem;color:var(--muted-color,#9ca3af);}
+
+.w3n-spinner{
+  display:inline-block;width:20px;height:20px;border-radius:50%;
+  border:2px solid rgba(148,163,184,.4);
+  border-top-color:var(--accent-color,#2563eb);
+  animation:w3n-spin .7s linear infinite;
+}
+@keyframes w3n-spin{to{transform:rotate(360deg)}}
+
+.w3n-item{
+  display:flex;align-items:flex-start;gap:10px;
+  padding:10px 14px;
+  border-bottom:1px solid var(--line-strong,#f1f3f5);
+  cursor:pointer;transition:background .15s ease;
+  text-decoration:none!important;color:inherit!important;
+}
+.w3n-item:last-child{border-bottom:none;}
+.w3n-item:hover{background:rgba(2,6,23,.04);}
+.w3n-item--unread{background:rgba(79,70,229,.04);}
+html.theme-dark .w3n-item{border-color:var(--line-strong,#1f2937);}
+html.theme-dark .w3n-item:hover{background:#0c172d;}
+html.theme-dark .w3n-item--unread{background:rgba(99,102,241,.07);}
+
+.w3n-item-icon{
+  width:34px;height:34px;border-radius:9px;
+  display:flex;align-items:center;justify-content:center;
+  font-size:14px;flex-shrink:0;margin-top:1px;
+}
+.w3n-item-icon--urgent{background:rgba(220,38,38,.12);color:#dc2626;}
+.w3n-item-icon--high  {background:rgba(234,179,8,.12); color:#d97706;}
+.w3n-item-icon--normal{background:rgba(59,130,246,.12);color:#3b82f6;}
+.w3n-item-icon--low   {background:rgba(107,114,128,.1);color:#6b7280;}
+
+.w3n-item-body{flex:1;min-width:0;}
+.w3n-item-title{
+  font-size:.83rem;font-weight:600;color:var(--ink,#111827);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:230px;
+}
+html.theme-dark .w3n-item-title{color:#e5e7eb;}
+.w3n-item-msg{
+  font-size:.76rem;color:var(--muted-color,#6b7280);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  max-width:230px;margin-top:1px;
+}
+html.theme-dark .w3n-item-msg{color:#94a3b8;}
+.w3n-item-time{font-size:.69rem;color:var(--muted-color,#9ca3af);margin-top:2px;}
+
+.w3n-dot{
+  width:7px;height:7px;border-radius:50%;
+  background:var(--accent-color,#6366f1);
+  flex-shrink:0;margin-top:5px;
+}
+
+.w3n-footer-link{
+  display:block;text-align:center;padding:9px 14px;
+  font-size:.78rem;color:var(--accent-color,#2563eb)!important;
+  text-decoration:none!important;
+  border-top:1px solid var(--line-strong,#e5e7eb);
+  background:var(--surface,#fff);transition:background .15s;
+}
+.w3n-footer-link:hover{background:rgba(37,99,235,.05);}
+html.theme-dark .w3n-footer-link{
+  background:var(--surface,#0f172a);
+  border-color:var(--line-strong,#1f2937);
+}
   </style>
 </head>
 <body>
@@ -701,25 +839,52 @@
     </strong>
 
     <div class="ms-auto d-flex align-items-center gap-2">
-      <button id="btnTheme" class="w3-icon-btn js-theme-btn d-none d-lg-inline-grid" aria-label="Toggle theme" title="Toggle theme">
+      <div class="toggle-theme d-none">
+          <button id="btnTheme" class="w3-icon-btn js-theme-btn d-none d-lg-inline-grid" aria-label="Toggle theme" title="Toggle theme">
         <i class="fa-regular fa-moon" id="themeIcon"></i>
       </button>
-
-      <div class="dropdown">
-        <a href="#" class="w3-icon-btn" id="alertsMenu" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Alerts" title="Alerts">
-          <i class="fa-regular fa-bell"></i>
-        </a>
-        <div class="dropdown-menu dropdown-menu-end p-2 shadow" style="min-width:320px">
-          <div class="d-flex align-items-center justify-content-between px-2 mb-2">
-            <strong>Notifications</strong>
-            <a class="text-muted" href="/notifications">View all</a>
-          </div>
-          <div class="w3-note rounded-xs">
-            <div class="small"><strong>Schedule update</strong> — Lab ME-302 moved to Thu 11 AM.</div>
-          </div>
-        </div>
       </div>
+    
+<div class="dropdown" id="w3nWrap">
+  <a href="#" class="w3-icon-btn position-relative" id="w3nBell"
+     data-bs-toggle="dropdown" data-bs-auto-close="outside"
+     aria-expanded="false" aria-label="Notifications" title="Notifications">
+    <i class="fa-regular fa-bell"></i>
+    <span id="w3nBadge" class="w3n-badge" style="display:none;"></span>
+  </a>
 
+  <div class="dropdown-menu dropdown-menu-end w3n-panel" id="w3nPanel">
+
+    <div class="w3n-header">
+      <div class="w3n-header-left">
+        <span class="w3n-title">Notifications</span>
+        <span id="w3nHeaderBadge" class="w3n-count-pill" style="display:none;"></span>
+      </div>
+      <div class="w3n-header-right">
+        <button id="w3nMarkAll" class="w3n-text-btn" type="button">
+          <i class="fa-solid fa-check-double"></i> Mark all read
+        </button>
+        <a href="/notifications" class="w3n-text-btn w3n-text-btn--accent">View all</a>
+      </div>
+    </div>
+
+    <div class="w3n-list" id="w3nList">
+      <div class="w3n-state" id="w3nLoading">
+        <span class="w3n-spinner"></span>
+        <span class="w3n-state-text">Loading…</span>
+      </div>
+      <div class="w3n-state" id="w3nEmpty" style="display:none;">
+        <i class="fa-regular fa-bell-slash w3n-state-icon"></i>
+        <span class="w3n-state-text">You're all caught up!</span>
+      </div>
+      <div id="w3nItems"></div>
+    </div>
+
+    <a href="/notifications" class="w3n-footer-link">
+      <i class="fa-solid fa-arrow-right"></i> See all notifications
+    </a>
+  </div>
+</div>
       <div class="dropdown d-none d-lg-block">
         <a href="#"
            class="btn admin-pill-btn rounded-pill d-flex align-items-center gap-2 px-3"
@@ -734,11 +899,11 @@
               <i class="fa fa-id-badge me-2"></i>Profile
             </a>
           </li>
-          <li>
+          <!-- <li>
             <a class="dropdown-item admin-user-menu__item" href="/settings">
               <i class="fa fa-gear me-2"></i>Settings
             </a>
-          </li>
+          </li> -->
           <li><hr class="dropdown-divider admin-user-menu__divider"></li>
           <li>
             <a class="dropdown-item admin-user-menu__item admin-user-menu__item--danger" href="#" id="logoutBtn">
@@ -766,6 +931,170 @@
 @yield('scripts')
 
 <script>
+  (function () {
+  'use strict';
+
+  const API_BASE = '/api';
+  const POLL_MS  = 60_000;
+  const LIMIT    = 10;
+
+  const getToken = () => sessionStorage.getItem('token') || localStorage.getItem('token') || '';
+
+  /* ── DOM refs — all w3n-prefixed IDs ── */
+  const $bell    = document.getElementById('w3nBell');
+  const $badge   = document.getElementById('w3nBadge');
+  const $hdrBadge= document.getElementById('w3nHeaderBadge');
+  const $items   = document.getElementById('w3nItems');
+  const $loading = document.getElementById('w3nLoading');
+  const $empty   = document.getElementById('w3nEmpty');
+  const $markAll = document.getElementById('w3nMarkAll');
+
+  if (!$bell) return;
+
+  /* ── fetch ── */
+  async function w3nFetch(path, opts = {}) {
+    const token = getToken();
+    const res = await fetch(API_BASE + path, {
+      ...opts,
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: 'Bearer ' + token } : {}),
+        ...(opts.headers || {}),
+      },
+    });
+    if (!res.ok) throw new Error('w3n HTTP ' + res.status);
+    return res.json();
+  }
+
+  /* ── utils ── */
+  function w3nAgo(ts) {
+    if (!ts) return '';
+    try {
+      const d = new Date(ts), diff = Date.now() - d;
+      const m = Math.floor(diff/60000), h = Math.floor(diff/3600000), dy = Math.floor(diff/86400000);
+      if (m < 1)  return 'Just now';
+      if (m < 60) return m + 'm ago';
+      if (h < 24) return h + 'h ago';
+      if (dy < 7) return dy + 'd ago';
+      return d.toLocaleDateString('en-US',{month:'short',day:'numeric'});
+    } catch { return ''; }
+  }
+
+  const w3nIcon = p => ({
+    urgent:'fa-solid fa-circle-exclamation',
+    high:'fa-solid fa-triangle-exclamation',
+    normal:'fa-solid fa-bell',
+    low:'fa-regular fa-bell'
+  }[p]||'fa-solid fa-bell');
+
+  const w3nRead = rs => Array.isArray(rs) && rs.some(r => Number(r.read) === 1);
+
+  /* ── badge ── */
+  let w3nCount = 0;
+  function w3nSetBadge(n) {
+    w3nCount = Math.max(0, n);
+    const lbl = w3nCount > 99 ? '99+' : String(w3nCount);
+    const show = w3nCount > 0;
+    if ($badge)    { $badge.textContent = lbl;    $badge.style.display    = show ? 'inline-flex' : 'none'; }
+    if ($hdrBadge) { $hdrBadge.textContent = lbl; $hdrBadge.style.display = show ? 'inline-flex' : 'none'; }
+  }
+
+  async function w3nPollBadge() {
+    if (!getToken()) return;
+    try {
+      const r = await w3nFetch('/notifications?count_only=1');
+      w3nSetBadge(r?.unread ?? 0);
+    } catch { /* silent */ }
+  }
+
+  /* ── render one item ── */
+  function w3nMakeItem(n) {
+    const read = w3nRead(n.receivers || []);
+    const pri  = (n.priority || 'normal').toLowerCase();
+    const href = n.link_url || '/notifications';
+
+    const el = document.createElement('a');
+    el.className    = 'w3n-item' + (read ? '' : ' w3n-item--unread');
+    el.href         = href;
+    el.dataset.id   = n.id;
+    el.dataset.read = read ? '1' : '0';
+    el.innerHTML = `
+      <div class="w3n-item-icon w3n-item-icon--${pri}">
+        <i class="${w3nIcon(pri)}"></i>
+      </div>
+      <div class="w3n-item-body">
+        <div class="w3n-item-title">${n.title || 'Notification'}</div>
+        <div class="w3n-item-msg">${n.message || ''}</div>
+        <div class="w3n-item-time">${w3nAgo(n.created_at)}</div>
+      </div>
+      ${!read ? '<span class="w3n-dot"></span>' : ''}
+    `;
+
+    el.addEventListener('click', async e => {
+      if (el.dataset.read === '1') return;
+      e.preventDefault();
+      try {
+        await w3nFetch('/notifications/' + n.id, {
+          method: 'PATCH',
+          body: JSON.stringify({ action: 'read', read: true }),
+        });
+      } catch { /* still navigate */ }
+      el.classList.remove('w3n-item--unread');
+      el.querySelector('.w3n-dot')?.remove();
+      el.dataset.read = '1';
+      w3nSetBadge(w3nCount - 1);
+      window.location.href = el.href;
+    });
+
+    return el;
+  }
+
+  /* ── load list ── */
+  async function w3nLoad() {
+    if (!getToken()) return;
+    $loading.style.display = 'flex';
+    $empty.style.display   = 'none';
+    $items.innerHTML       = '';
+    try {
+      const res   = await w3nFetch(`/notifications?limit=${LIMIT}&page=1`);
+      const items = Array.isArray(res?.data) ? res.data : [];
+      $loading.style.display = 'none';
+      if (!items.length) { $empty.style.display = 'flex'; return; }
+      items.forEach(n => $items.appendChild(w3nMakeItem(n)));
+    } catch {
+      $loading.style.display = 'none';
+      $empty.style.display   = 'flex';
+    }
+  }
+
+  /* ── mark all ── */
+  $markAll?.addEventListener('click', async e => {
+    e.preventDefault(); e.stopPropagation();
+    try {
+      await w3nFetch('/notifications', {
+        method: 'PATCH',
+        body: JSON.stringify({ action: 'read_all' }),
+      });
+      $items.querySelectorAll('.w3n-item--unread').forEach(el => {
+        el.classList.remove('w3n-item--unread');
+        el.querySelector('.w3n-dot')?.remove();
+        el.dataset.read = '1';
+      });
+      w3nSetBadge(0);
+    } catch { /* silent */ }
+  });
+
+  /* ── open → reload fresh ── */
+  $bell.addEventListener('shown.bs.dropdown', w3nLoad);
+
+  /* ── boot: wait for DOM so Bootstrap dropdown events are ready ── */
+  document.addEventListener('DOMContentLoaded', () => {
+    w3nPollBadge();
+    setInterval(w3nPollBadge, POLL_MS);
+  });
+
+})();
+
 document.addEventListener('DOMContentLoaded', () => {
   const html = document.documentElement;
   const THEME_KEY = 'theme';

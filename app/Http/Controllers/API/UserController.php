@@ -537,26 +537,28 @@ private function logActivity(
         ]);
     }
 
-    /**
- * GET /api/users?page=&per_page=&q=&status=
- * Paginated list.
- */
-public function index(Request $request)
+  public function index(Request $request)
 {
     $page   = max(1, (int)$request->query('page', 1));
     $pp     = min(100, max(1, (int)$request->query('per_page', 20)));
     $q      = trim((string)$request->query('q', ''));
-
-    // NEW: Default is 'all' -> show both active & inactive
     $status = $request->query('status', 'all');
+    $role   = trim((string)$request->query('role', ''));   // ADD THIS
+    $sort   = trim((string)$request->query('sort', '-created_at')); // ADD THIS
 
     $base = DB::table('users')->whereNull('deleted_at');
 
-    // Apply filter only if status is NOT 'all' and not empty
+    // Status filter
     if ($status !== 'all' && $status !== '') {
         $base->where('status', $status);
     }
 
+    // Role filter — ADD THIS BLOCK
+    if ($role !== '') {
+        $base->where('role', $role);
+    }
+
+    // Search
     if ($q !== '') {
         $like = "%{$q}%";
         $base->where(function($w) use ($like){
@@ -567,10 +569,19 @@ public function index(Request $request)
 
     $total = (clone $base)->count();
 
-    $rows  = $base->orderBy('name')
+    // Dynamic sort — ADD THIS BLOCK
+    $sortField = ltrim($sort, '-');
+    $sortDir   = str_starts_with($sort, '-') ? 'desc' : 'asc';
+    $allowed   = ['name', 'email', 'created_at'];          // whitelist to prevent injection
+    if (!in_array($sortField, $allowed)) {
+        $sortField = 'created_at';
+        $sortDir   = 'desc';
+    }
+
+    $rows = $base->orderBy($sortField, $sortDir)
         ->offset(($page - 1) * $pp)
         ->limit($pp)
-        ->select('id','name','email','image','role','role_short_form','status')
+        ->select('id','name','email','image','role','role_short_form','status','uuid','created_at')
         ->get();
 
     return response()->json([

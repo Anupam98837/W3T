@@ -13,7 +13,7 @@
           from industry experts.
         </h1>
         <p class="lp-hero-sub">
-          Build job-ready skills in Full-Stack Development, Data, DevOps, and more — with structured paths, live doubts support, and real projects designed for placements.
+          Build job-ready skills in Full-Stack Development, Data, DevOps and more - with structured paths, live doubt support and real projects designed for placements.
         </p>
 
         <form class="lp-hero-search" action="#" method="get" style="display:none">
@@ -153,7 +153,7 @@
       <div class="lp-section-head">
         <div>
           <h2 class="lp-section-title">Featured job-ready courses</h2>
-          <div class="lp-section-sub">Carefully designed tracks that focus on skills, projects, and placements.</div>
+          <div class="lp-section-sub">Carefully designed tracks that focus on skills, projects and placements.</div>
         </div>
         <a href="/courses/all" class="lp-section-link">
           Browse courses <i class="fa fa-arrow-right ms-1"></i>
@@ -173,7 +173,7 @@
       <div>
         <h2 class="lp-parallax-title">Serious learning for serious careers.</h2>
         <p class="lp-parallax-sub">
-          Whether you’re from a CS background or completely switching careers, W3Techiez is built to give you clarity, structure, and accountability — not just random videos.
+          Whether you’re from a CS background or completely switching careers, W3Techiez is built to give you clarity, structure and accountability — not just random videos.
         </p>
         <div class="lp-parallax-pills">
           <span><i class="fa-solid fa-circle-check me-1"></i> Live & recorded content</span>
@@ -197,7 +197,7 @@
         <div class="lp-parallax-mini">
           <i class="fa-solid fa-briefcase"></i>
           <div>
-            Interview preparation starts early, with problem-solving practice, projects, and mock interviews built in.
+            Interview preparation starts early, with problem-solving practice, projects and mock interviews built in.
           </div>
         </div>
       </div>
@@ -210,7 +210,7 @@
       <div class="lp-section-head">
         <div>
           <h2 class="lp-section-title">Career outcomes & placements</h2>
-          <div class="lp-section-sub">Learners from our programs have joined product companies, IT services, and fast-growing startups.</div>
+          <div class="lp-section-sub">Learners from our programs have joined product companies, IT services and fast-growing startups.</div>
         </div>
       </div>
 
@@ -244,7 +244,7 @@
       </div>
       <div class="lp-stat-card lp-animate lp-animate-delay-1" data-lp-animate="fade-up">
         <strong>Mentor support</strong>
-        <span>Live doubt clearing, code reviews, and project feedback from industry mentors.</span>
+        <span>Live doubt clearing, code reviews and project feedback from industry mentors.</span>
       </div>
       <div class="lp-stat-card lp-animate lp-animate-delay-2" data-lp-animate="fade-up">
         <strong>Real projects</strong>
@@ -252,7 +252,7 @@
       </div>
       <div class="lp-stat-card lp-animate lp-animate-delay-3" data-lp-animate="fade-up">
         <strong>Placement focus</strong>
-        <span>Resume review, mock interviews, and referrals through our network.</span>
+        <span>Resume review, mock interviews and referrals through our network.</span>
       </div>
     </div>
   </section>
@@ -401,7 +401,7 @@
 
         <article class="lp-test-card lp-animate lp-animate-delay-1" data-lp-animate="fade-up">
           <p class="lp-test-text">
-            “Coming from a non-CS background, I was scared of code. The mentors really slowed down, explained concepts, and pushed me to build.”
+            “Coming from a non-CS background, I was scared of code. The mentors really slowed down, explained concepts and pushed me to build.”
           </p>
           <div class="lp-test-author">
             <div class="lp-avatar">S</div>
@@ -414,7 +414,7 @@
 
         <article class="lp-test-card lp-animate lp-animate-delay-2" data-lp-animate="fade-up">
           <p class="lp-test-text">
-            “Assignments, quizzes, and mock interviews gave me confidence. I knew what to expect in real interviews.”
+            “Assignments, quizzes and mock interviews gave me confidence. I knew what to expect in real interviews.”
           </p>
           <div class="lp-test-author">
             <div class="lp-avatar">A</div>
@@ -443,7 +443,7 @@
         <div class="lp-faq-intro lp-animate" data-lp-animate="fade-up">
           <p>
             Still wondering if W3Techiez is the right fit for you? Most learners have similar questions about background,
-            time commitment, and placements — we’ve answered the most important ones here.
+            time commitment and placements — we’ve answered the most important ones here.
           </p>
           <ul class="lp-faq-intro-list">
             <li>Can non-CS and career switchers succeed here?</li>
@@ -467,7 +467,7 @@
               </h2>
               <div id="faqOneBody" class="accordion-collapse collapse" aria-labelledby="faqOne" data-bs-parent="#faqAccordion">
                 <div class="accordion-body">
-                  Yes. Many of our learners are from non-CS branches or even non-engineering backgrounds. We start from fundamentals, give extra support for basics, and focus on helping you build confidence step by step.
+                  Yes. Many of our learners are from non-CS branches or even non-engineering backgrounds. We start from fundamentals, give extra support for basics and focus on helping you build confidence step by step.
                 </div>
               </div>
             </div>
@@ -493,7 +493,7 @@
               </h2>
               <div id="faqThreeBody" class="accordion-collapse collapse" aria-labelledby="faqThree" data-bs-parent="#faqAccordion">
                 <div class="accordion-body">
-                  Yes. Content is designed with working professionals and college students in mind. Sessions are scheduled in the evenings or weekends, and you get recordings plus structured weekly plans so you can pace your learning.
+                  Yes. Content is designed with working professionals and college students in mind. Sessions are scheduled in the evenings or weekends and you get recordings plus structured weekly plans so you can pace your learning.
                 </div>
               </div>
             </div>
@@ -509,7 +509,7 @@
       <div class="lp-cta-text">
         <h3 class="lp-cta-title">Ready to start your next chapter?</h3>
         <p class="lp-cta-sub">
-          Create your free account, explore the catalog, and start learning your first module today. Pay only when you join a full program.
+          Create your free account, explore the catalog and start learning your first module today. Pay only when you join a full program.
         </p>
       </div>
       <div class="lp-cta-actions">

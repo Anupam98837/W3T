@@ -34,7 +34,7 @@
       </div>
 
       {{-- Filter Button to match courses page --}}
-      <button id="btnFilter" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#filterModal">
+<button id="btnFilter" class="btn btn-primary">
         <i class="fa fa-filter me-1"></i>Filter
       </button>
 
@@ -516,7 +516,9 @@ document.addEventListener('DOMContentLoaded', function(){
   ========================================================== */
   const filterModalEl = document.getElementById('filterModal');
   const filterModal = new bootstrap.Modal(filterModalEl);
-
+      document.getElementById('btnFilter').addEventListener('click', () => {
+  filterModal.show();
+});
   filterModalEl.addEventListener('show.bs.modal',()=>{
     modalStatus.value = statusFilter;
     modalRole.value   = roleFilter;

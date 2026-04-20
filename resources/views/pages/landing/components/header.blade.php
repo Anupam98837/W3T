@@ -65,7 +65,6 @@
       background: linear-gradient(90deg, var(--primary-color), var(--accent-color));
       color: #fff;
       font-size: var(--fs-12);
-      border-bottom: 1px solid rgba(255,255,255,0.2);
     }
     .lp-announcement-inner{
       max-width: 1200px;
@@ -402,7 +401,9 @@
     .lp-hero-tags button:hover{
       background: var(--page-hover);
     }
-
+    .lp-hero-tags span{
+      margin-top:3px;
+    }
     .lp-hero-stats{
       display: flex;
       flex-wrap: wrap;
@@ -1396,6 +1397,7 @@
     .lp-footer-brand-logo strong{
       font-family: var(--font-head);
       color: var(--ink);
+      margin-top:8px;
       font-size: 1.05rem;
     }
 
@@ -1455,8 +1457,8 @@
       gap: 8px;
     }
     .lp-footer-social a{
-      width: 28px;
-      height: 28px;
+      width: 35px;
+      height: 35px;
       border-radius: 999px;
       border: 1px solid var(--line-strong);
       display: inline-flex;
@@ -1464,7 +1466,7 @@
       justify-content: center;
       color: var(--muted-color);
       text-decoration: none;
-      font-size: 0.8rem;
+      font-size: 1rem;
     }
     .lp-footer-social a:hover{
       color: var(--accent-color);

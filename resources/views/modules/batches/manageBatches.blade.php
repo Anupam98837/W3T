@@ -470,7 +470,7 @@
     <div class="modal-content">
       <div class="modal-header">
         <h5 class="modal-title"><i class="fa fa-chalkboard-user me-2"></i>Assign Instructors</h5>
-        <a id="ins_add_btn" href="/admin/users/manage" class="btn btn-primary btn-sm ms-auto"><i class="fa fa-user-plus me-1"></i> Add Instructor</a>
+        <a id="ins_add_btn" href="/users/manage" class="btn btn-primary btn-sm ms-auto"><i class="fa fa-user-plus me-1"></i> Add Instructor</a>
         <button type="button" class="btn-close ms-2" data-bs-dismiss="modal"></button>
       </div>
       <div class="modal-body">
@@ -510,7 +510,7 @@
     <div class="modal-content">
       <div class="modal-header">
         <h5 class="modal-title"><i class="fa fa-question me-2"></i>Assign Quizzes</h5>
-        <a id="qz_add_btn" href="/admin/quizz/create" class="btn btn-primary btn-sm ms-auto"><i class="fa fa-plus me-1"></i> Add Quiz</a>
+        <a id="qz_add_btn" href="/quizz/create" class="btn btn-primary btn-sm ms-auto"><i class="fa fa-plus me-1"></i> Add Quiz</a>
         <button type="button" class="btn-close ms-2" data-bs-dismiss="modal"></button>
       </div>
       <div class="modal-body">

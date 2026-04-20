@@ -193,7 +193,7 @@
 .image-shell{
   position:relative;
   width:100%;
-  max-width:440px;
+  max-width:350px;
   background:white;
   padding:14px;
   border-radius:22px;
@@ -215,8 +215,8 @@
 /* RING */
 .ring-bg{
   position:absolute;
-  width:420px;
-  height:420px;
+  width:480px;
+  height:480px;
   border-radius:50%;
   border:30px solid rgba(149,30,170,.35);
   top:52%;

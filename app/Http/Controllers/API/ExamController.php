@@ -5,6 +5,7 @@ namespace App\Http\Controllers\API;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Response;
 use Illuminate\Support\Facades\Validator;
@@ -2144,11 +2145,11 @@ private function fibExplain(object $q, $answers, $selRaw): array
         ];
     }
 
-    public function resultDetail(Request $request, int $resultId)
+    public function resultDetail(Request $request, String $resultId)
 {
     // ---------- 1. Auth ----------
     $user = $this->getUserFromToken($request);
-    if (!$user || !$this->isStudent($user)) {
+    if (!$user) {
         return response()->json([
             'success' => false,
             'message' => 'Unauthorized (student token required)'
@@ -2160,7 +2161,6 @@ private function fibExplain(object $q, $answers, $selRaw): array
         ->join('quizz_attempts as a', 'a.id', '=', 'r.attempt_id')
         ->join('quizz as q', 'q.id', '=', 'r.quiz_id')
         ->where('r.id', $resultId)
-        ->where('r.user_id', $user->id)          // ensure this result belongs to this student
         ->select([
             'r.id as result_id',
             'r.quiz_id',
@@ -2449,7 +2449,316 @@ public function export(Request $request, int $resultId)
         'Content-Disposition' => 'attachment; filename="'.$safeName.'.html"',
     ]);
 }
+public function resultBatches(Request $request)
+{
+    $user = $this->getUserFromToken($request);
+    if (!$user) {
+        return response()->json(['success' => false, 'message' => 'Unauthorized'], 401);
+    }
 
+    $role = mb_strtolower(preg_replace('/[^a-z0-9_]+/i', '_', (string)($user->role ?? '')));
+    $isAdmin = in_array($role, ['admin', 'super_admin', 'superadmin'], true) || str_contains($role, 'admin');
+    $isInstructor = str_contains($role, 'instructor');
+
+    if (!$isAdmin && !$isInstructor) {
+        return response()->json(['success' => false, 'message' => 'Forbidden'], 403);
+    }
+
+    $quiz = null;
+    if ($request->filled('quiz')) {
+        $quiz = $this->quizByKey((string) $request->query('quiz'));
+        if (!$quiz) {
+            return response()->json(['success' => false, 'message' => 'Quiz not found'], 404);
+        }
+    }
+
+    $query = DB::table('batches as b')
+        ->join('courses as c', function ($join) {
+            $join->on('c.id', '=', 'b.course_id')
+                ->whereNull('c.deleted_at');
+        })
+        ->whereNull('b.deleted_at');
+
+    if ($quiz) {
+        $query->join('batch_quizzes as bq', function ($join) use ($quiz) {
+            $join->on('bq.batch_id', '=', 'b.id')
+                ->where('bq.quiz_id', '=', (int) $quiz->id)
+                ->whereNull('bq.deleted_at');
+        });
+    }
+
+    if ($isInstructor && !$isAdmin) {
+        $candidates = [
+            'batch_instructors' => ['user_id', 'instructor_id'],
+            'batch_faculties'   => ['user_id', 'faculty_id'],
+            'batch_teachers'    => ['user_id', 'teacher_id'],
+            'batch_trainers'    => ['user_id', 'trainer_id'],
+        ];
+
+        $foundTable = null;
+        $foundUserCol = null;
+
+        foreach ($candidates as $table => $userCols) {
+            if (!Schema::hasTable($table) || !Schema::hasColumn($table, 'batch_id')) {
+                continue;
+            }
+
+            foreach ($userCols as $userCol) {
+                if (Schema::hasColumn($table, $userCol)) {
+                    $foundTable = $table;
+                    $foundUserCol = $userCol;
+                    break 2;
+                }
+            }
+        }
+
+        if (!$foundTable || !$foundUserCol) {
+            return response()->json(['success' => true, 'data' => []], 200);
+        }
+
+        $query->join($foundTable . ' as bi', function ($join) use ($foundTable, $foundUserCol, $user) {
+            $join->on('bi.batch_id', '=', 'b.id')
+                ->where('bi.' . $foundUserCol, '=', (int) $user->id);
+
+            if (Schema::hasColumn($foundTable, 'deleted_at')) {
+                $join->whereNull('bi.deleted_at');
+            }
+        });
+    }
+
+    $rows = $query
+        ->select([
+            'b.id',
+            'b.uuid',
+            'b.badge_title',
+            'b.status',
+            'b.starts_at',
+            'b.ends_at',
+            'c.id as course_id',
+            'c.uuid as course_uuid',
+            'c.title as course_title',
+        ])
+        ->distinct()
+        ->orderBy('c.title')
+        ->orderBy('b.badge_title')
+        ->get()
+        ->map(function ($row) {
+            return [
+                'id'           => (int) $row->id,
+                'uuid'         => (string) $row->uuid,
+                'badge_title'  => (string) ($row->badge_title ?? ''),
+                'status'       => (string) ($row->status ?? ''),
+                'starts_at'    => $row->starts_at ? Carbon::parse($row->starts_at)->toDateTimeString() : null,
+                'ends_at'      => $row->ends_at ? Carbon::parse($row->ends_at)->toDateTimeString() : null,
+                'course_id'    => (int) $row->course_id,
+                'course_uuid'  => (string) ($row->course_uuid ?? ''),
+                'course_title' => (string) ($row->course_title ?? ''),
+            ];
+        })
+        ->values();
+
+    return response()->json(['success' => true, 'data' => $rows], 200);
+}
+
+/**
+ * GET /api/exam/quizzes/{quizKey}/results
+ * Admin/Instructor only — all students' results for a quiz
+ * Query params: batch_id, batch_quiz (optional)
+ */
+public function allStudentResults(Request $request, string $quizKey)
+{
+    // ---------- 1. Auth: admin/instructor only ----------
+    $user = $this->getUserFromToken($request);
+    if (!$user) {
+        return response()->json(['success' => false, 'message' => 'Unauthorized'], 401);
+    }
+
+    $role = mb_strtolower(preg_replace('/[^a-z0-9_]+/i', '_', (string)($user->role ?? '')));
+    $allowed = ['admin', 'super_admin', 'superadmin', 'instructor'];
+    $isAllowed = in_array($role, $allowed, true)
+        || str_contains($role, 'admin')
+        || str_contains($role, 'instructor');
+
+    if (!$isAllowed) {
+        return response()->json(['success' => false, 'message' => 'Forbidden'], 403);
+    }
+
+    // ---------- 2. Resolve quiz ----------
+    $quiz = $this->quizByKey($quizKey);
+    if (!$quiz) {
+        return response()->json(['success' => false, 'message' => 'Quiz not found'], 404);
+    }
+
+    // ---------- 3. Optional batch context ----------
+    $batchIdRef   = trim((string) $request->query('batch_id', ''));
+    $batchId      = null;
+    $batchQuizKey = $request->query('batch_quiz');
+    $batchQuiz   = null;
+
+    if ($batchIdRef !== '') {
+        if (ctype_digit($batchIdRef)) {
+            $batchId = (int) $batchIdRef;
+        } else {
+            $batchId = DB::table('batches')
+                ->where('uuid', $batchIdRef)
+                ->whereNull('deleted_at')
+                ->value('id');
+        }
+    }
+
+    if (!empty($batchQuizKey)) {
+        $batchQuiz = $this->batchQuizByKey($batchQuizKey, (int)$quiz->id);
+    }
+
+    if (!$batchQuiz && !empty($batchId)) {
+        // find batch_quiz by batch_id + quiz_id
+        $batchQuiz = DB::table('batch_quizzes')
+            ->where('quiz_id', $quiz->id)
+            ->where('batch_id', $batchId)
+            ->whereNull('deleted_at')
+            ->first();
+    }
+
+    // ---------- 4. Get all enrolled students in the batch ----------
+    $enrolledStudents = collect();
+
+    if ($batchQuiz) {
+        $enrolledStudents = DB::table('batch_students as bs')
+            ->join('users as u', 'u.id', '=', 'bs.user_id')
+            ->where('bs.batch_id', $batchQuiz->batch_id)
+            ->where('bs.enrollment_status', 'enrolled')
+            ->whereNull('bs.deleted_at')
+            ->whereNull('u.deleted_at')
+            ->select([
+                'u.id as user_id',
+                'u.name',
+                'u.email',
+            ])
+            ->get();
+    }
+
+    // ---------- 5. Get all submitted attempts for this quiz ----------
+    $userSelect = [
+        'u.name as student_name',
+        'u.email as student_email',
+    ];
+
+    if (Schema::hasColumn('users', 'phone_number')) {
+        $userSelect[] = 'u.phone_number as student_phone';
+    }
+    if (Schema::hasColumn('users', 'alternative_email')) {
+        $userSelect[] = 'u.alternative_email as student_alt_email';
+    }
+    if (Schema::hasColumn('users', 'alternative_phone_number')) {
+        $userSelect[] = 'u.alternative_phone_number as student_alt_phone';
+    }
+    if (Schema::hasColumn('users', 'whatsapp_number')) {
+        $userSelect[] = 'u.whatsapp_number as student_whatsapp';
+    }
+
+    $attemptsQuery = DB::table('quizz_attempts as qa')
+        ->join('users as u', 'u.id', '=', 'qa.user_id')
+        ->leftJoin('quizz_results as qr', 'qr.attempt_id', '=', 'qa.id')
+        ->where('qa.quiz_id', $quiz->id)
+        ->whereIn('qa.status', ['submitted', 'auto_submitted']);
+
+    if ($batchQuiz) {
+        $attemptsQuery->join('quizz_attempt_batch as qab', function ($join) use ($batchQuiz) {
+            $join->on('qab.attempt_id', '=', 'qa.id')
+                 ->where('qab.batch_quiz_id', (int)$batchQuiz->id);
+        });
+    }
+
+    $attempts = $attemptsQuery
+        ->orderBy('u.name')
+        ->orderByDesc('qa.created_at')
+        ->select([
+            'qa.id as attempt_id',
+            'qa.uuid as attempt_uuid',
+            'qa.status',
+            'qa.started_at',
+            'qa.finished_at',
+            'qa.user_id',
+            'qr.id as result_id',
+            'qr.marks_obtained',
+            'qr.total_marks',
+            'qr.percentage',
+            'qr.attempt_number',
+            'qr.publish_to_student',
+        ], ...$userSelect)
+        ->get();
+
+    // ---------- 6. Build submitted list ----------
+    $submittedUserIds = $attempts->pluck('user_id')->unique()->values();
+
+    $submitted = $attempts->map(function ($row) {
+        $pct = ($row->total_marks && $row->total_marks > 0)
+            ? (float) round($row->marks_obtained / $row->total_marks * 100, 2)
+            : ($row->percentage ?? 0.0);
+
+        // pass/fail based on passing_marks if set, else 40%
+        $resultStatus = $pct >= 40 ? 'pass' : 'fail';
+
+        return [
+            'user_id'        => (int) $row->user_id,
+            'student_name'   => (string) $row->student_name,
+            'student_email'  => (string) $row->student_email,
+            'student_phone'  => isset($row->student_phone) ? (string) ($row->student_phone ?? '') : '',
+            'student_alt_email' => isset($row->student_alt_email) ? (string) ($row->student_alt_email ?? '') : '',
+            'student_alt_phone' => isset($row->student_alt_phone) ? (string) ($row->student_alt_phone ?? '') : '',
+            'student_whatsapp'  => isset($row->student_whatsapp) ? (string) ($row->student_whatsapp ?? '') : '',
+            'attempt_id'     => (int) $row->attempt_id,
+            'attempt_uuid'   => (string) $row->attempt_uuid,
+            'attempt_number' => (int) ($row->attempt_number ?? 0),
+            'status'         => (string) $row->status,
+            'started_at'     => $row->started_at
+                                ? Carbon::parse($row->started_at)->toDateTimeString()
+                                : null,
+            'finished_at'    => $row->finished_at
+                                ? Carbon::parse($row->finished_at)->toDateTimeString()
+                                : null,
+            'result' => $row->result_id ? [
+                'result_id'          => (int) $row->result_id,
+                'marks_obtained'     => (int) $row->marks_obtained,
+                'total_marks'        => (int) $row->total_marks,
+                'percentage'         => $pct,
+                'result_status'      => $resultStatus,
+                'publish_to_student' => (int) $row->publish_to_student,
+            ] : null,
+        ];
+    })->values();
+
+    // ---------- 7. Build not-submitted list ----------
+    $notSubmitted = collect();
+
+    if ($enrolledStudents->isNotEmpty()) {
+        $notSubmitted = $enrolledStudents
+            ->filter(fn($s) => !$submittedUserIds->contains($s->user_id))
+            ->map(fn($s) => [
+                'user_id'       => (int) $s->user_id,
+                'student_name'  => (string) $s->name,
+                'student_email' => (string) $s->email,
+            ])
+            ->values();
+    }
+
+    // ---------- 8. Response ----------
+    return response()->json([
+        'success'       => true,
+        'quiz' => [
+            'id'   => (int) $quiz->id,
+            'uuid' => (string) $quiz->uuid,
+            'name' => (string) ($quiz->quiz_name ?? 'Quiz'),
+        ],
+        'submitted'     => $submitted,
+        'not_submitted' => $notSubmitted,
+        'summary' => [
+            'total_enrolled'      => $enrolledStudents->count(),
+            'total_submitted'     => $submitted->count(),
+            'total_not_submitted' => $notSubmitted->count(),
+        ],
+    ], 200);
+}
 
 
 

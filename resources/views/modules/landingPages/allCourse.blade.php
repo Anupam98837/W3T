@@ -392,7 +392,7 @@
   {{-- Results counter (inline right) --}}
   <div class="col-md-3 text-md-end">
     <div id="resultsCounter" class="courses-counter" >
-      Showing <span id="resultsCount">0</span> courses
+     <span id="resultsCount">0</span> courses
     </div>
   </div>
 
@@ -402,28 +402,8 @@
 
       {{-- Courses grid --}}
       <div id="allCoursesGrid" class="lp-course-grid">
-        {{-- Enhanced skeleton loaders --}}
-        @for($i = 0; $i < 8; $i++)
-          <article class="lp-course-card lp-animate is-visible">
-            <div class="lp-course-thumb skeleton-thumb"></div>
-            <div class="lp-course-body">
-              <div class="lp-course-title skeleton-pulse" style="height:24px;background:#f3f4f6;border-radius:6px;margin-bottom:12px;"></div>
-              <div class="lp-course-meta">
-                <div style="width:80px;height:14px;background:#f3f4f6;border-radius:4px;"></div>
-                <div style="width:60px;height:14px;background:#f3f4f6;border-radius:4px;"></div>
-              </div>
-              <div class="lp-course-summary">
-                <div style="height:16px;background:#f3f4f6;border-radius:4px;margin-bottom:6px;"></div>
-                <div style="height:16px;background:#f3f4f6;border-radius:4px;width:80%;"></div>
-              </div>
-            </div>
-            <div class="lp-course-footer" style="display:none">
-              <div style="width:60px;height:20px;background:#f3f4f6;border-radius:4px;"></div>
-              <div style="width:50px;height:20px;background:#f3f4f6;border-radius:20px;"></div>
-            </div>
-          </article>
-        @endfor
-      </div>
+  {{-- Skeletons are injected immediately by JS on DOMContentLoaded --}}
+</div>
 
       {{-- Enhanced empty state --}}
       <div id="coursesEmptyState" class="empty-state-container" style="display:none;">
@@ -466,6 +446,34 @@ document.addEventListener('DOMContentLoaded', () => {
   let totalResults = 0;
   let categoryList = [];
   let isInitialized = false; // Flag to prevent double loading
+/* ============= Skeleton Loader ============= */
+  const createSkeletonCards = (count) => {
+    let skeleton = '';
+    for (let i = 0; i < count; i++) {
+      skeleton += `
+        <article class="lp-course-card lp-animate is-visible">
+          <div class="lp-course-thumb skeleton-thumb"></div>
+          <div class="lp-course-body">
+            <div class="lp-course-title skeleton-pulse" style="height:24px;background:#f3f4f6;border-radius:6px;margin-bottom:12px;"></div>
+            <div class="lp-course-meta">
+              <div style="width:80px;height:14px;background:#f3f4f6;border-radius:4px;"></div>
+              <div style="width:60px;height:14px;background:#f3f4f6;border-radius:4px;"></div>
+            </div>
+            <div class="lp-course-summary">
+              <div style="height:16px;background:#f3f4f6;border-radius:4px;margin-bottom:6px;"></div>
+              <div style="height:16px;background:#f3f4f6;border-radius:4px;width:80%;"></div>
+            </div>
+          </div>
+          <div class="lp-course-footer" style="display:none">
+            <div style="width:60px;height:20px;background:#f3f4f6;border-radius:4px;"></div>
+            <div style="width:50px;height:20px;background:#f3f4f6;border-radius:20px;"></div>
+          </div>
+        </article>
+      `;
+    }
+    return skeleton;
+  };
+    grid.innerHTML = createSkeletonCards(8);
 
   const fetchJson = async (url, opts = {}) => {
     try {
@@ -520,48 +528,18 @@ document.addEventListener('DOMContentLoaded', () => {
     applyInitialCategoryFromUrl();
   };
 
-  /* ============= Skeleton Loader ============= */
-  const createSkeletonCards = (count) => {
-    let skeleton = '';
-    for (let i = 0; i < count; i++) {
-      skeleton += `
-        <article class="lp-course-card lp-animate is-visible">
-          <div class="lp-course-thumb skeleton-thumb"></div>
-          <div class="lp-course-body">
-            <div class="lp-course-title skeleton-pulse" style="height:24px;background:#f3f4f6;border-radius:6px;margin-bottom:12px;"></div>
-            <div class="lp-course-meta">
-              <div style="width:80px;height:14px;background:#f3f4f6;border-radius:4px;"></div>
-              <div style="width:60px;height:14px;background:#f3f4f6;border-radius:4px;"></div>
-            </div>
-            <div class="lp-course-summary">
-              <div style="height:16px;background:#f3f4f6;border-radius:4px;margin-bottom:6px;"></div>
-              <div style="height:16px;background:#f3f4f6;border-radius:4px;width:80%;"></div>
-            </div>
-          </div>
-          <div class="lp-course-footer" style="display:none">
-            <div style="width:60px;height:20px;background:#f3f4f6;border-radius:4px;"></div>
-            <div style="width:50px;height:20px;background:#f3f4f6;border-radius:20px;"></div>
-          </div>
-        </article>
-      `;
-    }
-    return skeleton;
-  };
+  const buildCoursesApiUrl = (page = 1, overrideCategory = null) => {
+  const params = new URLSearchParams();
+  const q = searchInput.value.trim();
+  const c = overrideCategory !== null ? overrideCategory : categorySel.value;
 
-  /* ============= Build API URL ============= */
-  const buildCoursesApiUrl = (page = 1) => {
-    const params = new URLSearchParams();
-    const q = searchInput.value.trim();
-    const c = categorySel.value;
+  if (q) params.set('q', q);
+  if (c) params.set('category', c);
+  params.set('page', page);
+  params.set('per_page', perPage);
 
-    if (q) params.set('q', q);
-    if (c) params.set('category', c);
-    params.set('page', page);
-    params.set('per_page', perPage);
-
-    return "{{ url('api/courses') }}?" + params.toString();
-  };
-
+  return "{{ url('api/courses') }}?" + params.toString();
+};
   /* ============= Price Formatter ============= */
   const formatPrice = (course) => {
     if (course.final_price_ui != null && Number(course.final_price_ui) > 0) {
@@ -623,7 +601,7 @@ document.addEventListener('DOMContentLoaded', () => {
             <h3 class="lp-course-title">${titleText}</h3>
             <div class="lp-course-meta">
               <span><i class="fa fa-signal"></i> ${levelText}</span>
-              <span><i class="fa fa-language"></i> ${language}</span>
+<span><i class="fa fa-language" style="position: relative; top: 4px;"></i> ${language}</span>
             </div>
             <div class="lp-course-summary">${summaryHtml}</div>
           </div>
@@ -744,38 +722,38 @@ document.addEventListener('DOMContentLoaded', () => {
     pagination.appendChild(container);
   };
 
-  /* ============= Load Courses ============= */
-  const loadCourses = async (page = 1) => {
-    currentPage = page;
+const loadCourses = async (page = 1, overrideCategory = null) => {
+  console.log('[loadCourses called]', { page, overrideCategory, categorySel_value: categorySel.value, stack: new Error().stack });
 
-    grid.innerHTML = createSkeletonCards(8);
-    emptyState.style.display = 'none';
-    resultsCounter.style.display = 'none';
+  currentPage = page;
 
-    const url = buildCoursesApiUrl(page);
-    const data = await fetchJson(url);
+  grid.innerHTML = createSkeletonCards(8);
+  emptyState.style.display = 'none';        // ✅ Always hide empty state during load
+  pagination.innerHTML = '';                 // ✅ Clear pagination too
+  resultsCounter.style.display = 'none';
 
-    if (!data || !Array.isArray(data.data)) {
-      grid.innerHTML = '';
-      renderCourses([]);
-      pagination.innerHTML = '';
-      return;
-    }
+  const url = buildCoursesApiUrl(page, overrideCategory);
+  const data = await fetchJson(url);
 
-    totalResults = data.pagination?.total || data.data.length;
-
+  if (!data || !Array.isArray(data.data)) {
     grid.innerHTML = '';
-    renderCourses(data.data);
+    emptyState.style.display = 'block';      // ✅ Only show after confirmed failure
+    pagination.innerHTML = '';
+    return;
+  }
 
-    const meta = data.pagination || {
-      page: page,
-      per_page: perPage,
-      total: totalResults
-    };
-    renderPagination(meta);
+  totalResults = data.pagination?.total || data.data.length;
+  grid.innerHTML = '';
+  renderCourses(data.data);
 
-    updateBrowserUrlWithFilters();
+  const meta = data.pagination || {
+    page: page,
+    per_page: perPage,
+    total: totalResults
   };
+  renderPagination(meta);
+  updateBrowserUrlWithFilters();
+};
 
   /* ============= URL Helpers ============= */
   const detectCategoryTokenFromUrl = () => {
@@ -869,19 +847,32 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   categorySel.addEventListener('change', () => {
+     if (!isInitialized) return; 
     loadCourses(1);
   });
 
-  /* ============= Initialize - Single Load ============= */
-  (async () => {
-    if (isInitialized) return;
-    isInitialized = true;
+  /* ============= Initialize ============= */
+/* ============= Initialize ============= */
+(async () => {
+  // Show skeletons immediately, hide empty state
+  grid.innerHTML = createSkeletonCards(8);
+  emptyState.style.display = 'none';
 
-    // Load categories first (without triggering course load)
-    await loadCategories();
-    
-    // Then load courses once
-    await loadCourses(1);
-  })();
+  // Read URL token BEFORE categories load
+  const initialCategoryToken = detectCategoryTokenFromUrl();
+
+  // Load categories WITHOUT triggering change event
+  // isInitialized stays false until we are fully ready
+  await loadCategories(); 
+  // ^ applyInitialCategoryFromUrl() is called inside here
+  // ^ it sets categorySel.value to the correct UUID already
+
+  // Now allow change events from user interaction
+  isInitialized = true;
+
+  // Fire ONE single course load — categorySel.value is already set correctly
+  // Pass null so buildCoursesApiUrl reads from categorySel.value directly
+  await loadCourses(1, null);
+})();
 });
 </script>

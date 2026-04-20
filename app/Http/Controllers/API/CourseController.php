@@ -498,6 +498,9 @@ public function index(Request $r)
     if ($status && !$onlyDeleted) {
         $q->where('c.status', $status);
     }
+    elseif (!$onlyDeleted) {
+    $q->where('c.status', 'published'); // ← add this line only
+}
 
     // Paid / free filter
     if ($type) {

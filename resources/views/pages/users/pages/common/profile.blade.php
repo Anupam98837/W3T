@@ -96,6 +96,8 @@
     padding: .4rem 1rem;
     border-radius: 20px;
     font-size: .9rem;
+        margin-top:10px;
+
     font-weight: 600;
     backdrop-filter: blur(10px);
     border: 1px solid rgba(255,255,255,.3);
@@ -104,6 +106,7 @@
 
 .profile-info .email {
     opacity: .9;
+    margin-top:10px;
     font-size: 1rem;
     color: white;
 }

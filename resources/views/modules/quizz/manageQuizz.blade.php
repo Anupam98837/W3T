@@ -543,6 +543,9 @@ html.theme-dark .page-link:hover {
         </div>
 
         <div class="col-12 col-xl-auto ms-xl-auto d-flex justify-content-xl-end">
+          <a href="/quizz/results" class="btn btn-primary me-2">
+            <i class="fa fa-square-poll-vertical me-1"></i>Quiz Results
+          </a>
           <a id="btnCreate" href="/quizz/create" class="btn btn-primary">
             <i class="fa fa-plus me-1"></i>New Quiz
           </a>
@@ -1079,6 +1082,9 @@ html.theme-dark .page-link:hover {
             <li><button class="dropdown-item" data-act="questions" data-key="${key}" data-name="${esc(r.quiz_name||'')}">
               <i class="fa fa-list-check"></i> View Questions
             </button></li>
+            <li><button class="dropdown-item" data-act="results" data-key="${key}" data-name="${esc(r.quiz_name||'')}">
+              <i class="fa fa-square-poll-vertical"></i> View Results
+            </button></li>
             <li>
               <button class="dropdown-item" data-act="testrun" data-key="${key}" data-name="${esc(r.quiz_name||'')}">
                 <i class="fa-solid fa-vial"></i> Test Run
@@ -1309,6 +1315,10 @@ html.theme-dark .page-link:hover {
     if (act==='questions'){
       // Redirect to manage questions page with quiz UUID
       location.href = `/quizz/questions/manage?quiz=${encodeURIComponent(key)}`;
+      return;
+    }
+    if (act==='results'){
+      location.href = `/quizz/results?quiz=${encodeURIComponent(key)}`;
       return;
     }
     if (act==='notes'){

@@ -1,709 +1,1225 @@
-{{-- resources/views/modules/exam/examResult.blade.php --}}
-@section('title','Exam Result')
-
+{{-- resources/views/exam/quizResultStandalone.blade.php --}}
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>Exam Result</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"/>
-  <link rel="stylesheet" href="{{ asset('assets/css/common/main.css') }}"/>
+  <title>Quiz Result</title>
 
-  {{-- ✅ DOMPurify (sanitize HTML safely before inserting innerHTML) --}}
-  <script defer src="https://cdn.jsdelivr.net/npm/dompurify@3.1.7/dist/purify.min.js"></script>
+  <link rel="icon" type="image/png" sizes="32x32" href="{{ asset('assets/media/images/web/favicon.png') }}">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet"/>
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" rel="stylesheet"/>
+  <link rel="stylesheet" href="{{ asset('/assets/css/common/main.css') }}">
 
-  {{-- ✅ MathJax (LaTeX renderer) --}}
+  <style id="erStyles">
+    .er-wrap{
+      max-width:1100px;
+      margin:16px auto 40px;
+    }
+    .er-shell{
+      border-radius:16px;
+      border:1px solid var(--line-strong);
+      background:var(--surface);
+      box-shadow:var(--shadow-2);
+      padding:16px 18px 18px;
+      position:relative;
+    }
+    .er-head{
+      display:flex;
+      align-items:flex-start;
+      gap:14px;
+      margin-bottom:12px;
+    }
+    .er-head-icon{
+      width:40px;height:40px;
+      border-radius:14px;
+      border:1px solid var(--line-strong);
+      background:var(--surface-2);
+      display:flex;align-items:center;justify-content:center;
+      color:var(--accent-color);
+      flex-shrink:0;
+    }
+    .er-breadcrumb{
+      font-size:var(--fs-12);
+      color:var(--muted-color);
+      margin-bottom:2px;
+    }
+    .er-breadcrumb a{ color:var(--secondary-color); }
+    .er-title{
+      font-family:var(--font-head);
+      font-weight:700;
+      color:var(--ink);
+      font-size:1.25rem;
+      margin:0;
+    }
+    .er-sub{
+      font-size:var(--fs-13);
+      color:var(--muted-color);
+      margin-top:3px;
+    }
+    .er-actions{
+      margin-left:auto;
+      display:flex;
+      flex-wrap:wrap;
+      gap:8px;
+    }
+    .er-actions .btn{
+      border-radius:999px;
+      padding-inline:12px;
+    }
+    .er-actions .btn i{ margin-right:6px; }
+
+    .er-row{ margin-top:10px; }
+
+    .er-card{
+      border-radius:14px;
+      border:1px solid var(--line-strong);
+      background:var(--surface-2);
+      padding:12px 12px 10px;
+      box-shadow:var(--shadow-1);
+    }
+    .er-card-head{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:8px;
+      margin-bottom:8px;
+    }
+    .er-card-title{
+      font-family:var(--font-head);
+      font-weight:600;
+      color:var(--ink);
+      font-size:.95rem;
+      margin:0;
+    }
+    .er-chip{
+      display:inline-flex;
+      align-items:center;
+      gap:6px;
+      padding:3px 8px;
+      border-radius:999px;
+      font-size:11px;
+      border:1px solid var(--line-strong);
+      background:var(--surface);
+      color:var(--muted-color);
+    }
+    .er-chip i{font-size:10px;}
+    .er-chip-primary{
+      background:var(--t-primary);
+      border-color:rgba(20,184,166,.25);
+      color:#0f766e;
+    }
+
+    .er-score-main{
+      display:flex;
+      align-items:center;
+      gap:14px;
+      margin-bottom:10px;
+    }
+    .er-score-circle{
+      width:72px;height:72px;
+      border-radius:50%;
+      border:5px solid rgba(20,184,166,.16);
+      display:flex;align-items:center;justify-content:center;
+      flex-direction:column;
+      font-family:var(--font-head);
+      color:var(--ink);
+      position:relative;
+    }
+    .er-score-circle::after{
+      content:"";
+      position:absolute;inset:6px;
+      border-radius:inherit;
+      border:3px solid var(--accent-color);
+      opacity:.5;
+    }
+    .er-score-value{
+      font-size:1.25rem;
+      font-weight:700;
+    }
+    .er-score-label{
+      font-size:11px;
+      color:var(--muted-color);
+    }
+    .er-score-text strong{ font-weight:600; }
+    .er-score-text{
+      font-size:var(--fs-13);
+      color:var(--muted-color);
+    }
+
+    .er-metrics{
+      display:grid;
+      grid-template-columns:repeat(3,minmax(0,1fr));
+      gap:8px;
+      margin-top:4px;
+    }
+    .er-metric{
+      border-radius:10px;
+      background:var(--surface);
+      border:1px dashed var(--line-strong);
+      padding:6px 8px;
+      font-size:var(--fs-12);
+    }
+    .er-metric-label{
+      color:var(--muted-color);
+      margin-bottom:3px;
+    }
+    .er-metric-value{
+      font-weight:600;
+      color:var(--ink);
+    }
+
+    .er-bar-wrap{
+      margin-top:4px;
+    }
+    .er-bar-bg{
+      width:100%;
+      height:8px;
+      border-radius:999px;
+      background:#e5eff0;
+      overflow:hidden;
+    }
+    .er-bar-fill{
+      height:100%;
+      border-radius:inherit;
+      background:var(--accent-color);
+      width:0%;
+      transition:width .4s ease;
+    }
+    .er-bar-label{
+      font-size:var(--fs-12);
+      color:var(--muted-color);
+      margin-top:2px;
+    }
+
+    .er-pill-row{
+      display:flex;
+      flex-wrap:wrap;
+      gap:6px;
+      font-size:var(--fs-12);
+    }
+    .er-pill{
+      padding:4px 8px;
+      border-radius:999px;
+      border:1px solid var(--line-strong);
+      display:inline-flex;
+      align-items:center;
+      gap:5px;
+      background:var(--surface);
+    }
+    .er-pill i{font-size:11px;}
+    .er-pill-green{
+      background:var(--t-success);
+      border-color:rgba(22,163,74,.25);
+      color:#15803d;
+    }
+    .er-pill-red{
+      background:var(--t-danger);
+      border-color:rgba(220,38,38,.25);
+      color:#b91c1c;
+    }
+    .er-pill-gray{
+      background:var(--surface-3);
+    }
+
+    .er-table-card{
+      margin-top:14px;
+      border-radius:14px;
+      border:1px solid var(--line-strong);
+      background:var(--surface-2);
+      box-shadow:var(--shadow-1);
+      padding:10px 12px 12px;
+    }
+    .er-table-head{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:8px;
+      margin-bottom:6px;
+    }
+    .er-table-title{
+      font-family:var(--font-head);
+      font-weight:600;
+      color:var(--ink);
+      font-size:1rem;
+      margin:0;
+    }
+    .er-table-sub{
+      font-size:var(--fs-13);
+      color:var(--muted-color);
+    }
+
+    .er-q-status{
+      display:inline-flex;
+      align-items:center;
+      gap:4px;
+      font-size:11px;
+      padding:2px 6px;
+      border-radius:999px;
+    }
+    .er-q-status.correct{
+      background:var(--t-success);
+      color:#15803d;
+    }
+    .er-q-status.wrong{
+      background:var(--t-danger);
+      color:#b91c1c;
+    }
+    .er-q-status.skipped{
+      background:var(--surface-3);
+      color:var(--muted-color);
+    }
+
+    .er-loader-wrap{
+      position:absolute;
+      inset:0;
+      display:none;
+      align-items:center;
+      justify-content:center;
+      background:rgba(0,0,0,.04);
+      z-index:5;
+    }
+    .er-loader-wrap.show{display:flex;}
+    .er-loader{
+      width:22px;height:22px;
+      border-radius:50%;
+      border:3px solid #0001;
+      border-top-color:var(--accent-color);
+      animation:er-rot 1s linear infinite;
+    }
+    @keyframes er-rot{to{transform:rotate(360deg)}}
+
+    .er-error{
+      margin-top:8px;
+      font-size:12px;
+      color:var(--danger-color);
+      display:none;
+    }
+    .er-error.show{display:block;}
+
+    .er-empty{
+      margin-top:8px;
+      border:1px dashed var(--line-strong);
+      border-radius:10px;
+      padding:16px;
+      text-align:center;
+      font-size:var(--fs-13);
+      color:var(--muted-color);
+      background:var(--surface-2);
+    }
+
+    /* === Question sheet-style cards === */
+    .er-q-list{
+      margin-top:8px;
+      display:flex;
+      flex-direction:column;
+      gap:8px;
+    }
+    .er-qcard{
+      border-radius:12px;
+      border:1px solid var(--line-strong);
+      background:var(--surface);
+      padding:8px 9px 8px;
+      box-shadow:var(--shadow-1);
+    }
+    .er-qcard-head{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:8px;
+      margin-bottom:4px;
+    }
+    .er-q-left{
+      display:flex;
+      align-items:center;
+      gap:8px;
+    }
+    .er-q-badge{
+      min-width:32px;
+      height:22px;
+      border-radius:999px;
+      border:1px solid var(--line-strong);
+      background:var(--surface-3);
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      font-size:11px;
+      color:var(--muted-color);
+    }
+    .er-q-meta{
+      display:flex;
+      flex-wrap:wrap;
+      gap:8px;
+      justify-content:flex-end;
+      font-size:11px;
+      color:var(--muted-color);
+    }
+    .er-q-meta span strong{
+      color:var(--ink);
+    }
+
+    .er-q-question{
+      margin-top:2px;
+    }
+    .er-q-question-main{
+      font-size:var(--fs-13);
+      color:var(--text-color);
+    }
+    .er-q-question-desc{
+      margin-top:2px;
+      font-size:11px;
+      color:var(--muted-color);
+    }
+
+    .er-qcard-answers{
+      margin-top:6px;
+      display:grid;
+      grid-template-columns:repeat(2,minmax(0,1fr));
+      gap:8px;
+    }
+    @media (max-width: 768px){
+      .er-qcard-answers{
+        grid-template-columns:1fr;
+      }
+    }
+    .er-q-answer-block{
+      border-radius:10px;
+      border:1px solid var(--line-strong);
+      background:var(--surface-2);
+      padding:6px 8px;
+      font-size:11px;
+    }
+    .er-q-answer-block.correct{
+      background:var(--t-success);
+      border-color:rgba(22,163,74,.35);
+      color:#14532d;
+    }
+    .er-q-answer-block.your{
+      border-style:dashed;
+    }
+    .er-q-answer-label{
+      font-weight:600;
+      text-transform:uppercase;
+      letter-spacing:.03em;
+      margin-bottom:2px;
+      color:var(--muted-color);
+    }
+    .er-q-answer-text{
+      font-size:var(--fs-12);
+      color:var(--text-color);
+    }
+
+    .er-q-time{
+      margin-top:6px;
+    }
+    .er-q-time-top{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:8px;
+      font-size:11px;
+      color:var(--muted-color);
+      margin-bottom:3px;
+    }
+    .er-q-time-bar-bg{
+      width:100%;
+      height:4px;
+      border-radius:999px;
+      background:var(--surface-3);
+      overflow:hidden;
+    }
+    .er-q-time-bar-fill{
+      height:100%;
+      border-radius:inherit;
+      background:var(--accent-color);
+      width:0%;
+      transition:width .3s ease;
+    }
+
+    /* blanks for FIB {dash} */
+    .er-blank{
+      display:inline-block;
+      min-width:40px;
+      border-bottom:2px solid #9ca3af;
+      margin:0 3px;
+    }
+    html.theme-dark .er-blank{
+      border-bottom-color:#6b7280;
+    }
+
+    /* Print: show only the result shell */
+    @media print{
+      #sidebar,
+      .w3-sidebar,
+      .w3-appbar,
+      #sidebarOverlay{
+        display:none!important;
+      }
+      body{
+        background:#fff!important;
+      }
+      main.w3-content{
+        max-width:100%!important;
+        padding:0!important;
+        margin:0!important;
+      }
+      .panel{
+        border:none!important;
+        box-shadow:none!important;
+        padding:0!important;
+      }
+      .er-wrap{
+        margin:0!important;
+        max-width:100%!important;
+      }
+      .er-actions{
+        display:none!important;
+      }
+    }
+
+    /* Dark mode tweaks */
+    html.theme-dark .er-shell,
+    html.theme-dark .er-card,
+    html.theme-dark .er-table-card{
+      background:#04151f;
+    }
+    html.theme-dark .er-head-icon{
+      background:#020b13;
+    }
+    html.theme-dark .er-empty{
+      background:#020b13;
+    }
+    html.theme-dark .er-qcard{
+      background:#020b13;
+    }
+
+    /* MathJax layout tweaks (match manageQuestions) */
+    mjx-container,
+    mjx-container[display="block"],
+    .mjx-chtml {
+      display:inline-block !important;
+    }
+    mjx-container svg,
+    mjx-container[display="block"] svg,
+    .mjx-chtml svg {
+      vertical-align:middle;
+    }
+    .er-q-question mjx-container[display="block"],
+    .er-q-question-desc mjx-container[display="block"],
+    .er-q-answer-text mjx-container[display="block"]{
+      margin:4px 0;
+    }
+  </style>
+
+  {{-- MathJax config for LaTeX rendering --}}
   <script>
     window.MathJax = {
       tex: {
         inlineMath: [['$', '$'], ['\\(', '\\)']],
-        displayMath: [['$$', '$$'], ['\\[', '\\]']],
-        processEscapes: true,
-        processEnvironments: true
+        displayMath: [['\\[', '\\]'], ['$$', '$$']],
+        processEscapes: true
       },
       options: {
         skipHtmlTags: ['script','noscript','style','textarea','pre','code']
+      },
+      startup: {
+        // we will call MathJax ourselves after injecting HTML
+        typeset: false
       }
     };
   </script>
-  <script defer src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
 
-  <style>
-    /* ========= Theme Bridge (fallbacks if a token is missing) ========= */
-    :root{
-      --ink: var(--ink, #0f172a);
-      --muted: var(--muted, #64748b);
-      --surface: var(--surface, #ffffff);
-      --surface-2: var(--surface-2, #f8fafc);
-      --line: var(--line-strong, #e5e7eb);
-      --brand: var(--accent-color, #4f46e5);
-      --shadow-1: var(--shadow-1, 0 1px 2px rgba(0,0,0,.05));
-      --shadow-2: var(--shadow-2, 0 6px 16px rgba(0,0,0,.08));
-      --success: #16a34a;
-      --danger: #dc2626;
-      --warning: #d97706;
-      --ring-bg: var(--ring-bg, #e5e7eb);
-      --bg: var(--bg, #f1f5f9);
-      --radius: 16px;
-      --radius-sm: 12px;
-      --radius-lg: 20px;
-      --pad: 16px;
-      --pad-lg: 20px;
-      --transition: 200ms ease;
-    }
-    html.theme-dark :root{
-      --surface: var(--surface, #0b1220);
-      --surface-2: var(--surface-2, #0f172a);
-      --bg: var(--bg, #0a0f1a);
-      --line: var(--line-strong, #273244);
-      --ring-bg: #1f2937;
-    }
-
-    body{ background:var(--bg); color:var(--ink); font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,"Apple Color Emoji","Segoe UI Emoji"; }
-    .wrap{ max-width:1200px; margin:24px auto 40px; padding:0 12px; display:grid; grid-template-columns: 1fr; gap:16px; }
-    @media(min-width:1100px){ .wrap{ grid-template-columns: 1.15fr .85fr; } }
-
-    .panel{ background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); box-shadow:var(--shadow-2); padding:var(--pad); }
-    .panel.compact{ padding:12px; }
-
-    .hero{ position:relative; overflow:hidden; border-radius:var(--radius); background:linear-gradient(135deg, rgba(79,70,229,.12), rgba(99,102,241,.08)); border:1px solid var(--line); padding:18px; }
-    .hero .top{ display:flex; align-items:center; justify-content:space-between; gap:12px; }
-    .hero .title{ font-size:20px; font-weight:800; letter-spacing:.2px; }
-    .hero .sub{ font-size:13px; color:var(--muted); margin-top:4px; }
-    .hero .actions{ display:flex; gap:10px; flex-wrap:wrap; }
-
-    .btn{ display:inline-flex; align-items:center; gap:8px; padding:10px 12px; border-radius:12px; border:1px solid var(--line); background:var(--surface); cursor:pointer; font-weight:700; transition:transform var(--transition), border-color var(--transition), background var(--transition); }
-    .btn:hover{ border-color:var(--brand); transform:translateY(-1px); }
-    .btn.brand{ background:var(--brand); color:#fff; border-color:var(--brand); }
-    .btn.ghost{ background:transparent; }
-    .btn:disabled{ opacity:.6; cursor:default; }
-
-    .score-card{ display:flex; align-items:center; gap:16px; }
-    .ring{
-      --p: 0;
-      width:96px; height:96px; border-radius:50%;
-      background: conic-gradient(var(--brand) calc(var(--p)*1%), var(--ring-bg) 0);
-      display:grid; place-items:center;
-      border:6px solid var(--surface); outline:1px solid var(--line);
-    }
-    .ring > .inner{ width:72px; height:72px; border-radius:50%; background:var(--surface); display:grid; place-items:center; border:1px solid var(--line); }
-    .ring .pct{ font-weight:900; font-size:18px; }
-    .score-meta .big{ font-size:28px; font-weight:900; }
-    .score-meta .muted{ color:var(--muted); font-size:12px; }
-
-    .kpis{ display:grid; gap:12px; grid-template-columns: repeat(2,1fr); }
-    @media(min-width:680px){ .kpis{ grid-template-columns: repeat(4,1fr); } }
-    .kpi{ border:1px solid var(--line); background:var(--surface); border-radius:14px; padding:14px; }
-    .kpi .label{ font-size:12px; color:var(--muted); }
-    .kpi .value{ font-weight:800; font-size:22px; margin-top:6px; }
-    .kpi.pass{ outline:1px solid rgba(22,163,74,.15); }
-    .kpi.fail{ outline:1px solid rgba(220,38,38,.15); }
-
-    .tools{ display:flex; flex-wrap:wrap; gap:10px; align-items:center; justify-content:space-between; margin-top:10px; }
-    .seg{ display:flex; gap:6px; padding:6px; border:1px solid var(--line); border-radius:999px; background:var(--surface); }
-    .seg button{ border:0; background:transparent; padding:8px 12px; border-radius:999px; font-weight:700; color:var(--muted); cursor:pointer; }
-    .seg button.active{ background:var(--brand); color:#fff; }
-    .search{ display:flex; gap:8px; align-items:center; background:var(--surface); border:1px solid var(--line); border-radius:12px; padding:8px 10px; min-width:220px; }
-    .search input{ border:0; outline:none; background:transparent; color:var(--ink); width:220px; }
-    .toggle{ display:flex; gap:10px; align-items:center; }
-    .badge{ display:inline-flex; align-items:center; gap:6px; padding:6px 10px; border-radius:999px; border:1px solid var(--line); font-size:12px; background:var(--surface); }
-    .badge.pass{ background:#ecfdf5; color:#065f46; border-color:#a7f3d0; }
-    .badge.fail{ background:#fef2f2; color:#991b1b; border-color:#fecaca; }
-
-    .questions{ display:grid; gap:12px; }
-    .q{ border:1px solid var(--line); border-radius:14px; background:var(--surface); padding:14px; transition:box-shadow var(--transition), transform var(--transition); }
-    .q:hover{ box-shadow:var(--shadow-2); transform:translateY(-1px); }
-    .qhead{ display:flex; justify-content:space-between; gap:10px; align-items:flex-start; }
-    .qtitle{ font-weight:800; }
-    .qdesc{ margin-top:8px; color:var(--ink); font-size:14px; line-height:1.45; }
-    .qmeta{ font-size:12px; color:var(--muted); display:flex; gap:10px; flex-wrap:wrap; margin-top:6px; }
-    .pill{ font-size:11px; border:1px solid var(--line); border-radius:999px; padding:4px 8px; white-space:nowrap; }
-    .answers{ margin-top:10px; display:grid; gap:8px; }
-    .ans{ padding:10px; border-radius:12px; border:1px dashed var(--line); display:flex; justify-content:space-between; align-items:center; gap:10px; }
-    .ans.correct{ background:#f0fdf4; border-color:#86efac; }
-    .ans.chosen{ outline:2px solid rgba(79,70,229,.25); }
-    .left{ display:flex; align-items:center; gap:10px; }
-    .tick{ width:22px; height:22px; border-radius:999px; display:inline-grid; place-items:center; border:1px solid var(--line); font-size:12px; }
-
-    .summary .head{ font-weight:900; margin-bottom:10px; }
-    .summary .row{ display:flex; align-items:center; justify-content:space-between; padding:10px 0; border-bottom:1px dashed var(--line); }
-    .summary .row:last-child{ border-bottom:0; }
-    .summary .key{ color:var(--muted); font-size:13px; }
-    .summary .val{ font-weight:800; }
-
-    .divider{ height:1px; background:var(--line); margin:12px 0; }
-    .muted{ color:var(--muted); }
-    .spinner{ width:18px; height:18px; border:3px solid var(--line); border-top-color:var(--brand); border-radius:50%; animation:spin .9s linear infinite; }
-    @keyframes spin{ to{ transform:rotate(360deg); } }
-    .hide{ display:none !important; }
-    .error{ background:#fef2f2; border:1px solid #fecaca; padding:12px; border-radius:12px; color:#7f1d1d; }
-    .empty{ background:var(--surface-2); border:1px dashed var(--line); border-radius:12px; padding:16px; text-align:center; color:var(--muted); }
-    .skeleton{ position:relative; overflow:hidden; background:linear-gradient(90deg, rgba(0,0,0,0.06), rgba(0,0,0,0.04), rgba(0,0,0,0.06)); border-radius:12px; min-height:64px; }
-
-    /* ✅ Make HTML content look nice inside options/questions */
-    .qtitle p, .qdesc p, .ans .left div p{ margin:0 0 8px; }
-    .qtitle img, .qdesc img, .ans .left img{ max-width:100%; height:auto; border-radius:10px; }
-    .qdesc table, .ans .left table{ width:100%; border-collapse:collapse; overflow:hidden; border-radius:12px; }
-    .qdesc table td, .qdesc table th, .ans .left table td, .ans .left table th{
-      border:1px solid var(--line); padding:8px; vertical-align:top;
-    }
-  </style>
+  {{-- ✅ FIX: load MathJax ONCE (no duplicate tag). Use defer so config is applied reliably. --}}
+  <script id="MathJax-script" defer
+          src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js"></script>
 </head>
+
 <body>
-  <div class="wrap">
-    <div class="panel">
-      <div class="hero">
-        <div class="top">
-          <div>
-            <div class="title" id="quizTitle">Exam Result</div>
-            <div class="sub" id="quizSub">Loading…</div>
-          </div>
-          <div class="actions">
-            <button class="btn" id="btnToggleAnswers"><i class="fa-regular fa-eye"></i><span>Hide answers</span></button>
-            <button class="btn" id="btnPrint"><i class="fa-solid fa-print"></i> Print</button>
-            <button class="btn brand" id="btnDocx"><i class="fa-regular fa-file-word"></i> DOCX</button>
-            <button class="btn" id="btnHtml"><i class="fa-regular fa-file-lines"></i> HTML</button>
-          </div>
-        </div>
+  <div class="er-wrap">
+    <div id="resultShell"
+         class="er-shell"
+         data-result-id="{{ $resultId }}">
 
-        <div class="divider"></div>
+      <div class="er-loader-wrap" id="erLoader">
+        <div class="er-loader"></div>
+      </div>
 
-        <div class="score-card">
-          <div class="ring" id="scoreRing" style="--p:0;">
-            <div class="inner"><div class="pct" id="ringPct">0%</div></div>
-          </div>
-          <div class="score-meta">
-            <div class="big" id="scoreBig">—</div>
-            <div class="muted" id="scoreMeta">Accuracy — | Time —</div>
-            <div class="badges" id="passBadge" style="margin-top:6px;"></div>
+      <div class="er-head">
+
+          <img id="logo" src="{{ asset('/assets/media/images/web/logo.png') }}" alt="Unzip Examination" style="height:50px;width:auto;">
+
+        <div>
+          <h1 class="er-title" id="erQuizTitle">Quiz Result</h1>
+          <div class="er-sub" id="erAttemptMeta">
+            Loading attempt details...
           </div>
         </div>
 
-        <div class="kpis" style="margin-top:12px">
-          <div class="kpi" id="kpiScore"><div class="label">Score</div><div class="value">—</div></div>
-          <div class="kpi" id="kpiAccuracy"><div class="label">Accuracy</div><div class="value">—</div></div>
-          <div class="kpi" id="kpiCorrect"><div class="label">Correct</div><div class="value">—</div></div>
-          <div class="kpi" id="kpiTime"><div class="label">Time Used</div><div class="value">—</div></div>
+        <div class="er-actions">
+          <button type="button" class="btn btn-light btn-sm d-none" id="erHtmlExport">
+            <i class="fa-regular fa-file-code"></i> Export HTML
+          </button>
+          <button type="button" class="btn btn-primary btn-sm" id="erPdfExport">
+            <i class="fa-regular fa-file-pdf"></i> Export PDF
+          </button>
         </div>
+      </div>
 
-        <div class="tools">
-          <div class="seg" role="tablist" aria-label="Filter questions">
-            <button class="active" data-filter="all"><i class="fa-solid fa-layer-group"></i> All</button>
-            <button data-filter="correct"><i class="fa-solid fa-check"></i> Correct</button>
-            <button data-filter="wrong"><i class="fa-solid fa-xmark"></i> Wrong</button>
-            <button data-filter="skipped"><i class="fa-regular fa-circle"></i> Skipped</button>
-          </div>
-
-          <div class="toggle">
-            <div class="search">
-              <i class="fa-solid fa-magnifying-glass muted"></i>
-              <input id="searchBox" placeholder="Search question…" />
+      <div class="row g-3 er-row">
+        <div class="col-md-7">
+          <div class="er-card">
+            <div class="er-card-head">
+              <h2 class="er-card-title">Score summary</h2>
+              <span class="er-chip er-chip-primary" id="erScoreChip">
+                <i class="fa-solid fa-award"></i> Overall
+              </span>
             </div>
-            <span class="badge" id="countBadge"><i class="fa-regular fa-square-check"></i> 0 shown</span>
+            <div class="er-score-main">
+              <div class="er-score-circle">
+                <div class="er-score-value" id="erPercent">0%</div>
+                <div class="er-score-label">Percent</div>
+              </div>
+              <div class="er-score-text" id="erScoreText">
+                Your score will appear here once the data is loaded.
+              </div>
+            </div>
+
+            <div class="er-metrics">
+              <div class="er-metric">
+                <div class="er-metric-label">Marks obtained</div>
+                <div class="er-metric-value" id="erMarks">0 / 0</div>
+              </div>
+              <div class="er-metric">
+                <div class="er-metric-label">Questions attempted</div>
+                <div class="er-metric-value" id="erAttempted">0 / 0</div>
+              </div>
+              <div class="er-metric">
+                <div class="er-metric-label">Time spent</div>
+                <div class="er-metric-value" id="erTimeSpent">-</div>
+              </div>
+            </div>
+
+            <div class="er-bar-wrap">
+              <div class="er-bar-bg">
+                <div class="er-bar-fill" id="erScoreBar"></div>
+              </div>
+              <div class="er-bar-label" id="erBarLabel">
+                Accuracy: 0%
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="col-md-5">
+          <div class="er-card">
+            <div class="er-card-head">
+              <h2 class="er-card-title">Attempts & accuracy</h2>
+              <span class="er-chip" id="erAttemptChip">
+                <i class="fa-regular fa-circle-check"></i>
+                Attempt
+              </span>
+            </div>
+
+            <div class="er-pill-row mb-2">
+              <span class="er-pill er-pill-green">
+                <i class="fa-solid fa-check"></i>
+                <span id="erCorrectCount">0 correct</span>
+              </span>
+              <span class="er-pill er-pill-red">
+                <i class="fa-solid fa-xmark"></i>
+                <span id="erWrongCount">0 wrong</span>
+              </span>
+              <span class="er-pill er-pill-gray">
+                <i class="fa-regular fa-circle"></i>
+                <span id="erSkippedCount">0 not attempted</span>
+              </span>
+            </div>
+
+            <ul class="mb-0 small text-muted" id="erMetaList">
+              <li>Current attempt ID: <span id="erAttemptId">-</span></li>
+              <li>Submitted at: <span id="erSubmittedAt">-</span></li>
+            </ul>
           </div>
         </div>
       </div>
 
-      <div id="stateLoading" style="margin-top:14px;">
-        <div class="skeleton" style="height:90px;"></div>
-        <div class="skeleton" style="height:90px; margin-top:10px;"></div>
-        <div class="skeleton" style="height:90px; margin-top:10px;"></div>
+      <div class="er-table-card mt-3">
+        <div class="er-table-head">
+          <div>
+            <h2 class="er-table-title">Question-wise analysis</h2>
+            <div class="er-table-sub">
+              See which questions you got right, wrong, or skipped, with time spent.
+            </div>
+          </div>
+        </div>
+
+        <div id="erNoQuestions" class="er-empty d-none">
+          No question-level data is available for this attempt.
+        </div>
+
+        <div id="erQuestionList" class="er-q-list">
+          {{-- Filled by JS --}}
+        </div>
       </div>
-      <div id="stateError" class="error hide"></div>
-      <div id="stateEmpty" class="empty hide">No questions to show.</div>
 
-      <div class="questions" id="questionsWrap" style="margin-top:12px;"></div>
-    </div>
+      <div id="erError" class="er-error"></div>
 
-    <div class="panel summary compact">
-      <div class="head">Attempt Summary</div>
-      <div class="row"><div class="key">Attempt #</div><div class="val" id="sumAttemptNo">—</div></div>
-      <div class="row"><div class="key">Status</div><div class="val" id="sumStatus">—</div></div>
-      <div class="row"><div class="key">Started</div><div class="val" id="sumStart">—</div></div>
-      <div class="row"><div class="key">Finished</div><div class="val" id="sumFinish">—</div></div>
-      <div class="row"><div class="key">Total Questions</div><div class="val" id="sumQ">—</div></div>
-      <div class="row"><div class="key">Correct</div><div class="val" id="sumC">—</div></div>
-      <div class="row"><div class="key">Wrong</div><div class="val" id="sumW">—</div></div>
-      <div class="row"><div class="key">Skipped</div><div class="val" id="sumS">—</div></div>
-      <div class="row"><div class="key">Total Time</div><div class="val" id="sumT">—</div></div>
-      <div class="divider"></div>
-      <div class="head">Quiz</div>
-      <div class="row"><div class="key">Name</div><div class="val" id="sumQuiz">—</div></div>
-      <div class="row"><div class="key">Allotted</div><div class="val" id="sumAllotted">—</div></div>
     </div>
   </div>
-<script>
-(function () {
-  const apiBase = `${location.origin}/api`;
-  const token = sessionStorage.getItem('token') || localStorage.getItem('token') || '';
 
-  /* =========================
-     Overlay helpers (global)
-     ========================= */
-  const overlayEl = () => document.getElementById('pageOverlay');
+  <script>
+  (function () {
+    "use strict";
 
-  window.showPageOverlay = function showPageOverlay(message) {
-    const el = overlayEl();
-    if (!el) return;
+    function initResultPage() {
+      var resultShell = document.getElementById("resultShell");
+      if (!resultShell) return;
 
-    if (message) {
-      const p = el.querySelector('.w3-loader-text p');
-      if (p) p.textContent = message;
-    }
-
-    el.style.display = 'flex';
-    el.setAttribute('aria-hidden', 'false');
-  };
-
-  window.hidePageOverlay = function hidePageOverlay() {
-    const el = overlayEl();
-    if (!el) return;
-
-    el.style.display = 'none';
-    el.setAttribute('aria-hidden', 'true');
-  };
-
-  /* =========================
-     getMyRole from token
-     (NOT decoded from JWT)
-     - we call API /api/auth/my-role
-     ========================= */
-  async function getMyRole(bearerToken) {
-    if (!bearerToken) return '';
-    try {
-      const res = await fetch('/api/auth/my-role', {
-        method: 'GET',
-        headers: {
-          'Authorization': 'Bearer ' + bearerToken,
-          'Accept': 'application/json'
+      var RESULT_ID = resultShell.dataset.resultId;
+      if (!RESULT_ID) {
+        var errEl = document.getElementById("erError");
+        if (errEl) {
+          errEl.textContent = "Result reference is missing.";
+          errEl.classList.add("show");
         }
-      });
-      if (!res.ok) return '';
-      const data = await res.json().catch(() => null);
-      if (data?.status === 'success' && data?.role) {
-        return String(data.role).trim().toLowerCase();
-      }
-      return '';
-    } catch (e) {
-      return '';
-    }
-  }
-
-  /* ===== Helpers ===== */
-  function getResultId() {
-    const url = new URL(location.href);
-    const qId = url.searchParams.get('resultId') || url.searchParams.get('result');
-    if (qId && /^\d+$/.test(qId)) return qId;
-    const parts = location.pathname.split('/').filter(Boolean);
-    const ix = parts.findIndex(p => p === 'results' || p === 'result');
-    if (ix >= 0 && parts[ix+1] && /^\d+$/.test(parts[ix+1])) return parts[ix+1];
-    for (const p of parts) if (/^\d+$/.test(p)) return p;
-    return null;
-  }
-  function fmtDate(dt) {
-    if (!dt) return '—';
-    try { return new Date((dt+'').replace(' ','T')).toLocaleString(); } catch(e){ return dt; }
-  }
-  function fmtDur(sec) {
-    sec = Math.max(0, parseInt(sec||0,10));
-    const h = Math.floor(sec/3600), m = Math.floor((sec%3600)/60), s = sec%60;
-    const hh = h>0 ? (h+':') : '';
-    return hh + String(m).padStart(2,'0') + ':' + String(s).padStart(2,'0');
-  }
-
-  // ✅ Safe HTML setter (DOMPurify sanitize, then innerHTML)
-  function setHtml(el, html) {
-    const s = String(html ?? '');
-    if (window.DOMPurify) {
-      el.innerHTML = window.DOMPurify.sanitize(s, {
-        ALLOWED_TAGS: [
-          'b','strong','i','em','u','s','br','hr','span','div','p',
-          'ul','ol','li',
-          'h1','h2','h3','h4','h5','h6',
-          'table','thead','tbody','tr','th','td',
-          'img','a','code','sup','sub','small'
-        ],
-        ALLOWED_ATTR: ['href','target','rel','src','alt','title','style','class']
-      });
-      return;
-    }
-    el.innerHTML = s;
-  }
-
-  function typesetMath() {
-    try {
-      if (window.MathJax && typeof window.MathJax.typesetPromise === 'function') {
-        window.MathJax.typesetClear && window.MathJax.typesetClear();
-        return window.MathJax.typesetPromise();
-      }
-    } catch(e){}
-    return Promise.resolve();
-  }
-
-  const PASS_THRESHOLD = 60;
-
-  /* ===== Refs ===== */
-  const els = {
-    quizTitle: document.getElementById('quizTitle'),
-    quizSub: document.getElementById('quizSub'),
-    scoreRing: document.getElementById('scoreRing'),
-    ringPct: document.getElementById('ringPct'),
-    scoreBig: document.getElementById('scoreBig'),
-    scoreMeta: document.getElementById('scoreMeta'),
-    passBadge: document.getElementById('passBadge'),
-    kKpiScore: document.querySelector('#kpiScore .value'),
-    kKpiAccuracy: document.querySelector('#kpiAccuracy .value'),
-    kKpiCorrect: document.querySelector('#kpiCorrect .value'),
-    kKpiTime: document.querySelector('#kpiTime .value'),
-    kpiAccuracyBox: document.getElementById('kpiAccuracy'),
-    loading: document.getElementById('stateLoading'),
-    error: document.getElementById('stateError'),
-    empty: document.getElementById('stateEmpty'),
-    qwrap: document.getElementById('questionsWrap'),
-    btnToggle: document.getElementById('btnToggleAnswers'),
-    btnPrint: document.getElementById('btnPrint'),
-    btnDocx: document.getElementById('btnDocx'),
-    btnHtml: document.getElementById('btnHtml'),
-    search: document.getElementById('searchBox'),
-    countBadge: document.getElementById('countBadge'),
-    sAttemptNo: document.getElementById('sumAttemptNo'),
-    sStatus: document.getElementById('sumStatus'),
-    sStart: document.getElementById('sumStart'),
-    sFinish: document.getElementById('sumFinish'),
-    sQ: document.getElementById('sumQ'),
-    sC: document.getElementById('sumC'),
-    sW: document.getElementById('sumW'),
-    sS: document.getElementById('sumS'),
-    sT: document.getElementById('sumT'),
-    sQuiz: document.getElementById('sumQuiz'),
-    sAllotted: document.getElementById('sumAllotted'),
-  };
-
-  let answersVisible = true;
-  let current = null;
-  let resultId = getResultId();
-  let filterMode = 'all';
-  let searchTerm = '';
-  let role = '';
-
-  function show(el){ el.classList.remove('hide'); }
-  function hide(el){ el.classList.add('hide'); }
-
-  function setRing(pct){
-    pct = Math.max(0, Math.min(100, Number(pct||0)));
-    els.scoreRing.style.setProperty('--p', pct);
-    els.ringPct.textContent = pct.toFixed(2) + '%';
-  }
-
-  function setHeader(data){
-    const r = data.result, a = data.attempt, q = data.quiz;
-    const scoreText = `${r.marks_obtained} / ${r.total_marks}`;
-    const pct = Number(r.percentage || 0);
-    const timeUsed = a.time_used_sec ?? 0;
-    const totalSec = a.total_time_sec ?? (q.total_time ? q.total_time*60 : 0);
-
-    els.quizTitle.textContent = q.name || 'Exam Result';
-    els.quizSub.textContent = `Attempt #${r.attempt_number ?? 1} • ${String(a.status||'').toUpperCase()} • Started ${fmtDate(a.started_at)} • Finished ${fmtDate(a.finished_at)}`;
-
-    setRing(pct);
-    els.scoreBig.textContent = scoreText;
-    els.scoreMeta.textContent = `Accuracy ${pct.toFixed(2)}%  |  Time ${ totalSec ? (fmtDur(timeUsed)+' / '+fmtDur(totalSec)) : fmtDur(timeUsed) }`;
-
-    els.passBadge.innerHTML = '';
-    const pass = pct >= PASS_THRESHOLD;
-    const div = document.createElement('div');
-    div.className = 'badge ' + (pass ? 'pass' : 'fail');
-    div.innerHTML = `<i class="fa-solid ${pass ? 'fa-check' : 'fa-xmark'}"></i> <b>${pass ? 'PASS' : 'FAIL'}</b>`;
-    els.passBadge.appendChild(div);
-
-    els.kKpiScore.textContent = scoreText;
-    els.kKpiAccuracy.textContent = pct.toFixed(2) + '%';
-    els.kKpiCorrect.textContent = `${r.total_correct} / ${r.total_questions}`;
-    els.kKpiTime.textContent = totalSec ? `${fmtDur(timeUsed)} / ${fmtDur(totalSec)}` : fmtDur(timeUsed);
-
-    els.kpiAccuracyBox.classList.toggle('pass', pass);
-    els.kpiAccuracyBox.classList.toggle('fail', !pass);
-
-    els.sAttemptNo.textContent = (r.attempt_number ?? 1);
-    els.sStatus.textContent = String(a.status || '').toUpperCase();
-    els.sStart.textContent = fmtDate(a.started_at);
-    els.sFinish.textContent = fmtDate(a.finished_at);
-    els.sQ.textContent = r.total_questions;
-    els.sC.textContent = r.total_correct;
-    els.sW.textContent = r.total_incorrect;
-    els.sS.textContent = r.total_skipped;
-    els.sT.textContent = totalSec ? `${fmtDur(timeUsed)} / ${fmtDur(totalSec)}` : fmtDur(timeUsed);
-    els.sQuiz.textContent = q.name || '—';
-    els.sAllotted.textContent = q.total_time ? `${q.total_time} min` : '—';
-
-    document.title = `${q.name || 'Exam Result'} • ${scoreText}`;
-  }
-
-  function statusOf(q){
-    const sel = q.selected_answer_ids;
-    const isCorrect = (q.is_correct ?? 0) === 1;
-    const skipped =
-      (sel === null || (Array.isArray(sel) && sel.length === 0)) &&
-      !(q.selected_text && String(q.selected_text).trim() !== '');
-    if (skipped) return 'skipped';
-    return isCorrect ? 'correct' : 'wrong';
-  }
-
-  async function renderQuestions(data){
-    const list = Array.isArray(data.questions) ? data.questions.slice() : [];
-    els.qwrap.innerHTML = '';
-
-    const filtered = list.filter(q => {
-      const st = statusOf(q);
-      const hitFilter = (filterMode === 'all') ? true : (st === filterMode);
-      if (!hitFilter) return false;
-      if (!searchTerm) return true;
-      const hay = `${q.title||''} ${q.description||''}`.toLowerCase();
-      return hay.includes(searchTerm);
-    });
-
-    els.countBadge.innerHTML = `<i class="fa-regular fa-square-check"></i> ${filtered.length} shown`;
-
-    if (!filtered.length){
-      hide(els.loading); show(els.empty);
-      await typesetMath();
-      return;
-    }
-    hide(els.loading); hide(els.empty);
-
-    filtered.forEach(q => {
-      const card = document.createElement('div');
-      card.className = 'q';
-
-      const correct = (q.is_correct ?? 0) === 1;
-      const markStr = `${q.awarded_mark ?? 0} / ${q.mark ?? 0}`;
-      const timeStr = fmtDur(q.time_spent_sec ?? 0);
-
-      const head = document.createElement('div');
-      head.className = 'qhead';
-
-      const leftBlock = document.createElement('div');
-
-      const title = document.createElement('div');
-      title.className = 'qtitle';
-      setHtml(title, `Q${q.order}. ${q.title ?? ''}`);
-      leftBlock.appendChild(title);
-
-      const descText = (q.description ?? '').toString().trim();
-      if (descText) {
-        const desc = document.createElement('div');
-        desc.className = 'qdesc';
-        setHtml(desc, descText);
-        leftBlock.appendChild(desc);
+        console.error("Missing result id on resultShell");
+        return;
       }
 
-      const meta = document.createElement('div');
-      meta.className = 'qmeta';
-      meta.innerHTML = `
-        <span>Type: ${(q.type || '—')}</span>
-        <span>Marks: ${markStr}</span>
-        <span>Time: ${timeStr}</span>
-      `;
-      leftBlock.appendChild(meta);
+      var loaderEl    = document.getElementById("erLoader");
+      var errorEl     = document.getElementById("erError");
 
-      const rightBlock = document.createElement('div');
-      const pill = document.createElement('span');
-      pill.className = 'pill ' + (correct ? '' : 'muted');
-      pill.innerHTML = correct
-        ? `<i class="fa-solid fa-check"></i> Correct`
-        : `<i class="fa-solid fa-xmark"></i> Incorrect`;
-      rightBlock.appendChild(pill);
+      var quizTitleEl      = document.getElementById("erQuizTitle");
+      var attemptMetaEl    = document.getElementById("erAttemptMeta");
+      var scoreChipEl      = document.getElementById("erScoreChip");
 
-      head.appendChild(leftBlock);
-      head.appendChild(rightBlock);
+      var percentEl   = document.getElementById("erPercent");
+      var scoreTextEl = document.getElementById("erScoreText");
+      var marksEl     = document.getElementById("erMarks");
+      var attemptedEl = document.getElementById("erAttempted");
+      var timeSpentEl = document.getElementById("erTimeSpent");
+      var scoreBarEl  = document.getElementById("erScoreBar");
+      var barLabelEl  = document.getElementById("erBarLabel");
 
-      const ansWrap = document.createElement('div');
-      ansWrap.className = 'answers ' + (answersVisible ? '' : 'hide');
+      var correctCountEl = document.getElementById("erCorrectCount");
+      var wrongCountEl   = document.getElementById("erWrongCount");
+      var skippedCountEl = document.getElementById("erSkippedCount");
+      var attemptIdEl    = document.getElementById("erAttemptId");
+      var submittedAtEl  = document.getElementById("erSubmittedAt");
 
-      const chosenIds = (q.selected_answer_ids && Array.isArray(q.selected_answer_ids)) ? q.selected_answer_ids.map(Number) : [];
+      var questionListEl = document.getElementById("erQuestionList");
+      var noQuestionsEl  = document.getElementById("erNoQuestions");
 
-      if (q.type === 'fill_in_the_blank') {
-        const a = document.createElement('div');
-        a.className = 'ans chosen ' + (correct ? 'correct' : '');
-        a.innerHTML = `
-          <div class="left">
-            <span class="tick">${correct?'<i class="fa-solid fa-check"></i>':'<i class="fa-solid fa-xmark"></i>'}</span>
-            <div>
-              <div><b>Your answer:</b> <span class="fibText"></span></div>
-              <div class="muted" style="font-size:12px">FIB</div>
-            </div>
-          </div>
-        `;
-        setHtml(a.querySelector('.fibText'), q.selected_text ? String(q.selected_text) : '—');
-        ansWrap.appendChild(a);
-      } else {
-        const options = Array.isArray(q.answers) ? q.answers : [];
-        options.forEach(opt => {
-          const isCorrect = (opt.is_correct ?? 0) === 1;
-          const isChosen  = chosenIds.includes(Number(opt.answer_id));
+      var pdfBtn  = document.getElementById("erPdfExport");
+      var htmlBtn = document.getElementById("erHtmlExport");
 
-          const row = document.createElement('div');
-          row.className = 'ans' + (isCorrect ? ' correct' : '') + (isChosen ? ' chosen' : '');
+      /* ---------- helpers ---------- */
 
-          const left = document.createElement('div');
-          left.className = 'left';
+      function getToken() {
+        try {
+          return sessionStorage.getItem("token") || localStorage.getItem("token") || null;
+        } catch (e) {
+          return null;
+        }
+      }
 
-          const tick = document.createElement('span');
-          tick.className = 'tick';
-          tick.innerHTML = isChosen ? '<i class="fa-solid fa-check-double"></i>' : '';
+      function clearAuthStorage() {
+        try { sessionStorage.removeItem("token"); } catch (e) {}
+        try { sessionStorage.removeItem("role"); } catch (e) {}
+        try { localStorage.removeItem("token"); } catch (e) {}
+        try { localStorage.removeItem("role"); } catch (e) {}
+      }
 
-          const text = document.createElement('div');
-          setHtml(text, (opt.title ?? '').toString());
+      function showLoader(show) {
+        if (!loaderEl) return;
+        if (show) loaderEl.classList.add("show");
+        else loaderEl.classList.remove("show");
+      }
 
-          left.appendChild(tick);
-          left.appendChild(text);
+      function showError(msg) {
+        if (!errorEl) return;
+        errorEl.textContent = msg || "Something went wrong while loading the result.";
+        errorEl.classList.add("show");
+      }
 
-          const right = document.createElement('div');
-          right.className = 'right';
-          if (isCorrect) {
-            const p = document.createElement('span');
-            p.className = 'pill';
-            p.innerHTML = '<i class="fa-solid fa-check"></i> Correct';
-            right.appendChild(p);
+      function formatDateTime(str) {
+        if (!str) return "-";
+        var d = new Date(str);
+        if (isNaN(d.getTime())) return str;
+        return d.toLocaleString();
+      }
+
+      function formatDuration(seconds) {
+        var sec = Number(seconds || 0);
+        if (!sec) return "-";
+        var m = Math.floor(sec / 60);
+        var s = sec % 60;
+        if (m && s) return m + "m " + s + "s";
+        if (m) return m + "m";
+        return s + "s";
+      }
+
+      // decode &nbsp; etc. once
+      function decodeEntities(str) {
+        if (str === null || str === undefined) return "";
+        var txt = document.createElement("textarea");
+        txt.innerHTML = String(str);
+        return txt.value;
+      }
+
+      // For things that MUST be plain text (like FIB student answers)
+      function setPlainText(el, value) {
+        el.textContent = value == null ? "" : String(value);
+      }
+
+      // --- normalise answers (array / object / string) ---
+      function normaliseAnswerField(raw) {
+        if (raw == null) return "";
+        if (Array.isArray(raw)) {
+          return raw.map(function (item) {
+            if (item == null) return "";
+            if (typeof item === "string") return item;
+            return item.answer_title || item.answer_text || item.text || "";
+          }).filter(Boolean).join(", ");
+        }
+        if (typeof raw === "object") {
+          if (raw.text || raw.answer_title || raw.answer_text) {
+            return raw.text || raw.answer_title || raw.answer_text;
           }
+          try {
+            return JSON.stringify(raw);
+          } catch (e) {
+            return String(raw);
+          }
+        }
+        return String(raw);
+      }
 
-          row.appendChild(left);
-          row.appendChild(right);
-          ansWrap.appendChild(row);
+      // Build question HTML, handling {dash} → blanks for FIB
+      function buildQuestionHTML(raw, type) {
+        var html = decodeEntities(raw || "");
+        var t = (type || "").toLowerCase();
+        if (t === "fill_in_the_blank" || t === "fill_in_the_blanks" || t === "fib") {
+          // normalise spans with {dash}
+          html = html.replace(/<span[^>]*>\s*\{dash\}\s*<\/span>/gi, "{dash}");
+          html = html.replace(/\{dash\}/g, '<span class="er-blank"></span>');
+        }
+        return html;
+      }
+
+      // --- MathJax re-typeset for dynamically injected content ---
+      let mathReadyPromise = null;
+
+      function ensureMathReady() {
+        if (!mathReadyPromise) {
+          mathReadyPromise = new Promise(function (resolve, reject) {
+            function wait() {
+              const mj = window.MathJax;
+              if (mj && (mj.typesetPromise || mj.typeset)) {
+                if (mj.startup && mj.startup.promise) {
+                  mj.startup.promise.then(function () {
+                    resolve(mj);
+                  }).catch(reject);
+                } else {
+                  resolve(mj);
+                }
+              } else {
+                setTimeout(wait, 100);
+              }
+            }
+            wait();
+          });
+        }
+        return mathReadyPromise;
+      }
+
+      function typesetMath() {
+        const shell = resultShell;
+        if (!shell) return;
+
+        ensureMathReady()
+          .then(function (mj) {
+            try {
+              if (mj.typesetPromise) {
+                return mj.typesetPromise([shell]);
+              } else if (mj.typeset) {
+                mj.typeset([shell]);
+              }
+            } catch (err) {
+              console.error("MathJax typeset error", err);
+            }
+          })
+          .catch(function (err) {
+            console.error("MathJax failed to become ready", err);
+          });
+      }
+
+      /* ---------- main renderer ---------- */
+
+      function renderResult(payloadRaw) {
+        // Support payload.data or direct
+        var payload = payloadRaw && payloadRaw.data ? payloadRaw.data : payloadRaw || {};
+
+        var quiz      = payload.quiz    || {};
+        var attempt   = payload.attempt || {};
+        var result    = payload.result  || {};
+        var questions = payload.questions || [];
+
+        var quizTitle = quiz.name || quiz.quiz_name || "Quiz Result";
+        quizTitleEl.textContent      = quizTitle;
+
+        var submittedAt = attempt.finished_at || attempt.submitted_at || null;
+        var startedAt   = attempt.started_at  || null;
+
+        attemptMetaEl.textContent =
+          "Attempt on " + formatDateTime(submittedAt) +
+          " | Started at " + formatDateTime(startedAt);
+
+        var totalMarks     = Number(result.total_marks || 0);
+        var obtainedMarks  = Number(result.marks_obtained || 0);
+        var percent        = totalMarks
+          ? (obtainedMarks / Math.max(1, totalMarks)) * 100
+          : 0;
+
+        var totalQ   = Number(result.total_questions || (questions ? questions.length : 0) || 0);
+        var correctQ = Number(result.total_correct || 0);
+        var wrongQ   = Number(result.total_incorrect || 0);
+        var skippedQ = Number(result.total_skipped || Math.max(0, totalQ - correctQ - wrongQ));
+        var attemptedQ = Math.max(0, totalQ - skippedQ);
+
+        var timeSpentSec = Number(attempt.time_used_sec || result.time_used_sec || 0);
+
+        var chipLabel = "Overall";
+        if (percent >= 90)      chipLabel = "Excellent";
+        else if (percent >= 75) chipLabel = "Great work";
+        else if (percent >= 50) chipLabel = "Keep improving";
+        else                    chipLabel = "Needs practice";
+
+        scoreChipEl.innerHTML =
+          '<i class="fa-solid fa-award"></i> ' + chipLabel;
+
+        percentEl.textContent   = String(Math.round(percent)) + "%";
+        marksEl.textContent     = obtainedMarks + " / " + (totalMarks || "-");
+        attemptedEl.textContent = attemptedQ + " / " + (totalQ || "-");
+        timeSpentEl.textContent = formatDuration(timeSpentSec);
+
+        scoreTextEl.innerHTML =
+          "You answered <strong>" + attemptedQ +
+          "</strong> out of <strong>" + totalQ +
+          "</strong> questions. You got <strong>" + correctQ +
+          "</strong> correct and <strong>" + wrongQ + "</strong> wrong.";
+
+        var accuracy = totalQ ? (correctQ / totalQ) * 100 : 0;
+        requestAnimationFrame(function () {
+          scoreBarEl.style.width = Math.min(100, Math.max(0, accuracy)) + "%";
+        });
+        barLabelEl.textContent = "Accuracy: " + Math.round(accuracy) + "%";
+
+        correctCountEl.textContent = correctQ + " correct";
+        wrongCountEl.textContent   = wrongQ + " wrong";
+        skippedCountEl.textContent = skippedQ + " not attempted";
+
+attemptIdEl.textContent = attempt.attempt_uuid || attempt.attempt_id || "-";
+        submittedAtEl.textContent = formatDateTime(submittedAt);
+
+        // --- Question-wise cards ---
+        questionListEl.innerHTML = "";
+
+        if (!questions || !questions.length) {
+          noQuestionsEl.classList.remove("d-none");
+          questionListEl.classList.add("d-none");
+          typesetMath();
+          return;
+        }
+        noQuestionsEl.classList.add("d-none");
+        questionListEl.classList.remove("d-none");
+
+        var frag = document.createDocumentFragment();
+
+        // For relative time bars
+        var maxTimeSec = 0;
+        questions.forEach(function (q) {
+          var t = Number(q.time_spent_sec || q.time_spent_seconds || q.time_spent || 0);
+          if (t > maxTimeSec) maxTimeSec = t;
         });
 
-        if (!options.length) {
-          const none = document.createElement('div');
-          none.className = 'muted';
-          none.textContent = 'No options provided for this question.';
-          ansWrap.appendChild(none);
+        questions.forEach(function (q, idx) {
+          var card = document.createElement("div");
+          card.className = "er-qcard";
+
+          var qNo       = q.order || q.question_order || (idx + 1);
+
+          var typeRaw   = q.type || q.question_type || "";
+          var type      = (typeRaw || "").toLowerCase();
+
+          var textRaw   = q.title || q.question_title || q.question || "";
+          var descRaw   = q.description || q.question_description || "";
+
+// With this:
+var yourAnsRaw = "";
+if (q.selected_text && String(q.selected_text).trim() !== "") {
+    yourAnsRaw = q.selected_text;
+} else if (Array.isArray(q.selected_answer_ids) && q.selected_answer_ids.length && Array.isArray(q.answers)) {
+    var chosenIds = q.selected_answer_ids.map(Number);
+    var chosenLabels = q.answers
+        .filter(function(a){ return chosenIds.includes(Number(a.answer_id)); })
+        .map(function(a){ return a.title; });
+    yourAnsRaw = chosenLabels.join(", ");
+}
+var correctAnsRaw = "";
+if (Array.isArray(q.answers) && q.answers.length) {
+    var correctOpts = q.answers.filter(function(a){ return Number(a.is_correct) === 1; });
+    correctAnsRaw = correctOpts.map(function(a){ return a.title; }).join(", ");
+}
+// FIB fallback
+if (!correctAnsRaw && q.selected_text !== undefined) {
+    // no correct_text exposed for FIB in API, leave blank or handle separately
+}
+          var yourAns    = normaliseAnswerField(yourAnsRaw);
+          var correctAns = normaliseAnswerField(correctAnsRaw);
+
+          var isCorrect = Number(q.is_correct || 0) === 1;
+          var isSkipped = (!yourAns || String(yourAns).trim() === "") 
+    && !(Array.isArray(q.selected_answer_ids) && q.selected_answer_ids.length > 0);
+
+          var statusClass = "skipped";
+          var statusIcon  = "circle";
+          var statusLabel = "Skipped";
+
+          if (isCorrect) {
+            statusClass = "correct";
+            statusIcon  = "check";
+            statusLabel = "Correct";
+          } else if (!isSkipped) {
+            statusClass = "wrong";
+            statusIcon  = "xmark";
+            statusLabel = "Wrong";
+          }
+
+          var marksAwarded = Number(q.awarded_mark || q.marks_obtained || q.awarded_marks || 0);
+          var marksTotal   = Number(q.mark || q.total_mark || q.question_mark || 0);
+          var qTime        = Number(q.time_spent_sec || q.time_spent_seconds || q.time_spent || 0);
+
+          var share = 0;
+          if (maxTimeSec > 0 && qTime > 0) {
+            share = (qTime / maxTimeSec) * 100;
+            if (share < 6) share = 6; // minimum visible bar
+          }
+
+          var yourAnsDisplay    = yourAns && String(yourAns).trim() !== "" ? yourAns : "-";
+          var correctAnsDisplay = correctAns && String(correctAns).trim() !== "" ? correctAns : "-";
+
+          /* ---- build DOM ---- */
+
+          var head = document.createElement("div");
+          head.className = "er-qcard-head";
+
+          var left = document.createElement("div");
+          left.className = "er-q-left";
+
+          var badge = document.createElement("span");
+          badge.className = "er-q-badge";
+          badge.textContent = "Q" + qNo;
+
+          var statusPill = document.createElement("span");
+          statusPill.className = "er-q-status " + statusClass;
+          statusPill.innerHTML =
+            '<i class="fa-solid fa-' + statusIcon + '"></i>' +
+            '<span>' + statusLabel + '</span>';
+
+          left.appendChild(badge);
+          left.appendChild(statusPill);
+
+          var meta = document.createElement("div");
+          meta.className = "er-q-meta";
+
+          var metaMarks = document.createElement("span");
+          metaMarks.innerHTML = 'Marks: <strong>' + marksAwarded + ' / ' + marksTotal + '</strong>';
+
+          var metaTime = document.createElement("span");
+          metaTime.innerHTML  = 'Time: <strong>' + formatDuration(qTime) + '</strong>';
+
+          meta.appendChild(metaMarks);
+          meta.appendChild(metaTime);
+
+          head.appendChild(left);
+          head.appendChild(meta);
+          card.appendChild(head);
+
+          var qWrap = document.createElement("div");
+          qWrap.className = "er-q-question";
+
+          var qMain = document.createElement("div");
+          qMain.className = "er-q-question-main";
+          qMain.innerHTML = buildQuestionHTML(textRaw, type);
+
+          qWrap.appendChild(qMain);
+
+          if (descRaw) {
+            var qDesc = document.createElement("div");
+            qDesc.className = "er-q-question-desc";
+            qDesc.innerHTML = buildQuestionHTML(descRaw, type);
+            qWrap.appendChild(qDesc);
+          }
+
+          card.appendChild(qWrap);
+
+          var answersWrap = document.createElement("div");
+          answersWrap.className = "er-qcard-answers";
+
+          var correctBlock = document.createElement("div");
+          correctBlock.className = "er-q-answer-block correct";
+
+          var correctLabel = document.createElement("div");
+          correctLabel.className = "er-q-answer-label";
+          correctLabel.textContent = "Correct answer";
+
+          var correctTextEl = document.createElement("div");
+          correctTextEl.className = "er-q-answer-text";
+
+          var yourBlock = document.createElement("div");
+          yourBlock.className = "er-q-answer-block your";
+
+          var yourLabel = document.createElement("div");
+          yourLabel.className = "er-q-answer-label";
+          yourLabel.textContent = "Your answer";
+
+          var yourTextEl = document.createElement("div");
+          yourTextEl.className = "er-q-answer-text";
+
+          var isFibType = (type === "fill_in_the_blank" || type === "fill_in_the_blanks" || type === "fib");
+
+          if (isFibType) {
+            setPlainText(correctTextEl, correctAnsDisplay);
+            setPlainText(yourTextEl, yourAnsDisplay);
+          } else {
+            correctTextEl.innerHTML = decodeEntities(correctAnsDisplay);
+            yourTextEl.innerHTML    = decodeEntities(yourAnsDisplay);
+          }
+
+          correctBlock.appendChild(correctLabel);
+          correctBlock.appendChild(correctTextEl);
+
+          yourBlock.appendChild(yourLabel);
+          yourBlock.appendChild(yourTextEl);
+
+          answersWrap.appendChild(correctBlock);
+          answersWrap.appendChild(yourBlock);
+
+          card.appendChild(answersWrap);
+
+          var timeWrap = document.createElement("div");
+          timeWrap.className = "er-q-time";
+
+          var timeTop = document.createElement("div");
+          timeTop.className = "er-q-time-top";
+
+          var timeLabel = document.createElement("span");
+          timeLabel.textContent = "Time spent on this question";
+
+          var timeValue = document.createElement("span");
+          timeValue.textContent = formatDuration(qTime);
+
+          timeTop.appendChild(timeLabel);
+          timeTop.appendChild(timeValue);
+
+          var barBg = document.createElement("div");
+          barBg.className = "er-q-time-bar-bg";
+
+          var barFill = document.createElement("div");
+          barFill.className = "er-q-time-bar-fill";
+          barFill.style.width = share + "%";
+
+          barBg.appendChild(barFill);
+
+          timeWrap.appendChild(timeTop);
+          timeWrap.appendChild(barBg);
+
+          card.appendChild(timeWrap);
+
+          frag.appendChild(card);
+        });
+
+        questionListEl.appendChild(frag);
+
+        // Trigger MathJax after DOM is in place (call twice for safety)
+        typesetMath();
+        setTimeout(typesetMath, 500);
+      }
+
+      async function loadResult() {
+        var token = getToken();
+        if (!token) {
+          clearAuthStorage();
+          window.location.replace("/login");
+          return;
+        }
+
+        showLoader(true);
+        if (errorEl) {
+          errorEl.classList.remove("show");
+          errorEl.textContent = "";
+        }
+
+        try {
+          var res = await fetch("/api/exam/results/" + encodeURIComponent(RESULT_ID), {
+            method: "GET",
+            headers: {
+              "Accept": "application/json",
+              "Authorization": "Bearer " + token
+            }
+          });
+
+          var json;
+          try {
+            json = await res.json();
+          } catch (e) {
+            json = {};
+          }
+
+          if (res.status === 401 || res.status === 403) {
+            clearAuthStorage();
+            window.location.replace("/login");
+            return;
+          }
+
+          if (!res.ok) {
+            throw new Error(json.message || json.error || "Failed to load result.");
+          }
+
+          renderResult(json);
+        } catch (err) {
+          console.error(err);
+          showError(err.message || "Failed to load result.");
+        } finally {
+          showLoader(false);
         }
       }
 
-      card.appendChild(head);
-      card.appendChild(ansWrap);
-      els.qwrap.appendChild(card);
-    });
-
-    await typesetMath();
-  }
-
-  async function fetchResult() {
-    if (!token) { hide(els.loading); els.error.textContent='Missing token. Please log in again.'; show(els.error); return; }
-    if (!resultId){ hide(els.loading); els.error.textContent='Missing result id in URL.'; show(els.error); return; }
-
-    window.showPageOverlay('Loading result…');
-
-    try {
-      const res = await fetch(`${apiBase}/exam/results/${resultId}`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-
-      if (!res.ok) {
-        hide(els.loading);
-        let msg = `Failed (${res.status})`;
-        try { const j = await res.json(); if (j && j.message) msg = j.message; } catch(e){}
-        if (res.status === 401) msg = 'Unauthorized. Please log in again.';
-        if (res.status === 403) msg = msg || 'Result is not yet published for students.';
-        els.error.textContent = msg; show(els.error); return;
+      if (pdfBtn) {
+        pdfBtn.addEventListener("click", function () {
+          window.print();
+        });
       }
 
-      const data = await res.json();
-      if (!data || !data.success) {
-        hide(els.loading);
-        els.error.textContent = (data && data.message) || 'Unknown error.';
-        show(els.error); return;
+      if (htmlBtn) {
+        htmlBtn.addEventListener("click", function () {
+          window.open("/api/exam/results/" + encodeURIComponent(RESULT_ID) + "/export", "_blank");
+        });
       }
 
-      current = data;
-      setHeader(data);
-      await renderQuestions(data);
-    } catch (e) {
-      hide(els.loading);
-      els.error.textContent = 'Network error. Please try again.';
-      show(els.error);
-    } finally {
-      window.hidePageOverlay();
+      loadResult();
     }
-  }
 
-  async function downloadExport(format){
-    if (!current) return;
-    const btn = (format === 'docx') ? els.btnDocx : els.btnHtml;
-    btn.disabled = true;
-    const old = btn.innerHTML;
-    btn.innerHTML = `<span class="spinner"></span> Preparing…`;
-
-    window.showPageOverlay('Preparing export…');
-
-    try {
-      const url = `${apiBase}/exam/results/${current.result.result_id}/export?format=${encodeURIComponent(format)}`;
-      const res = await fetch(url, { headers: { 'Authorization': `Bearer ${token}` } });
-      if (!res.ok) {
-        let msg = `Download failed (${res.status})`;
-        try { const j = await res.json(); if (j && j.message) msg = j.message; } catch(e){}
-        alert(msg);
-      } else {
-        const blob = await res.blob();
-        const a = document.createElement('a');
-        const ext = (format === 'docx') ? 'docx' : 'html';
-        const name = `exam_result_${current.result.result_id}.${ext}`;
-        a.href = URL.createObjectURL(blob);
-        a.download = name;
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        URL.revokeObjectURL(a.href);
-      }
-    } catch(e){
-      alert('Network error while downloading.');
-    } finally {
-      window.hidePageOverlay();
-      btn.disabled = false;
-      btn.innerHTML = old;
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", initResultPage);
+    } else {
+      initResultPage();
     }
-  }
-
-  /* ===== Events ===== */
-  els.btnToggle.addEventListener('click', async () => {
-    answersVisible = !answersVisible;
-    els.btnToggle.querySelector('span').textContent = answersVisible ? 'Hide answers' : 'Show answers';
-    document.querySelectorAll('.answers').forEach(el => el.classList.toggle('hide', !answersVisible));
-    await typesetMath();
-  });
-
-  els.btnPrint.addEventListener('click', () => window.print());
-  els.btnDocx.addEventListener('click', () => downloadExport('docx'));
-  els.btnHtml.addEventListener('click', () => downloadExport('html'));
-
-  document.querySelectorAll('.seg button').forEach(b => b.addEventListener('click', async (e) => {
-    document.querySelectorAll('.seg button').forEach(x => x.classList.remove('active'));
-    e.currentTarget.classList.add('active');
-    filterMode = e.currentTarget.dataset.filter || 'all';
-    if (current) await renderQuestions(current);
-  }));
-
-  els.search.addEventListener('input', async (e) => {
-    searchTerm = String(e.target.value || '').toLowerCase().trim();
-    if (current) await renderQuestions(current);
-  });
-
-  /* ===== Start ===== */
-  (async function boot(){
-    // role is derived by API (not by decoding token client-side)
-    window.showPageOverlay('Checking session…');
-    role = await getMyRole(token);
-    window.hidePageOverlay();
-
-    // Example usage if you need it later:
-    // console.log('[role]', role);
-
-    fetchResult();
   })();
-})();
-</script>
+  </script>
 
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>

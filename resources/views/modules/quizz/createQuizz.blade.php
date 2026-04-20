@@ -280,7 +280,7 @@
   const ok  = (m)=>{ $('okMsg').textContent  = m||'Done'; okToast.show(); };
   const err = (m)=>{ $('errMsg').textContent = m||'Something went wrong'; errToast.show(); };
 
-  const backList = '/admin/quizz/manage';
+  const backList = '/quizz/manage';
   const API_BASE = '/api/quizz';              // quiz API (single + list)
   // We will use API_BASE itself as the quiz image library source
 

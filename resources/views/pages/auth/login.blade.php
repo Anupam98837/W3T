@@ -19,15 +19,16 @@
   <style>
     html, body { height:100%; }
     body.lx-auth-body{
-      height:100%;
-      overflow:hidden;
+      min-height:100vh;
+      overflow-x:hidden;
+      overflow-y:visible;
       background:var(--bg-body);
       color:var(--text-color);
       font-family:var(--font-sans);
     }
 
     .lx-grid{
-      height:100vh;
+      min-height:100vh;
       display:grid;
       grid-template-columns: minmax(420px,560px) 1fr;
     }
@@ -35,7 +36,8 @@
 
     /* LEFT: form column */
     .lx-left{
-      height:100vh;
+      top:-50px;
+      min-height:100vh;
       display:flex; flex-direction:column;
       justify-content:center; align-items:center;
       padding:clamp(22px,5vw,56px);
@@ -120,7 +122,7 @@
 
     /* RIGHT visuals (hidden on mobile) */
     .lx-right{
-      position:relative; height:100vh; display:grid; place-items:center;
+      position:relative; min-height:100vh; display:grid; place-items:center;
       background: radial-gradient(120% 100% at 10% 10%, rgba(149,30,170,.12) 0%, rgba(7,13,42,0) 55%),
                   linear-gradient(180deg,#070d2a,#081337);
       padding: clamp(24px, 4vw, 60px);

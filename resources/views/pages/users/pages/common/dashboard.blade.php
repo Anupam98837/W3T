@@ -93,7 +93,25 @@
   }
 
   .btn-reload i{font-size:12px;}
+  .btn-reload{
+  transition: transform .12s ease, opacity .12s ease, box-shadow .12s ease;
+}
+.btn-reload:active{ transform: translateY(1px); }
 
+.btn-reload.is-loading{
+  opacity:.85;
+  cursor: wait;
+  pointer-events:none;
+}
+
+.btn-reload.is-loading i{
+  animation: dashSpin .8s linear infinite;
+}
+
+@keyframes dashSpin{
+  from{ transform: rotate(0deg); }
+  to{ transform: rotate(360deg); }
+}
   /* Stats grid */
   .stats-grid{
     display:grid;
@@ -128,6 +146,7 @@
     background:var(--surface-2);
     color:var(--secondary-color);
     flex-shrink:0;
+      margin-left:-14px; 
   }
 
   .stat-kicker{
@@ -264,10 +283,10 @@
     <div class="dash-head-right">
       <span class="role-chip" id="roleChip">—</span>
       <span class="last-update" id="lastUpdated">Updated just now</span>
-      <button class="btn-reload" id="btnReload">
-        <i class="fa-solid fa-rotate-right"></i>
-        Reload
-      </button>
+      <button class="btn-reload" id="btnReload" type="button">
+  <i class="fa-solid fa-rotate-right"></i>
+  <span class="btn-reload-text">Reload</span>
+</button>
     </div>
   </div>
 
@@ -420,7 +439,16 @@
     'rgba(148, 163, 184, 0.9)',
     'rgba(56, 189, 248, 0.9)'
   ];
+  const reloadTextEl = els.reload.querySelector('.btn-reload-text');
+const reloadIconEl = els.reload.querySelector('i');
+const reloadDefaultText = reloadTextEl ? reloadTextEl.textContent : 'Reload';
 
+function setReloadLoading(isLoading){
+  els.reload.classList.toggle('is-loading', !!isLoading);
+  els.reload.disabled = !!isLoading;
+  els.reload.setAttribute('aria-busy', isLoading ? 'true' : 'false');
+  if (reloadTextEl) reloadTextEl.textContent = isLoading ? 'Reloading…' : reloadDefaultText;
+}
   function token() {
     return sessionStorage.getItem('token') || localStorage.getItem('token') || '';
   }
@@ -467,6 +495,7 @@
   }
 
   async function loadSummary() {
+    setReloadLoading(true); 
     try {
       els.list1.innerHTML = els.list2.innerHTML = els.list3.innerHTML =
         '<div class="empty"><span class="spinner-border spinner-border-sm me-2"></span> Loading…</div>';
@@ -504,7 +533,9 @@
       setEmpty(els.list3, 'Failed to load');
       if (chartPrimary) { chartPrimary.destroy(); chartPrimary = null; }
       if (chartSecondary) { chartSecondary.destroy(); chartSecondary = null; }
-    }
+    } finally {
+    setReloadLoading(false); 
+  }
   }
 
   function renderHeader(role, user, time) {

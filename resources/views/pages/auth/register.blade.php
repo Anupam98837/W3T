@@ -17,12 +17,14 @@
 
 html, body { 
   height: 100%;
-  overflow: hidden; /* Prevent overall page scroll */
+ overflow-x: hidden;
+  overflow-y: auto;
 }
 
 body.lx-auth-body {
-  /* height: 100vh; */
-  overflow: hidden;
+  min-height: 100vh;
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
 .lx-grid { 
@@ -41,6 +43,7 @@ body.lx-auth-body {
 
 .lx-left {
   /* height: 100vh; */
+  top:-80px;
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -48,7 +51,8 @@ body.lx-auth-body {
   padding: clamp(22px, 5vw, 56px);
   position: relative;
   isolation: isolate;
-  overflow: hidden; /* Prevent scrolling in left section */
+overflow: visible; 
+-webkit-overflow-scrolling: touch;
 }
 
 .lx-card {
@@ -221,7 +225,7 @@ body.lx-auth-body {
     .lx-eye:focus-visible{ outline:none; box-shadow: var(--ring); }
     .lx-login{ width:100%; height:48px; border:none; border-radius:12px; font-weight:700; color:#fff; background:linear-gradient(180deg, color-mix(in oklab, var(--primary-color) 92%, #fff 8%), var(--primary-color)); box-shadow:0 10px 22px rgba(149,30,170,.22); transition:var(--transition); }
     .lx-login:hover{ filter:brightness(.98); transform:translateY(-1px); }
-    .lx-right{ position:relative; height:100vh; display:grid; place-items:center; background: radial-gradient(120% 100% at 10% 10%, rgba(149,30,170,.12) 0%, rgba(7,13,42,0) 55%), linear-gradient(180deg,#070d2a,#081337); padding: clamp(24px, 4vw, 60px); isolation:isolate; overflow:hidden; }
+    .lx-right{ position:relative; display:grid; place-items:center; background: radial-gradient(120% 100% at 10% 10%, rgba(149,30,170,.12) 0%, rgba(7,13,42,0) 55%), linear-gradient(180deg,#070d2a,#081337); padding: clamp(24px, 4vw, 60px); isolation:isolate; overflow:hidden; }
     @media (max-width: 992px){ .lx-right{ display:none; } }
     .lx-arc{ position:absolute; inset: -18% -10% auto auto; width:120%; height:140%; background:radial-gradient(110% 110% at 80% 20%, rgba(201,79,240,.18) 0%, rgba(149,30,170,.12) 35%, rgba(7,13,42,0) 62%); border-bottom-left-radius:48% 44%; pointer-events:none; animation: lx-drift 16s ease-in-out infinite; }
     .lx-ring{ position:absolute; inset:auto -120px -80px auto; width:420px; height:420px; border-radius:50%; background: radial-gradient(closest-side, rgba(255,255,255,.14), rgba(255,255,255,0) 70%), conic-gradient(from 0deg, rgba(149,30,170,.25), rgba(0,210,196,.25), rgba(149,30,170,.25)); filter:blur(18px); opacity:.18; pointer-events:none; animation: lx-spin 24s linear infinite; }
