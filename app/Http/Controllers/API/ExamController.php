@@ -2672,7 +2672,7 @@ public function allStudentResults(Request $request, string $quizKey)
     $attempts = $attemptsQuery
         ->orderBy('u.name')
         ->orderByDesc('qa.created_at')
-        ->select([
+        ->select(array_merge([
             'qa.id as attempt_id',
             'qa.uuid as attempt_uuid',
             'qa.status',
@@ -2685,7 +2685,7 @@ public function allStudentResults(Request $request, string $quizKey)
             'qr.percentage',
             'qr.attempt_number',
             'qr.publish_to_student',
-        ], ...$userSelect)
+        ], $userSelect))
         ->get();
 
     // ---------- 6. Build submitted list ----------
@@ -2701,8 +2701,8 @@ public function allStudentResults(Request $request, string $quizKey)
 
         return [
             'user_id'        => (int) $row->user_id,
-            'student_name'   => (string) $row->student_name,
-            'student_email'  => (string) $row->student_email,
+            'student_name'   => (string) ($row->student_name ?? $row->name ?? ''),
+            'student_email'  => (string) ($row->student_email ?? $row->email ?? ''),
             'student_phone'  => isset($row->student_phone) ? (string) ($row->student_phone ?? '') : '',
             'student_alt_email' => isset($row->student_alt_email) ? (string) ($row->student_alt_email ?? '') : '',
             'student_alt_phone' => isset($row->student_alt_phone) ? (string) ($row->student_alt_phone ?? '') : '',
